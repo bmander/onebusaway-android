@@ -93,6 +93,10 @@ public class StopOverlay implements MarkerListeners {
 
     private static Bitmap[] bus_stop_icons = new Bitmap[NUM_DIRECTIONS];
 
+    private static Bitmap[] bus_stop_icons_focused = new Bitmap[NUM_DIRECTIONS];
+
+    private static final float FOCUS_ICON_SCALE = 1.25f;
+
     private static int mPx; // Bus stop icon size
 
     // Bus icon arrow attributes - by default assume we're not going to add a direction arrow
@@ -238,6 +242,13 @@ public class StopOverlay implements MarkerListeners {
         bus_stop_icons[6] = createBusStopIcon(EAST);
         bus_stop_icons[7] = createBusStopIcon(NORTH_EAST);
         bus_stop_icons[8] = createBusStopIcon(NO_DIRECTION);
+
+        for (int i = 0; i < NUM_DIRECTIONS; i++) {
+            Bitmap bmp = bus_stop_icons[i];
+            bus_stop_icons_focused[i] = Bitmap.createScaledBitmap(bmp,
+                    (int) (bmp.getWidth() * FOCUS_ICON_SCALE),
+                    (int) (bmp.getHeight() * FOCUS_ICON_SCALE), true);
+        }
     }
 
     /**
@@ -567,6 +578,30 @@ public class StopOverlay implements MarkerListeners {
         }
     }
 
+    private static BitmapDescriptor getFocusedBitmapDescriptorForBusStopDirection(String direction) {
+        if (direction.equals(NORTH)) {
+            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[0]);
+        } else if (direction.equals(NORTH_WEST)) {
+            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[1]);
+        } else if (direction.equals(WEST)) {
+            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[2]);
+        } else if (direction.equals(SOUTH_WEST)) {
+            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[3]);
+        } else if (direction.equals(SOUTH)) {
+            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[4]);
+        } else if (direction.equals(SOUTH_EAST)) {
+            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[5]);
+        } else if (direction.equals(EAST)) {
+            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[6]);
+        } else if (direction.equals(NORTH_EAST)) {
+            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[7]);
+        } else if (direction.equals(NO_DIRECTION)) {
+            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[8]);
+        } else {
+            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[8]);
+        }
+    }
+
     /**
      * Returns the currently focused stop, or null if no stop is in focus
      *
@@ -702,7 +737,7 @@ public class StopOverlay implements MarkerListeners {
 
         /**
          * Marker and stop used to indicate which bus stop has focus (i.e., was last
-         * clicked/tapped)
+         * clicked/tapped). The marker reference points to the stop marker itself.
          */
         private Marker mCurrentFocusMarker;
 
@@ -756,9 +791,13 @@ public class StopOverlay implements MarkerListeners {
          * @param routes A list of ObaRoutes that serve this stop
          */
         private void addMarkerToMap(ObaStop stop, List<ObaRoute> routes) {
+            BitmapDescriptor icon = getBitmapDescriptorForBusStopDirection(stop.getDirection());
+            if (mCurrentFocusStop != null && stop.getId().equals(mCurrentFocusStop.getId())) {
+                icon = getFocusedBitmapDescriptorForBusStopDirection(stop.getDirection());
+            }
             Marker m = mMap.addMarker(new MarkerOptions()
                             .position(MapHelpV2.makeLatLng(stop.getLocation()))
-                            .icon(getBitmapDescriptorForBusStopDirection(stop.getDirection()))
+                            .icon(icon)
                             .flat(true)
                             .anchor(getXPercentOffsetForDirection(stop.getDirection()),
                                     getYPercentOffsetForDirection(stop.getDirection()))
@@ -821,11 +860,13 @@ public class StopOverlay implements MarkerListeners {
          * @param stop ObaStop that should have focus
          */
         void setFocus(ObaStop stop) {
-            if (mCurrentFocusMarker != null) {
-                // Remove the current focus marker from map
-                mCurrentFocusMarker.remove();
+            if (mCurrentFocusMarker != null && mCurrentFocusStop != null) {
+                // Restore previous marker icon
+                mCurrentFocusMarker.setIcon(getBitmapDescriptorForBusStopDirection(
+                        mCurrentFocusStop.getDirection()));
             }
             mCurrentFocusStop = stop;
+            mCurrentFocusMarker = mStopMarkers.get(stop.getId());
 
             // Save a copy of ObaRoute references for this stop, so we have them when clearing cache
             mFocusedRoutes.clear();
@@ -837,17 +878,10 @@ public class StopOverlay implements MarkerListeners {
                 }
             }
 
-            // Reduce focus marker latitude by small amount to ensure it is always on top of the
-            // corresponding stop marker (i.e., so its not identical to stop marker latitude)
-            LatLng latLng = new LatLng(stop.getLatitude() - 0.000001, stop.getLongitude());
-
-            mCurrentFocusMarker = mMap.addMarker(new MarkerOptions()
-                            .position(latLng)
-            );
-
-            // TODO - This doesn't look good since when bouncing, the focus marker is drawn behind
-            // the bus stop marker.  Maybe fix with new z-order property?
-            // animateMarker(mCurrentFocusMarker);
+            if (mCurrentFocusMarker != null) {
+                mCurrentFocusMarker.setIcon(
+                        getFocusedBitmapDescriptorForBusStopDirection(stop.getDirection()));
+            }
         }
 
         /**
@@ -899,9 +933,9 @@ public class StopOverlay implements MarkerListeners {
          * Remove focus of a stop on the map
          */
         void removeFocus() {
-            if (mCurrentFocusMarker != null) {
-                // Remove the current focus marker from map
-                mCurrentFocusMarker.remove();
+            if (mCurrentFocusMarker != null && mCurrentFocusStop != null) {
+                mCurrentFocusMarker.setIcon(getBitmapDescriptorForBusStopDirection(
+                        mCurrentFocusStop.getDirection()));
                 mCurrentFocusMarker = null;
             }
             mFocusedRoutes.clear();

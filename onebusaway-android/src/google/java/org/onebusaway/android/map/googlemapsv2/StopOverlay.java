@@ -863,6 +863,7 @@ public class StopOverlay implements MarkerListeners {
          */
         synchronized void setFocus(ObaStop stop) {
             if (stop == null) {
+                removeFocus();
                 return;
             }
 

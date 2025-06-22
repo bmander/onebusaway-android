@@ -894,9 +894,13 @@ public class StopOverlay implements MarkerListeners {
             }
 
             if (mCurrentFocusMarker != null && mCurrentFocusStop != null) {
-                // Restore previous marker icon
-                mCurrentFocusMarker.setIcon(getBitmapDescriptorForBusStopDirection(
-                        mCurrentFocusStop.getDirection()));
+                // Get the current marker from cache in case the old reference is stale
+                Marker currentMarker = mStopMarkers.get(mCurrentFocusStop.getId());
+                if (currentMarker != null) {
+                    // Restore previous marker icon
+                    currentMarker.setIcon(getBitmapDescriptorForBusStopDirection(
+                            mCurrentFocusStop.getDirection()));
+                }
             }
             mCurrentFocusStop = stop;
             mCurrentFocusMarker = mStopMarkers.get(stop.getId());
@@ -971,8 +975,12 @@ public class StopOverlay implements MarkerListeners {
          */
         synchronized void removeFocus() {
             if (mCurrentFocusMarker != null && mCurrentFocusStop != null) {
-                mCurrentFocusMarker.setIcon(getBitmapDescriptorForBusStopDirection(
-                        mCurrentFocusStop.getDirection()));
+                // Get the current marker from cache in case the old reference is stale
+                Marker currentMarker = mStopMarkers.get(mCurrentFocusStop.getId());
+                if (currentMarker != null) {
+                    currentMarker.setIcon(getBitmapDescriptorForBusStopDirection(
+                            mCurrentFocusStop.getDirection()));
+                }
                 mCurrentFocusMarker = null;
             }
             mFocusedRoutes.clear();

@@ -476,6 +476,12 @@ public class HomeActivity extends AppCompatActivity
         mFabMyLocation.requestLayout();
 
         updateDonationsUIVisibility();
+
+        // Ensure the map retains the currently selected stop when returning
+        // from another Activity (e.g., TripDetailsActivity)
+        if (mFocusedStop != null && mMapFragment != null) {
+            mMapFragment.setFocusStop(mFocusedStop, null);
+        }
     }
 
     @Override

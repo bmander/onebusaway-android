@@ -91,9 +91,9 @@ public class StopOverlay implements MarkerListeners {
 
     private static final int NUM_DIRECTIONS = 9; // 8 directions + undirected mStops
 
-    private static Bitmap[] bus_stop_icons = new Bitmap[NUM_DIRECTIONS];
+    private static final Bitmap[] bus_stop_icons = new Bitmap[NUM_DIRECTIONS];
 
-    private static Bitmap[] bus_stop_icons_focused = new Bitmap[NUM_DIRECTIONS];
+    private static final Bitmap[] bus_stop_icons_focused = new Bitmap[NUM_DIRECTIONS];
 
     private static final float FOCUS_ICON_SCALE = 1.25f;
 
@@ -860,6 +860,11 @@ public class StopOverlay implements MarkerListeners {
          * @param stop ObaStop that should have focus
          */
         void setFocus(ObaStop stop) {
+            if(stop == null) {
+                removeFocus();
+                return;
+            }
+
             if (mCurrentFocusMarker != null && mCurrentFocusStop != null) {
                 // Restore previous marker icon
                 mCurrentFocusMarker.setIcon(getBitmapDescriptorForBusStopDirection(

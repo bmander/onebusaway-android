@@ -15,6 +15,21 @@
  */
 package org.onebusaway.android.map.googlemapsv2;
 
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.Projection;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+
+import org.onebusaway.android.BuildConfig;
+import org.onebusaway.android.R;
+import org.onebusaway.android.app.Application;
+import org.onebusaway.android.io.elements.ObaReferences;
+import org.onebusaway.android.io.elements.ObaRoute;
+import org.onebusaway.android.io.elements.ObaStop;
+
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.Resources;
@@ -36,21 +51,6 @@ import android.util.Log;
 import android.view.animation.BounceInterpolator;
 import android.view.animation.Interpolator;
 import android.widget.Toast;
-
-import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.Projection;
-import com.google.android.gms.maps.model.BitmapDescriptor;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
-import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.Marker;
-import com.google.android.gms.maps.model.MarkerOptions;
-
-import org.onebusaway.android.BuildConfig;
-import org.onebusaway.android.R;
-import org.onebusaway.android.app.Application;
-import org.onebusaway.android.io.elements.ObaReferences;
-import org.onebusaway.android.io.elements.ObaRoute;
-import org.onebusaway.android.io.elements.ObaStop;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -203,6 +203,7 @@ public class StopOverlay implements MarkerListeners {
 
     /**
      * Clears any stop markers from the map
+     *
      * @param clearFocusedStop true to clear the currently focused stop, false to leave it on map
      */
     public synchronized void clear(boolean clearFocusedStop) {
@@ -283,7 +284,7 @@ public class StopOverlay implements MarkerListeners {
      * @param direction Bus stop direction, obtained from ObaStop.getDirection() and defined in
      *                  constants in this class, or NO_DIRECTION if the stop icon shouldn't have a
      *                  direction arrow
-     * @param selected true to use the selected icon style, false for normal icon style
+     * @param selected  true to use the selected icon style, false for normal icon style
      * @return a bus stop icon bitmap with the arrow pointing the given direction, or with no arrow
      * if direction is NO_DIRECTION
      */
@@ -707,13 +708,13 @@ public class StopOverlay implements MarkerListeners {
             mMarkerData.removeFocus();
         }
 
-         // Set map clicked location, if it exists
-         Location location = null;
-         if (latLng != null) {
-             location = MapHelpV2.makeLocation(latLng);
-         }
-         // Notify focus changed every time the map is clicked away from a stop marker
-         mOnFocusChangedListener.onFocusChanged(null, null, location);
+        // Set map clicked location, if it exists
+        Location location = null;
+        if (latLng != null) {
+            location = MapHelpV2.makeLocation(latLng);
+        }
+        // Notify focus changed every time the map is clicked away from a stop marker
+        mOnFocusChangedListener.onFocusChanged(null, null, location);
     }
 
     private void setupMarkerData() {
@@ -822,13 +823,13 @@ public class StopOverlay implements MarkerListeners {
             if (mCurrentFocusStop != null && stop.getId().equals(mCurrentFocusStop.getId())) {
                 icon = getFocusedBitmapDescriptorForBusStopDirection(stop.getDirection());
             }
-            
+
             Marker m = mMap.addMarker(new MarkerOptions()
-                            .position(MapHelpV2.makeLatLng(stop.getLocation()))
-                            .icon(icon)
-                            .flat(true)
-                            .anchor(getXPercentOffsetForDirection(stop.getDirection()),
-                                    getYPercentOffsetForDirection(stop.getDirection()))
+                    .position(MapHelpV2.makeLatLng(stop.getLocation()))
+                    .icon(icon)
+                    .flat(true)
+                    .anchor(getXPercentOffsetForDirection(stop.getDirection()),
+                            getYPercentOffsetForDirection(stop.getDirection()))
             );
             mStopMarkers.put(stop.getId(), m);
             mStops.put(m, stop);
@@ -995,6 +996,7 @@ public class StopOverlay implements MarkerListeners {
 
         /**
          * Clears any stop markers from the map
+         *
          * @param clearFocusedStop true to clear the currently focused stop, false to leave it on map
          */
         synchronized void clear(boolean clearFocusedStop) {

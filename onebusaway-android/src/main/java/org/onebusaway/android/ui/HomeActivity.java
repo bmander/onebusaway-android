@@ -476,6 +476,11 @@ public class HomeActivity extends AppCompatActivity
         mFabMyLocation.requestLayout();
 
         updateDonationsUIVisibility();
+
+        if (mMapFragment != null && mFocusedStop != null &&
+                TextUtils.isEmpty(mMapFragment.getFocusedStopId())) {
+            mMapFragment.setFocusStop(mFocusedStop, Collections.<ObaRoute>emptyList());
+        }
     }
 
     @Override

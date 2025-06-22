@@ -860,7 +860,7 @@ public class StopOverlay implements MarkerListeners {
          * @param stop ObaStop that should have focus
          */
         void setFocus(ObaStop stop) {
-            if(stop == null) {
+            if (stop == null) {
                 removeFocus();
                 return;
             }

@@ -790,11 +790,13 @@ public class StopOverlay implements MarkerListeners {
          * @param stop   ObaStop that should be shown on the map
          * @param routes A list of ObaRoutes that serve this stop
          */
-        private void addMarkerToMap(ObaStop stop, List<ObaRoute> routes) {
+        private synchronized void addMarkerToMap(ObaStop stop, List<ObaRoute> routes) {
+            // Determine icon within synchronized block to prevent race condition with focus changes
             BitmapDescriptor icon = getBitmapDescriptorForBusStopDirection(stop.getDirection());
             if (mCurrentFocusStop != null && stop.getId().equals(mCurrentFocusStop.getId())) {
                 icon = getFocusedBitmapDescriptorForBusStopDirection(stop.getDirection());
             }
+            
             Marker m = mMap.addMarker(new MarkerOptions()
                             .position(MapHelpV2.makeLatLng(stop.getLocation()))
                             .icon(icon)
@@ -859,9 +861,8 @@ public class StopOverlay implements MarkerListeners {
          *
          * @param stop ObaStop that should have focus
          */
-        void setFocus(ObaStop stop) {
+        synchronized void setFocus(ObaStop stop) {
             if (stop == null) {
-                removeFocus();
                 return;
             }
 
@@ -873,6 +874,12 @@ public class StopOverlay implements MarkerListeners {
             mCurrentFocusStop = stop;
             mCurrentFocusMarker = mStopMarkers.get(stop.getId());
 
+            // Check if the marker exists in our cache before proceeding
+            if (mCurrentFocusMarker == null) {
+                mCurrentFocusStop = null;
+                return;
+            }
+
             // Save a copy of ObaRoute references for this stop, so we have them when clearing cache
             mFocusedRoutes.clear();
             String[] routeIds = stop.getRouteIds();
@@ -883,10 +890,8 @@ public class StopOverlay implements MarkerListeners {
                 }
             }
 
-            if (mCurrentFocusMarker != null) {
-                mCurrentFocusMarker.setIcon(
-                        getFocusedBitmapDescriptorForBusStopDirection(stop.getDirection()));
-            }
+            mCurrentFocusMarker.setIcon(
+                    getFocusedBitmapDescriptorForBusStopDirection(stop.getDirection()));
         }
 
         /**
@@ -937,7 +942,7 @@ public class StopOverlay implements MarkerListeners {
         /**
          * Remove focus of a stop on the map
          */
-        void removeFocus() {
+        synchronized void removeFocus() {
             if (mCurrentFocusMarker != null && mCurrentFocusStop != null) {
                 mCurrentFocusMarker.setIcon(getBitmapDescriptorForBusStopDirection(
                         mCurrentFocusStop.getDirection()));

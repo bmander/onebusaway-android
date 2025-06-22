@@ -95,7 +95,7 @@ public class StopOverlay implements MarkerListeners {
 
     private static final Bitmap[] bus_stop_icons_focused = new Bitmap[NUM_DIRECTIONS];
 
-    private static final float FOCUS_ICON_SCALE = 1.25f;
+    private static final float FOCUS_ICON_SCALE = 1.5f;
 
     private static int mPx; // Bus stop icon size
 
@@ -233,18 +233,29 @@ public class StopOverlay implements MarkerListeners {
         mArrowPaintStroke.setStrokeWidth(1.0f);
         mArrowPaintStroke.setAntiAlias(true);
 
-        bus_stop_icons[0] = createBusStopIcon(NORTH);
-        bus_stop_icons[1] = createBusStopIcon(NORTH_WEST);
-        bus_stop_icons[2] = createBusStopIcon(WEST);
-        bus_stop_icons[3] = createBusStopIcon(SOUTH_WEST);
-        bus_stop_icons[4] = createBusStopIcon(SOUTH);
-        bus_stop_icons[5] = createBusStopIcon(SOUTH_EAST);
-        bus_stop_icons[6] = createBusStopIcon(EAST);
-        bus_stop_icons[7] = createBusStopIcon(NORTH_EAST);
-        bus_stop_icons[8] = createBusStopIcon(NO_DIRECTION);
+        bus_stop_icons[0] = createBusStopIcon(NORTH, false);
+        bus_stop_icons[1] = createBusStopIcon(NORTH_WEST, false);
+        bus_stop_icons[2] = createBusStopIcon(WEST, false);
+        bus_stop_icons[3] = createBusStopIcon(SOUTH_WEST, false);
+        bus_stop_icons[4] = createBusStopIcon(SOUTH, false);
+        bus_stop_icons[5] = createBusStopIcon(SOUTH_EAST, false);
+        bus_stop_icons[6] = createBusStopIcon(EAST, false);
+        bus_stop_icons[7] = createBusStopIcon(NORTH_EAST, false);
+        bus_stop_icons[8] = createBusStopIcon(NO_DIRECTION, false);
 
+        bus_stop_icons_focused[0] = createBusStopIcon(NORTH, true);
+        bus_stop_icons_focused[1] = createBusStopIcon(NORTH_WEST, true);
+        bus_stop_icons_focused[2] = createBusStopIcon(WEST, true);
+        bus_stop_icons_focused[3] = createBusStopIcon(SOUTH_WEST, true);
+        bus_stop_icons_focused[4] = createBusStopIcon(SOUTH, true);
+        bus_stop_icons_focused[5] = createBusStopIcon(SOUTH_EAST, true);
+        bus_stop_icons_focused[6] = createBusStopIcon(EAST, true);
+        bus_stop_icons_focused[7] = createBusStopIcon(NORTH_EAST, true);
+        bus_stop_icons_focused[8] = createBusStopIcon(NO_DIRECTION, true);
+
+        // Scale the focused icons to be larger than the normal icons
         for (int i = 0; i < NUM_DIRECTIONS; i++) {
-            Bitmap bmp = bus_stop_icons[i];
+            Bitmap bmp = bus_stop_icons_focused[i];
             bus_stop_icons_focused[i] = Bitmap.createScaledBitmap(bmp,
                     (int) (bmp.getWidth() * FOCUS_ICON_SCALE),
                     (int) (bmp.getHeight() * FOCUS_ICON_SCALE), true);
@@ -262,6 +273,21 @@ public class StopOverlay implements MarkerListeners {
      * if direction is NO_DIRECTION
      */
     private static Bitmap createBusStopIcon(String direction) throws NullPointerException {
+        return createBusStopIcon(direction, false);
+    }
+
+    /**
+     * Creates a bus stop icon with the given direction arrow, or without a direction arrow if
+     * the direction is NO_DIRECTION
+     *
+     * @param direction Bus stop direction, obtained from ObaStop.getDirection() and defined in
+     *                  constants in this class, or NO_DIRECTION if the stop icon shouldn't have a
+     *                  direction arrow
+     * @param selected true to use the selected icon style, false for normal icon style
+     * @return a bus stop icon bitmap with the arrow pointing the given direction, or with no arrow
+     * if direction is NO_DIRECTION
+     */
+    private static Bitmap createBusStopIcon(String direction, boolean selected) throws NullPointerException {
         if (direction == null) {
             throw new IllegalArgumentException(direction);
         }
@@ -283,13 +309,13 @@ public class StopOverlay implements MarkerListeners {
             // Don't draw the arrow
             bm = Bitmap.createBitmap(mPx, mPx, Bitmap.Config.ARGB_8888);
             c = new Canvas(bm);
-            shape = ContextCompat.getDrawable(context, R.drawable.map_stop_icon);
+            shape = ContextCompat.getDrawable(context, selected ? R.drawable.selected_map_stop_icon : R.drawable.map_stop_icon);
             shape.setBounds(0, 0, bm.getWidth(), bm.getHeight());
         } else if (direction.equals(NORTH)) {
             directionAngle = 0f;
             bm = Bitmap.createBitmap(mPx, (int) (mPx + mBuffer), Bitmap.Config.ARGB_8888);
             c = new Canvas(bm);
-            shape = ContextCompat.getDrawable(context, R.drawable.map_stop_icon);
+            shape = ContextCompat.getDrawable(context, selected ? R.drawable.selected_map_stop_icon : R.drawable.map_stop_icon);
             shape.setBounds(0, (int) mBuffer, mPx, bm.getHeight());
             // Shade with darkest color at tip of arrow
             arrowPaintFill.setShader(
@@ -304,7 +330,7 @@ public class StopOverlay implements MarkerListeners {
             bm = Bitmap.createBitmap((int) (mPx + mBuffer),
                     (int) (mPx + mBuffer), Bitmap.Config.ARGB_8888);
             c = new Canvas(bm);
-            shape = ContextCompat.getDrawable(context, R.drawable.map_stop_icon);
+            shape = ContextCompat.getDrawable(context, selected ? R.drawable.selected_map_stop_icon : R.drawable.map_stop_icon);
             shape.setBounds((int) mBuffer, (int) mBuffer, bm.getWidth(), bm.getHeight());
             // Shade with darkest color at tip of arrow
             arrowPaintFill.setShader(
@@ -318,7 +344,7 @@ public class StopOverlay implements MarkerListeners {
             directionAngle = 0f;  // Arrow is drawn pointing West, so no rotation
             bm = Bitmap.createBitmap((int) (mPx + mBuffer), mPx, Bitmap.Config.ARGB_8888);
             c = new Canvas(bm);
-            shape = ContextCompat.getDrawable(context, R.drawable.map_stop_icon);
+            shape = ContextCompat.getDrawable(context, selected ? R.drawable.selected_map_stop_icon : R.drawable.map_stop_icon);
             shape.setBounds((int) mBuffer, 0, bm.getWidth(), bm.getHeight());
             arrowPaintFill.setShader(
                     new LinearGradient(0, bm.getHeight() / 2, mArrowHeightPx, bm.getHeight() / 2,
@@ -332,7 +358,7 @@ public class StopOverlay implements MarkerListeners {
             bm = Bitmap.createBitmap((int) (mPx + mBuffer),
                     (int) (mPx + mBuffer), Bitmap.Config.ARGB_8888);
             c = new Canvas(bm);
-            shape = ContextCompat.getDrawable(context, R.drawable.map_stop_icon);
+            shape = ContextCompat.getDrawable(context, selected ? R.drawable.selected_map_stop_icon : R.drawable.map_stop_icon);
             shape.setBounds((int) mBuffer, 0, bm.getWidth(), mPx);
             arrowPaintFill.setShader(
                     new LinearGradient(0, bm.getHeight(), mBuffer, bm.getHeight() - mBuffer,
@@ -345,7 +371,7 @@ public class StopOverlay implements MarkerListeners {
             directionAngle = 180f;  // Arrow is drawn N, rotate 180 degrees
             bm = Bitmap.createBitmap(mPx, (int) (mPx + mBuffer), Bitmap.Config.ARGB_8888);
             c = new Canvas(bm);
-            shape = ContextCompat.getDrawable(context, R.drawable.map_stop_icon);
+            shape = ContextCompat.getDrawable(context, selected ? R.drawable.selected_map_stop_icon : R.drawable.map_stop_icon);
             shape.setBounds(0, 0, bm.getWidth(), (int) (bm.getHeight() - mBuffer));
             arrowPaintFill.setShader(
                     new LinearGradient(bm.getWidth() / 2, bm.getHeight(), bm.getWidth() / 2,
@@ -359,7 +385,7 @@ public class StopOverlay implements MarkerListeners {
             bm = Bitmap.createBitmap((int) (mPx + mBuffer),
                     (int) (mPx + mBuffer), Bitmap.Config.ARGB_8888);
             c = new Canvas(bm);
-            shape = ContextCompat.getDrawable(context, R.drawable.map_stop_icon);
+            shape = ContextCompat.getDrawable(context, selected ? R.drawable.selected_map_stop_icon : R.drawable.map_stop_icon);
             shape.setBounds(0, 0, mPx, mPx);
             arrowPaintFill.setShader(
                     new LinearGradient(bm.getWidth(), bm.getHeight(), bm.getWidth() - mBuffer,
@@ -373,7 +399,7 @@ public class StopOverlay implements MarkerListeners {
             directionAngle = 180f;  // Arrow is drawn pointing West, so rotate 180
             bm = Bitmap.createBitmap((int) (mPx + mBuffer), mPx, Bitmap.Config.ARGB_8888);
             c = new Canvas(bm);
-            shape = ContextCompat.getDrawable(context, R.drawable.map_stop_icon);
+            shape = ContextCompat.getDrawable(context, selected ? R.drawable.selected_map_stop_icon : R.drawable.map_stop_icon);
             shape.setBounds(0, 0, mPx, bm.getHeight());
             arrowPaintFill.setShader(
                     new LinearGradient(bm.getWidth(), bm.getHeight() / 2,
@@ -387,7 +413,7 @@ public class StopOverlay implements MarkerListeners {
             bm = Bitmap.createBitmap((int) (mPx + mBuffer),
                     (int) (mPx + mBuffer), Bitmap.Config.ARGB_8888);
             c = new Canvas(bm);
-            shape = ContextCompat.getDrawable(context, R.drawable.map_stop_icon);
+            shape = ContextCompat.getDrawable(context, selected ? R.drawable.selected_map_stop_icon : R.drawable.map_stop_icon);
             shape.setBounds(0, (int) mBuffer, mPx, bm.getHeight());
             // Shade with darkest color at tip of arrow
             arrowPaintFill.setShader(

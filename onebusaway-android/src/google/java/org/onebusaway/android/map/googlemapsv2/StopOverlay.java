@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 
 public class StopOverlay implements MarkerListeners {
@@ -88,6 +89,20 @@ public class StopOverlay implements MarkerListeners {
     private static final String NORTH_EAST = "NE";
 
     private static final String NO_DIRECTION = "null";
+
+    private static final Map<String, Integer> directionToIndexMap = new HashMap<>();
+
+    static {
+        directionToIndexMap.put(NORTH, 0);
+        directionToIndexMap.put(NORTH_WEST, 1);
+        directionToIndexMap.put(WEST, 2);
+        directionToIndexMap.put(SOUTH_WEST, 3);
+        directionToIndexMap.put(SOUTH, 4);
+        directionToIndexMap.put(SOUTH_EAST, 5);
+        directionToIndexMap.put(EAST, 6);
+        directionToIndexMap.put(NORTH_EAST, 7);
+        directionToIndexMap.put(NO_DIRECTION, 8);
+    }
 
     private static final int NUM_DIRECTIONS = 9; // 8 directions + undirected mStops
 
@@ -234,26 +249,11 @@ public class StopOverlay implements MarkerListeners {
         mArrowPaintStroke.setStrokeWidth(1.0f);
         mArrowPaintStroke.setAntiAlias(true);
 
-        bus_stop_icons[0] = createBusStopIcon(NORTH, false);
-        bus_stop_icons[1] = createBusStopIcon(NORTH_WEST, false);
-        bus_stop_icons[2] = createBusStopIcon(WEST, false);
-        bus_stop_icons[3] = createBusStopIcon(SOUTH_WEST, false);
-        bus_stop_icons[4] = createBusStopIcon(SOUTH, false);
-        bus_stop_icons[5] = createBusStopIcon(SOUTH_EAST, false);
-        bus_stop_icons[6] = createBusStopIcon(EAST, false);
-        bus_stop_icons[7] = createBusStopIcon(NORTH_EAST, false);
-        bus_stop_icons[8] = createBusStopIcon(NO_DIRECTION, false);
-
-        bus_stop_icons_focused[0] = createBusStopIcon(NORTH, true);
-        bus_stop_icons_focused[1] = createBusStopIcon(NORTH_WEST, true);
-        bus_stop_icons_focused[2] = createBusStopIcon(WEST, true);
-        bus_stop_icons_focused[3] = createBusStopIcon(SOUTH_WEST, true);
-        bus_stop_icons_focused[4] = createBusStopIcon(SOUTH, true);
-        bus_stop_icons_focused[5] = createBusStopIcon(SOUTH_EAST, true);
-        bus_stop_icons_focused[6] = createBusStopIcon(EAST, true);
-        bus_stop_icons_focused[7] = createBusStopIcon(NORTH_EAST, true);
-        bus_stop_icons_focused[8] = createBusStopIcon(NO_DIRECTION, true);
-
+        String[] directions = {NORTH, NORTH_WEST, WEST, SOUTH_WEST, SOUTH, SOUTH_EAST, EAST, NORTH_EAST, NO_DIRECTION};
+        for (int i = 0; i < directions.length; i++) {
+            bus_stop_icons[i] = createBusStopIcon(directions[i], false);
+            bus_stop_icons_focused[i] = createBusStopIcon(directions[i], true);
+        }
         // Scale the focused icons to be larger than the normal icons
         for (int i = 0; i < NUM_DIRECTIONS; i++) {
             Bitmap bmp = bus_stop_icons_focused[i];
@@ -605,28 +605,13 @@ public class StopOverlay implements MarkerListeners {
         }
     }
 
+    @NonNull
     private static BitmapDescriptor getFocusedBitmapDescriptorForBusStopDirection(String direction) {
-        if (direction.equals(NORTH)) {
-            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[0]);
-        } else if (direction.equals(NORTH_WEST)) {
-            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[1]);
-        } else if (direction.equals(WEST)) {
-            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[2]);
-        } else if (direction.equals(SOUTH_WEST)) {
-            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[3]);
-        } else if (direction.equals(SOUTH)) {
-            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[4]);
-        } else if (direction.equals(SOUTH_EAST)) {
-            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[5]);
-        } else if (direction.equals(EAST)) {
-            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[6]);
-        } else if (direction.equals(NORTH_EAST)) {
-            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[7]);
-        } else if (direction.equals(NO_DIRECTION)) {
-            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[8]);
-        } else {
-            return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[8]);
+        Integer index = directionToIndexMap.get(direction);
+        if (index == null) {
+            index = 8;
         }
+        return BitmapDescriptorFactory.fromBitmap(bus_stop_icons_focused[index]);
     }
 
     /**

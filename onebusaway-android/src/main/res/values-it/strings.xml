@@ -22,6 +22,7 @@
     <!-- Navigation Drawer -->
     <string name="navdrawer_item_nearby">Nei dintorni</string>
     <string name="navdrawer_item_starred_stops">Fermate preferite</string>
+    <string name="navdrawer_item_starred_routes">Linee preferite</string>
     <string name="navdrawer_item_my_reminders">I miei promemoria</string>
     <string name="navdrawer_item_settings">Impostazioni</string>
     <string name="navdrawer_item_help">Aiuto</string>
@@ -43,11 +44,11 @@
     <string name="stop_not_found_error_with_region_name">Spiacenti, impossibile trovare questa fermata. Se si tratta di una scorciatoia, è possibile che il link sia obsoleto o che l\'area selezionata sia errata. (La tua area è: %1$s. Cambia in \&quot;Preferenze-&gt;La tua area\&quot;)</string>
     <string name="internal_error">Ops, qualcosa è andato storto. Controlla la tua connessione Internet e riprova.</string>
     <string name="out_of_memory_error">Spiacenti, la memoria disponibile è insufficiente per questa operazione.</string>
-    <string name="bad_gateway_error">I server di OneBusAway sono sovraccarichi. Siamo davvero spiacenti!</string>
+    <string name="bad_gateway_error">I server di %1$s sono sovraccarichi. Siamo davvero spiacenti!</string>
     <string name="map_generic_error">Impossibile caricare le fermate.</string>
     <string name="no_network_error">Il dispositivo risulta offline o non connesso alla rete.</string>
     <string name="airplane_mode_error">Il dispositivo non è connesso alla rete.\nDisabilitare la modalità aereo?</string>
-    <string name="custom_api_url_error">URL non valido. Seleziona un server OneBusAway funzionante.</string>
+    <string name="custom_api_url_error">URL non valido. Seleziona un server %1$s funzionante.</string>
     <string name="custom_otp_api_url_error">URL non valido. Seleziona un server OpenTripPlanner funzionante.</string>
     <string name="direction_n">Direzione nord</string>
     <string name="direction_ne">Direzione nord-est</string>
@@ -78,7 +79,7 @@
     <string name="main_help_legend_scheduled">Grigio significa \&quot;Arrivo previsto\&quot; - Non sappiamo dove sia ora l\'autobus, ma l\'orario indica che l\'arrivo è imminente</string>
     <string name="main_help_legend_canceled">Grigio barrato significa che il tragitto è stato cancellato, questo autobus NON arriverà</string>
     <string name="main_nolocation_title">Posizione non abilitata</string>
-    <string name="main_nolocation">OneBusAway vorrebbe accedere alla tua posizione, abilitarla ora?</string>
+    <string name="main_nolocation">%1$s vorrebbe accedere alla tua posizione, abilitarla ora?</string>
     <string name="main_never_ask_again">Non chiedere più</string>
     <string name="main_never_show_again">Non mostrare più</string>
 
@@ -183,6 +184,7 @@
     <string name="stop_info_option_removestar">Rimuovi fermata dai preferiti</string>
     <string name="stop_info_option_report_problem">Segnala problema con fermata</string>
     <string name="stop_info_option_night_light">Luce notturna</string>
+    <string name="stop_info_option_hide_alerts">Nascondi avvisi attivi</string>
     <string name="stop_info_nodata_minutes">Nessun arrivo nei prossimi %1$d min.</string>
     <string name="stop_info_nodata_minutes_short_format">%1$d+ min</string>
     <plurals name="stop_info_nodata_hours_minutes">
@@ -255,12 +257,12 @@
     <string name="feedback_checkbox_text">Includi registro di sistema (la tua scelta verrà salvata per il futuro)</string>
     <string name="feedback_like_button_description">Sì, sono stato avvisato al momento giusto</string>
     <string name="feedback_dislike_button_description">No, non sono stato avvisato al momento giusto</string>
-    <string name="feedback_log_guide">Il tuo feedback sarà inviato a OneBusAway. Se selezioni \&quot;Includi registro di sistema\&quot;, OneBusAway riceverà dal dispositivo la posizione in tempo reale mentre arrivi a destinazione. Questo ci aiuterà a migliorare la funzione promemoria di destinazione.\n\nCambia le tue preferenze per la condivisione del registro di sistema su Impostazioni.</string>
+    <string name="feedback_log_guide">Il tuo feedback sarà inviato a %1$s. Se selezioni \&quot;Includi registro di sistema\&quot;, %1$s riceverà dal dispositivo la posizione in tempo reale mentre arrivi a destinazione. Questo ci aiuterà a migliorare la funzione promemoria di destinazione.\n\nCambia le tue preferenze per la condivisione del registro di sistema su Impostazioni.</string>
 
     <!-- Destination reminder feedback Preferences -->
     <string name="preferences_category_user_logs">Condividi informazioni di debug</string>
     <string name="preferences_user_share_destination_logs_title">Includi registri dei promemoria di destinazione</string>
-    <string name="preferences_user_share_destination_logs_summary">Il dispositivo invierà informazioni anonime sulla posizione in tempo reale a OneBusAway per migliorare la funzione promemoria di destinazione.</string>
+    <string name="preferences_user_share_destination_logs_summary">Il dispositivo invierà informazioni anonime sulla posizione in tempo reale a %1$s per migliorare la funzione promemoria di destinazione.</string>
 
     <!-- Destination reminder change location accuracy -->
     <string name="main_changelocationmode_title">Modalità Alta precisione non abilitata</string>
@@ -289,14 +291,14 @@
     <string name="my_no_recent_stops">Non hai fermate recenti.</string>
     <string name="my_no_starred_stops">Non hai fermate preferite.\n\nAggiungi una fermata ai preferiti dalla schermata degli arrivi toccando la stella vicino al nome della fermata.</string>
     <string name="my_no_recent_routes">Non hai linee recenti.</string>
-    <!-- <string name="my_no_starred_routes">You have no starred routes.</string>-->
+    <string name="my_no_starred_routes">Non hai linee preferite.\n\nPuoi aggiungere una linea ai preferiti dalla schermata degli arrivi toccando la stella vicino al numero della linea.</string>
     <string name="route_favorite_options_title_star">Aggiungi linea \&quot;%s\&quot; ai preferiti per:</string>
     <string name="route_favorite_options_title_unstar">Rimuovi \&quot;%s\&quot; dai preferiti per:</string>
 
     <string name="my_option_clear_recent_stops">Cancella fermate recenti</string>
     <string name="my_option_clear_recent_routes">Cancella linee recenti</string>
     <string name="my_option_clear_starred_stops">Rimuovi tutte le fermate dai preferiti</string>
-    <!-- <string name="my_option_clear_starred_routes">Remove all starred routes</string>-->
+    <string name="my_option_clear_starred_routes">Rimuovi tutte le linee dai preferiti</string>
     <string name="my_option_clear_confirm">Non si torna indietro! Vuoi procedere?</string>
     <string name="my_option_clear_confirm_title">Confermi?</string>
 
@@ -313,8 +315,10 @@
     <string name="alert_content_description_error">Avviso urgente sul servizio - tocca per mostrare ulteriori informazioni.</string>
     <string name="situation_more_details">Altri dettagli</string>
     <string name="hide">Nascondi</string>
+    <string name="hide_all">Nascondi tutto</string>
     <string name="close">Chiudi</string>
     <string name="alert_hidden_snackbar_text">L\'avviso è nascosto</string>
+    <string name="all_alert_hidden_snackbar_text">Tutti gli avvisi sono ora nascosti</string>
     <string name="alert_hidden_snackbar_action">ANNULLA</string>
     <plurals name="alert_filter_text">
         <item quantity="one">Hai %1$d avviso attivo nascosto</item>
@@ -371,6 +375,7 @@
     <string name="menu_title_about_occupancy">Di più sull\'occupazione</string>
     <string name="menu_text_about_historical_occupancy">La media di occupazione (icona grigia) è l\'utenza media a questa fermata negli ultimi 6 mesi.</string>
     <string name="menu_text_about_occupancy">L\'occupazione in tempo reale appare verde quando ci sono molti o alcuni posti a sedere disponibili, e rossa quando il mezzo è pieno. La media di occupazione (icona grigia) è l\'utenza media a questa fermata negli ultimi 6 mesi.</string>
+    <string name="menu_text_about_realtime_occupancy">L\'occupazione in tempo reale è mostrata con una o due icone di persona quando ci sono molti o pochi posti disponibili, e con tre icone di persona quando il veicolo è pieno.</string>
 
     <string name="realtime_full">Pieno</string>
     <string name="realtime_standing_room">Spazio in piedi</string>
@@ -410,7 +415,7 @@
     <!-- Report problem -->
     <string name="report_problem_comment_hint">Descrizione problema (facoltativo)</string>
     <string name="report_problem_send">Invia</string>
-    <string name="report_problem_hint">Le segnalazioni aiutano OneBusAway a risolvere i problemi!</string>
+    <string name="report_problem_hint">Le segnalazioni aiutano %1$s a risolvere i problemi!</string>
     <string name="report_problem_error">Impossibile inviare la segnalazione. Riprovare?</string>
     <string name="report_problem_invalid_argument">Seleziona una categoria di problemi.</string>
     <!-- TODO: Modes -->
@@ -454,9 +459,9 @@
     <string name="region_region_found">Trovata area: %1$s</string>
 
     <!--  Bug report -->
-    <string name="bug_report_subject">OneBusAway Android: Feedback</string>
-    <string name="bug_report_subject_trip_plan">OneBusAway Android: Feedback Piano di viaggio</string>
-    <string name="bug_report_subject_trip_plan_fail">OneBusAway Android: Feedback Piano di viaggio fallito</string>
+    <string name="bug_report_subject">%1$s Android: Feedback</string>
+    <string name="bug_report_subject_trip_plan">%1$s Android: Feedback Piano di viaggio</string>
+    <string name="bug_report_subject_trip_plan_fail">%1$s Android: Feedback Piano di viaggio fallito</string>
     <string name="bug_report_body">Ti invitiamo a scriverci per reclami, apprezzamenti, e segnalazioni di bug!\n\n\nVersione app: %1$s\nModello: %2$s\nVersione SO: %3$s / %4$d\nApp Google Play Services: %5$s\n Libreria Google Play Services: %6$d\nArea/API: %7$s (%8$s)\nLoc: %9$s\n\n</string>
     <string name="bug_report_body_without_location">Ti invitiamo a scriverci per reclami, apprezzamenti, e segnalazioni di bug!\n\n\nVersione app: %1$s\nModello: %2$s\nVersione SO: %3$s / %4$d\n\n</string>
     <string name="bug_report_error">Impossibile inviare la segnalazione del bug: applicazione adatta non trovata.</string>
@@ -489,8 +494,16 @@
     <string name="preferences_preferred_units_option_metric">Sistema metrico (km, m)</string>
     <string name="preferences_preferred_units_option_imperial">Sistema imperiale (mi, ft)</string>
 
+    <string name="preferences_app_theme_title">Tema app</string>
+    <string name="preferences_app_theme_option_system_default">Predefinito di sistema</string>
+    <string name="preferences_app_theme_option_light">Tema chiaro</string>
+    <string name="preferences_app_theme_option_dark">Tema scuro</string>
+
     <string name="preferences_show_negative_arrivals_title">Mostra autobus già partiti</string>
     <string name="preferences_show_negative_arrivals_summary">Includi autobus già partiti, mostrando il tempo trascorso dalla partenza come valore negativo</string>
+
+    <string name="preferences_hide_alerts_title">Nascondi tutti gli avvisi</string>
+    <string name="preferences_hide_alerts_summary">Se selezionato, tutti gli avvisi di servizio verranno compressi in una piccola barra nella parte superiore della schermata degli arrivi invece di essere mostrati come elenco completo.</string>
 
     <string name="preferences_show_zoom_controls_title">Mostra controlli zoom</string>
     <string name="preferences_show_zoom_controls_summary">Mostra controlli zoom sulla mappa</string>
@@ -507,24 +520,24 @@
     <string name="preferences_left_hand_mode_title">Modalità mano sinistra</string>
     <string name="preferences_left_hand_mode_summary">Sposta alcuni pulsanti sul lato sinistro dello schermo</string>
 
-    <string name="preferences_arrival_info_style_options_a">OneBusAway classico</string>
+    <string name="preferences_arrival_info_style_options_a">%1$s classico</string>
     <string name="preferences_arrival_info_style_options_b">Schede</string>
 
     <string name="preferences_otp_api_servername_title">Server API di OpenTripPlanner</string>
     <string name="preferences_otp_api_servername_summary">Determina il server per le chiamate API di OpenTripPlanner</string>
-    <string name="preferences_oba_api_servername_title">Server API di OneBusAway</string>
-    <string name="preferences_oba_api_servername_summary">Determina il server per le chiamate API di OneBusAway</string>
+    <string name="preferences_oba_api_servername_title">Server API di %1$s</string>
+    <string name="preferences_oba_api_servername_summary">Determina il server per le chiamate API di %1$s</string>
     <string name="preferences_oba_api_servername_hint">example.onebusaway.org</string>
     <string name="preferences_otp_api_servername_hint">example.opentripplanner.org/otp</string>
     <string name="preferences_save_title">Salva in memoria</string>
     <string name="preferences_save_summary">Salva fermate e linee preferite e recenti</string>
     <string name="preferences_restore_title">Ripristina da memoria</string>
-    <string name="preferences_restore_summary">Ripristina dal salvataggio precedente</string>
+    <string name="preferences_restore_summary">Ripristina da un backup precedente. Dopo aver selezionato questa opzione, ti verrà chiesto di scegliere un file. Seleziona il file di backup (es. \"db.backup\" o \"%1$s.backup\"), che potrebbe trovarsi nella cartella \"Documenti\" o in qualsiasi posizione in cui hai salvato il backup.</string>
     <string name="preferences_db_saved">Salvataggio completato!</string>
     <string name="preferences_db_save_error">Impossibile salvare: %1$s</string>
     <string name="preferences_db_restore_warning">Questo cancellerà tutti i dati esistenti! Vuoi procedere?</string>
     <string name="preferences_restore_loading">Ripristino dalla memoria…</string>
-    <string name="preferences_db_restored">Ripristino dati completato! Riavvia OneBusAway.</string>
+    <string name="preferences_db_restored">Ripristino dati completato! Riavvia %1$s.</string>
     <string name="preferences_db_restore_error">Impossibile ripristinare: %1$s</string>
 
     <string name="preferences_experimental_regions_title">Aree sperimentali</string>
@@ -538,9 +551,28 @@
     <string name="preferences_tutorial_title">Mostra tutorial</string>
     <string name="preferences_tutorial_summary">Mostra istruzioni per utilizzare questa app</string>
     <string name="preferences_donate_title">Dona</string>
-    <string name="preferences_donate_summary">Supporta il progetto open-source OneBusAway</string>
-    <string name="preferences_powered_by_oba_title">Powered by OneBusAway</string>
+    <string name="preferences_donate_summary">Supporta il progetto open-source %1$s</string>
+    <string name="preferences_powered_by_oba_title">Powered by %1$s</string>
     <string name="preferences_powered_by_oba_summary">Scopri di più su questo progetto open-source</string>
+
+    <string name="preferences_push_firebase_data_title">Invia dati Firebase al server</string>
+    <string name="preferences_push_firebase_data_summary">Se hai aderito a uno studio sul comportamento di viaggio, toccando questa opzione invierai i dati di comportamento di viaggio raccolti al server Firebase. Questa funzione è utile durante i test dell\'app ed è destinata agli sviluppatori. Per i migliori risultati, assicurati di avere una buona connessione Internet.</string>
+
+    <string name="push_firebase_data_dialog_title">Invio dati Firebase in corso…</string>
+    <string name="push_firebase_data_dialog_summary">In attesa che tutte le scritture in sospeso per l\'utente attivo vengano confermate dal backend…</string>
+
+    <string name="push_firebase_data_dialog_user_not_enrolled_title">Utente non iscritto</string>
+    <string name="push_firebase_data_dialog_user_not_enrolled_summary">L\'invio a Firebase non è stato tentato perché l\'utente non è iscritto alla raccolta dati sul comportamento di viaggio. Puoi iscriverti attivando l\'impostazione \"Invia dati anonimi sulle abitudini di viaggio\".</string>
+
+    <string name="push_firebase_data_dialog_success_title">Invio riuscito</string>
+    <string name="push_firebase_data_dialog_success_summary">Tutte le scritture in sospeso per l\'utente attivo sono state confermate dal backend Firebase.</string>
+
+    <string name="push_firebase_data_dialog_failed_title">Invio fallito</string>
+    <string name="push_firebase_data_dialog_failed_summary">Qualcosa è andato storto. Assicurati di avere una buona connessione Internet e riprova.</string>
+
+    <string name="push_firebase_data_dialog_canceled_title">Invio annullato</string>
+    <string name="push_firebase_data_dialog_canceled_summary">Qualcosa è andato storto. Assicurati di avere una buona connessione Internet e riprova.</string>
+
     <string name="preferences_about_title">Informazioni</string>
     <string name="preferences_about_summary">Informazioni su versione, collaboratori e licenza</string>
     <!-- Units -->
@@ -552,10 +584,10 @@
     <string name="minutes_full">minuti</string>
 
     <string name="preferences_preferred_vibration_title">Vibrazione</string>
-    <string name="preferences_preferred_vibration_summary">Consenti vibrazione per notifiche OneBusAway</string>
+    <string name="preferences_preferred_vibration_summary">Consenti vibrazione per notifiche %1$s</string>
 
     <string name="preferences_preferred_sound_title">Suoneria promemoria</string>
-    <string name="preferences_preferred_sound_summary">Seleziona suoneria per notifiche OneBusAway</string>
+    <string name="preferences_preferred_sound_summary">Seleziona suoneria per notifiche %1$s</string>
 
     <!-- Navigation Drawer -->
     <string name="navigation_drawer_open">Apri menù di spostamento</string>
@@ -639,10 +671,10 @@
 
     <!-- Tutorials -->
     <string name="tutorial_button_text">Capito!</string>
-    <string name="tutorial_welcome_title">OneBusAway ti dà il benvenuto!</string>
+    <string name="tutorial_welcome_title">%1$s ti dà il benvenuto!</string>
     <string name="tutorial_welcome_text">Tocca una fermata (punto verde sulla mappa) per vedere gli orari di arrivo.</string>
     <string name="tutorial_opt_out_dialog_title">Mostrare tutorial?</string>
-    <string name="tutorial_opt_out_dialog_text">Desideri che vengano mostrati popup informativi per l\'utilizzo di OneBusAway? Puoi sempre attivare e disattivare i popup nelle impostazioni, o mostrare il tutorial in seguito premendo su Aiuto.</string>
+    <string name="tutorial_opt_out_dialog_text">Desideri che vengano mostrati popup informativi per l\'utilizzo di %1$s? Puoi sempre attivare e disattivare i popup nelle impostazioni, o mostrare il tutorial in seguito premendo su Aiuto.</string>
     <string name="tutorial_arrival_header_arrival_info_title">Quanto manca all\'arrivo dell\'autobus?</string>
     <string name="tutorial_arrival_header_arrival_info_text">Tanto così! Lo sfondo colorato ti dice se l\'autobus è in anticipo (rosso) o in ritardo (blu). In orario = sfondo verde. Se non sappiamo dove sia l\'autobus, ti mostriamo l\'orario previsto (sfondo grigio). Grigio con testo barrato significa che il tragitto è stato cancellato.</string>
     <string name="tutorial_arrival_header_sliding_panel_title">Scorri in su per mostrare più arrivi</string>
@@ -668,14 +700,14 @@
     <string name="no_thanks">No, grazie</string>
 
     <string name="storage_permissions_title">Accesso alla memoria del dispositivo richiesto.</string>
-    <string name="storage_permissions_message">Per backup e ripristino dati, OneBusAway necessita dell\'autorizzazione ad accedere alla memoria locale del dispositivo.</string>
+    <string name="storage_permissions_message">Per backup e ripristino dati, %1$s necessita dell\'autorizzazione ad accedere alla memoria locale del dispositivo.</string>
 
     <!-- About -->
     <string name="application_version">Versione</string>
     <string name="about_content"><![CDATA[
     <html>
   <body>
-    <h1 style="color: #4caf50"><b>Benvenuti in OneBusAway!</b></h1>
+    <h1 style="color: #4caf50"><b>Benvenuti in %1$s!</b></h1>
 
     <p>
         Questa app è stata realizzata da un team di volontari e si basa sulla dedizione, passione e talenti dei suoi contributori open source.
@@ -710,7 +742,7 @@
     </ul>
     <h2><b>Traduttori:</b></h2>
     <p>
-      Grazie ai nostri traduttori, OneBusAway è accessibile in tutto il mondo:
+      Grazie ai nostri traduttori, %1$s è accessibile in tutto il mondo:
     </p>
     <ul>
       <li><b>Ari Rusakko</b></li>
@@ -733,7 +765,7 @@
     <p>
       Visita il nostro progetto su GitHub su https://github.com/OneBusAway/onebusaway-android.
       <p>
-        Scopri di più sul progetto open-source di OneBusAway su https://onebusaway.org .</p>
+        Scopri di più sul progetto open-source di %1$s su https://onebusaway.org .</p>
         <p>
         Un ringraziamento speciale a Google per le splendide icone di design materiale (https://github.com/google/material-design-icons),
         che aggiungono un tocco di eleganza alla nostra app. La loro generosità nel concedere
@@ -746,7 +778,7 @@
       <p>
 
     <p>
-      Esplora la nostra app e intraprendi un viaggio nel trasporto pubblico senza intoppi con OneBusAway!
+      Esplora la nostra app e intraprendi un viaggio nel trasporto pubblico senza intoppi con %1$s!
     </p>
   </body>
 </html>
@@ -802,7 +834,7 @@
     <string name="tripplanner_report_trip_problem">Segnala problema con piano di viaggio</string>
 
     <string name="no_trip_planner_title">Aumento del costo di Google</string>
-    <string name="no_trip_planner_message">Google chiede a OneBusAway di pagare per ogni piano di viaggio (circa 1.000$ al mese)! OBA è un progetto open-source e non può pagare tali cifre. Abbiamo creato un\'associazione no profit e fatto richiesta a Google for Nonprofits, ma stiamo ancora aspettando l\'approvazione. Nel frattempo, abbiamo dovuto chiudere il pianificatore di viaggio. Se vuoi esprimere il tuo sostegno per OneBusAway a Google for Nonprofits, contattali su Twitter all\'indirizzo https://twitter.com/googlenonprofit?s=17!</string>
+    <string name="no_trip_planner_message">Google chiede a %1$s di pagare per ogni piano di viaggio (circa 1.000$ al mese)! OBA è un progetto open-source e non può pagare tali cifre. Abbiamo creato un\'associazione no profit e fatto richiesta a Google for Nonprofits, ma stiamo ancora aspettando l\'approvazione. Nel frattempo, abbiamo dovuto chiudere il pianificatore di viaggio. Se vuoi esprimere il tuo sostegno per %1$s a Google for Nonprofits, contattali su Twitter all\'indirizzo https://twitter.com/googlenonprofit?s=17!</string>
 
     <!-- Instructions generation -->
 
@@ -975,7 +1007,7 @@
     <string name="floating_bike_title">Tocca per prenotare questa bici</string>
 
     <string name="application_ignoring_battery_opt_title">Avviso sulle prestazioni!</string>
-    <string name="application_ignoring_battery_opt_message">Ottimizzazione della batteria abilitata per questa applicazione, ciò potrebbe diminuirne le prestazioni. Per una migliore esperienza d\'uso, disabilita l\'ottimizzazione delle prestazioni per OneBusAway nelle impostazioni.</string>
+    <string name="application_ignoring_battery_opt_message">Ottimizzazione della batteria abilitata per questa applicazione, ciò potrebbe diminuirne le prestazioni. Per una migliore esperienza d\'uso, disabilita l\'ottimizzazione delle prestazioni per %1$s nelle impostazioni.</string>
 
     <!--Travel Behaviour data collection-->
     <string name="travel_behavior_opt_in_message">Contribuisci alla ricerca su come migliorare il servizio di trasporto pubblico.</string>
@@ -1009,17 +1041,17 @@
     <string name="preferred_temperature_unit">Unità di temperatura preferita</string>
     <string name="fahrenheit">Fahrenheit</string>
     <string name="celsius">Celsius</string>
-    <string name="donation_view_title">🚨 OneBusAway ha bisogno del tuo aiuto</string>
+    <string name="donation_view_title">🚨 %1$s ha bisogno del tuo aiuto</string>
     <string name="donation_view_body">Questa app è attualmente sviluppata con il 100% di lavoro volontario, e abbiamo bisogno del tuo aiuto per finanziare lo sviluppo futuro.</string>
     <string name="donation_view_learn_more_button">Scopri di più</string>
     <string name="donation_view_donate_now_button">Dona Ora</string>
     <string name="donation_dismiss_dialog_title">Per favore, non ignorare questa richiesta</string>
-    <string name="donation_dismiss_dialog_body">OneBusAway è un\'organizzazione gestita da volontari con quasi nessun finanziamento. Abbiamo bisogno del tuo aiuto per mantenere questa app in funzione.</string>
+    <string name="donation_dismiss_dialog_body">%1$s è un\'organizzazione gestita da volontari con quasi nessun finanziamento. Abbiamo bisogno del tuo aiuto per mantenere questa app in funzione.</string>
     <string name="donation_dismiss_dialog_dont_want_to_help_button">Non Voglio Aiutare</string>
     <string name="donation_dismiss_dialog_remind_me_later_button">Ricordamelo Più Tardi</string>
     <string name="donation_dismiss_dialog_cancel_button">Annulla</string>
     <string name="title_activity_donation_learn_more">Perché abbiamo bisogno del tuo aiuto</string>
-    <string name="donation_learn_more_explanation">"Abbiamo grandi piani per migliorare OneBusAway, ma non possiamo farlo senza il tuo aiuto. Questa app è attualmente sviluppata con il 100% di lavoro volontario, e abbiamo bisogno del tuo aiuto per finanziare lo sviluppo futuro.\n\nCome progetto chiave della Open Transit Software Foundation, un'organizzazione non profit 501(c)(3), ci affidiamo alla buona volontà di utenti come te per continuare a funzionare e migliorare questo software.\n\nOgni anno, solo una piccola frazione dei nostri utenti dona, ma ogni contributo, grande o piccolo, aiuta a garantire che OneBusAway rimanga gratuito, aggiornato e accessibile a tutti. Una piccola donazione, anche solo il costo di una settimana di pendolarismo, $27.50, può fare tutta la differenza.\n\nIl tuo contributo deducibile dalle tasse assicura che OneBusAway rimanga libero e accessibile per tutti. Modelliamo insieme il futuro del trasporto pubblico!\n\nGrazie,\nIl Team di OneBusAway"</string>
+    <string name="donation_learn_more_explanation">"Abbiamo grandi piani per migliorare %1$s, ma non possiamo farlo senza il tuo aiuto. Questa app è attualmente sviluppata con il 100%% di lavoro volontario, e abbiamo bisogno del tuo aiuto per finanziare lo sviluppo futuro.\n\nCome progetto chiave della Open Transit Software Foundation, un'organizzazione non profit 501(c)(3), ci affidiamo alla buona volontà di utenti come te per continuare a funzionare e migliorare questo software.\n\nOgni anno, solo una piccola frazione dei nostri utenti dona, ma ogni contributo, grande o piccolo, aiuta a garantire che %1$s rimanga gratuito, aggiornato e accessibile a tutti. Una piccola donazione, anche solo il costo di una settimana di pendolarismo, $27.50, può fare tutta la differenza.\n\nIl tuo contributo deducibile dalle tasse assicura che %1$s rimanga libero e accessibile per tutti. Modelliamo insieme il futuro del trasporto pubblico!\n\nGrazie,\nIl Team di %1$s"</string>
     <string name="preferences_reset_donation_timestamps_title">Reimposta i Timestamp delle Donazioni</string>
     <string name="preferences_reset_donation_timestamps_summary">Toccando questa opzione verranno cancellati i timestamp di \'Ricordamelo più tardi\' e \'Non disturbarmi\' associati alle richieste di donazione.</string>
     <string name="preferences_show_weather_view">Mostra vista meteo</string>
@@ -1033,7 +1065,7 @@
     <string name="preferences_show_available_studies_title">Mostra studi disponibili</string>
     <string name="preferences_show_available_studies_body">Partecipa agli studi per aiutare a migliorare la tua esperienza di trasporto e con l\'app.</string>
     <string name="dismiss_survey">Ignora sondaggio</string>
-    <string name="onebusaway_survey">Sondaggio OneBusAway</string>
+    <string name="onebusaway_survey">Sondaggio %1$s</string>
     <string name="you_can_select_multiple_options_for_this_pool">(Puoi selezionare più opzioni per questo gruppo.)</string>
     <string name="write_your_answer_here">Scrivi qui la tua risposta</string>
     <string name="submit">Invia</string>
@@ -1057,6 +1089,8 @@
     <string name="more_info">Maggiori informazioni</string>
     <string name="display_test_alerts">Mostra avvisi di prova</string>
     <string name="display_test_wide_alerts_for_regions">Mostra avvisi di prova per regioni</string>
+    <string name="do_you_want_to_plan_the_trip_now">Vuoi pianificare il viaggio adesso?</string>
+    <string name="plan_trip">Pianificare il viaggio?</string>
     <string name="no_description_available">Nessuna descrizione disponibile</string>
     <string name="close_donation_card">Chiudi la scheda di donazione</string>
     <string name="send_email">Invia email</string>

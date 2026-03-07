@@ -46,6 +46,7 @@ public class TrajectoryGraphView extends View {
     private ObaTripSchedule mSchedule;
     private long mServiceDate;
     private long mCurrentTime = System.currentTimeMillis();
+    private double mEstimatedSpeedMps;
 
     private final Paint mSchedulePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mScheduleDotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -56,6 +57,9 @@ public class TrajectoryGraphView extends View {
     private final Paint mAxisPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mLabelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mGridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mExtrapolatePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mExtrapolateDashPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mExtrapolateLabelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private final Path mSchedulePath = new Path();
     private final Path mTrajectoryPath = new Path();
@@ -123,13 +127,27 @@ public class TrajectoryGraphView extends View {
 
         mNowLabelPaint.setColor(Color.parseColor("#FF4444"));
         mNowLabelPaint.setTextSize(10 * mDensity);
+
+        mExtrapolatePaint.setColor(Color.parseColor("#BBBBBB"));
+        mExtrapolatePaint.setStyle(Paint.Style.STROKE);
+        mExtrapolatePaint.setStrokeWidth(1.5f * mDensity);
+
+        mExtrapolateDashPaint.setColor(Color.parseColor("#BBBBBB"));
+        mExtrapolateDashPaint.setStyle(Paint.Style.STROKE);
+        mExtrapolateDashPaint.setStrokeWidth(1.5f * mDensity);
+        mExtrapolateDashPaint.setPathEffect(new DashPathEffect(
+                new float[]{6 * mDensity, 4 * mDensity}, 0));
+
+        mExtrapolateLabelPaint.setColor(Color.parseColor("#BBBBBB"));
+        mExtrapolateLabelPaint.setTextSize(10 * mDensity);
     }
 
     public void setData(List<VehicleHistoryEntry> history, ObaTripSchedule schedule,
-                        long serviceDate) {
+                        long serviceDate, Double estimatedSpeedMps) {
         mHistory = history != null ? new ArrayList<>(history) : new ArrayList<>();
         mSchedule = schedule;
         mServiceDate = serviceDate;
+        mEstimatedSpeedMps = estimatedSpeedMps != null ? estimatedSpeedMps : 0;
         mCurrentTime = System.currentTimeMillis();
         invalidate();
     }
@@ -332,6 +350,44 @@ public class TrajectoryGraphView extends View {
             canvas.drawPath(mTrajectoryPath, mTrajectoryPaint);
         }
 
+        // Draw extrapolation line from last trajectory point to "now"
+        if (mEstimatedSpeedMps > 0 && !mHistory.isEmpty()) {
+            Double lastDist = null;
+            long lastTime = 0;
+            for (int i = mHistory.size() - 1; i >= 0; i--) {
+                VehicleHistoryEntry e = mHistory.get(i);
+                Double d = e.getBestDistanceAlongTrip();
+                long t = e.getLastLocationUpdateTime();
+                if (d != null && t > 0) {
+                    lastDist = d;
+                    lastTime = t;
+                    break;
+                }
+            }
+            if (lastDist != null && mCurrentTime > lastTime) {
+                double extrapolatedDist = lastDist + mEstimatedSpeedMps * (mCurrentTime - lastTime) / 1000.0;
+                float x1 = marginLeft + graphW * (float) ((lastDist - minDist) / distRangeFinal);
+                float y1 = marginTop + graphH * (1f - (float) (lastTime - minTime) / timeRange);
+                float x2 = marginLeft + graphW * (float) ((extrapolatedDist - minDist) / distRangeFinal);
+                float y2 = marginTop + graphH * (1f - (float) (mCurrentTime - minTime) / timeRange);
+                // Clamp x2 to graph area
+                x2 = Math.min(x2, getWidth() - marginRight);
+                canvas.drawLine(x1, y1, x2, y2, mExtrapolatePaint);
+                // Vertical drop line to X axis (dashed)
+                float xAxisY = getHeight() - marginBottom;
+                canvas.drawLine(x2, y2, x2, xAxisY, mExtrapolateDashPaint);
+                // Distance label (above X axis labels)
+                String distLabel;
+                if (extrapolatedDist >= 1000) {
+                    distLabel = String.format(Locale.US, "~%.1fkm", extrapolatedDist / 1000.0);
+                } else {
+                    distLabel = String.format(Locale.US, "~%.0fm", extrapolatedDist);
+                }
+                canvas.drawText(distLabel, x2 - 10 * mDensity,
+                        xAxisY - 5 * mDensity, mExtrapolateLabelPaint);
+            }
+        }
+
         // Draw current time line
         float nowY = marginTop + graphH * (1f - (float) (mCurrentTime - minTime) / timeRange);
         if (nowY >= marginTop && nowY <= getHeight() - marginBottom) {
@@ -350,6 +406,9 @@ public class TrajectoryGraphView extends View {
         legendY += 18 * mDensity;
         canvas.drawLine(legendX, legendY, legendX + 20 * mDensity, legendY, mTrajectoryPaint);
         canvas.drawText("Actual", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
+        legendY += 18 * mDensity;
+        canvas.drawLine(legendX, legendY, legendX + 20 * mDensity, legendY, mExtrapolateDashPaint);
+        canvas.drawText("Estimated", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
     }
 
     private static double niceStep(double raw) {

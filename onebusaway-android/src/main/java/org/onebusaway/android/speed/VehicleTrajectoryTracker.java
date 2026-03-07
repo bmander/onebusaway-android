@@ -55,6 +55,7 @@ public final class VehicleTrajectoryTracker {
     public static final double MPS_TO_MPH = 2.23694;
 
     private final Map<String, List<VehicleHistoryEntry>> historyMap = new HashMap<>();
+    private final Map<String, VehicleState> lastStateCache = new HashMap<>();
     private final Map<String, ObaTripSchedule> scheduleCache = new HashMap<>();
     private final Map<String, Long> serviceDateCache = new HashMap<>();
     private final Set<String> pendingScheduleFetches = new HashSet<>();
@@ -120,6 +121,8 @@ public final class VehicleTrajectoryTracker {
         if (history.size() > MAX_HISTORY_SIZE) {
             history.subList(0, history.size() - MAX_HISTORY_SIZE).clear();
         }
+
+        lastStateCache.put(key, state);
     }
 
     /**
@@ -149,6 +152,13 @@ public final class VehicleTrajectoryTracker {
             return null;
         }
         return estimator.estimateSpeed(state.getVehicleId(), state, this);
+    }
+
+    /**
+     * Returns the estimated speed in m/s for the given key, using the last cached VehicleState.
+     */
+    public synchronized Double getEstimatedSpeed(String key) {
+        return getEstimatedSpeed(key, lastStateCache.get(key));
     }
 
     /**
@@ -308,6 +318,7 @@ public final class VehicleTrajectoryTracker {
      */
     public synchronized void clearAll() {
         historyMap.clear();
+        lastStateCache.clear();
         scheduleCache.clear();
         serviceDateCache.clear();
         pendingScheduleFetches.clear();

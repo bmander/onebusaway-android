@@ -15,6 +15,8 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
 ENV ANDROID_HOME=/opt/android-sdk
 ENV ANDROID_SDK_ROOT=${ANDROID_HOME}
 ENV PATH=${PATH}:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools
+# Connect to host's adb server for USB device access (macOS Docker Desktop)
+ENV ADB_SERVER_SOCKET=tcp:host.docker.internal:5037
 
 # Install Android SDK command-line tools
 RUN mkdir -p ${ANDROID_HOME}/cmdline-tools \

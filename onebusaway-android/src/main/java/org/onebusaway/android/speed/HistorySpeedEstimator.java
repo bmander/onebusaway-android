@@ -24,7 +24,7 @@ import java.util.List;
 public class HistorySpeedEstimator implements SpeedEstimator {
 
     @Override
-    public Double estimateSpeed(String vehicleId, VehicleState state, VehicleSpeedTracker tracker) {
+    public Double estimateSpeed(String vehicleId, VehicleState state, VehicleTrajectoryTracker tracker) {
         List<VehicleHistoryEntry> history = tracker.getHistory(
                 state.getActiveTripId());
         if (history.size() < 2) {

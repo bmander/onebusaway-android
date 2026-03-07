@@ -28,5 +28,5 @@ public interface SpeedEstimator {
      * @param tracker   the tracker holding vehicle history
      * @return estimated speed in meters per second, or null if insufficient data
      */
-    Double estimateSpeed(String vehicleId, VehicleState state, VehicleSpeedTracker tracker);
+    Double estimateSpeed(String vehicleId, VehicleState state, VehicleTrajectoryTracker tracker);
 }

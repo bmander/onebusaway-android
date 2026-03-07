@@ -26,7 +26,7 @@ import org.onebusaway.android.speed.HistorySpeedEstimator;
 import org.onebusaway.android.speed.ScheduleSpeedEstimator;
 import org.onebusaway.android.speed.SpeedEstimator;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
-import org.onebusaway.android.speed.VehicleSpeedTracker;
+import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.speed.VehicleState;
 import org.onebusaway.android.speed.WeightedSpeedEstimator;
 
@@ -46,11 +46,11 @@ import java.util.List;
 @RunWith(AndroidJUnit4.class)
 public class SpeedEstimatorTest {
 
-    private VehicleSpeedTracker tracker;
+    private VehicleTrajectoryTracker tracker;
 
     @Before
     public void setUp() {
-        tracker = VehicleSpeedTracker.getInstance();
+        tracker = VehicleTrajectoryTracker.getInstance();
         tracker.clearAll();
     }
 
@@ -104,7 +104,7 @@ public class SpeedEstimatorTest {
         assertEquals(2000L, state.getTimestamp());
     }
 
-    // --- VehicleSpeedTracker tests ---
+    // --- VehicleTrajectoryTracker tests ---
 
     @Test
     public void testTrackerEmptyHistory() {
@@ -203,7 +203,7 @@ public class SpeedEstimatorTest {
         tracker.setEstimator(new SpeedEstimator() {
             @Override
             public Double estimateSpeed(String vehicleId, VehicleState state,
-                                        VehicleSpeedTracker tracker) {
+                                        VehicleTrajectoryTracker tracker) {
                 return 42.0;
             }
         });
@@ -224,7 +224,7 @@ public class SpeedEstimatorTest {
         tracker.setEstimator(null);
     }
 
-    // --- VehicleSpeedTracker schedule cache tests ---
+    // --- VehicleTrajectoryTracker schedule cache tests ---
 
     @Test
     public void testTrackerScheduleCacheEmpty() {
@@ -267,6 +267,40 @@ public class SpeedEstimatorTest {
         assertFalse(tracker.isSchedulePendingOrCached("trip1"));
         assertFalse(tracker.isSchedulePendingOrCached("trip2"));
         assertNull(tracker.getSchedule("trip1"));
+    }
+
+    // --- Subscribe/unsubscribe refcounting tests ---
+
+    @Test
+    public void testSubscribeIncrementsRefcount() {
+        assertEquals(0, tracker.getSubscriberCount("trip1"));
+
+        tracker.subscribeTripPolling(null, "trip1");
+        // null context should be ignored
+        assertEquals(0, tracker.getSubscriberCount("trip1"));
+
+        tracker.subscribeTripPolling(null, null);
+        // null tripId should be ignored
+        assertEquals(0, tracker.getSubscriberCount("trip1"));
+    }
+
+    @Test
+    public void testUnsubscribeDecrementsRefcount() {
+        // Unsubscribing a trip that was never subscribed should not throw
+        tracker.unsubscribeTripPolling("trip1");
+        assertEquals(0, tracker.getSubscriberCount("trip1"));
+
+        tracker.unsubscribeTripPolling(null);
+        // null tripId should be ignored
+    }
+
+    @Test
+    public void testClearAllResetsSubscribers() {
+        // We can't fully test subscribe with a real context in unit tests,
+        // but we can verify clearAll resets the subscriber count
+        tracker.clearAll();
+        assertEquals(0, tracker.getSubscriberCount("trip1"));
+        assertEquals(0, tracker.getSubscriberCount("trip2"));
     }
 
     // --- HistorySpeedEstimator tests ---

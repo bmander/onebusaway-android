@@ -22,7 +22,7 @@ import android.graphics.Typeface;
 import android.location.Location;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.MenuItem;
 import android.view.View;
@@ -31,13 +31,8 @@ import android.widget.TableRow;
 import android.widget.TextView;
 
 import org.onebusaway.android.R;
-import org.onebusaway.android.io.ObaApi;
-import org.onebusaway.android.io.elements.ObaTripStatus;
-import org.onebusaway.android.io.request.ObaTripDetailsRequest;
-import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
-import org.onebusaway.android.speed.VehicleSpeedTracker;
-import org.onebusaway.android.speed.VehicleState;
+import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.UIUtils;
 
 import java.text.SimpleDateFormat;
@@ -49,27 +44,28 @@ import androidx.appcompat.app.AppCompatActivity;
 
 /**
  * Debug activity that displays all collected location data for a vehicle's trip
- * in a scrollable table. Continues to fetch and record vehicle positions while open.
+ * in a scrollable table. Data collection is managed by VehicleTrajectoryTracker's
+ * polling infrastructure; this activity only refreshes its UI display.
  */
 public class VehicleLocationDataActivity extends AppCompatActivity {
 
-    private static final String TAG = "VehicleLocationData";
     private static final String EXTRA_TRIP_ID = ".TripId";
     private static final String EXTRA_VEHICLE_ID = ".VehicleId";
 
     private static final int PAD_H = 12;
     private static final int PAD_V = 6;
     private static final int TEXT_SIZE = 12;
-    private static final long REFRESH_PERIOD = 30 * 1000;
+    private static final long UI_REFRESH_PERIOD = 5_000;
 
     private String mTripId;
-    private final Handler mRefreshHandler = new Handler();
+    private final Handler mRefreshHandler = new Handler(Looper.getMainLooper());
     private int mLastRowCount = -1;
 
     private final Runnable mRefresh = new Runnable() {
         @Override
         public void run() {
-            fetchAndRecord();
+            refreshTable();
+            mRefreshHandler.postDelayed(mRefresh, UI_REFRESH_PERIOD);
         }
     };
 
@@ -102,12 +98,16 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        fetchAndRecord();
+        VehicleTrajectoryTracker.getInstance()
+                .subscribeTripPolling(getApplicationContext(), mTripId);
+        refreshTable();
+        mRefreshHandler.postDelayed(mRefresh, UI_REFRESH_PERIOD);
     }
 
     @Override
     protected void onPause() {
         mRefreshHandler.removeCallbacks(mRefresh);
+        VehicleTrajectoryTracker.getInstance().unsubscribeTripPolling(mTripId);
         super.onPause();
     }
 
@@ -120,36 +120,9 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    private void fetchAndRecord() {
-        final String tripId = mTripId;
-        final Context ctx = getApplicationContext();
-        new Thread(() -> {
-            try {
-                ObaTripDetailsResponse response =
-                        ObaTripDetailsRequest.newRequest(ctx, tripId).call();
-                if (response != null && response.getCode() == ObaApi.OBA_OK) {
-                    ObaTripStatus status = response.getStatus();
-                    if (status != null && status.getActiveTripId() != null) {
-                        VehicleState state = VehicleState.fromTripStatus(status);
-                        VehicleSpeedTracker.getInstance()
-                                .recordState(status.getActiveTripId(), state);
-                        Log.d(TAG, "Recorded vehicle position for " + tripId);
-                    }
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "Failed to fetch trip details for " + tripId, e);
-            }
-            runOnUiThread(() -> {
-                refreshTable();
-                mRefreshHandler.removeCallbacks(mRefresh);
-                mRefreshHandler.postDelayed(mRefresh, REFRESH_PERIOD);
-            });
-        }).start();
-    }
-
     private void refreshTable() {
         List<VehicleHistoryEntry> history =
-                VehicleSpeedTracker.getInstance().getHistory(mTripId);
+                VehicleTrajectoryTracker.getInstance().getHistory(mTripId);
 
         // Skip rebuild if row count hasn't changed
         if (history.size() == mLastRowCount) {
@@ -253,7 +226,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
                     // Speed
                     if (dtMs > 0) {
                         double speedDist = dd < 0 ? 0 : dd;
-                        double speedMph = (speedDist / (dtMs / 1000.0)) * VehicleSpeedTracker.MPS_TO_MPH;
+                        double speedMph = (speedDist / (dtMs / 1000.0)) * VehicleTrajectoryTracker.MPS_TO_MPH;
                         row.addView(createCell(
                                 String.format(Locale.US, "%.1f", speedMph), false));
                     } else {

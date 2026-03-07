@@ -54,7 +54,7 @@ import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.ui.TripDetailsActivity;
 import org.onebusaway.android.ui.TripDetailsListFragment;
-import org.onebusaway.android.speed.VehicleSpeedTracker;
+import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.speed.VehicleState;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.MathUtils;
@@ -653,12 +653,12 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                         activeTripIds.add(status.getActiveTripId());
 
                         VehicleState vehicleState = VehicleState.fromTripStatus(status);
-                        VehicleSpeedTracker speedTracker = VehicleSpeedTracker.getInstance();
-                        speedTracker.recordState(status.getActiveTripId(), vehicleState);
+                        VehicleTrajectoryTracker trajectoryTracker = VehicleTrajectoryTracker.getInstance();
+                        trajectoryTracker.recordState(status.getActiveTripId(), vehicleState);
 
                         String tripId = status.getActiveTripId();
-                        if (tripId != null && !speedTracker.isSchedulePendingOrCached(tripId)) {
-                            speedTracker.markSchedulePending(tripId);
+                        if (tripId != null && !trajectoryTracker.isSchedulePendingOrCached(tripId)) {
+                            trajectoryTracker.markSchedulePending(tripId);
                             final Context ctx = Application.get().getApplicationContext();
                             new Thread(() -> {
                                 try {
@@ -672,12 +672,12 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                                     if (detailsResponse != null) {
                                         ObaTripSchedule schedule = detailsResponse.getSchedule();
                                         if (schedule != null) {
-                                            speedTracker.putSchedule(tripId, schedule);
+                                            trajectoryTracker.putSchedule(tripId, schedule);
                                         }
                                     }
                                 } catch (Exception e) {
                                     Log.w(TAG, "Failed to fetch trip schedule for " + tripId, e);
-                                    speedTracker.clearPending(tripId);
+                                    trajectoryTracker.clearPending(tripId);
                                 }
                             }).start();
                         }
@@ -996,10 +996,10 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             // Show estimated speed
             TextView estimatedSpeedView = (TextView) view.findViewById(R.id.estimated_speed);
             VehicleState vehicleState = VehicleState.fromTripStatus(status);
-            Double speedMs = VehicleSpeedTracker.getInstance()
+            Double speedMs = VehicleTrajectoryTracker.getInstance()
                     .getEstimatedSpeed(status.getActiveTripId(), vehicleState);
             if (speedMs != null) {
-                double speedMph = speedMs * VehicleSpeedTracker.MPS_TO_MPH;
+                double speedMph = speedMs * VehicleTrajectoryTracker.MPS_TO_MPH;
                 String speedText = r.getString(R.string.vehicle_estimated_speed,
                         String.format("%.1f", speedMph));
                 estimatedSpeedView.setText(speedText);

@@ -26,7 +26,7 @@ import org.onebusaway.android.io.request.ObaStopsForRouteResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteRequest;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.googlemapsv2.BaseMapFragment;
-import org.onebusaway.android.speed.VehicleSpeedTracker;
+import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.UIUtils;
 
@@ -146,7 +146,7 @@ public class RouteMapController implements MapModeController {
         mVehicleRefreshHandler.removeCallbacks(mVehicleRefresh);
 
         // Clear vehicle speed history
-        VehicleSpeedTracker.getInstance().clearAll();
+        VehicleTrajectoryTracker.getInstance().clearAll();
 
         // Clear the existing route and vehicle overlays
         mFragment.getMapView().removeRouteOverlay();

@@ -24,7 +24,7 @@ import org.onebusaway.android.io.elements.ObaTripSchedule;
 public class ScheduleSpeedEstimator implements SpeedEstimator {
 
     @Override
-    public Double estimateSpeed(String vehicleId, VehicleState state, VehicleSpeedTracker tracker) {
+    public Double estimateSpeed(String vehicleId, VehicleState state, VehicleTrajectoryTracker tracker) {
         if (state.getScheduledDistanceAlongTrip() == null) {
             return null;
         }

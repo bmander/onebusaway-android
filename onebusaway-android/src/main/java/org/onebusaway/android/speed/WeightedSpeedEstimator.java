@@ -29,7 +29,7 @@ public class WeightedSpeedEstimator implements SpeedEstimator {
     private final HistorySpeedEstimator historyEstimator = new HistorySpeedEstimator();
 
     @Override
-    public Double estimateSpeed(String vehicleId, VehicleState state, VehicleSpeedTracker tracker) {
+    public Double estimateSpeed(String vehicleId, VehicleState state, VehicleTrajectoryTracker tracker) {
         Double scheduleSpeed = scheduleEstimator.estimateSpeed(vehicleId, state, tracker);
         Double historySpeed = historyEstimator.estimateSpeed(vehicleId, state, tracker);
 

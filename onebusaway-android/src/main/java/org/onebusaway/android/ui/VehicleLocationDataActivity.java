@@ -173,9 +173,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
 
         // Refresh graph only when visible
         if (mGraphView.getVisibility() == View.VISIBLE) {
-            ObaTripSchedule schedule = tracker.getSchedule(mTripId);
-            Long serviceDate = tracker.getServiceDate(mTripId);
-            mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0);
+            refreshGraph();
         }
     }
 
@@ -184,7 +182,8 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         List<VehicleHistoryEntry> history = tracker.getHistory(mTripId);
         ObaTripSchedule schedule = tracker.getSchedule(mTripId);
         Long serviceDate = tracker.getServiceDate(mTripId);
-        mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0);
+        Double speed = tracker.getEstimatedSpeed(mTripId);
+        mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0, speed);
     }
 
     private void buildTable(TableLayout table, List<VehicleHistoryEntry> history) {

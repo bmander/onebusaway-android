@@ -144,6 +144,7 @@
             </intent-filter>
         </activity>
         <activity android:name="org.onebusaway.android.ui.TripInfoActivity"/>
+        <activity android:name="org.onebusaway.android.ui.VehicleLocationDataActivity"/>
         <activity android:name=".ui.MyRemindersActivity"/>
         <activity android:name="org.onebusaway.android.ui.TripDetailsActivity"
             android:exported="true"

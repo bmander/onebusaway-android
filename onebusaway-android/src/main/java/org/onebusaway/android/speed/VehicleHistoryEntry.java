@@ -24,11 +24,21 @@ public final class VehicleHistoryEntry {
 
     private final Location position;
     private final Double distanceAlongTrip;
+    private final Double lastKnownDistanceAlongTrip;
+    private final long lastLocationUpdateTime;
     private final long timestamp;
 
     public VehicleHistoryEntry(Location position, Double distanceAlongTrip, long timestamp) {
+        this(position, distanceAlongTrip, null, 0, timestamp);
+    }
+
+    public VehicleHistoryEntry(Location position, Double distanceAlongTrip,
+                               Double lastKnownDistanceAlongTrip,
+                               long lastLocationUpdateTime, long timestamp) {
         this.position = position;
         this.distanceAlongTrip = distanceAlongTrip;
+        this.lastKnownDistanceAlongTrip = lastKnownDistanceAlongTrip;
+        this.lastLocationUpdateTime = lastLocationUpdateTime;
         this.timestamp = timestamp;
     }
 
@@ -36,8 +46,39 @@ public final class VehicleHistoryEntry {
         return position;
     }
 
+    /**
+     * @return The server-extrapolated distance along trip, in meters.
+     */
     public Double getDistanceAlongTrip() {
         return distanceAlongTrip;
+    }
+
+    /**
+     * @return The raw distance along trip from the vehicle's AVL system (not extrapolated).
+     * Can be null if the API doesn't provide it.
+     */
+    public Double getLastKnownDistanceAlongTrip() {
+        return lastKnownDistanceAlongTrip;
+    }
+
+    /**
+     * @return The best available distance: prefers lastKnownDistanceAlongTrip (raw),
+     * falls back to distanceAlongTrip (extrapolated).
+     */
+    public Double getBestDistanceAlongTrip() {
+        if (lastKnownDistanceAlongTrip != null && lastKnownDistanceAlongTrip != 0.0) {
+            return lastKnownDistanceAlongTrip;
+        }
+        return distanceAlongTrip;
+    }
+
+    /**
+     * @return The time of the last location update from the vehicle's AVL system.
+     * Used to deduplicate entries — if this hasn't changed, the server just
+     * re-extrapolated from the same underlying AVL report.
+     */
+    public long getLastLocationUpdateTime() {
+        return lastLocationUpdateTime;
     }
 
     public long getTimestamp() {

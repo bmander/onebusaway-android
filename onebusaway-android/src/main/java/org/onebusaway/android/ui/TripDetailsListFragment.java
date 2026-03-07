@@ -48,6 +48,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.ListView;
@@ -88,6 +89,8 @@ import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.nav.NavigationService;
+import org.onebusaway.android.speed.VehicleSpeedTracker;
+import org.onebusaway.android.speed.VehicleState;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.DBUtil;
@@ -301,6 +304,14 @@ public class TripDetailsListFragment extends ListFragment {
             return;
         }
 
+        // Record vehicle state for speed tracking
+        ObaTripStatus tripStatus = mTripInfo.getStatus();
+        if (tripStatus != null && tripStatus.getActiveTripId() != null) {
+            VehicleState vehicleState = VehicleState.fromTripStatus(tripStatus);
+            VehicleSpeedTracker.getInstance()
+                    .recordState(tripStatus.getActiveTripId(), vehicleState);
+        }
+
         setUpHeader();
         final ListView listView = getListView();
 
@@ -498,6 +509,19 @@ public class TripDetailsListFragment extends ListFragment {
             // Hide occupancy by setting null value
             UIUtils.setOccupancyVisibilityAndColor(occupancyView, null, OccupancyState.REALTIME);
             UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.REALTIME);
+        }
+
+        // Show location data button (always visible when we have a status)
+        Button locationDataBtn = (Button) getView().findViewById(R.id.view_location_data);
+        String activeTripId = status.getActiveTripId();
+        if (activeTripId != null) {
+            int count = VehicleSpeedTracker.getInstance().getHistory(activeTripId).size();
+            locationDataBtn.setText(getString(R.string.vehicle_view_location_data)
+                    + " (" + count + ")");
+            locationDataBtn.setVisibility(View.VISIBLE);
+            final String vehicleId = status.getVehicleId();
+            locationDataBtn.setOnClickListener(v ->
+                    VehicleLocationDataActivity.start(getActivity(), activeTripId, vehicleId));
         }
     }
 

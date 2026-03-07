@@ -29,6 +29,7 @@ public final class VehicleState {
     private final Location position;
     private final Location lastKnownLocation;
     private final Double distanceAlongTrip;
+    private final Double lastKnownDistanceAlongTrip;
     private final Double scheduledDistanceAlongTrip;
     private final Double totalDistanceAlongTrip;
     private final long lastUpdateTime;
@@ -39,6 +40,7 @@ public final class VehicleState {
 
     private VehicleState(String vehicleId, String activeTripId, Location position,
                          Location lastKnownLocation, Double distanceAlongTrip,
+                         Double lastKnownDistanceAlongTrip,
                          Double scheduledDistanceAlongTrip, Double totalDistanceAlongTrip,
                          long lastUpdateTime, long lastLocationUpdateTime,
                          long scheduleDeviation, boolean predicted, long timestamp) {
@@ -47,6 +49,7 @@ public final class VehicleState {
         this.position = position;
         this.lastKnownLocation = lastKnownLocation;
         this.distanceAlongTrip = distanceAlongTrip;
+        this.lastKnownDistanceAlongTrip = lastKnownDistanceAlongTrip;
         this.scheduledDistanceAlongTrip = scheduledDistanceAlongTrip;
         this.totalDistanceAlongTrip = totalDistanceAlongTrip;
         this.lastUpdateTime = lastUpdateTime;
@@ -66,7 +69,7 @@ public final class VehicleState {
                                       long lastLocationUpdateTime, long scheduleDeviation,
                                       boolean predicted, long timestamp) {
         return new VehicleState(vehicleId, activeTripId, position, lastKnownLocation,
-                distanceAlongTrip, scheduledDistanceAlongTrip, totalDistanceAlongTrip,
+                distanceAlongTrip, null, scheduledDistanceAlongTrip, totalDistanceAlongTrip,
                 lastUpdateTime, lastLocationUpdateTime, scheduleDeviation, predicted, timestamp);
     }
 
@@ -80,6 +83,7 @@ public final class VehicleState {
                 status.getPosition(),
                 status.getLastKnownLocation(),
                 status.getDistanceAlongTrip(),
+                status.getLastKnownDistanceAlongTrip(),
                 status.getScheduledDistanceAlongTrip(),
                 status.getTotalDistanceAlongTrip(),
                 status.getLastUpdateTime(),
@@ -108,6 +112,14 @@ public final class VehicleState {
 
     public Double getDistanceAlongTrip() {
         return distanceAlongTrip;
+    }
+
+    /**
+     * @return The raw distance along trip from the vehicle's AVL system, not extrapolated
+     * by the server. Can be null if the API doesn't provide it.
+     */
+    public Double getLastKnownDistanceAlongTrip() {
+        return lastKnownDistanceAlongTrip;
     }
 
     public Double getScheduledDistanceAlongTrip() {

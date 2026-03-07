@@ -56,6 +56,7 @@ public final class VehicleTrajectoryTracker {
 
     private final Map<String, List<VehicleHistoryEntry>> historyMap = new HashMap<>();
     private final Map<String, ObaTripSchedule> scheduleCache = new HashMap<>();
+    private final Map<String, Long> serviceDateCache = new HashMap<>();
     private final Set<String> pendingScheduleFetches = new HashSet<>();
     private SpeedEstimator estimator = new WeightedSpeedEstimator();
 
@@ -176,6 +177,22 @@ public final class VehicleTrajectoryTracker {
     }
 
     /**
+     * Stores the service date for a trip.
+     */
+    public synchronized void putServiceDate(String tripId, long serviceDate) {
+        if (tripId != null && serviceDate > 0) {
+            serviceDateCache.put(tripId, serviceDate);
+        }
+    }
+
+    /**
+     * Returns the cached service date for the given trip, or null if not cached.
+     */
+    public synchronized Long getServiceDate(String tripId) {
+        return serviceDateCache.get(tripId);
+    }
+
+    /**
      * Returns true if a schedule fetch is already pending or the schedule is cached.
      */
     public synchronized boolean isSchedulePendingOrCached(String tripId) {
@@ -264,6 +281,9 @@ public final class VehicleTrajectoryTracker {
                     if (status != null && status.getActiveTripId() != null) {
                         VehicleState state = VehicleState.fromTripStatus(status);
                         recordState(status.getActiveTripId(), state);
+                        if (status.getServiceDate() > 0) {
+                            putServiceDate(status.getActiveTripId(), status.getServiceDate());
+                        }
                         Log.d(TAG, "Polled vehicle position for " + tripId);
                     }
                 }
@@ -289,6 +309,7 @@ public final class VehicleTrajectoryTracker {
     public synchronized void clearAll() {
         historyMap.clear();
         scheduleCache.clear();
+        serviceDateCache.clear();
         pendingScheduleFetches.clear();
         mTripSubscribers.clear();
         mPollTokens.clear();

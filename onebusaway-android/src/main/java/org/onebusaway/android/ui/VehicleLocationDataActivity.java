@@ -30,7 +30,10 @@ import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
 
+import com.google.android.material.tabs.TabLayout;
+
 import org.onebusaway.android.R;
+import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.UIUtils;
@@ -44,8 +47,8 @@ import androidx.appcompat.app.AppCompatActivity;
 
 /**
  * Debug activity that displays all collected location data for a vehicle's trip
- * in a scrollable table. Data collection is managed by VehicleTrajectoryTracker's
- * polling infrastructure; this activity only refreshes its UI display.
+ * in a scrollable table and a distance-time graph. Data collection is managed by
+ * VehicleTrajectoryTracker's polling infrastructure; this activity only refreshes its UI display.
  */
 public class VehicleLocationDataActivity extends AppCompatActivity {
 
@@ -61,10 +64,13 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     private final Handler mRefreshHandler = new Handler(Looper.getMainLooper());
     private int mLastRowCount = -1;
 
+    private View mTableContainer;
+    private TrajectoryGraphView mGraphView;
+
     private final Runnable mRefresh = new Runnable() {
         @Override
         public void run() {
-            refreshTable();
+            refreshData();
             mRefreshHandler.postDelayed(mRefresh, UI_REFRESH_PERIOD);
         }
     };
@@ -92,7 +98,35 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
             }
         }
 
-        refreshTable();
+        mTableContainer = findViewById(R.id.location_data_table_container);
+        mGraphView = findViewById(R.id.location_data_graph);
+
+        TabLayout tabs = findViewById(R.id.location_data_tabs);
+        tabs.addTab(tabs.newTab().setText("Table"));
+        tabs.addTab(tabs.newTab().setText("Graph"));
+        tabs.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
+            @Override
+            public void onTabSelected(TabLayout.Tab tab) {
+                if (tab.getPosition() == 0) {
+                    mTableContainer.setVisibility(View.VISIBLE);
+                    mGraphView.setVisibility(View.GONE);
+                } else {
+                    mTableContainer.setVisibility(View.GONE);
+                    mGraphView.setVisibility(View.VISIBLE);
+                    refreshGraph();
+                }
+            }
+
+            @Override
+            public void onTabUnselected(TabLayout.Tab tab) {
+            }
+
+            @Override
+            public void onTabReselected(TabLayout.Tab tab) {
+            }
+        });
+
+        refreshData();
     }
 
     @Override
@@ -100,7 +134,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         super.onResume();
         VehicleTrajectoryTracker.getInstance()
                 .subscribeTripPolling(getApplicationContext(), mTripId);
-        refreshTable();
+        refreshData();
         mRefreshHandler.postDelayed(mRefresh, UI_REFRESH_PERIOD);
     }
 
@@ -120,23 +154,37 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    private void refreshTable() {
-        List<VehicleHistoryEntry> history =
-                VehicleTrajectoryTracker.getInstance().getHistory(mTripId);
+    private void refreshData() {
+        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+        List<VehicleHistoryEntry> history = tracker.getHistory(mTripId);
 
-        // Skip rebuild if row count hasn't changed
-        if (history.size() == mLastRowCount) {
-            return;
-        }
-        mLastRowCount = history.size();
-
+        // Update header
         TextView header = findViewById(R.id.location_data_header);
         header.setText(String.format(Locale.US, "Trip: %s  |  Samples: %d",
                 mTripId, history.size()));
 
-        TableLayout table = findViewById(R.id.location_data_table);
-        table.removeAllViews();
-        buildTable(table, history);
+        // Refresh table only if row count changed
+        if (history.size() != mLastRowCount) {
+            mLastRowCount = history.size();
+            TableLayout table = findViewById(R.id.location_data_table);
+            table.removeAllViews();
+            buildTable(table, history);
+        }
+
+        // Refresh graph only when visible
+        if (mGraphView.getVisibility() == View.VISIBLE) {
+            ObaTripSchedule schedule = tracker.getSchedule(mTripId);
+            Long serviceDate = tracker.getServiceDate(mTripId);
+            mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0);
+        }
+    }
+
+    private void refreshGraph() {
+        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+        List<VehicleHistoryEntry> history = tracker.getHistory(mTripId);
+        ObaTripSchedule schedule = tracker.getSchedule(mTripId);
+        Long serviceDate = tracker.getServiceDate(mTripId);
+        mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0);
     }
 
     private void buildTable(TableLayout table, List<VehicleHistoryEntry> history) {

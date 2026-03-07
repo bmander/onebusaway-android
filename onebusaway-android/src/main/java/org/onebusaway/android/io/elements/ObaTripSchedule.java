@@ -36,6 +36,8 @@ public final class ObaTripSchedule {
 
         private final String predictedOccupancy;
 
+        private final double distanceAlongTrip;
+
         StopTime() {
             stopId = "";
             stopHeadsign = "";
@@ -43,6 +45,7 @@ public final class ObaTripSchedule {
             departureTime = 0;
             historicalOccupancy = "";
             predictedOccupancy = "";
+            distanceAlongTrip = 0;
         }
 
         /**
@@ -87,6 +90,13 @@ public final class ObaTripSchedule {
          */
         public Occupancy getPredictedOccupancy() {
             return Occupancy.fromString(predictedOccupancy);
+        }
+
+        /**
+         * @return The distance along the trip in meters when the vehicle arrives at this stop.
+         */
+        public double getDistanceAlongTrip() {
+            return distanceAlongTrip;
         }
     }
 

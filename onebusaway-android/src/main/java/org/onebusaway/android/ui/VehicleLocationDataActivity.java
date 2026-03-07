@@ -253,7 +253,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
                     // Speed
                     if (dtMs > 0) {
                         double speedDist = dd < 0 ? 0 : dd;
-                        double speedMph = (speedDist / (dtMs / 1000.0)) * 2.23694;
+                        double speedMph = (speedDist / (dtMs / 1000.0)) * VehicleSpeedTracker.MPS_TO_MPH;
                         row.addView(createCell(
                                 String.format(Locale.US, "%.1f", speedMph), false));
                     } else {

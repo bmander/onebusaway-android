@@ -677,6 +677,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                                     }
                                 } catch (Exception e) {
                                     Log.w(TAG, "Failed to fetch trip schedule for " + tripId, e);
+                                    speedTracker.clearPending(tripId);
                                 }
                             }).start();
                         }
@@ -998,7 +999,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             Double speedMs = VehicleSpeedTracker.getInstance()
                     .getEstimatedSpeed(status.getActiveTripId(), vehicleState);
             if (speedMs != null) {
-                double speedMph = speedMs * 2.23694; // m/s to mph
+                double speedMph = speedMs * VehicleSpeedTracker.MPS_TO_MPH;
                 String speedText = r.getString(R.string.vehicle_estimated_speed,
                         String.format("%.1f", speedMph));
                 estimatedSpeedView.setText(speedText);

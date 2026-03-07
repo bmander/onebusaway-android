@@ -34,6 +34,10 @@ import java.util.Set;
 public final class VehicleSpeedTracker {
 
     private static final VehicleSpeedTracker INSTANCE = new VehicleSpeedTracker();
+    private static final int MAX_HISTORY_SIZE = 100;
+
+    /** Conversion factor: meters per second to miles per hour. */
+    public static final double MPS_TO_MPH = 2.23694;
 
     private final Map<String, List<VehicleHistoryEntry>> historyMap = new HashMap<>();
     private final Map<String, ObaTripSchedule> scheduleCache = new HashMap<>();
@@ -89,6 +93,11 @@ public final class VehicleSpeedTracker {
                 locUpdateTime,
                 state.getTimestamp()
         ));
+
+        // Cap history size to prevent unbounded growth
+        if (history.size() > MAX_HISTORY_SIZE) {
+            history.subList(0, history.size() - MAX_HISTORY_SIZE).clear();
+        }
     }
 
     /**
@@ -151,6 +160,13 @@ public final class VehicleSpeedTracker {
         if (tripId != null) {
             pendingScheduleFetches.add(tripId);
         }
+    }
+
+    /**
+     * Removes a trip from pending fetches (e.g., on failure so it can be retried).
+     */
+    public synchronized void clearPending(String tripId) {
+        pendingScheduleFetches.remove(tripId);
     }
 
     /**

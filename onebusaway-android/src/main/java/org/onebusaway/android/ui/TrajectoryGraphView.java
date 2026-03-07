@@ -24,6 +24,9 @@ import android.graphics.Path;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.AttributeSet;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 
 import org.onebusaway.android.io.elements.ObaTripSchedule;
@@ -41,6 +44,7 @@ import java.util.Locale;
 public class TrajectoryGraphView extends View {
 
     private static final long TICK_INTERVAL_MS = 1000;
+    private static final int BG_COLOR = Color.parseColor("#1A1A1A");
 
     private List<VehicleHistoryEntry> mHistory = new ArrayList<>();
     private ObaTripSchedule mSchedule;
@@ -69,6 +73,27 @@ public class TrajectoryGraphView extends View {
     private final SimpleDateFormat mTimeFmt = new SimpleDateFormat("HH:mm", Locale.US);
     private boolean mTickingActive;
 
+    // Zoom & pan state
+    private float mScaleX = 1f;
+    private float mScaleY = 1f;
+    private double mOffsetDist = 0;
+    private long mOffsetTime = 0;
+
+    // Full data bounds (set during onDraw, used by gesture handlers)
+    private double mFullMinDist = 0;
+    private double mFullMaxDist = 0;
+    private long mFullMinTime = 0;
+    private long mFullMaxTime = 0;
+
+    // Graph margins for gesture coordinate conversion
+    private final float mMarginLeft;
+    private final float mMarginTop;
+    private final float mMarginRight;
+    private final float mMarginBottom;
+
+    private final ScaleGestureDetector mScaleDetector;
+    private final GestureDetector mGestureDetector;
+
     private final Handler mTickHandler = new Handler(Looper.getMainLooper());
     private final Runnable mTickRunnable = new Runnable() {
         @Override
@@ -90,7 +115,113 @@ public class TrajectoryGraphView extends View {
     public TrajectoryGraphView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         mDensity = context.getResources().getDisplayMetrics().density;
+        mMarginLeft = 65 * mDensity;
+        mMarginBottom = 35 * mDensity;
+        mMarginTop = 15 * mDensity;
+        mMarginRight = 15 * mDensity;
         initPaints();
+
+        mScaleDetector = new ScaleGestureDetector(context,
+                new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                    @Override
+                    public boolean onScale(ScaleGestureDetector detector) {
+                        float factor = detector.getScaleFactor();
+                        float focusX = detector.getFocusX();
+                        float focusY = detector.getFocusY();
+
+                        float graphW = getWidth() - mMarginLeft - mMarginRight;
+                        float graphH = getHeight() - mMarginTop - mMarginBottom;
+                        if (graphW <= 0 || graphH <= 0) return true;
+
+                        double fullDistRange = mFullMaxDist - mFullMinDist;
+                        long fullTimeRange = mFullMaxTime - mFullMinTime;
+                        if (fullDistRange <= 0 || fullTimeRange <= 0) return true;
+
+                        // Data-space point under the focal point before scaling
+                        double visDistRange = fullDistRange / mScaleX;
+                        long visTimeRange = (long) (fullTimeRange / mScaleY);
+                        double focalDist = mFullMinDist + mOffsetDist
+                                + visDistRange * ((focusX - mMarginLeft) / graphW);
+                        long focalTime = mFullMinTime + mOffsetTime
+                                + visTimeRange - (long) (visTimeRange * ((focusY - mMarginTop) / graphH));
+
+                        // Apply scale
+                        float newScaleX = Math.max(1f, Math.min(20f, mScaleX * factor));
+                        float newScaleY = Math.max(1f, Math.min(20f, mScaleY * factor));
+                        mScaleX = newScaleX;
+                        mScaleY = newScaleY;
+
+                        // Adjust offsets so the focal data point stays under the finger
+                        double newVisDistRange = fullDistRange / mScaleX;
+                        long newVisTimeRange = (long) (fullTimeRange / mScaleY);
+                        mOffsetDist = focalDist - mFullMinDist
+                                - newVisDistRange * ((focusX - mMarginLeft) / graphW);
+                        mOffsetTime = focalTime - mFullMinTime
+                                - newVisTimeRange + (long) (newVisTimeRange * ((focusY - mMarginTop) / graphH));
+
+                        clampOffsets();
+                        invalidate();
+                        return true;
+                    }
+                });
+
+        mGestureDetector = new GestureDetector(context,
+                new GestureDetector.SimpleOnGestureListener() {
+                    @Override
+                    public boolean onScroll(MotionEvent e1, MotionEvent e2,
+                                            float distanceX, float distanceY) {
+                        float graphW = getWidth() - mMarginLeft - mMarginRight;
+                        float graphH = getHeight() - mMarginTop - mMarginBottom;
+                        if (graphW <= 0 || graphH <= 0) return true;
+
+                        double fullDistRange = mFullMaxDist - mFullMinDist;
+                        long fullTimeRange = mFullMaxTime - mFullMinTime;
+
+                        double visDistRange = fullDistRange / mScaleX;
+                        long visTimeRange = (long) (fullTimeRange / mScaleY);
+
+                        // Convert pixel delta to data-space delta
+                        mOffsetDist += visDistRange * (distanceX / graphW);
+                        // Y is inverted (up = higher time, pixel up = negative distanceY)
+                        mOffsetTime -= (long) (visTimeRange * (distanceY / graphH));
+
+                        clampOffsets();
+                        invalidate();
+                        return true;
+                    }
+
+                    @Override
+                    public boolean onDoubleTap(MotionEvent e) {
+                        mScaleX = 1f;
+                        mScaleY = 1f;
+                        mOffsetDist = 0;
+                        mOffsetTime = 0;
+                        invalidate();
+                        return true;
+                    }
+                });
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        mScaleDetector.onTouchEvent(event);
+        mGestureDetector.onTouchEvent(event);
+        if (mScaleX > 1f || mScaleY > 1f || mScaleDetector.isInProgress()) {
+            getParent().requestDisallowInterceptTouchEvent(true);
+        }
+        return true;
+    }
+
+    private void clampOffsets() {
+        double fullDistRange = mFullMaxDist - mFullMinDist;
+        long fullTimeRange = mFullMaxTime - mFullMinTime;
+        if (fullDistRange <= 0 || fullTimeRange <= 0) return;
+
+        double visDistRange = fullDistRange / mScaleX;
+        long visTimeRange = (long) (fullTimeRange / mScaleY);
+
+        mOffsetDist = Math.max(0, Math.min(mOffsetDist, fullDistRange - visDistRange));
+        mOffsetTime = Math.max(0, Math.min(mOffsetTime, fullTimeRange - visTimeRange));
     }
 
     private void initPaints() {
@@ -195,19 +326,14 @@ public class TrajectoryGraphView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        canvas.drawColor(Color.parseColor("#1A1A1A"));
+        canvas.drawColor(BG_COLOR);
 
-        float marginLeft = 65 * mDensity;
-        float marginBottom = 35 * mDensity;
-        float marginTop = 15 * mDensity;
-        float marginRight = 15 * mDensity;
-
-        float graphW = getWidth() - marginLeft - marginRight;
-        float graphH = getHeight() - marginTop - marginBottom;
+        float graphW = getWidth() - mMarginLeft - mMarginRight;
+        float graphH = getHeight() - mMarginTop - mMarginBottom;
 
         if (graphW <= 0 || graphH <= 0) return;
 
-        // Compute data bounds
+        // Compute full data bounds
         double minDist = 0;
         double maxDist = 0;
         long minTime = Long.MAX_VALUE;
@@ -245,7 +371,7 @@ public class TrajectoryGraphView extends View {
 
         if (!hasData) {
             mNowLabelPaint.setTextSize(14 * mDensity);
-            canvas.drawText("No data available", marginLeft + 10 * mDensity,
+            canvas.drawText("No data available", mMarginLeft + 10 * mDensity,
                     getHeight() / 2f, mNowLabelPaint);
             mNowLabelPaint.setTextSize(10 * mDensity);
             return;
@@ -265,46 +391,77 @@ public class TrajectoryGraphView extends View {
         if (timeRange < 60_000) timeRange = 60_000;
         minTime -= timeRange / 20;
         maxTime += timeRange / 20;
-        timeRange = maxTime - minTime;
 
-        // Draw axes
-        canvas.drawLine(marginLeft, marginTop, marginLeft, getHeight() - marginBottom,
+        // Store full data bounds for gesture handlers
+        mFullMinDist = minDist;
+        mFullMaxDist = maxDist;
+        mFullMinTime = minTime;
+        mFullMaxTime = maxTime;
+        clampOffsets();
+
+        // Compute visible window based on zoom/pan
+        double fullDistRange = maxDist - minDist;
+        long fullTimeRange = maxTime - minTime;
+
+        double visDistRange = fullDistRange / mScaleX;
+        long visTimeRange = (long) (fullTimeRange / mScaleY);
+
+        double visMinDist = minDist + mOffsetDist;
+        double visMaxDist = visMinDist + visDistRange;
+        long visMinTime = minTime + mOffsetTime;
+        long visMaxTime = visMinTime + visTimeRange;
+
+        // Draw axes (outside clip)
+        canvas.drawLine(mMarginLeft, mMarginTop, mMarginLeft, getHeight() - mMarginBottom,
                 mAxisPaint);
-        canvas.drawLine(marginLeft, getHeight() - marginBottom,
-                getWidth() - marginRight, getHeight() - marginBottom, mAxisPaint);
+        canvas.drawLine(mMarginLeft, getHeight() - mMarginBottom,
+                getWidth() - mMarginRight, getHeight() - mMarginBottom, mAxisPaint);
 
-        // Grid and labels — Y axis (time)
+        // Y-axis labels (time) — outside clip
         int timeGridCount = 5;
-        long timeStep = timeRange / timeGridCount;
-        // Round to nearest minute
+        long timeStep = visTimeRange / timeGridCount;
         timeStep = Math.max(60_000, (timeStep / 60_000) * 60_000);
-        long firstTimeTick = ((minTime / timeStep) + 1) * timeStep;
-        for (long t = firstTimeTick; t < maxTime; t += timeStep) {
-            float y = marginTop + graphH * (1f - (float) (t - minTime) / timeRange);
-            canvas.drawLine(marginLeft, y, getWidth() - marginRight, y, mGridPaint);
-            mReusableDate.setTime(t);
-            String label = mTimeFmt.format(mReusableDate);
-            canvas.drawText(label, 4 * mDensity, y + 4 * mDensity, mLabelPaint);
+        long firstTimeTick = ((visMinTime / timeStep) + 1) * timeStep;
+        for (long t = firstTimeTick; t < visMaxTime; t += timeStep) {
+            float y = mMarginTop + graphH * (1f - (float) (t - visMinTime) / visTimeRange);
+            if (y >= mMarginTop && y <= getHeight() - mMarginBottom) {
+                mReusableDate.setTime(t);
+                String label = mTimeFmt.format(mReusableDate);
+                canvas.drawText(label, 4 * mDensity, y + 4 * mDensity, mLabelPaint);
+            }
         }
 
-        // Grid and labels — X axis (distance)
-        double distRangeFinal = maxDist - minDist;
-        int distGridCount = 5;
-        double distStep = distRangeFinal / distGridCount;
-        // Round to a nice number
-        distStep = niceStep(distStep);
-        double firstDistTick = Math.ceil(minDist / distStep) * distStep;
-        for (double d = firstDistTick; d < maxDist; d += distStep) {
-            float x = marginLeft + graphW * (float) ((d - minDist) / distRangeFinal);
-            canvas.drawLine(x, marginTop, x, getHeight() - marginBottom, mGridPaint);
-            String label;
-            if (distStep >= 1000) {
-                label = String.format(Locale.US, "%.1fkm", d / 1000.0);
-            } else {
-                label = String.format(Locale.US, "%.0fm", d);
+        // X-axis labels (distance) — outside clip
+        double distStepVis = visDistRange / 5;
+        distStepVis = niceStep(distStepVis);
+        double firstDistTick = Math.ceil(visMinDist / distStepVis) * distStepVis;
+        for (double d = firstDistTick; d < visMaxDist; d += distStepVis) {
+            float x = mMarginLeft + graphW * (float) ((d - visMinDist) / visDistRange);
+            if (x >= mMarginLeft && x <= getWidth() - mMarginRight) {
+                String label;
+                if (distStepVis >= 1000) {
+                    label = String.format(Locale.US, "%.1fkm", d / 1000.0);
+                } else {
+                    label = String.format(Locale.US, "%.0fm", d);
+                }
+                canvas.drawText(label, x - 10 * mDensity,
+                        getHeight() - mMarginBottom + 15 * mDensity, mLabelPaint);
             }
-            canvas.drawText(label, x - 10 * mDensity,
-                    getHeight() - marginBottom + 15 * mDensity, mLabelPaint);
+        }
+
+        // Clip to graph area for data drawing
+        canvas.save();
+        canvas.clipRect(mMarginLeft, mMarginTop, getWidth() - mMarginRight,
+                getHeight() - mMarginBottom);
+
+        // Grid lines
+        for (long t = firstTimeTick; t < visMaxTime; t += timeStep) {
+            float y = mMarginTop + graphH * (1f - (float) (t - visMinTime) / visTimeRange);
+            canvas.drawLine(mMarginLeft, y, getWidth() - mMarginRight, y, mGridPaint);
+        }
+        for (double d = firstDistTick; d < visMaxDist; d += distStepVis) {
+            float x = mMarginLeft + graphW * (float) ((d - visMinDist) / visDistRange);
+            canvas.drawLine(x, mMarginTop, x, getHeight() - mMarginBottom, mGridPaint);
         }
 
         // Draw schedule line
@@ -314,9 +471,9 @@ public class TrajectoryGraphView extends View {
                 mSchedulePath.reset();
                 boolean first = true;
                 for (ObaTripSchedule.StopTime st : stops) {
-                    float x = marginLeft + graphW * (float) ((st.getDistanceAlongTrip() - minDist) / distRangeFinal);
+                    float x = mMarginLeft + graphW * (float) ((st.getDistanceAlongTrip() - visMinDist) / visDistRange);
                     long absTime = mServiceDate + st.getArrivalTime() * 1000;
-                    float y = marginTop + graphH * (1f - (float) (absTime - minTime) / timeRange);
+                    float y = mMarginTop + graphH * (1f - (float) (absTime - visMinTime) / visTimeRange);
                     if (first) {
                         mSchedulePath.moveTo(x, y);
                         first = false;
@@ -337,8 +494,8 @@ public class TrajectoryGraphView extends View {
                 Double d = e.getBestDistanceAlongTrip();
                 long t = e.getLastLocationUpdateTime();
                 if (d == null || t <= 0) continue;
-                float x = marginLeft + graphW * (float) ((d - minDist) / distRangeFinal);
-                float y = marginTop + graphH * (1f - (float) (t - minTime) / timeRange);
+                float x = mMarginLeft + graphW * (float) ((d - visMinDist) / visDistRange);
+                float y = mMarginTop + graphH * (1f - (float) (t - visMinTime) / visTimeRange);
                 if (first) {
                     mTrajectoryPath.moveTo(x, y);
                     first = false;
@@ -366,17 +523,15 @@ public class TrajectoryGraphView extends View {
             }
             if (lastDist != null && mCurrentTime > lastTime) {
                 double extrapolatedDist = lastDist + mEstimatedSpeedMps * (mCurrentTime - lastTime) / 1000.0;
-                float x1 = marginLeft + graphW * (float) ((lastDist - minDist) / distRangeFinal);
-                float y1 = marginTop + graphH * (1f - (float) (lastTime - minTime) / timeRange);
-                float x2 = marginLeft + graphW * (float) ((extrapolatedDist - minDist) / distRangeFinal);
-                float y2 = marginTop + graphH * (1f - (float) (mCurrentTime - minTime) / timeRange);
-                // Clamp x2 to graph area
-                x2 = Math.min(x2, getWidth() - marginRight);
+                float x1 = mMarginLeft + graphW * (float) ((lastDist - visMinDist) / visDistRange);
+                float y1 = mMarginTop + graphH * (1f - (float) (lastTime - visMinTime) / visTimeRange);
+                float x2 = mMarginLeft + graphW * (float) ((extrapolatedDist - visMinDist) / visDistRange);
+                float y2 = mMarginTop + graphH * (1f - (float) (mCurrentTime - visMinTime) / visTimeRange);
                 canvas.drawLine(x1, y1, x2, y2, mExtrapolatePaint);
-                // Vertical drop line to X axis (dashed)
-                float xAxisY = getHeight() - marginBottom;
+                // Vertical drop line to X axis
+                float xAxisY = getHeight() - mMarginBottom;
                 canvas.drawLine(x2, y2, x2, xAxisY, mExtrapolateDashPaint);
-                // Distance label (above X axis labels)
+                // Distance label
                 String distLabel;
                 if (extrapolatedDist >= 1000) {
                     distLabel = String.format(Locale.US, "~%.1fkm", extrapolatedDist / 1000.0);
@@ -389,18 +544,20 @@ public class TrajectoryGraphView extends View {
         }
 
         // Draw current time line
-        float nowY = marginTop + graphH * (1f - (float) (mCurrentTime - minTime) / timeRange);
-        if (nowY >= marginTop && nowY <= getHeight() - marginBottom) {
-            canvas.drawLine(marginLeft, nowY, getWidth() - marginRight, nowY, mNowLinePaint);
+        float nowY = mMarginTop + graphH * (1f - (float) (mCurrentTime - visMinTime) / visTimeRange);
+        if (nowY >= mMarginTop && nowY <= getHeight() - mMarginBottom) {
+            canvas.drawLine(mMarginLeft, nowY, getWidth() - mMarginRight, nowY, mNowLinePaint);
             mReusableDate.setTime(mCurrentTime);
             String nowLabel = "now " + mTimeFmt.format(mReusableDate);
-            canvas.drawText(nowLabel, marginLeft + 5 * mDensity, nowY - 4 * mDensity,
+            canvas.drawText(nowLabel, mMarginLeft + 5 * mDensity, nowY - 4 * mDensity,
                     mNowLabelPaint);
         }
 
-        // Legend
-        float legendX = marginLeft + 10 * mDensity;
-        float legendY = marginTop + 15 * mDensity;
+        canvas.restore();
+
+        // Legend (outside clip, fixed position)
+        float legendX = mMarginLeft + 10 * mDensity;
+        float legendY = mMarginTop + 15 * mDensity;
         canvas.drawLine(legendX, legendY, legendX + 20 * mDensity, legendY, mSchedulePaint);
         canvas.drawText("Schedule", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
         legendY += 18 * mDensity;

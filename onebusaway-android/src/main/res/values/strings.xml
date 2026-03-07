@@ -840,6 +840,7 @@
 
     <!-- Vehicles on Map -->
     <string name="vehicle_estimated_speed">Est. speed: %1$s mph</string>
+    <string name="vehicle_view_location_data">View location data</string>
     <string name="vehicle_last_updated_sec">Data updated %1$d sec ago</string>
     <string name="vehicle_last_updated_min_and_sec">Data updated %1$d min %2$d sec ago</string>
     <string name="vehicle_last_updated_scheduled">Position calculated from schedule</string>

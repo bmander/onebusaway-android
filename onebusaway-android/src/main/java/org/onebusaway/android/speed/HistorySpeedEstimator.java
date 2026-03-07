@@ -41,9 +41,14 @@ public class HistorySpeedEstimator implements SpeedEstimator {
 
         double timeDeltaSec = timeDeltaMs / 1000.0;
 
-        // Prefer distanceAlongTrip deltas
-        if (prev.getDistanceAlongTrip() != null && curr.getDistanceAlongTrip() != null) {
-            double distDelta = Math.abs(curr.getDistanceAlongTrip() - prev.getDistanceAlongTrip());
+        // Prefer raw (non-extrapolated) distance, fall back to extrapolated
+        Double prevDist = prev.getBestDistanceAlongTrip();
+        Double currDist = curr.getBestDistanceAlongTrip();
+        if (prevDist != null && currDist != null) {
+            double distDelta = currDist - prevDist;
+            if (distDelta < 0) {
+                distDelta = 0; // Ignore backward jumps from correction artifacts
+            }
             return distDelta / timeDeltaSec;
         }
 

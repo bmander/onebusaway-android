@@ -49,6 +49,8 @@ public final class VehicleSpeedTracker {
 
     /**
      * Records a vehicle state snapshot into the history for the given key (activeTripId).
+     * Deduplicates by lastLocationUpdateTime — only records when a genuinely new AVL
+     * report has arrived from the vehicle, filtering out server re-extrapolations.
      */
     public synchronized void recordState(String key, VehicleState state) {
         if (key == null || state == null) {
@@ -61,6 +63,20 @@ public final class VehicleSpeedTracker {
             historyMap.put(key, history);
         }
 
+        // Skip AVL reports with no timestamp
+        long locUpdateTime = state.getLastLocationUpdateTime();
+        if (locUpdateTime <= 0) {
+            return;
+        }
+
+        // Skip if lastLocationUpdateTime hasn't changed (same AVL report, re-extrapolated)
+        if (!history.isEmpty()) {
+            VehicleHistoryEntry last = history.get(history.size() - 1);
+            if (last.getLastLocationUpdateTime() == locUpdateTime) {
+                return;
+            }
+        }
+
         Location position = state.getLastKnownLocation();
         if (position == null) {
             position = state.getPosition();
@@ -69,6 +85,8 @@ public final class VehicleSpeedTracker {
         history.add(new VehicleHistoryEntry(
                 position,
                 state.getDistanceAlongTrip(),
+                state.getLastKnownDistanceAlongTrip(),
+                locUpdateTime,
                 state.getTimestamp()
         ));
     }

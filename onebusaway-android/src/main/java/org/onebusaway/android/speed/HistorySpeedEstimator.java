@@ -34,7 +34,7 @@ public class HistorySpeedEstimator implements SpeedEstimator {
         VehicleHistoryEntry prev = history.get(history.size() - 2);
         VehicleHistoryEntry curr = history.get(history.size() - 1);
 
-        long timeDeltaMs = curr.getTimestamp() - prev.getTimestamp();
+        long timeDeltaMs = curr.getLastLocationUpdateTime() - prev.getLastLocationUpdateTime();
         if (timeDeltaMs < 1000) {
             return null;
         }

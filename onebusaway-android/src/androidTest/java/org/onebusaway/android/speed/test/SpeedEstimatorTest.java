@@ -128,7 +128,7 @@ public class SpeedEstimatorTest {
     public void testTrackerRetainsFullHistory() {
         for (int i = 0; i < 50; i++) {
             VehicleState state = createState("v1", "trip1", 47.0 + i * 0.001, -122.0,
-                    100.0 * i, 100.0 * i, 5000.0, i * 30000L);
+                    100.0 * i, 100.0 * i, 5000.0, 1000L + i * 30000L);
             tracker.recordState("trip1", state);
         }
 
@@ -289,9 +289,9 @@ public class SpeedEstimatorTest {
 
         // Vehicle moved 100m in 10 seconds = 10 m/s
         VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 0L);
+                100.0, 100.0, 5000.0, 1000L);
         VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                200.0, 200.0, 5000.0, 10000L);
+                200.0, 200.0, 5000.0, 11000L);
 
         tracker.recordState("trip1", state1);
         tracker.recordState("trip1", state2);
@@ -307,9 +307,9 @@ public class SpeedEstimatorTest {
 
         // Entries with no distanceAlongTrip - should fall back to geographic distance
         VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                null, null, null, 0L);
+                null, null, null, 1000L);
         VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                null, null, null, 10000L);
+                null, null, null, 11000L);
 
         tracker.recordState("trip1", state1);
         tracker.recordState("trip1", state2);
@@ -325,9 +325,9 @@ public class SpeedEstimatorTest {
 
         // Two entries less than 1 second apart
         VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 0L);
+                100.0, 100.0, 5000.0, 1000L);
         VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                200.0, 200.0, 5000.0, 500L);
+                200.0, 200.0, 5000.0, 1500L);
 
         tracker.recordState("trip1", state1);
         tracker.recordState("trip1", state2);
@@ -342,11 +342,11 @@ public class SpeedEstimatorTest {
 
         // Three entries: speed should be calculated from last two only
         VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 0L);
+                100.0, 100.0, 5000.0, 1000L);
         VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                200.0, 200.0, 5000.0, 10000L);
+                200.0, 200.0, 5000.0, 11000L);
         VehicleState state3 = createState("v1", "trip1", 47.002, -122.0,
-                500.0, 500.0, 5000.0, 20000L);
+                500.0, 500.0, 5000.0, 21000L);
 
         tracker.recordState("trip1", state1);
         tracker.recordState("trip1", state2);
@@ -513,9 +513,9 @@ public class SpeedEstimatorTest {
 
         // No schedule cached -> schedule estimator returns null -> history only
         VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 0L);
+                100.0, 100.0, 5000.0, 1000L);
         VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                200.0, 200.0, 5000.0, 10000L);
+                200.0, 200.0, 5000.0, 11000L);
 
         tracker.recordState("trip1", state1);
         tracker.recordState("trip1", state2);
@@ -530,7 +530,7 @@ public class SpeedEstimatorTest {
         WeightedSpeedEstimator estimator = new WeightedSpeedEstimator();
 
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
-                null, null, null, 0L);
+                null, null, null, 1000L);
 
         assertNull(estimator.estimateSpeed("v1", state, tracker));
     }
@@ -549,9 +549,9 @@ public class SpeedEstimatorTest {
 
         // History: 200m in 10s = 20 m/s
         VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 0L);
+                100.0, 100.0, 5000.0, 1000L);
         VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                300.0, 500.0, 5000.0, 10000L);
+                300.0, 500.0, 5000.0, 11000L);
 
         tracker.recordState("trip1", state1);
         tracker.recordState("trip1", state2);
@@ -590,7 +590,7 @@ public class SpeedEstimatorTest {
     @Test
     public void testEndToEndSpeedEstimation() {
         // Simulate a vehicle moving along a route with periodic updates
-        long baseTime = 0L;
+        long baseTime = 1000L;
         double baseDistance = 0.0;
 
         // Record 5 position updates, each 30 seconds apart, 300m apart (~10 m/s = 22 mph)
@@ -605,7 +605,7 @@ public class SpeedEstimatorTest {
         }
 
         VehicleState latestState = createState("v1", "trip1",
-                47.012, -122.0, 1200.0, 1200.0, 10000.0, 120000L);
+                47.012, -122.0, 1200.0, 1200.0, 10000.0, 121000L);
 
         Double speed = tracker.getEstimatedSpeed("trip1", latestState);
         assertNotNull(speed);

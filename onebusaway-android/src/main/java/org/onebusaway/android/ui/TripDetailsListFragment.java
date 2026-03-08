@@ -397,6 +397,10 @@ public class TripDetailsListFragment extends ListFragment {
         TextView agency = (TextView) getView().findViewById(R.id.agency);
         agency.setText(refs.getAgency(route.getAgencyId()).getName());
 
+        TextView tripIdDebug = (TextView) getView().findViewById(R.id.trip_id_debug);
+        tripIdDebug.setText("Trip: " + tripId);
+        tripIdDebug.setVisibility(View.VISIBLE);
+
         TextView vehicleView = (TextView) getView().findViewById(R.id.vehicle);
         TextView vehicleDeviation = (TextView) getView().findViewById(R.id.status);
         ViewGroup realtime = (ViewGroup) getView().findViewById(
@@ -420,6 +424,9 @@ public class TripDetailsListFragment extends ListFragment {
                     .setText(context.getString(R.string.trip_details_vehicle,
                             status.getVehicleId()));
             vehicleView.setVisibility(View.VISIBLE);
+            String vehicleId = status.getVehicleId();
+            vehicleView.setOnClickListener(
+                    v -> VehicleDebugActivity.start(getActivity(), tripId, vehicleId));
         } else {
             vehicleView.setVisibility(View.GONE);
         }

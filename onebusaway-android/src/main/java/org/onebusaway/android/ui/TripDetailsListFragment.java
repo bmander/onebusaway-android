@@ -514,7 +514,17 @@ public class TripDetailsListFragment extends ListFragment {
         Button locationDataBtn = (Button) getView().findViewById(R.id.view_location_data);
         String activeTripId = status.getActiveTripId();
         if (activeTripId != null) {
-            int count = VehicleTrajectoryTracker.getInstance().getHistorySize(activeTripId);
+            // Cache schedule and service date so the trajectory graph can use them
+            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+            ObaTripSchedule schedule = mTripInfo.getSchedule();
+            if (schedule != null) {
+                tracker.putSchedule(activeTripId, schedule);
+            }
+            if (status.getServiceDate() > 0) {
+                tracker.putServiceDate(activeTripId, status.getServiceDate());
+            }
+
+            int count = tracker.getHistorySize(activeTripId);
             locationDataBtn.setText(getString(R.string.vehicle_view_location_data)
                     + " (" + count + ")");
             locationDataBtn.setVisibility(View.VISIBLE);

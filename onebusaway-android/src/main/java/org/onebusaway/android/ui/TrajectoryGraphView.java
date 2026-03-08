@@ -31,6 +31,7 @@ import android.view.View;
 
 import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
+import org.onebusaway.android.util.PreferenceUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -64,13 +65,17 @@ public class TrajectoryGraphView extends View {
     private final Paint mExtrapolatePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mExtrapolateDashPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mExtrapolateLabelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mDeviationDotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mDeviationLabelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mDeviationLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private final Path mSchedulePath = new Path();
     private final Path mTrajectoryPath = new Path();
     private final Date mReusableDate = new Date();
 
     private final float mDensity;
-    private final SimpleDateFormat mTimeFmt = new SimpleDateFormat("HH:mm", Locale.US);
+    private final SimpleDateFormat mTimeFmt = new SimpleDateFormat("HH:mm:ss", Locale.US);
+    private final boolean mUseImperial;
     private boolean mTickingActive;
 
     // Zoom & pan state
@@ -115,6 +120,7 @@ public class TrajectoryGraphView extends View {
     public TrajectoryGraphView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         mDensity = context.getResources().getDisplayMetrics().density;
+        mUseImperial = !PreferenceUtils.getUnitsAreMetricFromPreferences(context);
         mMarginLeft = 65 * mDensity;
         mMarginBottom = 35 * mDensity;
         mMarginTop = 15 * mDensity;
@@ -271,6 +277,19 @@ public class TrajectoryGraphView extends View {
 
         mExtrapolateLabelPaint.setColor(Color.parseColor("#BBBBBB"));
         mExtrapolateLabelPaint.setTextSize(10 * mDensity);
+
+        mDeviationDotPaint.setColor(Color.parseColor("#FFAA00"));
+        mDeviationDotPaint.setStyle(Paint.Style.FILL);
+
+        mDeviationLabelPaint.setColor(Color.parseColor("#FFAA00"));
+        mDeviationLabelPaint.setTextSize(11 * mDensity);
+        mDeviationLabelPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+
+        mDeviationLinePaint.setColor(Color.parseColor("#FFAA00"));
+        mDeviationLinePaint.setStyle(Paint.Style.STROKE);
+        mDeviationLinePaint.setStrokeWidth(1.5f * mDensity);
+        mDeviationLinePaint.setPathEffect(new DashPathEffect(
+                new float[]{4 * mDensity, 3 * mDensity}, 0));
     }
 
     public void setData(List<VehicleHistoryEntry> history, ObaTripSchedule schedule,
@@ -420,7 +439,7 @@ public class TrajectoryGraphView extends View {
         // Y-axis labels (time) — outside clip
         int timeGridCount = 5;
         long timeStep = visTimeRange / timeGridCount;
-        timeStep = Math.max(60_000, (timeStep / 60_000) * 60_000);
+        timeStep = Math.max(10_000, (long) niceStep(timeStep));
         long firstTimeTick = ((visMinTime / timeStep) + 1) * timeStep;
         for (long t = firstTimeTick; t < visMaxTime; t += timeStep) {
             float y = mMarginTop + graphH * (1f - (float) (t - visMinTime) / visTimeRange);
@@ -438,12 +457,7 @@ public class TrajectoryGraphView extends View {
         for (double d = firstDistTick; d < visMaxDist; d += distStepVis) {
             float x = mMarginLeft + graphW * (float) ((d - visMinDist) / visDistRange);
             if (x >= mMarginLeft && x <= getWidth() - mMarginRight) {
-                String label;
-                if (distStepVis >= 1000) {
-                    label = String.format(Locale.US, "%.1fkm", d / 1000.0);
-                } else {
-                    label = String.format(Locale.US, "%.0fm", d);
-                }
+                String label = formatDist(d);
                 canvas.drawText(label, x - 10 * mDensity,
                         getHeight() - mMarginBottom + 15 * mDensity, mLabelPaint);
             }
@@ -532,14 +546,41 @@ public class TrajectoryGraphView extends View {
                 float xAxisY = getHeight() - mMarginBottom;
                 canvas.drawLine(x2, y2, x2, xAxisY, mExtrapolateDashPaint);
                 // Distance label
-                String distLabel;
-                if (extrapolatedDist >= 1000) {
-                    distLabel = String.format(Locale.US, "~%.1fkm", extrapolatedDist / 1000.0);
-                } else {
-                    distLabel = String.format(Locale.US, "~%.0fm", extrapolatedDist);
-                }
+                String distLabel = "~" + formatDistPrecise(extrapolatedDist);
                 canvas.drawText(distLabel, x2 - 10 * mDensity,
                         xAxisY - 5 * mDensity, mExtrapolateLabelPaint);
+
+                // Schedule deviation: find scheduled time at extrapolated distance
+                long scheduledTime = interpolateScheduleTime(extrapolatedDist);
+                if (scheduledTime > 0) {
+                    float schedY = mMarginTop + graphH
+                            * (1f - (float) (scheduledTime - visMinTime) / visTimeRange);
+                    // Draw dot at intersection of vertical line with schedule
+                    canvas.drawCircle(x2, schedY, 5 * mDensity, mDeviationDotPaint);
+                    // Draw connecting line between scheduled point and now point
+                    canvas.drawLine(x2, schedY, x2, y2, mDeviationLinePaint);
+                    // Deviation label
+                    long devSeconds = (mCurrentTime - scheduledTime) / 1000;
+                    String devLabel;
+                    long absSeconds = Math.abs(devSeconds);
+                    if (absSeconds >= 60) {
+                        long mins = absSeconds / 60;
+                        long secs = absSeconds % 60;
+                        devLabel = mins + "m" + (secs > 0 ? secs + "s" : "");
+                    } else {
+                        devLabel = absSeconds + "s";
+                    }
+                    if (devSeconds > 0) {
+                        devLabel += " late";
+                    } else if (devSeconds < 0) {
+                        devLabel += " early";
+                    } else {
+                        devLabel = "on time";
+                    }
+                    float labelX = x2 + 5 * mDensity;
+                    float labelY = (schedY + y2) / 2 + 4 * mDensity;
+                    canvas.drawText(devLabel, labelX, labelY, mDeviationLabelPaint);
+                }
             }
         }
 
@@ -566,6 +607,55 @@ public class TrajectoryGraphView extends View {
         legendY += 18 * mDensity;
         canvas.drawLine(legendX, legendY, legendX + 20 * mDensity, legendY, mExtrapolateDashPaint);
         canvas.drawText("Estimated", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
+    }
+
+    /**
+     * Interpolates the schedule to find the expected time at a given distance along the trip.
+     * Returns 0 if the schedule is unavailable or the distance is out of range.
+     */
+    private long interpolateScheduleTime(double distanceMeters) {
+        if (mSchedule == null) return 0;
+        ObaTripSchedule.StopTime[] stops = mSchedule.getStopTimes();
+        if (stops == null || stops.length < 2) return 0;
+
+        for (int i = 1; i < stops.length; i++) {
+            double d0 = stops[i - 1].getDistanceAlongTrip();
+            double d1 = stops[i].getDistanceAlongTrip();
+            if (distanceMeters >= d0 && distanceMeters <= d1 && d1 > d0) {
+                double fraction = (distanceMeters - d0) / (d1 - d0);
+                long t0 = mServiceDate + stops[i - 1].getArrivalTime() * 1000L;
+                long t1 = mServiceDate + stops[i].getArrivalTime() * 1000L;
+                return t0 + (long) (fraction * (t1 - t0));
+            }
+        }
+        return 0;
+    }
+
+    private static final double METERS_PER_FOOT = 0.3048;
+    private static final double FEET_PER_MILE = 5280;
+
+    private String formatDist(double meters) {
+        if (mUseImperial) {
+            double feet = meters / METERS_PER_FOOT;
+            if (feet >= FEET_PER_MILE) {
+                return String.format(Locale.US, "%.1fmi", feet / FEET_PER_MILE);
+            }
+            return String.format(Locale.US, "%.0fft", feet);
+        } else {
+            if (meters >= 1000) {
+                return String.format(Locale.US, "%.1fkm", meters / 1000.0);
+            }
+            return String.format(Locale.US, "%.0fm", meters);
+        }
+    }
+
+    private String formatDistPrecise(double meters) {
+        if (mUseImperial) {
+            double feet = meters / METERS_PER_FOOT;
+            return String.format(Locale.US, "%.0fft", feet);
+        } else {
+            return String.format(Locale.US, "%.0fm", meters);
+        }
     }
 
     private static double niceStep(double raw) {

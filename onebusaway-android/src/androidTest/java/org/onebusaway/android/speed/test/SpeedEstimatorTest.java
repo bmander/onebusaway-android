@@ -303,6 +303,26 @@ public class SpeedEstimatorTest {
         assertEquals(0, tracker.getSubscriberCount("trip2"));
     }
 
+    // --- Schedule-only filtering tests ---
+
+    @Test
+    public void testRecordStateRejectsScheduleOnlyPositions() {
+        VehicleState state = createState("v1", "trip1", 47.0, -122.0,
+                100.0, 95.0, 5000.0, 1000L, false);
+
+        tracker.recordState("trip1", state);
+        assertEquals(0, tracker.getHistorySize("trip1"));
+    }
+
+    @Test
+    public void testRecordStateAcceptsRealtimePositions() {
+        VehicleState state = createState("v1", "trip1", 47.0, -122.0,
+                100.0, 95.0, 5000.0, 1000L, true);
+
+        tracker.recordState("trip1", state);
+        assertEquals(1, tracker.getHistorySize("trip1"));
+    }
+
     // --- HistorySpeedEstimator tests ---
 
     @Test
@@ -652,10 +672,18 @@ public class SpeedEstimatorTest {
                                      double lat, double lng, Double distanceAlongTrip,
                                      Double scheduledDistance, Double totalDistance,
                                      long timestamp) {
+        return createState(vehicleId, activeTripId, lat, lng, distanceAlongTrip,
+                scheduledDistance, totalDistance, timestamp, true);
+    }
+
+    private VehicleState createState(String vehicleId, String activeTripId,
+                                     double lat, double lng, Double distanceAlongTrip,
+                                     Double scheduledDistance, Double totalDistance,
+                                     long timestamp, boolean predicted) {
         Location pos = createLocation(lat, lng);
         return VehicleState.create(vehicleId, activeTripId, pos, pos,
                 distanceAlongTrip, scheduledDistance, totalDistance,
-                timestamp, timestamp, 0L, true, timestamp);
+                timestamp, timestamp, 0L, predicted, timestamp);
     }
 
     private Location createLocation(double lat, double lng) {

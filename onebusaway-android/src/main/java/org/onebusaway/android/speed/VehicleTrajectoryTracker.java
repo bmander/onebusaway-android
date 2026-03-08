@@ -83,6 +83,12 @@ public final class VehicleTrajectoryTracker {
             return;
         }
 
+        // Only record real-time AVL positions — schedule-interpolated positions
+        // cause wild trajectory jumps when mixed with real-time data
+        if (!state.isPredicted()) {
+            return;
+        }
+
         List<VehicleHistoryEntry> history = historyMap.get(key);
         if (history == null) {
             history = new ArrayList<>();

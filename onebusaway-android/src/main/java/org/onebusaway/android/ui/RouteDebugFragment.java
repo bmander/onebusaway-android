@@ -40,6 +40,8 @@ import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.FragmentUtils;
 import org.onebusaway.android.util.UIUtils;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import androidx.fragment.app.ListFragment;
@@ -106,15 +108,31 @@ public class RouteDebugFragment extends ListFragment {
             return;
         }
 
+        // Hide loading spinner, show empty text if needed
+        view.findViewById(R.id.trips_loading_spinner).setVisibility(View.GONE);
+        TextView emptyText = (TextView) view.findViewById(R.id.trips_empty_text);
+        emptyText.setVisibility(View.VISIBLE);
+
         if (response.getCode() != ObaApi.OBA_OK) {
-            setEmptyText("Error loading trips: " + response.getCode());
+            emptyText.setText("Error loading trips: " + response.getCode());
             return;
         }
 
-        ObaTripDetails[] trips = response.getTrips();
+        // Filter to only trips belonging to this route
+        ObaTripDetails[] allTrips = response.getTrips();
+        List<ObaTripDetails> filtered = new ArrayList<>();
+        for (ObaTripDetails t : allTrips) {
+            ObaTrip trip = response.getTrip(t.getId());
+            if (trip != null && mRouteId.equals(trip.getRouteId())) {
+                filtered.add(t);
+            }
+        }
+        ObaTripDetails[] trips = filtered.toArray(new ObaTripDetails[0]);
+
         TextView countView = (TextView) view.findViewById(R.id.debug_trip_count);
         countView.setText(trips.length + " active trips");
 
+        emptyText.setText("No active trips");
         setListAdapter(new TripDebugAdapter(getActivity(), trips, response));
     }
 

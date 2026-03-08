@@ -45,12 +45,17 @@ import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripDetails;
+import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.elements.OccupancyState;
 import org.onebusaway.android.io.elements.Status;
+import org.onebusaway.android.io.request.ObaTripDetailsRequest;
+import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.ui.TripDetailsActivity;
 import org.onebusaway.android.ui.TripDetailsListFragment;
+import org.onebusaway.android.speed.VehicleTrajectoryTracker;
+import org.onebusaway.android.speed.VehicleState;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.MathUtils;
 import org.onebusaway.android.util.UIUtils;
@@ -646,6 +651,36 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                             updated++;
                         }
                         activeTripIds.add(status.getActiveTripId());
+
+                        VehicleState vehicleState = VehicleState.fromTripStatus(status);
+                        VehicleTrajectoryTracker trajectoryTracker = VehicleTrajectoryTracker.getInstance();
+                        trajectoryTracker.recordState(status.getActiveTripId(), vehicleState);
+
+                        String tripId = status.getActiveTripId();
+                        if (tripId != null && !trajectoryTracker.isSchedulePendingOrCached(tripId)) {
+                            trajectoryTracker.markSchedulePending(tripId);
+                            final Context ctx = Application.get().getApplicationContext();
+                            new Thread(() -> {
+                                try {
+                                    ObaTripDetailsResponse detailsResponse =
+                                            new ObaTripDetailsRequest.Builder(ctx, tripId)
+                                                    .setIncludeSchedule(true)
+                                                    .setIncludeStatus(false)
+                                                    .setIncludeTrip(false)
+                                                    .build()
+                                                    .call();
+                                    if (detailsResponse != null) {
+                                        ObaTripSchedule schedule = detailsResponse.getSchedule();
+                                        if (schedule != null) {
+                                            trajectoryTracker.putSchedule(tripId, schedule);
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Failed to fetch trip schedule for " + tripId, e);
+                                    trajectoryTracker.clearPending(tripId);
+                                }
+                            }).start();
+                        }
                     }
                 }
             }
@@ -957,6 +992,22 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                         elapsedMin, secMod60);
             }
             lastUpdatedView.setText(lastUpdated);
+
+            // Show estimated speed
+            TextView estimatedSpeedView = (TextView) view.findViewById(R.id.estimated_speed);
+            VehicleState vehicleState = VehicleState.fromTripStatus(status);
+            Double speedMs = VehicleTrajectoryTracker.getInstance()
+                    .getEstimatedSpeed(status.getActiveTripId(), vehicleState);
+            if (speedMs != null) {
+                double speedMph = speedMs * VehicleTrajectoryTracker.MPS_TO_MPH;
+                String speedText = r.getString(R.string.vehicle_estimated_speed,
+                        String.format("%.1f", speedMph));
+                estimatedSpeedView.setText(speedText);
+                estimatedSpeedView.setVisibility(View.VISIBLE);
+                Log.d(TAG, "Vehicle " + status.getVehicleId()
+                        + " estimated speed: " + String.format("%.1f", speedMph) + " mph ("
+                        + String.format("%.1f", speedMs) + " m/s)");
+            }
 
             if (status.getOccupancyStatus() != null) {
                 // Real-time occupancy data

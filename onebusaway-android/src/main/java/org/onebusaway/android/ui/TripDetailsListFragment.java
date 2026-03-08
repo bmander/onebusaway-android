@@ -48,6 +48,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.ListView;
@@ -88,6 +89,7 @@ import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.nav.NavigationService;
+import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.DBUtil;
@@ -238,11 +240,20 @@ public class TripDetailsListFragment extends ListFragment {
     @Override
     public void onPause() {
         mRefreshHandler.removeCallbacks(mRefresh);
+        if (mTripId != null) {
+            VehicleTrajectoryTracker.getInstance().unsubscribeTripPolling(mTripId);
+        }
         super.onPause();
     }
 
     @Override
     public void onResume() {
+        // Subscribe to trajectory polling for this trip
+        if (mTripId != null && getActivity() != null) {
+            VehicleTrajectoryTracker.getInstance()
+                    .subscribeTripPolling(getActivity().getApplicationContext(), mTripId);
+        }
+
         // Try to show any old data just in case we're coming out of sleep
         TripDetailsLoader loader = getTripDetailsLoader();
         if (loader != null) {
@@ -489,6 +500,19 @@ public class TripDetailsListFragment extends ListFragment {
             // Hide occupancy by setting null value
             UIUtils.setOccupancyVisibilityAndColor(occupancyView, null, OccupancyState.REALTIME);
             UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.REALTIME);
+        }
+
+        // Show location data button (always visible when we have a status)
+        Button locationDataBtn = (Button) getView().findViewById(R.id.view_location_data);
+        String activeTripId = status.getActiveTripId();
+        if (activeTripId != null) {
+            int count = VehicleTrajectoryTracker.getInstance().getHistorySize(activeTripId);
+            locationDataBtn.setText(getString(R.string.vehicle_view_location_data)
+                    + " (" + count + ")");
+            locationDataBtn.setVisibility(View.VISIBLE);
+            final String vehicleId = status.getVehicleId();
+            locationDataBtn.setOnClickListener(v ->
+                    VehicleLocationDataActivity.start(getActivity(), activeTripId, vehicleId));
         }
     }
 

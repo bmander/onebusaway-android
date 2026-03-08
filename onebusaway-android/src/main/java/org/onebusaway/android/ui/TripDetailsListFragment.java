@@ -519,28 +519,34 @@ public class TripDetailsListFragment extends ListFragment {
             UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.REALTIME);
         }
 
-        // Show location data button (always visible when we have a status)
+        setUpLocationDataButton(status);
+    }
+
+    private void setUpLocationDataButton(ObaTripStatus status) {
         Button locationDataBtn = (Button) getView().findViewById(R.id.view_location_data);
         String activeTripId = status.getActiveTripId();
-        if (activeTripId != null) {
-            // Cache schedule and service date so the trajectory graph can use them
-            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-            ObaTripSchedule schedule = mTripInfo.getSchedule();
-            if (schedule != null) {
-                tracker.putSchedule(activeTripId, schedule);
-            }
-            if (status.getServiceDate() > 0) {
-                tracker.putServiceDate(activeTripId, status.getServiceDate());
-            }
-
-            int count = tracker.getHistorySize(activeTripId);
-            locationDataBtn.setText(getString(R.string.vehicle_view_location_data)
-                    + " (" + count + ")");
-            locationDataBtn.setVisibility(View.VISIBLE);
-            final String vehicleId = status.getVehicleId();
-            locationDataBtn.setOnClickListener(v ->
-                    VehicleLocationDataActivity.start(getActivity(), activeTripId, vehicleId));
+        if (activeTripId == null) {
+            locationDataBtn.setVisibility(View.GONE);
+            return;
         }
+
+        // Cache schedule and service date so the trajectory graph can use them
+        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+        ObaTripSchedule schedule = mTripInfo.getSchedule();
+        if (schedule != null) {
+            tracker.putSchedule(activeTripId, schedule);
+        }
+        if (status.getServiceDate() > 0) {
+            tracker.putServiceDate(activeTripId, status.getServiceDate());
+        }
+
+        int count = tracker.getHistorySize(activeTripId);
+        locationDataBtn.setText(getString(R.string.vehicle_view_location_data)
+                + " (" + count + ")");
+        locationDataBtn.setVisibility(View.VISIBLE);
+        final String vehicleId = status.getVehicleId();
+        locationDataBtn.setOnClickListener(v ->
+                VehicleLocationDataActivity.start(getActivity(), activeTripId, vehicleId));
     }
 
     private Integer findIndexForStop(ObaTripSchedule.StopTime[] stopTimes, String stopId) {

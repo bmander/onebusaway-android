@@ -129,6 +129,8 @@
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
         </activity>
+        <activity android:name="org.onebusaway.android.ui.RouteDebugActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize" />
         <activity android:name="org.onebusaway.android.ui.RouteInfoActivity"
             android:exported="true"
             android:configChanges="orientation|keyboardHidden|screenSize">

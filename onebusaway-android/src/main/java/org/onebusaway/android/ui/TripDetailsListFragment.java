@@ -381,6 +381,7 @@ public class TripDetailsListFragment extends ListFragment {
         ObaRoute route = refs.getRoute(mRouteId);
         TextView routeShortName = (TextView) getView().findViewById(R.id.short_name);
         routeShortName.setText(route.getShortName());
+        routeShortName.setOnClickListener(v -> RouteDebugActivity.start(getActivity(), mRouteId));
 
         TextView headsign = (TextView) getView().findViewById(R.id.long_name);
         headsign.setText(trip.getHeadsign());

@@ -721,9 +721,9 @@ class ArrivalsListHeader {
                 }
 
                 mEtaRouteName1.setText(info1.getShortName());
-                final String routeId1 = info1.getRouteId();
+                final String tripId1 = info1.getTripId();
                 mEtaRouteName1.setOnClickListener(
-                        v -> RouteDebugActivity.start(mContext, routeId1));
+                        v -> TripDetailsActivity.start(mContext, tripId1));
                 mEtaRouteDirection1.setText(UIUtils.formatDisplayText(info1.getHeadsign()));
                 long eta = mArrivalInfo.get(i1).getEta();
                 if (eta == 0) {
@@ -796,9 +796,9 @@ class ArrivalsListHeader {
                     }
 
                     mEtaRouteName2.setText(info2.getShortName());
-                    final String routeId2 = info2.getRouteId();
+                    final String tripId2 = info2.getTripId();
                     mEtaRouteName2.setOnClickListener(
-                            v -> RouteDebugActivity.start(mContext, routeId2));
+                            v -> TripDetailsActivity.start(mContext, tripId2));
                     mEtaRouteDirection2.setText(UIUtils.formatDisplayText(info2.getHeadsign()));
                     eta = mArrivalInfo.get(i2).getEta();
 

@@ -27,6 +27,9 @@ public final class VehicleHistoryEntry {
     private final Double lastKnownDistanceAlongTrip;
     private final long lastLocationUpdateTime;
     private final long timestamp;
+    private final String vehicleId;
+    private final String tripId;
+    private final String blockId;
 
     public VehicleHistoryEntry(Location position, Double distanceAlongTrip, long timestamp) {
         this(position, distanceAlongTrip, null, 0, timestamp);
@@ -35,11 +38,22 @@ public final class VehicleHistoryEntry {
     public VehicleHistoryEntry(Location position, Double distanceAlongTrip,
                                Double lastKnownDistanceAlongTrip,
                                long lastLocationUpdateTime, long timestamp) {
+        this(position, distanceAlongTrip, lastKnownDistanceAlongTrip,
+                lastLocationUpdateTime, timestamp, null, null, null);
+    }
+
+    public VehicleHistoryEntry(Location position, Double distanceAlongTrip,
+                               Double lastKnownDistanceAlongTrip,
+                               long lastLocationUpdateTime, long timestamp,
+                               String vehicleId, String tripId, String blockId) {
         this.position = position;
         this.distanceAlongTrip = distanceAlongTrip;
         this.lastKnownDistanceAlongTrip = lastKnownDistanceAlongTrip;
         this.lastLocationUpdateTime = lastLocationUpdateTime;
         this.timestamp = timestamp;
+        this.vehicleId = vehicleId;
+        this.tripId = tripId;
+        this.blockId = blockId;
     }
 
     public Location getPosition() {
@@ -83,5 +97,17 @@ public final class VehicleHistoryEntry {
 
     public long getTimestamp() {
         return timestamp;
+    }
+
+    public String getVehicleId() {
+        return vehicleId;
+    }
+
+    public String getTripId() {
+        return tripId;
+    }
+
+    public String getBlockId() {
+        return blockId;
     }
 }

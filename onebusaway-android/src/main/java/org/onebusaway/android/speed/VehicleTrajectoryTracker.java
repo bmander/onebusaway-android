@@ -16,19 +16,17 @@
 package org.onebusaway.android.speed;
 
 import android.content.Context;
-import android.location.Location;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
 import org.onebusaway.android.io.ObaApi;
+import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -48,14 +46,12 @@ public final class VehicleTrajectoryTracker {
 
     private static final String TAG = "VehicleTrajectoryTracker";
     private static final VehicleTrajectoryTracker INSTANCE = new VehicleTrajectoryTracker();
-    private static final int MAX_HISTORY_SIZE = 100;
     private static final long POLL_INTERVAL_MS = 30_000;
 
     /** Conversion factor: meters per second to miles per hour. */
     public static final double MPS_TO_MPH = 2.23694;
 
-    private final Map<String, List<VehicleHistoryEntry>> historyMap = new HashMap<>();
-    private final Map<String, VehicleState> lastStateCache = new HashMap<>();
+    private final AvlRepository repository = AvlRepository.getInstance();
     private final Map<String, ObaTripSchedule> scheduleCache = new HashMap<>();
     private final Map<String, Long> serviceDateCache = new HashMap<>();
     private final Set<String> pendingScheduleFetches = new HashSet<>();
@@ -77,73 +73,32 @@ public final class VehicleTrajectoryTracker {
 
     /**
      * Records a vehicle state snapshot into the history for the given key (activeTripId).
-     * Deduplicates by lastLocationUpdateTime — only records when a genuinely new AVL
-     * report has arrived from the vehicle, filtering out server re-extrapolations.
+     * Delegates to {@link AvlRepository} for storage.
      */
-    public synchronized void recordState(String key, VehicleState state) {
-        if (key == null || state == null) {
-            return;
-        }
+    public void recordState(String key, VehicleState state) {
+        repository.record(key, state, null);
+    }
 
-        List<VehicleHistoryEntry> history = historyMap.get(key);
-        if (history == null) {
-            history = new ArrayList<>();
-            historyMap.put(key, history);
-        }
-
-        // Skip AVL reports with no timestamp
-        long locUpdateTime = state.getLastLocationUpdateTime();
-        if (locUpdateTime <= 0) {
-            return;
-        }
-
-        // Skip if lastLocationUpdateTime hasn't advanced — filters out duplicates from
-        // multiple callers that may fetch the same or older AVL reports at different times.
-        if (!history.isEmpty()) {
-            VehicleHistoryEntry last = history.get(history.size() - 1);
-            if (locUpdateTime <= last.getLastLocationUpdateTime()) {
-                return;
-            }
-        }
-
-        Location position = state.getLastKnownLocation();
-        if (position == null) {
-            position = state.getPosition();
-        }
-
-        history.add(new VehicleHistoryEntry(
-                position,
-                state.getDistanceAlongTrip(),
-                state.getLastKnownDistanceAlongTrip(),
-                locUpdateTime,
-                state.getTimestamp()
-        ));
-
-        // Cap history size to prevent unbounded growth
-        if (history.size() > MAX_HISTORY_SIZE) {
-            history.subList(0, history.size() - MAX_HISTORY_SIZE).clear();
-        }
-
-        lastStateCache.put(key, state);
+    /**
+     * Records a vehicle state snapshot with block ID information.
+     * Delegates to {@link AvlRepository} for storage.
+     */
+    public void recordState(String key, VehicleState state, String blockId) {
+        repository.record(key, state, blockId);
     }
 
     /**
      * Returns a defensive copy of the history for the given key.
      */
-    public synchronized List<VehicleHistoryEntry> getHistory(String key) {
-        List<VehicleHistoryEntry> history = historyMap.get(key);
-        if (history == null) {
-            return Collections.emptyList();
-        }
-        return new ArrayList<>(history);
+    public List<VehicleHistoryEntry> getHistory(String key) {
+        return repository.getHistoryForTrip(key);
     }
 
     /**
      * Returns the number of history entries for the given key, without copying.
      */
-    public synchronized int getHistorySize(String key) {
-        List<VehicleHistoryEntry> history = historyMap.get(key);
-        return history == null ? 0 : history.size();
+    public int getHistorySize(String key) {
+        return repository.getHistorySizeForTrip(key);
     }
 
     /**
@@ -160,7 +115,7 @@ public final class VehicleTrajectoryTracker {
      * Returns the estimated speed in m/s for the given key, using the last cached VehicleState.
      */
     public synchronized Double getEstimatedSpeed(String key) {
-        return getEstimatedSpeed(key, lastStateCache.get(key));
+        return getEstimatedSpeed(key, repository.getLastState(key));
     }
 
     /**
@@ -311,7 +266,12 @@ public final class VehicleTrajectoryTracker {
                         }
                         if (status.getActiveTripId() != null) {
                             VehicleState state = VehicleState.fromTripStatus(status);
-                            recordState(status.getActiveTripId(), state);
+                            String blockId = null;
+                            ObaTrip trip = response.getTrip(status.getActiveTripId());
+                            if (trip != null) {
+                                blockId = trip.getBlockId();
+                            }
+                            recordState(status.getActiveTripId(), state, blockId);
                             if (status.getServiceDate() > 0) {
                                 putServiceDate(status.getActiveTripId(),
                                         status.getServiceDate());
@@ -341,8 +301,7 @@ public final class VehicleTrajectoryTracker {
      * Clears all history data, schedule cache, and cancels all active polling.
      */
     public synchronized void clearAll() {
-        historyMap.clear();
-        lastStateCache.clear();
+        repository.clearAll();
         scheduleCache.clear();
         serviceDateCache.clear();
         pendingScheduleFetches.clear();

@@ -65,6 +65,8 @@ public final class VehicleTrajectoryTracker {
     private final Map<String, Integer> mTripSubscribers = new HashMap<>();
     /** Stable token objects per trip for Handler identity matching. */
     private final Map<String, Object> mPollTokens = new HashMap<>();
+    /** Last active trip ID returned by the server for each polled trip. */
+    private final Map<String, String> mLastActiveTripId = new HashMap<>();
 
     private VehicleTrajectoryTracker() {
     }
@@ -80,12 +82,6 @@ public final class VehicleTrajectoryTracker {
      */
     public synchronized void recordState(String key, VehicleState state) {
         if (key == null || state == null) {
-            return;
-        }
-
-        // Only record real-time AVL positions — schedule-interpolated positions
-        // cause wild trajectory jumps when mixed with real-time data
-        if (!state.isPredicted()) {
             return;
         }
 
@@ -172,6 +168,14 @@ public final class VehicleTrajectoryTracker {
      */
     public synchronized double getEstimatedVelVariance() {
         return estimator.getLastPredictedVelVariance();
+    }
+
+    /**
+     * Returns the last active trip ID the server reported for a polled trip,
+     * or null if no poll response has been received yet.
+     */
+    public synchronized String getLastActiveTripId(String polledTripId) {
+        return mLastActiveTripId.get(polledTripId);
     }
 
     /**
@@ -301,13 +305,20 @@ public final class VehicleTrajectoryTracker {
                         ObaTripDetailsRequest.newRequest(ctx, tripId).call();
                 if (response != null && response.getCode() == ObaApi.OBA_OK) {
                     ObaTripStatus status = response.getStatus();
-                    if (status != null && status.getActiveTripId() != null) {
-                        VehicleState state = VehicleState.fromTripStatus(status);
-                        recordState(status.getActiveTripId(), state);
-                        if (status.getServiceDate() > 0) {
-                            putServiceDate(status.getActiveTripId(), status.getServiceDate());
+                    if (status != null) {
+                        synchronized (VehicleTrajectoryTracker.this) {
+                            mLastActiveTripId.put(tripId, status.getActiveTripId());
                         }
-                        Log.d(TAG, "Polled vehicle position for " + tripId);
+                        if (status.getActiveTripId() != null) {
+                            VehicleState state = VehicleState.fromTripStatus(status);
+                            recordState(status.getActiveTripId(), state);
+                            if (status.getServiceDate() > 0) {
+                                putServiceDate(status.getActiveTripId(),
+                                        status.getServiceDate());
+                            }
+                        }
+                        Log.d(TAG, "Polled vehicle position for " + tripId
+                                + " (active: " + status.getActiveTripId() + ")");
                     }
                 }
             } catch (Exception e) {
@@ -336,6 +347,7 @@ public final class VehicleTrajectoryTracker {
         serviceDateCache.clear();
         pendingScheduleFetches.clear();
         mTripSubscribers.clear();
+        mLastActiveTripId.clear();
         mPollTokens.clear();
         mPollHandler.removeCallbacksAndMessages(null);
         estimator.clearState();

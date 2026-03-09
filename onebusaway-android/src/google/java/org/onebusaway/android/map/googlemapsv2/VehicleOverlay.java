@@ -654,7 +654,12 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
                         VehicleState vehicleState = VehicleState.fromTripStatus(status);
                         VehicleTrajectoryTracker trajectoryTracker = VehicleTrajectoryTracker.getInstance();
-                        trajectoryTracker.recordState(status.getActiveTripId(), vehicleState);
+                        String blockId = null;
+                        ObaTrip activeTripObj = response.getTrip(status.getActiveTripId());
+                        if (activeTripObj != null) {
+                            blockId = activeTripObj.getBlockId();
+                        }
+                        trajectoryTracker.recordState(status.getActiveTripId(), vehicleState, blockId);
 
                         String tripId = status.getActiveTripId();
                         if (tripId != null && !trajectoryTracker.isSchedulePendingOrCached(tripId)) {

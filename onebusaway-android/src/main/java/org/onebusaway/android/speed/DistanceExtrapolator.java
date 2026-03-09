@@ -19,6 +19,8 @@ import android.location.Location;
 
 import org.onebusaway.android.io.elements.ObaTripSchedule;
 
+import org.onebusaway.android.util.LocationUtils;
+
 import java.util.Arrays;
 import java.util.List;
 
@@ -125,61 +127,72 @@ public final class DistanceExtrapolator {
     public static Location interpolateAlongPolyline(List<Location> polylinePoints,
                                                      double[] cumDist,
                                                      double distanceMeters) {
-        if (polylinePoints == null || polylinePoints.isEmpty() || cumDist == null) return null;
-        if (distanceMeters <= 0) return polylinePoints.get(0);
+        Location result = LocationUtils.makeLocation(0, 0);
+        return interpolateAlongPolyline(polylinePoints, cumDist, distanceMeters, result)
+                ? result : null;
+    }
+
+    /**
+     * Interpolates a position along a polyline, writing into a reusable Location
+     * to avoid allocation on the hot path. Returns true if successful.
+     *
+     * @param polylinePoints decoded polyline points (lat/lng)
+     * @param cumDist        precomputed cumulative distances from {@link #buildCumulativeDistances}
+     * @param distanceMeters target distance along the polyline in meters
+     * @param out            reusable Location to write the result into
+     * @return true if interpolation succeeded, false if inputs were invalid
+     */
+    public static boolean interpolateAlongPolyline(List<Location> polylinePoints,
+                                                    double[] cumDist,
+                                                    double distanceMeters,
+                                                    Location out) {
+        if (polylinePoints == null || polylinePoints.isEmpty() || cumDist == null || out == null) {
+            return false;
+        }
+        if (distanceMeters <= 0) {
+            Location first = polylinePoints.get(0);
+            out.setLatitude(first.getLatitude());
+            out.setLongitude(first.getLongitude());
+            return true;
+        }
 
         int idx = Arrays.binarySearch(cumDist, distanceMeters);
         if (idx >= 0) {
-            // Exact match on a vertex
-            return polylinePoints.get(idx);
+            Location exact = polylinePoints.get(idx);
+            out.setLatitude(exact.getLatitude());
+            out.setLongitude(exact.getLongitude());
+            return true;
         }
         // binarySearch returns -(insertion point) - 1
         int insertionPoint = -idx - 1;
         if (insertionPoint >= polylinePoints.size()) {
-            return polylinePoints.get(polylinePoints.size() - 1);
+            Location last = polylinePoints.get(polylinePoints.size() - 1);
+            out.setLatitude(last.getLatitude());
+            out.setLongitude(last.getLongitude());
+            return true;
         }
 
         int segStart = insertionPoint - 1;
-        if (segStart < 0) return polylinePoints.get(0);
+        if (segStart < 0) {
+            Location first = polylinePoints.get(0);
+            out.setLatitude(first.getLatitude());
+            out.setLongitude(first.getLongitude());
+            return true;
+        }
 
         double segLen = cumDist[insertionPoint] - cumDist[segStart];
-        if (segLen <= 0) return polylinePoints.get(segStart);
+        if (segLen <= 0) {
+            Location p = polylinePoints.get(segStart);
+            out.setLatitude(p.getLatitude());
+            out.setLongitude(p.getLongitude());
+            return true;
+        }
 
         double fraction = (distanceMeters - cumDist[segStart]) / segLen;
         Location p0 = polylinePoints.get(segStart);
         Location p1 = polylinePoints.get(insertionPoint);
-        Location result = new Location("extrapolated");
-        result.setLatitude(p0.getLatitude() + fraction * (p1.getLatitude() - p0.getLatitude()));
-        result.setLongitude(p0.getLongitude() + fraction * (p1.getLongitude() - p0.getLongitude()));
-        return result;
-    }
-
-    /**
-     * Interpolates a position along a polyline at a given distance from the start.
-     * Walks along consecutive segments — O(n). Use the overload with precomputed
-     * cumulative distances for repeated lookups.
-     */
-    public static Location interpolateAlongPolyline(List<Location> polylinePoints,
-                                                     double distanceMeters) {
-        if (polylinePoints == null || polylinePoints.isEmpty()) return null;
-        if (distanceMeters <= 0) return polylinePoints.get(0);
-
-        double accumulated = 0;
-        for (int i = 1; i < polylinePoints.size(); i++) {
-            Location p0 = polylinePoints.get(i - 1);
-            Location p1 = polylinePoints.get(i);
-            float segLen = p0.distanceTo(p1);
-
-            if (accumulated + segLen >= distanceMeters) {
-                double fraction = (distanceMeters - accumulated) / segLen;
-                Location result = new Location("extrapolated");
-                result.setLatitude(p0.getLatitude() + fraction * (p1.getLatitude() - p0.getLatitude()));
-                result.setLongitude(p0.getLongitude() + fraction * (p1.getLongitude() - p0.getLongitude()));
-                return result;
-            }
-            accumulated += segLen;
-        }
-        // Past the end — return last point
-        return polylinePoints.get(polylinePoints.size() - 1);
+        out.setLatitude(p0.getLatitude() + fraction * (p1.getLatitude() - p0.getLatitude()));
+        out.setLongitude(p0.getLongitude() + fraction * (p1.getLongitude() - p0.getLongitude()));
+        return true;
     }
 }

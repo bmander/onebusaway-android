@@ -47,6 +47,8 @@ public class TrajectoryGraphView extends View {
 
     private static final long TICK_INTERVAL_MS = 1000;
     private static final int BG_COLOR = Color.parseColor("#1A1A1A");
+    /** Physical upper bound on vehicle speed in m/s (~56 mph). */
+    private static final double V_MAX_MPS = 25.0;
 
     private List<VehicleHistoryEntry> mHistory = new ArrayList<>();
     private ObaTripSchedule mSchedule;
@@ -77,9 +79,16 @@ public class TrajectoryGraphView extends View {
     private final Paint mDeviationLabelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mDeviationLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mConfidenceBandPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mPdfFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private final Path mSchedulePath = new Path();
     private final Path mTrajectoryPath = new Path();
+    private final Path mPdfPath = new Path();
+
+    // Reusable buffers for PDF histogram (avoid per-frame allocation)
+    private static final int PDF_NUM_BINS = 160;
+    private static final int PDF_NUM_SAMPLES = 512;
+    private final double[] mPdfBins = new double[PDF_NUM_BINS];
     private final Date mReusableDate = new Date();
 
     private final float mDensity;
@@ -305,6 +314,9 @@ public class TrajectoryGraphView extends View {
         mConfidenceBandPaint.setStrokeWidth(1f * mDensity);
         mConfidenceBandPaint.setPathEffect(new DashPathEffect(
                 new float[]{4 * mDensity, 4 * mDensity}, 0));
+
+        mPdfFillPaint.setColor(Color.parseColor("#40BBBBBB"));
+        mPdfFillPaint.setStyle(Paint.Style.FILL);
     }
 
     public void setHighlightedStopId(String stopId) {
@@ -609,23 +621,100 @@ public class TrajectoryGraphView extends View {
             }
         }
 
-        // Draw 80% confidence band (10th/90th percentile) from last AVL to now
+        // Fit a Beta distribution to the Kalman velocity estimate for CI + PDF
         if (mEstimatedVelVariance > 0 && mEstimatedSpeedMps > 0
                 && lastDist != null && mCurrentTime > lastTime) {
-            double stdDev = Math.sqrt(mEstimatedVelVariance);
-            double velLo = Math.max(0, mEstimatedSpeedMps - 1.282 * stdDev);
-            double velHi = mEstimatedSpeedMps + 1.282 * stdDev;
             double dtSec = (mCurrentTime - lastTime) / 1000.0;
-            double distLo = lastDist + velLo * dtSec;
-            double distHi = lastDist + velHi * dtSec;
+            double normMean = mEstimatedSpeedMps / V_MAX_MPS;
+            double normVar = mEstimatedVelVariance / (V_MAX_MPS * V_MAX_MPS);
 
-            float xStart = toPixelX(lastDist);
-            float yStart = toPixelY(lastTime);
-            float xLo = toPixelX(distLo);
-            float xHi = toPixelX(distHi);
-            float yNow = toPixelY(mCurrentTime);
-            canvas.drawLine(xStart, yStart, xLo, yNow, mConfidenceBandPaint);
-            canvas.drawLine(xStart, yStart, xHi, yNow, mConfidenceBandPaint);
+            // Beta parameters valid only when variance < mean*(1-mean)
+            if (normMean > 0 && normMean < 1 && normVar < normMean * (1 - normMean)) {
+                double sumAB = normMean * (1 - normMean) / normVar - 1;
+                double alpha = normMean * sumAB;
+                double beta = (1 - normMean) * sumAB;
+
+                if (alpha > 0 && beta > 0) {
+                    // Sample the Beta PDF across [0, vMax], build position histogram
+                    java.util.Arrays.fill(mPdfBins, 0);
+                    double vStep = V_MAX_MPS / (PDF_NUM_SAMPLES - 1);
+                    double posMin = lastDist;
+                    double posMax = lastDist + V_MAX_MPS * dtSec;
+                    double binW = (posMax - posMin) / PDF_NUM_BINS;
+
+                    // Also accumulate cumulative weight for CI percentiles
+                    double cumWeight = 0;
+                    double totalWeight = 0;
+                    double velP10 = 0, velP90 = 0;
+                    boolean foundP10 = false, foundP90 = false;
+
+                    // First pass: total weight for CDF
+                    for (int i = 0; i < PDF_NUM_SAMPLES; i++) {
+                        double v = i * vStep;
+                        double t = v / V_MAX_MPS;
+                        totalWeight += betaPdf(t, alpha, beta);
+                    }
+
+                    // Second pass: bin + find percentiles
+                    cumWeight = 0;
+                    for (int i = 0; i < PDF_NUM_SAMPLES; i++) {
+                        double v = i * vStep;
+                        double t = v / V_MAX_MPS;
+                        double w = betaPdf(t, alpha, beta);
+
+                        // Bin into position histogram
+                        if (binW > 0) {
+                            double pos = lastDist + v * dtSec;
+                            int bin = (int) ((pos - posMin) / binW);
+                            bin = Math.max(0, Math.min(PDF_NUM_BINS - 1, bin));
+                            mPdfBins[bin] += w;
+                        }
+
+                        // Track CDF for percentiles
+                        cumWeight += w;
+                        double cdf = cumWeight / totalWeight;
+                        if (!foundP10 && cdf >= 0.10) {
+                            velP10 = v;
+                            foundP10 = true;
+                        }
+                        if (!foundP90 && cdf >= 0.90) {
+                            velP90 = v;
+                            foundP90 = true;
+                        }
+                    }
+
+                    // Draw 80% confidence band
+                    float xStart = toPixelX(lastDist);
+                    float yStart = toPixelY(lastTime);
+                    float yNow = toPixelY(mCurrentTime);
+                    canvas.drawLine(xStart, yStart,
+                            toPixelX(lastDist + velP10 * dtSec), yNow, mConfidenceBandPaint);
+                    canvas.drawLine(xStart, yStart,
+                            toPixelX(lastDist + velP90 * dtSec), yNow, mConfidenceBandPaint);
+
+                    // Draw position PDF on X-axis
+                    if (binW > 0) {
+                        double maxBin = 0;
+                        for (double b : mPdfBins) {
+                            if (b > maxBin) maxBin = b;
+                        }
+                        if (maxBin > 0) {
+                            float xAxisY = getHeight() - mMarginBottom;
+                            float maxHeightPx = 105 * mDensity;
+                            mPdfPath.reset();
+                            mPdfPath.moveTo(toPixelX(posMin), xAxisY);
+                            for (int i = 0; i < PDF_NUM_BINS; i++) {
+                                double d = posMin + (i + 0.5) * binW;
+                                float h = (float) (mPdfBins[i] / maxBin * maxHeightPx);
+                                mPdfPath.lineTo(toPixelX(d), xAxisY - h);
+                            }
+                            mPdfPath.lineTo(toPixelX(posMax), xAxisY);
+                            mPdfPath.close();
+                            canvas.drawPath(mPdfPath, mPdfFillPaint);
+                        }
+                    }
+                }
+            }
         }
 
         // Draw current time line
@@ -654,6 +743,10 @@ public class TrajectoryGraphView extends View {
         legendY += 18 * mDensity;
         canvas.drawLine(legendX, legendY, legendX + 20 * mDensity, legendY, mConfidenceBandPaint);
         canvas.drawText("80% CI", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
+        legendY += 18 * mDensity;
+        canvas.drawRect(legendX, legendY - 5 * mDensity, legendX + 20 * mDensity,
+                legendY + 5 * mDensity, mPdfFillPaint);
+        canvas.drawText("Position PDF", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
     }
 
     /** Converts a distance-along-trip value to pixel X coordinate. */
@@ -713,6 +806,12 @@ public class TrajectoryGraphView extends View {
         } else {
             return String.format(Locale.US, "%.0fm", meters);
         }
+    }
+
+    /** Unnormalized Beta PDF: t^(a-1) * (1-t)^(b-1) for t in (0,1). */
+    private static double betaPdf(double t, double alpha, double beta) {
+        if (t <= 0 || t >= 1) return 0;
+        return Math.pow(t, alpha - 1) * Math.pow(1 - t, beta - 1);
     }
 
     private static double niceStep(double raw) {

@@ -33,12 +33,13 @@ import java.util.Map;
 public class KalmanSpeedEstimator implements SpeedEstimator {
 
     // Process noise spectral density (m/s²)².
-    // Bus acceleration variance ~(1.5 m/s²)² = 2.25
-    static final double PROCESS_NOISE_ACCEL = 2.25;
+    // Bus acceleration variance ~(0.7 m/s²)² = 0.5.
+    // Over a 30s AVL gap this adds ~15 (m/s)² to velocity variance (σ≈3.9 m/s).
+    static final double PROCESS_NOISE_ACCEL = 0.5;
 
     // Measurement noise variance (m²).
-    // AVL position snapped to route shape: ~30m std dev → 900 m²
-    static final double MEASUREMENT_NOISE_R = 900.0;
+    // AVL position snapped to route shape: ~20m std dev → 400 m²
+    static final double MEASUREMENT_NOISE_R = 400.0;
 
     // Mean-reversion time constant (ms).
     // Velocity decays toward the prior with this half-life-ish constant.
@@ -51,8 +52,8 @@ public class KalmanSpeedEstimator implements SpeedEstimator {
     // Maximum gap before reinitializing the filter
     private static final long MAX_STALE_MS = 600_000;
 
-    // Initial velocity uncertainty: (10 m/s)² — covers full range of bus speeds
-    private static final double INITIAL_VEL_VARIANCE = 100.0;
+    // Initial velocity uncertainty: (5 m/s)² — covers bus speed range, converges quickly
+    private static final double INITIAL_VEL_VARIANCE = 25.0;
 
     private final Map<String, KalmanState> mStateMap = new HashMap<>();
     private double mLastPredictedVelVariance;

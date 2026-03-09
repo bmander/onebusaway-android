@@ -585,6 +585,14 @@ public class TripDetailsListFragment extends ListFragment {
             return;
         }
 
+        // Only show the trajectory button if viewing the currently active trip.
+        // For future trips on the same block, the trajectory data belongs to
+        // the active trip and would be misleading.
+        if (!activeTripId.equals(mTripId)) {
+            locationDataBtn.setVisibility(View.GONE);
+            return;
+        }
+
         // Cache schedule and service date so the trajectory graph can use them
         VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
         ObaTripSchedule schedule = mTripInfo.getSchedule();

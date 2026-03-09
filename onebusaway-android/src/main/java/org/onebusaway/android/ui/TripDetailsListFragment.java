@@ -89,6 +89,8 @@ import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.nav.NavigationService;
+import org.onebusaway.android.speed.DistanceExtrapolator;
+import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.ArrivalInfoUtils;
@@ -98,6 +100,7 @@ import org.onebusaway.android.util.PreferenceUtils;
 import org.onebusaway.android.util.UIUtils;
 
 import java.util.Calendar;
+import java.util.List;
 import java.util.GregorianCalendar;
 import java.util.concurrent.TimeUnit;
 
@@ -126,6 +129,8 @@ public class TripDetailsListFragment extends ListFragment {
     public static final String ACTION_SERVICE_DESTROYED = "NavigationServiceDestroyed";
 
     private static final long REFRESH_PERIOD = 60 * 1000;
+
+    private static final long POSITION_TICK_MS = 1000;
 
     private static final int TRIP_DETAILS_LOADER = 0;
 
@@ -157,6 +162,9 @@ public class TripDetailsListFragment extends ListFragment {
     private Task<LocationSettingsResponse> mResult;
 
     private FirebaseAnalytics mFirebaseAnalytics;
+
+    private final Handler mPositionTickHandler = new Handler();
+    private final Runnable mPositionTick = this::updateVehiclePosition;
 
     /**
      * Builds an intent used to set the trip and stop for the TripDetailsListFragment directly
@@ -240,6 +248,7 @@ public class TripDetailsListFragment extends ListFragment {
     @Override
     public void onPause() {
         mRefreshHandler.removeCallbacks(mRefresh);
+        mPositionTickHandler.removeCallbacks(mPositionTick);
         if (mTripId != null) {
             VehicleTrajectoryTracker.getInstance().unsubscribeTripPolling(mTripId);
         }
@@ -276,6 +285,8 @@ public class TripDetailsListFragment extends ListFragment {
         } else {
             mRefreshHandler.postDelayed(mRefresh, newPeriod);
         }
+
+        mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
 
         super.onResume();
     }
@@ -521,6 +532,50 @@ public class TripDetailsListFragment extends ListFragment {
         }
 
         setUpLocationDataButton(status);
+    }
+
+    private void updateVehiclePosition() {
+        if (mAdapter == null || mTripInfo == null) return;
+        ObaTripSchedule schedule = mTripInfo.getSchedule();
+        if (schedule == null || schedule.getStopTimes() == null) return;
+
+        ObaTripStatus status = mTripInfo.getStatus();
+        if (status == null) return;
+
+        // Determine the active trip ID
+        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+        String activeTripId = tracker.getLastActiveTripId(mTripId);
+        if (activeTripId == null) {
+            activeTripId = status.getActiveTripId();
+        }
+
+        // Only extrapolate if this is the active trip
+        if (activeTripId == null || !activeTripId.equals(mTripId)) {
+            mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
+            return;
+        }
+
+        List<VehicleHistoryEntry> history = tracker.getHistory(activeTripId);
+        Double speed = tracker.getEstimatedSpeed(activeTripId);
+        if (history == null || speed == null) {
+            mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
+            return;
+        }
+
+        Double extrapolatedDist = DistanceExtrapolator.extrapolateDistance(
+                history, speed, System.currentTimeMillis());
+        if (extrapolatedDist == null) {
+            mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
+            return;
+        }
+
+        Integer newNextStopIndex = DistanceExtrapolator.findNextStopIndex(
+                schedule.getStopTimes(), extrapolatedDist);
+        if (newNextStopIndex != null && !newNextStopIndex.equals(mAdapter.mNextStopIndex)) {
+            mAdapter.updateExtrapolatedPosition(newNextStopIndex);
+        }
+
+        mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
     }
 
     private void setUpLocationDataButton(ObaTripStatus status) {
@@ -937,6 +992,11 @@ public class TripDetailsListFragment extends ListFragment {
         @Override
         public void notifyDataSetChanged() {
             updateData();
+            super.notifyDataSetChanged();
+        }
+
+        void updateExtrapolatedPosition(Integer nextStopIndex) {
+            mNextStopIndex = nextStopIndex;
             super.notifyDataSetChanged();
         }
 

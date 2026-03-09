@@ -49,13 +49,17 @@ import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.elements.OccupancyState;
 import org.onebusaway.android.io.elements.Status;
+import org.onebusaway.android.io.request.ObaShapeRequest;
+import org.onebusaway.android.io.request.ObaShapeResponse;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
-import org.onebusaway.android.ui.TripDetailsActivity;
-import org.onebusaway.android.ui.TripDetailsListFragment;
+import org.onebusaway.android.speed.DistanceExtrapolator;
+import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.speed.VehicleState;
+import org.onebusaway.android.ui.TripDetailsActivity;
+import org.onebusaway.android.ui.TripDetailsListFragment;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.MathUtils;
 import org.onebusaway.android.util.UIUtils;
@@ -89,6 +93,10 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
     private Controller mController;
 
+    private final Handler mExtrapolationHandler = new Handler(android.os.Looper.getMainLooper());
+    private boolean mExtrapolationTicking;
+    private final Runnable mExtrapolationTick = this::extrapolateVehiclePositions;
+
     private static final int NORTH = 0;  // directions are clockwise, consistent with MathUtils class
 
     private static final int NORTH_EAST = 1;
@@ -121,6 +129,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
      * If a vehicle moves less than this distance (in meters), it will be animated, otherwise it
      * will just disappear and then re-appear
      */
+    private static final long EXTRAPOLATION_TICK_MS = 1000;
+
     private static final double MAX_VEHICLE_ANIMATION_DISTANCE = 400;
 
     /**
@@ -162,6 +172,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         mLastResponse = response;
         // Show the markers on the map
         mMarkerData.populate(routeIds, response);
+        startExtrapolationTicking();
     }
 
     public synchronized int size() {
@@ -176,6 +187,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
      * Clears any vehicle markers from the map
      */
     public synchronized void clear() {
+        stopExtrapolationTicking();
         if (mMarkerData != null) {
             mMarkerData.clear();
             mMarkerData = null;
@@ -550,6 +562,27 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         }
     }
 
+    private void startExtrapolationTicking() {
+        if (!mExtrapolationTicking) {
+            mExtrapolationTicking = true;
+            mExtrapolationHandler.postDelayed(mExtrapolationTick, EXTRAPOLATION_TICK_MS);
+        }
+    }
+
+    private void stopExtrapolationTicking() {
+        mExtrapolationTicking = false;
+        mExtrapolationHandler.removeCallbacks(mExtrapolationTick);
+    }
+
+    private void extrapolateVehiclePositions() {
+        if (mMarkerData == null) {
+            mExtrapolationTicking = false;
+            return;
+        }
+        mMarkerData.extrapolatePositions();
+        mExtrapolationHandler.postDelayed(mExtrapolationTick, EXTRAPOLATION_TICK_MS);
+    }
+
     private void setupMarkerData() {
         if (mMarkerData == null) {
             mMarkerData = new MarkerData();
@@ -664,6 +697,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                         String tripId = status.getActiveTripId();
                         if (tripId != null && !trajectoryTracker.isSchedulePendingOrCached(tripId)) {
                             trajectoryTracker.markSchedulePending(tripId);
+                            String shapeId = activeTripObj != null ? activeTripObj.getShapeId() : null;
                             final Context ctx = Application.get().getApplicationContext();
                             new Thread(() -> {
                                 try {
@@ -680,8 +714,19 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                                             trajectoryTracker.putSchedule(tripId, schedule);
                                         }
                                     }
+                                    // Also fetch and cache the shape for polyline interpolation
+                                    if (shapeId != null && trajectoryTracker.getShape(tripId) == null) {
+                                        ObaShapeResponse shapeResponse =
+                                                ObaShapeRequest.newRequest(ctx, shapeId).call();
+                                        if (shapeResponse != null) {
+                                            java.util.List<Location> points = shapeResponse.getPoints();
+                                            if (points != null && !points.isEmpty()) {
+                                                trajectoryTracker.putShape(tripId, points);
+                                            }
+                                        }
+                                    }
                                 } catch (Exception e) {
-                                    Log.w(TAG, "Failed to fetch trip schedule for " + tripId, e);
+                                    Log.w(TAG, "Failed to fetch trip schedule/shape for " + tripId, e);
                                     trajectoryTracker.clearPending(tripId);
                                 }
                             }).start();
@@ -743,14 +788,21 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             m.setIcon(getVehicleIcon(isRealtime, status, response));
             // Update Hashmap with newest status - needed to show info when tapping on marker
             mVehicles.put(m, status);
-            // Update vehicle position
-            Location markerLoc = MapHelpV2.makeLocation(m.getPosition());
-            // If its a small distance, animate the movement
-            if (l.distanceTo(markerLoc) < MAX_VEHICLE_ANIMATION_DISTANCE) {
-                AnimationUtil.animateMarkerTo(m, MapHelpV2.makeLatLng(l));
+            // Skip position update if extrapolation is active for this trip —
+            // the extrapolation tick handles smooth movement along the polyline
+            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+            String tripId = status.getActiveTripId();
+            if (tripId != null && tracker.getShape(tripId) != null
+                    && tracker.getEstimatedSpeed(tripId) != null) {
+                // Extrapolation is driving this marker's position; don't fight it
             } else {
-                // Just snap the marker to the new location - large animations look weird
-                m.setPosition(MapHelpV2.makeLatLng(l));
+                // No extrapolation data — fall back to server position
+                Location markerLoc = MapHelpV2.makeLocation(m.getPosition());
+                if (l.distanceTo(markerLoc) < MAX_VEHICLE_ANIMATION_DISTANCE) {
+                    AnimationUtil.animateMarkerTo(m, MapHelpV2.makeLatLng(l));
+                } else {
+                    m.setPosition(MapHelpV2.makeLatLng(l));
+                }
             }
             // If the info window was shown, make sure its open (changing the icon could have closed it)
             if (showInfo) {
@@ -844,6 +896,40 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         private void removeMarkersFromMap() {
             for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
                 entry.getValue().remove();
+            }
+        }
+
+        /**
+         * Extrapolates vehicle positions using trajectory data and moves markers
+         * along their route polylines.
+         */
+        synchronized void extrapolatePositions() {
+            if (mVehicleMarkers == null || mVehicleMarkers.isEmpty()) return;
+
+            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+            long now = System.currentTimeMillis();
+
+            for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
+                String tripId = entry.getKey();
+                Marker marker = entry.getValue();
+
+                java.util.List<Location> shape = tracker.getShape(tripId);
+                if (shape == null || shape.isEmpty()) continue;
+
+                java.util.List<VehicleHistoryEntry> history = tracker.getHistory(tripId);
+                Double speed = tracker.getEstimatedSpeed(tripId);
+                if (history == null || speed == null) continue;
+
+                Double extrapolatedDist = DistanceExtrapolator.extrapolateDistance(
+                        history, speed, now);
+                if (extrapolatedDist == null) continue;
+
+                Location interpolated = DistanceExtrapolator.interpolateAlongPolyline(
+                        shape, extrapolatedDist);
+                if (interpolated == null) continue;
+
+                LatLng newPos = MapHelpV2.makeLatLng(interpolated);
+                marker.setPosition(newPos);
             }
         }
 

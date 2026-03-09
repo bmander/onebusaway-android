@@ -59,7 +59,6 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     private static final int PAD_V = 6;
     private static final int TEXT_SIZE = 12;
     private static final long UI_REFRESH_PERIOD = 1_000;
-
     private String mTripId;
     private final Handler mRefreshHandler = new Handler(Looper.getMainLooper());
     private int mLastRowCount = -1;
@@ -92,7 +91,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         String vehicleId = getIntent().getStringExtra(EXTRA_VEHICLE_ID);
 
         if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle("Location Data");
+            getSupportActionBar().setTitle("Trip Trajectory");
             if (vehicleId != null) {
                 getSupportActionBar().setSubtitle("Vehicle: " + vehicleId);
             }
@@ -113,7 +112,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
                 } else {
                     mTableContainer.setVisibility(View.GONE);
                     mGraphView.setVisibility(View.VISIBLE);
-                    refreshGraph();
+                    refreshData();
                 }
             }
 
@@ -158,14 +157,25 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
         List<VehicleHistoryEntry> history = tracker.getHistory(mTripId);
 
+        // Check if the vehicle is still serving this trip
+        String activeTripId = tracker.getLastActiveTripId(mTripId);
+        boolean tripEnded = activeTripId != null && !mTripId.equals(activeTripId);
+
         // Update header
+        int currentCount = history.size();
         TextView header = findViewById(R.id.location_data_header);
-        header.setText(String.format(Locale.US, "Trip: %s  |  Samples: %d",
-                mTripId, history.size()));
+        if (tripEnded) {
+            header.setText(String.format(Locale.US,
+                    "Trip: %s  |  Samples: %d  |  Vehicle no longer serving trip",
+                    mTripId, currentCount));
+        } else {
+            header.setText(String.format(Locale.US, "Trip: %s  |  Samples: %d",
+                    mTripId, currentCount));
+        }
 
         // Refresh table only if row count changed
-        if (history.size() != mLastRowCount) {
-            mLastRowCount = history.size();
+        if (currentCount != mLastRowCount) {
+            mLastRowCount = currentCount;
             TableLayout table = findViewById(R.id.location_data_table);
             table.removeAllViews();
             buildTable(table, history);
@@ -173,17 +183,17 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
 
         // Refresh graph only when visible
         if (mGraphView.getVisibility() == View.VISIBLE) {
-            refreshGraph();
+            refreshGraph(tripEnded);
         }
     }
 
-    private void refreshGraph() {
+    private void refreshGraph(boolean tripEnded) {
         VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
         List<VehicleHistoryEntry> history = tracker.getHistory(mTripId);
         ObaTripSchedule schedule = tracker.getSchedule(mTripId);
         Long serviceDate = tracker.getServiceDate(mTripId);
-        Double speed = tracker.getEstimatedSpeed(mTripId);
-        double velVariance = tracker.getEstimatedVelVariance();
+        Double speed = tripEnded ? null : tracker.getEstimatedSpeed(mTripId);
+        double velVariance = tripEnded ? 0 : tracker.getEstimatedVelVariance();
         mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0, speed,
                 velVariance);
     }

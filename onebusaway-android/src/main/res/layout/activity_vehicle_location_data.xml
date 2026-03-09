@@ -48,5 +48,21 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:visibility="gone" />
+
+        <ScrollView
+            android:id="@+id/location_data_calibration_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/location_data_calibration"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:padding="16dp" />
+        </ScrollView>
     </FrameLayout>
 </LinearLayout>

@@ -56,6 +56,7 @@ public final class VehicleTrajectoryTracker {
     private final Map<String, ObaTripSchedule> scheduleCache = new HashMap<>();
     private final Map<String, Long> serviceDateCache = new HashMap<>();
     private final Map<String, List<Location>> shapeCache = new HashMap<>();
+    private final Map<String, double[]> shapeCumDistCache = new HashMap<>();
     private final Set<String> pendingScheduleFetches = new HashSet<>();
     private SpeedEstimator estimator = new WeightedSpeedEstimator();
 
@@ -177,11 +178,13 @@ public final class VehicleTrajectoryTracker {
     }
 
     /**
-     * Stores the decoded polyline points for a trip's shape.
+     * Stores the decoded polyline points for a trip's shape, and precomputes
+     * cumulative distances for fast interpolation.
      */
     public synchronized void putShape(String tripId, List<Location> points) {
         if (tripId != null && points != null && !points.isEmpty()) {
             shapeCache.put(tripId, points);
+            shapeCumDistCache.put(tripId, DistanceExtrapolator.buildCumulativeDistances(points));
         }
     }
 
@@ -190,6 +193,14 @@ public final class VehicleTrajectoryTracker {
      */
     public synchronized List<Location> getShape(String tripId) {
         return shapeCache.get(tripId);
+    }
+
+    /**
+     * Returns the precomputed cumulative distance array for the trip's shape,
+     * or null if not cached.
+     */
+    public synchronized double[] getShapeCumulativeDistances(String tripId) {
+        return shapeCumDistCache.get(tripId);
     }
 
     /**
@@ -323,6 +334,7 @@ public final class VehicleTrajectoryTracker {
         scheduleCache.clear();
         serviceDateCache.clear();
         shapeCache.clear();
+        shapeCumDistCache.clear();
         pendingScheduleFetches.clear();
         mTripSubscribers.clear();
         mLastActiveTripId.clear();

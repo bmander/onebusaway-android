@@ -30,6 +30,7 @@ import android.view.ScaleGestureDetector;
 import android.view.View;
 
 import org.onebusaway.android.io.elements.ObaTripSchedule;
+import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.util.PreferenceUtils;
 
@@ -558,13 +559,14 @@ public class TrajectoryGraphView extends View {
             canvas.drawPath(mTrajectoryPath, mTrajectoryPaint);
         }
 
-        VehicleHistoryEntry newestValid = findNewestValidEntry();
+        VehicleHistoryEntry newestValid = DistanceExtrapolator.findNewestValidEntry(mHistory);
         Double lastDist = newestValid != null ? newestValid.getBestDistanceAlongTrip() : null;
         long lastTime = newestValid != null ? newestValid.getLastLocationUpdateTime() : 0;
 
         // Draw extrapolation line from last trajectory point to "now"
         if (mEstimatedSpeedMps > 0 && lastDist != null && mCurrentTime > lastTime) {
-            double extrapolatedDist = lastDist + mEstimatedSpeedMps * (mCurrentTime - lastTime) / 1000.0;
+            Double extrapolated = DistanceExtrapolator.extrapolateDistance(mHistory, mEstimatedSpeedMps, mCurrentTime);
+            double extrapolatedDist = extrapolated != null ? extrapolated : lastDist;
             float x1 = toPixelX(lastDist);
             float y1 = toPixelY(lastTime);
             float x2 = toPixelX(extrapolatedDist);
@@ -662,19 +664,6 @@ public class TrajectoryGraphView extends View {
     /** Converts a timestamp to pixel Y coordinate. */
     private float toPixelY(long time) {
         return mMarginTop + mGraphH * (1f - (float) (time - mVisMinTime) / mVisTimeRange);
-    }
-
-    /**
-     * Returns the newest history entry with a valid distance and timestamp, or null.
-     */
-    private VehicleHistoryEntry findNewestValidEntry() {
-        for (int i = mHistory.size() - 1; i >= 0; i--) {
-            VehicleHistoryEntry e = mHistory.get(i);
-            if (e.getBestDistanceAlongTrip() != null && e.getLastLocationUpdateTime() > 0) {
-                return e;
-            }
-        }
-        return null;
     }
 
     /**

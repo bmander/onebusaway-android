@@ -16,6 +16,7 @@
 package org.onebusaway.android.speed;
 
 import android.content.Context;
+import android.location.Location;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -54,6 +55,7 @@ public final class VehicleTrajectoryTracker {
     private final AvlRepository repository = AvlRepository.getInstance();
     private final Map<String, ObaTripSchedule> scheduleCache = new HashMap<>();
     private final Map<String, Long> serviceDateCache = new HashMap<>();
+    private final Map<String, List<Location>> shapeCache = new HashMap<>();
     private final Set<String> pendingScheduleFetches = new HashSet<>();
     private SpeedEstimator estimator = new WeightedSpeedEstimator();
 
@@ -172,6 +174,22 @@ public final class VehicleTrajectoryTracker {
      */
     public synchronized Long getServiceDate(String tripId) {
         return serviceDateCache.get(tripId);
+    }
+
+    /**
+     * Stores the decoded polyline points for a trip's shape.
+     */
+    public synchronized void putShape(String tripId, List<Location> points) {
+        if (tripId != null && points != null && !points.isEmpty()) {
+            shapeCache.put(tripId, points);
+        }
+    }
+
+    /**
+     * Returns the cached shape polyline points for the given trip, or null if not cached.
+     */
+    public synchronized List<Location> getShape(String tripId) {
+        return shapeCache.get(tripId);
     }
 
     /**
@@ -304,6 +322,7 @@ public final class VehicleTrajectoryTracker {
         repository.clearAll();
         scheduleCache.clear();
         serviceDateCache.clear();
+        shapeCache.clear();
         pendingScheduleFetches.clear();
         mTripSubscribers.clear();
         mLastActiveTripId.clear();

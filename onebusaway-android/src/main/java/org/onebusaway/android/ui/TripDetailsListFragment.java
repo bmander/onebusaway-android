@@ -547,7 +547,7 @@ public class TripDetailsListFragment extends ListFragment {
         locationDataBtn.setVisibility(View.VISIBLE);
         final String vehicleId = status.getVehicleId();
         locationDataBtn.setOnClickListener(v ->
-                VehicleLocationDataActivity.start(getActivity(), activeTripId, vehicleId));
+                VehicleLocationDataActivity.start(getActivity(), activeTripId, vehicleId, mStopId));
     }
 
     private Integer findIndexForStop(ObaTripSchedule.StopTime[] stopTimes, String stopId) {

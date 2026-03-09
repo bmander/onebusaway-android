@@ -182,7 +182,7 @@ public class KalmanSpeedEstimator implements SpeedEstimator {
         double k1 = pp01 / s;
 
         ks.x_dist = predDist + k0 * innovation;
-        ks.x_vel = predVel + k1 * innovation;
+        ks.x_vel = Math.max(0.0, predVel + k1 * innovation);
 
         // Joseph form for numerical stability: P = (I - K*H) * P_pred * (I - K*H)' + K*R*K'
         // Simplified since H = [1, 0]:

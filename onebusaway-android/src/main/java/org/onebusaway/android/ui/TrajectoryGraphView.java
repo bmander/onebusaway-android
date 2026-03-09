@@ -802,7 +802,7 @@ public class TrajectoryGraphView extends View {
     /** Approximate inverse CDF via bisection on BetaDistribution.cdf(). */
     private static double inverseCdfApprox(double p, double alpha, double beta) {
         double lo = 0, hi = 1;
-        for (int i = 0; i < 50; i++) {
+        for (int i = 0; i < 30; i++) {
             double mid = (lo + hi) / 2;
             if (BetaDistribution.cdf(mid, alpha, beta) < p) {
                 lo = mid;

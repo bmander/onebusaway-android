@@ -16,9 +16,7 @@
 package org.onebusaway.android.speed;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
-import java.util.List;
 
 /**
  * Records model predictions every second and scores them against actual AVL observations
@@ -36,7 +34,7 @@ public final class CalibrationTracker {
     public static final int DEFAULT_HISTOGRAM_BINS = 10;
 
     private final Deque<PredictionRecord> mPredictions = new ArrayDeque<>();
-    private final List<CalibrationSample> mSamples = new ArrayList<>();
+    private final Deque<CalibrationSample> mSamples = new ArrayDeque<>();
     private long mLastSeenAvlTime = 0;
 
     private static final class PredictionRecord {
@@ -109,9 +107,9 @@ public final class CalibrationTracker {
                 observedDist, avlTime);
         if (pit == null) return;
 
-        mSamples.add(new CalibrationSample(pit));
+        mSamples.addLast(new CalibrationSample(pit));
         while (mSamples.size() > MAX_CALIBRATION_SAMPLES) {
-            mSamples.remove(0);
+            mSamples.removeFirst();
         }
     }
 
@@ -129,6 +127,9 @@ public final class CalibrationTracker {
             if (delta < bestDelta) {
                 bestDelta = delta;
                 best = pr;
+            } else {
+                // Predictions are time-ordered; delta is now increasing, so we've passed the closest
+                break;
             }
         }
 

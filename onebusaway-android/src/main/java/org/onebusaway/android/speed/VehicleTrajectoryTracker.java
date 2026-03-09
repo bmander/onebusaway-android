@@ -66,6 +66,7 @@ public final class VehicleTrajectoryTracker {
     private final Map<String, Object> mPollTokens = new HashMap<>();
     /** Last active trip ID returned by the server for each polled trip. */
     private final Map<String, String> mLastActiveTripId = new HashMap<>();
+    private final Map<String, CalibrationTracker> mCalibrationTrackers = new HashMap<>();
 
     private VehicleTrajectoryTracker() {
     }
@@ -141,6 +142,16 @@ public final class VehicleTrajectoryTracker {
      */
     public synchronized double getLastScheduleSpeed() {
         return estimator.getLastScheduleSpeed();
+    }
+
+    /** Returns (or creates) the CalibrationTracker for the given trip. */
+    public synchronized CalibrationTracker getCalibrationTracker(String tripId) {
+        CalibrationTracker ct = mCalibrationTrackers.get(tripId);
+        if (ct == null) {
+            ct = new CalibrationTracker();
+            mCalibrationTrackers.put(tripId, ct);
+        }
+        return ct;
     }
 
     /**

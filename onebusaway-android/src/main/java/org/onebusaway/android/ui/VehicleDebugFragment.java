@@ -304,7 +304,7 @@ public class VehicleDebugFragment extends Fragment {
     private static final class VehicleDataLoader extends AsyncTaskLoader<VehicleData> {
 
         private final String mTripId;
-        private static final int MAX_CHAIN = 20;
+        private static final int MAX_CHAIN_PER_DIRECTION = 5;
         private VehicleData mCachedResult;
 
         VehicleDataLoader(Context context, String tripId) {
@@ -368,7 +368,7 @@ public class VehicleDebugFragment extends Fragment {
             List<BlockTripInfo> before = new ArrayList<>();
             String prevId = schedule.getPreviousTripId();
             while (!TextUtils.isEmpty(prevId) && !seen.contains(prevId)
-                    && before.size() < MAX_CHAIN) {
+                    && before.size() < MAX_CHAIN_PER_DIRECTION) {
                 seen.add(prevId);
                 ObaTripDetailsResponse resp =
                         ObaTripDetailsRequest.newRequest(getContext(), prevId).call();
@@ -386,15 +386,17 @@ public class VehicleDebugFragment extends Fragment {
             result.add(makeTripInfo(mTripId, startResponse));
 
             // Walk forward
+            int forwardCount = 0;
             String nextId = schedule.getNextTripId();
             while (!TextUtils.isEmpty(nextId) && !seen.contains(nextId)
-                    && result.size() < MAX_CHAIN) {
+                    && forwardCount < MAX_CHAIN_PER_DIRECTION) {
                 seen.add(nextId);
                 ObaTripDetailsResponse resp =
                         ObaTripDetailsRequest.newRequest(getContext(), nextId).call();
                 if (resp == null) break;
 
                 result.add(makeTripInfo(nextId, resp));
+                forwardCount++;
 
                 ObaTripSchedule sched = resp.getSchedule();
                 nextId = (sched != null) ? sched.getNextTripId() : null;

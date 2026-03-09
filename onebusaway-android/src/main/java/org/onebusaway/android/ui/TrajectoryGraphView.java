@@ -52,6 +52,12 @@ public class TrajectoryGraphView extends View {
     private long mServiceDate;
     private long mCurrentTime = System.currentTimeMillis();
     private double mEstimatedSpeedMps;
+    private double mEstimatedVelVariance;
+
+    // Per-draw coordinate transform state (set at top of onDraw, used by toPixelX/toPixelY)
+    private float mGraphW, mGraphH;
+    private double mVisMinDist, mVisDistRange;
+    private long mVisMinTime, mVisTimeRange;
 
     private final Paint mSchedulePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mScheduleDotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -68,6 +74,7 @@ public class TrajectoryGraphView extends View {
     private final Paint mDeviationDotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mDeviationLabelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mDeviationLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mConfidenceBandPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private final Path mSchedulePath = new Path();
     private final Path mTrajectoryPath = new Path();
@@ -290,14 +297,27 @@ public class TrajectoryGraphView extends View {
         mDeviationLinePaint.setStrokeWidth(1.5f * mDensity);
         mDeviationLinePaint.setPathEffect(new DashPathEffect(
                 new float[]{4 * mDensity, 3 * mDensity}, 0));
+
+        mConfidenceBandPaint.setColor(Color.parseColor("#66BBBBBB"));
+        mConfidenceBandPaint.setStyle(Paint.Style.STROKE);
+        mConfidenceBandPaint.setStrokeWidth(1f * mDensity);
+        mConfidenceBandPaint.setPathEffect(new DashPathEffect(
+                new float[]{4 * mDensity, 4 * mDensity}, 0));
     }
 
     public void setData(List<VehicleHistoryEntry> history, ObaTripSchedule schedule,
                         long serviceDate, Double estimatedSpeedMps) {
+        setData(history, schedule, serviceDate, estimatedSpeedMps, 0);
+    }
+
+    public void setData(List<VehicleHistoryEntry> history, ObaTripSchedule schedule,
+                        long serviceDate, Double estimatedSpeedMps,
+                        double estimatedVelVariance) {
         mHistory = history != null ? new ArrayList<>(history) : new ArrayList<>();
         mSchedule = schedule;
         mServiceDate = serviceDate;
         mEstimatedSpeedMps = estimatedSpeedMps != null ? estimatedSpeedMps : 0;
+        mEstimatedVelVariance = estimatedVelVariance;
         mCurrentTime = System.currentTimeMillis();
         invalidate();
     }
@@ -430,6 +450,14 @@ public class TrajectoryGraphView extends View {
         long visMinTime = minTime + mOffsetTime;
         long visMaxTime = visMinTime + visTimeRange;
 
+        // Store for toPixelX / toPixelY helpers
+        mGraphW = graphW;
+        mGraphH = graphH;
+        mVisMinDist = visMinDist;
+        mVisDistRange = visDistRange;
+        mVisMinTime = visMinTime;
+        mVisTimeRange = visTimeRange;
+
         // Draw axes (outside clip)
         canvas.drawLine(mMarginLeft, mMarginTop, mMarginLeft, getHeight() - mMarginBottom,
                 mAxisPaint);
@@ -442,7 +470,7 @@ public class TrajectoryGraphView extends View {
         timeStep = Math.max(10_000, (long) niceStep(timeStep));
         long firstTimeTick = ((visMinTime / timeStep) + 1) * timeStep;
         for (long t = firstTimeTick; t < visMaxTime; t += timeStep) {
-            float y = mMarginTop + graphH * (1f - (float) (t - visMinTime) / visTimeRange);
+            float y = toPixelY(t);
             if (y >= mMarginTop && y <= getHeight() - mMarginBottom) {
                 mReusableDate.setTime(t);
                 String label = mTimeFmt.format(mReusableDate);
@@ -455,7 +483,7 @@ public class TrajectoryGraphView extends View {
         distStepVis = niceStep(distStepVis);
         double firstDistTick = Math.ceil(visMinDist / distStepVis) * distStepVis;
         for (double d = firstDistTick; d < visMaxDist; d += distStepVis) {
-            float x = mMarginLeft + graphW * (float) ((d - visMinDist) / visDistRange);
+            float x = toPixelX(d);
             if (x >= mMarginLeft && x <= getWidth() - mMarginRight) {
                 String label = formatDist(d);
                 canvas.drawText(label, x - 10 * mDensity,
@@ -470,11 +498,11 @@ public class TrajectoryGraphView extends View {
 
         // Grid lines
         for (long t = firstTimeTick; t < visMaxTime; t += timeStep) {
-            float y = mMarginTop + graphH * (1f - (float) (t - visMinTime) / visTimeRange);
-            canvas.drawLine(mMarginLeft, y, getWidth() - mMarginRight, y, mGridPaint);
+            canvas.drawLine(mMarginLeft, toPixelY(t), getWidth() - mMarginRight,
+                    toPixelY(t), mGridPaint);
         }
         for (double d = firstDistTick; d < visMaxDist; d += distStepVis) {
-            float x = mMarginLeft + graphW * (float) ((d - visMinDist) / visDistRange);
+            float x = toPixelX(d);
             canvas.drawLine(x, mMarginTop, x, getHeight() - mMarginBottom, mGridPaint);
         }
 
@@ -485,9 +513,9 @@ public class TrajectoryGraphView extends View {
                 mSchedulePath.reset();
                 boolean first = true;
                 for (ObaTripSchedule.StopTime st : stops) {
-                    float x = mMarginLeft + graphW * (float) ((st.getDistanceAlongTrip() - visMinDist) / visDistRange);
+                    float x = toPixelX(st.getDistanceAlongTrip());
                     long absTime = mServiceDate + st.getArrivalTime() * 1000;
-                    float y = mMarginTop + graphH * (1f - (float) (absTime - visMinTime) / visTimeRange);
+                    float y = toPixelY(absTime);
                     if (first) {
                         mSchedulePath.moveTo(x, y);
                         first = false;
@@ -508,8 +536,8 @@ public class TrajectoryGraphView extends View {
                 Double d = e.getBestDistanceAlongTrip();
                 long t = e.getLastLocationUpdateTime();
                 if (d == null || t <= 0) continue;
-                float x = mMarginLeft + graphW * (float) ((d - visMinDist) / visDistRange);
-                float y = mMarginTop + graphH * (1f - (float) (t - visMinTime) / visTimeRange);
+                float x = toPixelX(d);
+                float y = toPixelY(t);
                 if (first) {
                     mTrajectoryPath.moveTo(x, y);
                     first = false;
@@ -521,71 +549,76 @@ public class TrajectoryGraphView extends View {
             canvas.drawPath(mTrajectoryPath, mTrajectoryPaint);
         }
 
-        // Draw extrapolation line from last trajectory point to "now"
-        if (mEstimatedSpeedMps > 0 && !mHistory.isEmpty()) {
-            Double lastDist = null;
-            long lastTime = 0;
-            for (int i = mHistory.size() - 1; i >= 0; i--) {
-                VehicleHistoryEntry e = mHistory.get(i);
-                Double d = e.getBestDistanceAlongTrip();
-                long t = e.getLastLocationUpdateTime();
-                if (d != null && t > 0) {
-                    lastDist = d;
-                    lastTime = t;
-                    break;
-                }
-            }
-            if (lastDist != null && mCurrentTime > lastTime) {
-                double extrapolatedDist = lastDist + mEstimatedSpeedMps * (mCurrentTime - lastTime) / 1000.0;
-                float x1 = mMarginLeft + graphW * (float) ((lastDist - visMinDist) / visDistRange);
-                float y1 = mMarginTop + graphH * (1f - (float) (lastTime - visMinTime) / visTimeRange);
-                float x2 = mMarginLeft + graphW * (float) ((extrapolatedDist - visMinDist) / visDistRange);
-                float y2 = mMarginTop + graphH * (1f - (float) (mCurrentTime - visMinTime) / visTimeRange);
-                canvas.drawLine(x1, y1, x2, y2, mExtrapolatePaint);
-                // Vertical drop line to X axis
-                float xAxisY = getHeight() - mMarginBottom;
-                canvas.drawLine(x2, y2, x2, xAxisY, mExtrapolateDashPaint);
-                // Distance label
-                String distLabel = "~" + formatDistPrecise(extrapolatedDist);
-                canvas.drawText(distLabel, x2 - 10 * mDensity,
-                        xAxisY - 5 * mDensity, mExtrapolateLabelPaint);
+        VehicleHistoryEntry newestValid = findNewestValidEntry();
+        Double lastDist = newestValid != null ? newestValid.getBestDistanceAlongTrip() : null;
+        long lastTime = newestValid != null ? newestValid.getLastLocationUpdateTime() : 0;
 
-                // Schedule deviation: find scheduled time at extrapolated distance
-                long scheduledTime = interpolateScheduleTime(extrapolatedDist);
-                if (scheduledTime > 0) {
-                    float schedY = mMarginTop + graphH
-                            * (1f - (float) (scheduledTime - visMinTime) / visTimeRange);
-                    // Draw dot at intersection of vertical line with schedule
-                    canvas.drawCircle(x2, schedY, 5 * mDensity, mDeviationDotPaint);
-                    // Draw connecting line between scheduled point and now point
-                    canvas.drawLine(x2, schedY, x2, y2, mDeviationLinePaint);
-                    // Deviation label
-                    long devSeconds = (mCurrentTime - scheduledTime) / 1000;
-                    String devLabel;
-                    long absSeconds = Math.abs(devSeconds);
-                    if (absSeconds >= 60) {
-                        long mins = absSeconds / 60;
-                        long secs = absSeconds % 60;
-                        devLabel = mins + "m" + (secs > 0 ? secs + "s" : "");
-                    } else {
-                        devLabel = absSeconds + "s";
-                    }
-                    if (devSeconds > 0) {
-                        devLabel += " late";
-                    } else if (devSeconds < 0) {
-                        devLabel += " early";
-                    } else {
-                        devLabel = "on time";
-                    }
-                    float labelX = x2 + 5 * mDensity;
-                    float labelY = (schedY + y2) / 2 + 4 * mDensity;
-                    canvas.drawText(devLabel, labelX, labelY, mDeviationLabelPaint);
+        // Draw extrapolation line from last trajectory point to "now"
+        if (mEstimatedSpeedMps > 0 && lastDist != null && mCurrentTime > lastTime) {
+            double extrapolatedDist = lastDist + mEstimatedSpeedMps * (mCurrentTime - lastTime) / 1000.0;
+            float x1 = toPixelX(lastDist);
+            float y1 = toPixelY(lastTime);
+            float x2 = toPixelX(extrapolatedDist);
+            float y2 = toPixelY(mCurrentTime);
+            canvas.drawLine(x1, y1, x2, y2, mExtrapolatePaint);
+            // Vertical drop line to X axis
+            float xAxisY = getHeight() - mMarginBottom;
+            canvas.drawLine(x2, y2, x2, xAxisY, mExtrapolateDashPaint);
+            // Distance label
+            String distLabel = "~" + formatDistPrecise(extrapolatedDist);
+            canvas.drawText(distLabel, x2 - 10 * mDensity,
+                    xAxisY - 5 * mDensity, mExtrapolateLabelPaint);
+
+            // Schedule deviation: find scheduled time at extrapolated distance
+            long scheduledTime = interpolateScheduleTime(extrapolatedDist);
+            if (scheduledTime > 0) {
+                float schedY = toPixelY(scheduledTime);
+                canvas.drawCircle(x2, schedY, 5 * mDensity, mDeviationDotPaint);
+                canvas.drawLine(x2, schedY, x2, y2, mDeviationLinePaint);
+                long devSeconds = (mCurrentTime - scheduledTime) / 1000;
+                String devLabel;
+                long absSeconds = Math.abs(devSeconds);
+                if (absSeconds >= 60) {
+                    long mins = absSeconds / 60;
+                    long secs = absSeconds % 60;
+                    devLabel = mins + "m" + (secs > 0 ? secs + "s" : "");
+                } else {
+                    devLabel = absSeconds + "s";
                 }
+                if (devSeconds > 0) {
+                    devLabel += " late";
+                } else if (devSeconds < 0) {
+                    devLabel += " early";
+                } else {
+                    devLabel = "on time";
+                }
+                float labelX = x2 + 5 * mDensity;
+                float labelY = (schedY + y2) / 2 + 4 * mDensity;
+                canvas.drawText(devLabel, labelX, labelY, mDeviationLabelPaint);
             }
         }
 
+        // Draw 80% confidence band (10th/90th percentile) from last AVL to now
+        if (mEstimatedVelVariance > 0 && mEstimatedSpeedMps > 0
+                && lastDist != null && mCurrentTime > lastTime) {
+            double stdDev = Math.sqrt(mEstimatedVelVariance);
+            double velLo = Math.max(0, mEstimatedSpeedMps - 1.282 * stdDev);
+            double velHi = mEstimatedSpeedMps + 1.282 * stdDev;
+            double dtSec = (mCurrentTime - lastTime) / 1000.0;
+            double distLo = lastDist + velLo * dtSec;
+            double distHi = lastDist + velHi * dtSec;
+
+            float xStart = toPixelX(lastDist);
+            float yStart = toPixelY(lastTime);
+            float xLo = toPixelX(distLo);
+            float xHi = toPixelX(distHi);
+            float yNow = toPixelY(mCurrentTime);
+            canvas.drawLine(xStart, yStart, xLo, yNow, mConfidenceBandPaint);
+            canvas.drawLine(xStart, yStart, xHi, yNow, mConfidenceBandPaint);
+        }
+
         // Draw current time line
-        float nowY = mMarginTop + graphH * (1f - (float) (mCurrentTime - visMinTime) / visTimeRange);
+        float nowY = toPixelY(mCurrentTime);
         if (nowY >= mMarginTop && nowY <= getHeight() - mMarginBottom) {
             canvas.drawLine(mMarginLeft, nowY, getWidth() - mMarginRight, nowY, mNowLinePaint);
             mReusableDate.setTime(mCurrentTime);
@@ -607,6 +640,32 @@ public class TrajectoryGraphView extends View {
         legendY += 18 * mDensity;
         canvas.drawLine(legendX, legendY, legendX + 20 * mDensity, legendY, mExtrapolateDashPaint);
         canvas.drawText("Estimated", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
+        legendY += 18 * mDensity;
+        canvas.drawLine(legendX, legendY, legendX + 20 * mDensity, legendY, mConfidenceBandPaint);
+        canvas.drawText("80% CI", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
+    }
+
+    /** Converts a distance-along-trip value to pixel X coordinate. */
+    private float toPixelX(double dist) {
+        return mMarginLeft + mGraphW * (float) ((dist - mVisMinDist) / mVisDistRange);
+    }
+
+    /** Converts a timestamp to pixel Y coordinate. */
+    private float toPixelY(long time) {
+        return mMarginTop + mGraphH * (1f - (float) (time - mVisMinTime) / mVisTimeRange);
+    }
+
+    /**
+     * Returns the newest history entry with a valid distance and timestamp, or null.
+     */
+    private VehicleHistoryEntry findNewestValidEntry() {
+        for (int i = mHistory.size() - 1; i >= 0; i--) {
+            VehicleHistoryEntry e = mHistory.get(i);
+            if (e.getBestDistanceAlongTrip() != null && e.getLastLocationUpdateTime() > 0) {
+                return e;
+            }
+        }
+        return null;
     }
 
     /**

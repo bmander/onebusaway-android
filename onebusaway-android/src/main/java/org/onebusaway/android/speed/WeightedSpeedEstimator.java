@@ -16,31 +16,40 @@
 package org.onebusaway.android.speed;
 
 /**
- * Combines schedule and history speed estimators using weighted averaging.
- * Schedule weight: 0.3, History weight: 0.7.
- * Falls back to whichever estimator has data when only one returns non-null.
+ * Combines schedule and Kalman speed estimation. The schedule speed is used as the
+ * velocity prior for the Kalman filter's mean-reversion: fresh data tracks actual speed,
+ * stale data decays toward the schedule speed.
+ *
+ * If no schedule is available, the Kalman filter reverts toward 0 (stopped) when stale.
+ * If no history is available, falls back to schedule speed alone.
  */
 public class WeightedSpeedEstimator implements SpeedEstimator {
 
-    private static final double SCHEDULE_WEIGHT = 0.3;
-    private static final double HISTORY_WEIGHT = 0.7;
-
     private final ScheduleSpeedEstimator scheduleEstimator = new ScheduleSpeedEstimator();
-    private final HistorySpeedEstimator historyEstimator = new HistorySpeedEstimator();
+    private final KalmanSpeedEstimator kalmanEstimator = new KalmanSpeedEstimator();
 
     @Override
-    public Double estimateSpeed(String vehicleId, VehicleState state, VehicleTrajectoryTracker tracker) {
+    public Double estimateSpeed(String vehicleId, VehicleState state,
+                                VehicleTrajectoryTracker tracker) {
         Double scheduleSpeed = scheduleEstimator.estimateSpeed(vehicleId, state, tracker);
-        Double historySpeed = historyEstimator.estimateSpeed(vehicleId, state, tracker);
+        double velPrior = scheduleSpeed != null ? scheduleSpeed : 0.0;
 
-        if (scheduleSpeed != null && historySpeed != null) {
-            return SCHEDULE_WEIGHT * scheduleSpeed + HISTORY_WEIGHT * historySpeed;
-        } else if (historySpeed != null) {
-            return historySpeed;
-        } else if (scheduleSpeed != null) {
-            return scheduleSpeed;
+        Double kalmanSpeed = kalmanEstimator.estimateSpeed(
+                vehicleId, state, tracker, velPrior);
+
+        if (kalmanSpeed != null) {
+            return kalmanSpeed;
         }
+        return scheduleSpeed;
+    }
 
-        return null;
+    @Override
+    public double getLastPredictedVelVariance() {
+        return kalmanEstimator.getLastPredictedVelVariance();
+    }
+
+    @Override
+    public void clearState() {
+        kalmanEstimator.clearState();
     }
 }

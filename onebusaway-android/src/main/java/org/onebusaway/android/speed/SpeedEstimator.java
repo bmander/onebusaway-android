@@ -29,4 +29,19 @@ public interface SpeedEstimator {
      * @return estimated speed in meters per second, or null if insufficient data
      */
     Double estimateSpeed(String vehicleId, VehicleState state, VehicleTrajectoryTracker tracker);
+
+    /**
+     * Clears all internal estimator state.
+     */
+    default void clearState() {
+    }
+
+    /**
+     * Returns the predicted velocity variance from the last estimateSpeed call.
+     * Used to compute confidence intervals on the trajectory graph.
+     * @return velocity variance in (m/s)², or 0 if not applicable
+     */
+    default double getLastPredictedVelVariance() {
+        return 0;
+    }
 }

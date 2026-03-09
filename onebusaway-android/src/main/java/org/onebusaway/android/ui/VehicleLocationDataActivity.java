@@ -58,7 +58,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     private static final int PAD_H = 12;
     private static final int PAD_V = 6;
     private static final int TEXT_SIZE = 12;
-    private static final long UI_REFRESH_PERIOD = 5_000;
+    private static final long UI_REFRESH_PERIOD = 1_000;
 
     private String mTripId;
     private final Handler mRefreshHandler = new Handler(Looper.getMainLooper());
@@ -183,7 +183,9 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         ObaTripSchedule schedule = tracker.getSchedule(mTripId);
         Long serviceDate = tracker.getServiceDate(mTripId);
         Double speed = tracker.getEstimatedSpeed(mTripId);
-        mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0, speed);
+        double velVariance = tracker.getEstimatedVelVariance();
+        mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0, speed,
+                velVariance);
     }
 
     private void buildTable(TableLayout table, List<VehicleHistoryEntry> history) {

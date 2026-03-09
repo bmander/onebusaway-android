@@ -168,6 +168,13 @@ public final class VehicleTrajectoryTracker {
     }
 
     /**
+     * Returns the predicted velocity variance from the last speed estimate.
+     */
+    public synchronized double getEstimatedVelVariance() {
+        return estimator.getLastPredictedVelVariance();
+    }
+
+    /**
      * Sets the active speed estimator.
      */
     public synchronized void setEstimator(SpeedEstimator estimator) {
@@ -331,5 +338,6 @@ public final class VehicleTrajectoryTracker {
         mTripSubscribers.clear();
         mPollTokens.clear();
         mPollHandler.removeCallbacksAndMessages(null);
+        estimator.clearState();
     }
 }

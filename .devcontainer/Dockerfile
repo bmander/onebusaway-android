@@ -8,7 +8,7 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
        | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
     && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
        > /etc/apt/sources.list.d/nodesource.list \
-    && apt-get update -qq && apt-get install -y -qq nodejs \
+    && apt-get update -qq && apt-get install -y -qq nodejs socat \
     && rm -rf /var/lib/apt/lists/*
 
 # Android SDK environment variables

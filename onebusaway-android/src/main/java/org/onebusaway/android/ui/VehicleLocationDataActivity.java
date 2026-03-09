@@ -203,8 +203,9 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         Long serviceDate = tracker.getServiceDate(mTripId);
         Double speed = tripEnded ? null : tracker.getEstimatedSpeed(mTripId);
         double velVariance = tripEnded ? 0 : tracker.getEstimatedVelVariance();
+        double scheduleSpeed = tripEnded ? 0 : tracker.getLastScheduleSpeed();
         mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0, speed,
-                velVariance);
+                velVariance, scheduleSpeed);
     }
 
     private void buildTable(TableLayout table, List<VehicleHistoryEntry> history) {

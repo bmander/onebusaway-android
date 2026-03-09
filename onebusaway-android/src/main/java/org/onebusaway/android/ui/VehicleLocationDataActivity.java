@@ -34,6 +34,8 @@ import com.google.android.material.tabs.TabLayout;
 
 import org.onebusaway.android.R;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
+import org.onebusaway.android.speed.CalibrationTracker;
+import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.UIUtils;
@@ -60,6 +62,12 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     private static final int PAD_V = 6;
     private static final int TEXT_SIZE = 12;
     private static final long UI_REFRESH_PERIOD = 1_000;
+
+    private static final double[] COVERAGE_LEVELS = {0.50, 0.80, 0.95};
+    private static final String[] HISTOGRAM_BLOCKS = {
+            " ", "\u2581", "\u2582", "\u2583", "\u2584",
+            "\u2585", "\u2586", "\u2587", "\u2588"
+    };
     private String mTripId;
     private String mStopId;
     private final Handler mRefreshHandler = new Handler(Looper.getMainLooper());
@@ -67,6 +75,9 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
 
     private View mTableContainer;
     private TrajectoryGraphView mGraphView;
+    private View mCalibrationContainer;
+    private TextView mCalibrationText;
+    private CalibrationTracker mCalibrationTracker;
 
     private final Runnable mRefresh = new Runnable() {
         @Override
@@ -108,21 +119,32 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         mTableContainer = findViewById(R.id.location_data_table_container);
         mGraphView = findViewById(R.id.location_data_graph);
         mGraphView.setHighlightedStopId(mStopId);
+        mCalibrationContainer = findViewById(R.id.location_data_calibration_container);
+        mCalibrationText = findViewById(R.id.location_data_calibration);
+        mCalibrationTracker = new CalibrationTracker();
 
         TabLayout tabs = findViewById(R.id.location_data_tabs);
         tabs.addTab(tabs.newTab().setText("Table"));
         tabs.addTab(tabs.newTab().setText("Graph"));
+        tabs.addTab(tabs.newTab().setText("Calibration"));
         tabs.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
-                if (tab.getPosition() == 0) {
-                    mTableContainer.setVisibility(View.VISIBLE);
-                    mGraphView.setVisibility(View.GONE);
-                } else {
-                    mTableContainer.setVisibility(View.GONE);
-                    mGraphView.setVisibility(View.VISIBLE);
-                    refreshData();
+                mTableContainer.setVisibility(View.GONE);
+                mGraphView.setVisibility(View.GONE);
+                mCalibrationContainer.setVisibility(View.GONE);
+                switch (tab.getPosition()) {
+                    case 0:
+                        mTableContainer.setVisibility(View.VISIBLE);
+                        break;
+                    case 1:
+                        mGraphView.setVisibility(View.VISIBLE);
+                        break;
+                    case 2:
+                        mCalibrationContainer.setVisibility(View.VISIBLE);
+                        break;
                 }
+                refreshData();
             }
 
             @Override
@@ -190,9 +212,32 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
             buildTable(table, history);
         }
 
+        // Feed calibration tracker
+        if (!tripEnded && !history.isEmpty()) {
+            Double speed = tracker.getEstimatedSpeed(mTripId);
+            double velVariance = tracker.getEstimatedVelVariance();
+            double scheduleSpeed = tracker.getLastScheduleSpeed();
+            VehicleHistoryEntry newestValid = DistanceExtrapolator.findNewestValidEntry(history);
+            if (newestValid != null && speed != null && speed > 0) {
+                Double lastDist = newestValid.getBestDistanceAlongTrip();
+                long lastAvlTime = newestValid.getLastLocationUpdateTime();
+                if (lastDist != null && lastAvlTime > 0) {
+                    mCalibrationTracker.recordPrediction(
+                            System.currentTimeMillis(), lastDist, lastAvlTime,
+                            speed, velVariance, scheduleSpeed);
+                    mCalibrationTracker.checkNewAvl(newestValid);
+                }
+            }
+        }
+
         // Refresh graph only when visible
         if (mGraphView.getVisibility() == View.VISIBLE) {
             refreshGraph(tripEnded);
+        }
+
+        // Refresh calibration only when visible
+        if (mCalibrationContainer.getVisibility() == View.VISIBLE) {
+            refreshCalibration();
         }
     }
 
@@ -204,15 +249,86 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         Double speed = tripEnded ? null : tracker.getEstimatedSpeed(mTripId);
         double velVariance = tripEnded ? 0 : tracker.getEstimatedVelVariance();
         double scheduleSpeed = tripEnded ? 0 : tracker.getLastScheduleSpeed();
+        mGraphView.setModelCoverageRange(
+                mCalibrationTracker.getMinPredictionTime(),
+                mCalibrationTracker.getMaxPredictionTime());
         mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0, speed,
                 velVariance, scheduleSpeed);
+    }
+
+    private void refreshCalibration() {
+        int count = mCalibrationTracker.getSampleCount();
+        if (count == 0) {
+            mCalibrationText.setText("No calibration samples yet.\n\n"
+                    + "Samples accumulate as new AVL observations arrive\n"
+                    + "(approximately every 30 seconds).");
+            return;
+        }
+
+        int numBins = CalibrationTracker.DEFAULT_HISTOGRAM_BINS;
+        double[] hist = mCalibrationTracker.getPitHistogram(numBins);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format(Locale.US, "Calibration Samples: %d\n\n", count));
+
+        // Coverage metrics
+        sb.append("Coverage (empirical vs nominal):\n");
+        for (double level : COVERAGE_LEVELS) {
+            double coverage = mCalibrationTracker.getCoverageAt(level);
+            sb.append(String.format(Locale.US, "  %2.0f%% CI: %5.1f%% (nominal %2.0f%%)\n",
+                    level * 100, coverage * 100, level * 100));
+        }
+
+        double mace = mCalibrationTracker.getMeanAbsoluteCalibrationError(hist);
+        sb.append(String.format(Locale.US, "\nMACE: %.4f", mace));
+        sb.append(mace < 0.02 ? " (excellent)" : mace < 0.05 ? " (good)" :
+                mace < 0.10 ? " (fair)" : " (poor)");
+
+        // PIT histogram
+        sb.append("\n\nPIT Histogram (").append(numBins).append(" bins):\n");
+        double maxBin = 0;
+        for (double h : hist) {
+            if (h > maxBin) maxBin = h;
+        }
+
+        int barHeight = 8;
+        for (int row = barHeight; row >= 1; row--) {
+            sb.append("  ");
+            double threshold = maxBin * row / barHeight;
+            for (int b = 0; b < numBins; b++) {
+                if (hist[b] >= threshold) {
+                    sb.append("\u2588\u2588");
+                } else {
+                    double prev = maxBin * (row - 1) / barHeight;
+                    if (hist[b] > prev) {
+                        int level = (int) ((hist[b] - prev) / (threshold - prev) * 8);
+                        level = Math.max(0, Math.min(8, level));
+                        sb.append(HISTOGRAM_BLOCKS[level]).append(HISTOGRAM_BLOCKS[level]);
+                    } else {
+                        sb.append("  ");
+                    }
+                }
+            }
+            sb.append('\n');
+        }
+        // X-axis labels
+        sb.append("  ");
+        for (int b = 0; b < numBins; b++) {
+            sb.append(String.format(Locale.US, ".%d", b));
+        }
+        sb.append('\n');
+
+        double uniform = 1.0 / numBins;
+        sb.append(String.format(Locale.US, "\nUniform: %.1f%% per bin", uniform * 100));
+
+        mCalibrationText.setText(sb.toString());
     }
 
     private void buildTable(TableLayout table, List<VehicleHistoryEntry> history) {
         // Header row
         String[] headers = {"#", "AVL time", "Lat", "Lon",
                 "Dist (m)", "\u0394t (s)",
-                "\u0394dist (m)", "Speed (mph)", "Geo \u0394 (m)"};
+                "\u0394dist (m)", "Speed (mph)", "Geo \u0394 (m)", "P(\u2264d)"};
         TableRow headerRow = new TableRow(this);
         headerRow.setBackgroundColor(0xFF424242);
         for (String h : headers) {
@@ -314,7 +430,22 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
                 } else {
                     row.addView(createCell("\u2014", false));
                 }
+
+                // P(≤d): CDF from model prediction at time of this AVL
+                Double curDist = entry.getBestDistanceAlongTrip();
+                if (curDist != null && avlTime > 0) {
+                    Double pit = mCalibrationTracker.computePitAt(avlTime, curDist);
+                    if (pit != null) {
+                        row.addView(createCell(
+                                String.format(Locale.US, "%.0f%%", pit * 100), false));
+                    } else {
+                        row.addView(createCell("\u2014", false));
+                    }
+                } else {
+                    row.addView(createCell("\u2014", false));
+                }
             } else {
+                row.addView(createCell("", false));
                 row.addView(createCell("", false));
                 row.addView(createCell("", false));
                 row.addView(createCell("", false));

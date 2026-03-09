@@ -412,6 +412,15 @@ public class TripDetailsListFragment extends ListFragment {
             vehicleView.setVisibility(View.GONE);
         }
 
+        // The API returns deviation/position relative to the active trip.
+        // If viewing a different trip in the same block, show schedule only.
+        if (!TextUtils.equals(status.getActiveTripId(), tripId)) {
+            vehicleDeviation.setText(context.getString(R.string.trip_details_scheduled_data));
+            UIUtils.setOccupancyVisibilityAndColor(occupancyView, null, OccupancyState.REALTIME);
+            UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.REALTIME);
+            return;
+        }
+
         // Set status color in header
         statusLayout.setBackgroundResource(
                 R.drawable.round_corners_style_b_header_status);
@@ -844,6 +853,7 @@ public class TripDetailsListFragment extends ListFragment {
         ObaTripStatus mStatus;
 
         Integer mNextStopIndex;
+        boolean mIsActiveTrip;
 
         public TripDetailsAdapter() {
             this.mInflater = LayoutInflater.from(TripDetailsListFragment.this.getActivity());
@@ -857,8 +867,9 @@ public class TripDetailsListFragment extends ListFragment {
             this.mStatus = mTripInfo.getStatus();
 
             mNextStopIndex = null;
-            if (mStatus == null) {
-                // We don't have real-time data - clear next stop index
+            mIsActiveTrip = mStatus != null
+                    && TextUtils.equals(mStatus.getActiveTripId(), mTripId);
+            if (!mIsActiveTrip) {
                 return;
             }
 
@@ -919,11 +930,13 @@ public class TripDetailsListFragment extends ListFragment {
             long deviation = 0;
             int statusColor;
             if (mStatus != null) {
-                // If we have real-time info, use that
+                // Use service date from status for correct time offset
                 date = mStatus.getServiceDate();
-                deviation = mStatus.getScheduleDeviation();
-                long deviationMin = TimeUnit.SECONDS.toMinutes(mStatus.getScheduleDeviation());
-                if (mStatus.isPredicted()) {
+                if (mIsActiveTrip) {
+                    deviation = mStatus.getScheduleDeviation();
+                }
+                long deviationMin = TimeUnit.SECONDS.toMinutes(deviation);
+                if (mIsActiveTrip && mStatus.isPredicted()) {
                     statusColor = ArrivalInfoUtils.computeColorFromDeviation(deviationMin);
                 } else {
                     statusColor = R.color.stop_info_scheduled_time;

@@ -53,6 +53,7 @@ public class TrajectoryGraphView extends View {
     private long mCurrentTime = System.currentTimeMillis();
     private double mEstimatedSpeedMps;
     private double mEstimatedVelVariance;
+    private String mHighlightedStopId;
 
     // Per-draw coordinate transform state (set at top of onDraw, used by toPixelX/toPixelY)
     private float mGraphW, mGraphH;
@@ -305,6 +306,11 @@ public class TrajectoryGraphView extends View {
                 new float[]{4 * mDensity, 4 * mDensity}, 0));
     }
 
+    public void setHighlightedStopId(String stopId) {
+        mHighlightedStopId = stopId;
+        invalidate();
+    }
+
     public void setData(List<VehicleHistoryEntry> history, ObaTripSchedule schedule,
                         long serviceDate, Double estimatedSpeedMps) {
         setData(history, schedule, serviceDate, estimatedSpeedMps, 0);
@@ -522,7 +528,10 @@ public class TrajectoryGraphView extends View {
                     } else {
                         mSchedulePath.lineTo(x, y);
                     }
-                    canvas.drawCircle(x, y, 4 * mDensity, mScheduleDotPaint);
+                    float dotRadius = (mHighlightedStopId != null
+                            && mHighlightedStopId.equals(st.getStopId()))
+                            ? 8 * mDensity : 4 * mDensity;
+                    canvas.drawCircle(x, y, dotRadius, mScheduleDotPaint);
                 }
                 canvas.drawPath(mSchedulePath, mSchedulePaint);
             }

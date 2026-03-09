@@ -54,12 +54,14 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
 
     private static final String EXTRA_TRIP_ID = ".TripId";
     private static final String EXTRA_VEHICLE_ID = ".VehicleId";
+    private static final String EXTRA_STOP_ID = ".StopId";
 
     private static final int PAD_H = 12;
     private static final int PAD_V = 6;
     private static final int TEXT_SIZE = 12;
     private static final long UI_REFRESH_PERIOD = 1_000;
     private String mTripId;
+    private String mStopId;
     private final Handler mRefreshHandler = new Handler(Looper.getMainLooper());
     private int mLastRowCount = -1;
 
@@ -75,9 +77,14 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     };
 
     public static void start(Context context, String tripId, String vehicleId) {
+        start(context, tripId, vehicleId, null);
+    }
+
+    public static void start(Context context, String tripId, String vehicleId, String stopId) {
         Intent intent = new Intent(context, VehicleLocationDataActivity.class);
         intent.putExtra(EXTRA_TRIP_ID, tripId);
         intent.putExtra(EXTRA_VEHICLE_ID, vehicleId);
+        intent.putExtra(EXTRA_STOP_ID, stopId);
         context.startActivity(intent);
     }
 
@@ -88,6 +95,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         setContentView(R.layout.activity_vehicle_location_data);
 
         mTripId = getIntent().getStringExtra(EXTRA_TRIP_ID);
+        mStopId = getIntent().getStringExtra(EXTRA_STOP_ID);
         String vehicleId = getIntent().getStringExtra(EXTRA_VEHICLE_ID);
 
         if (getSupportActionBar() != null) {
@@ -99,6 +107,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
 
         mTableContainer = findViewById(R.id.location_data_table_container);
         mGraphView = findViewById(R.id.location_data_graph);
+        mGraphView.setHighlightedStopId(mStopId);
 
         TabLayout tabs = findViewById(R.id.location_data_tabs);
         tabs.addTab(tabs.newTab().setText("Table"));

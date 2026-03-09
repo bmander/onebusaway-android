@@ -44,4 +44,13 @@ public interface SpeedEstimator {
     default double getLastPredictedVelVariance() {
         return 0;
     }
+
+    /**
+     * Returns the schedule-derived speed from the last estimateSpeed call.
+     * Used as the velocity prior and to bound the Beta distribution for the position PDF.
+     * @return schedule speed in m/s, or 0 if not available
+     */
+    default double getLastScheduleSpeed() {
+        return 0;
+    }
 }

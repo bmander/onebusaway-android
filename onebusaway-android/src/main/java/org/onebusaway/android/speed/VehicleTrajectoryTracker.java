@@ -137,6 +137,13 @@ public final class VehicleTrajectoryTracker {
     }
 
     /**
+     * Returns the schedule-derived speed from the last speed estimate.
+     */
+    public synchronized double getLastScheduleSpeed() {
+        return estimator.getLastScheduleSpeed();
+    }
+
+    /**
      * Returns the last active trip ID the server reported for a polled trip,
      * or null if no poll response has been received yet.
      */

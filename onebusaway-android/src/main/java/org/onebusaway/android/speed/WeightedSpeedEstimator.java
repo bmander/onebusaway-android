@@ -29,11 +29,13 @@ public class WeightedSpeedEstimator implements SpeedEstimator {
 
     private final ScheduleSpeedEstimator scheduleEstimator = new ScheduleSpeedEstimator();
     private final KalmanSpeedEstimator kalmanEstimator = new KalmanSpeedEstimator();
+    private double mLastScheduleSpeed;
 
     @Override
     public Double estimateSpeed(String vehicleId, VehicleState state,
                                 VehicleTrajectoryTracker tracker) {
         double velPrior = getSpeedPrior(vehicleId, state, tracker);
+        mLastScheduleSpeed = velPrior;
 
         Double kalmanSpeed = kalmanEstimator.estimateSpeed(
                 vehicleId, state, tracker, velPrior);
@@ -74,6 +76,11 @@ public class WeightedSpeedEstimator implements SpeedEstimator {
     @Override
     public double getLastPredictedVelVariance() {
         return kalmanEstimator.getLastPredictedVelVariance();
+    }
+
+    @Override
+    public double getLastScheduleSpeed() {
+        return mLastScheduleSpeed;
     }
 
     @Override

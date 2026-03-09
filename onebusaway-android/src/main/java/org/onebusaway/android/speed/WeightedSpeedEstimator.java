@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.speed;
 
+import org.onebusaway.android.io.elements.ObaTripSchedule;
+
 /**
  * Combines schedule and Kalman speed estimation. The schedule speed is used as the
  * velocity prior for the Kalman filter's mean-reversion: fresh data tracks actual speed,
@@ -31,8 +33,7 @@ public class WeightedSpeedEstimator implements SpeedEstimator {
     @Override
     public Double estimateSpeed(String vehicleId, VehicleState state,
                                 VehicleTrajectoryTracker tracker) {
-        Double scheduleSpeed = scheduleEstimator.estimateSpeed(vehicleId, state, tracker);
-        double velPrior = scheduleSpeed != null ? scheduleSpeed : 0.0;
+        double velPrior = getSpeedPrior(vehicleId, state, tracker);
 
         Double kalmanSpeed = kalmanEstimator.estimateSpeed(
                 vehicleId, state, tracker, velPrior);
@@ -40,6 +41,33 @@ public class WeightedSpeedEstimator implements SpeedEstimator {
         if (kalmanSpeed != null) {
             return kalmanSpeed;
         }
+        // Fall back to schedule speed (velPrior is 0 before trip start)
+        return velPrior > 0 ? velPrior : null;
+    }
+
+    private double getSpeedPrior(String vehicleId, VehicleState state,
+                                 VehicleTrajectoryTracker tracker) {
+        Double scheduleSpeed = scheduleEstimator.estimateSpeed(vehicleId, state, tracker);
+        if (scheduleSpeed == null) {
+            return 0.0;
+        }
+
+        // Before the trip's scheduled start, the vehicle is at layover
+        String tripId = state.getActiveTripId();
+        if (tripId != null) {
+            Long serviceDate = tracker.getServiceDate(tripId);
+            ObaTripSchedule schedule = tracker.getSchedule(tripId);
+            ObaTripSchedule.StopTime[] stopTimes = schedule != null
+                    ? schedule.getStopTimes() : null;
+            if (serviceDate != null && stopTimes != null && stopTimes.length > 0) {
+                long tripStartMs = serviceDate
+                        + stopTimes[0].getDepartureTime() * 1000L;
+                if (System.currentTimeMillis() < tripStartMs) {
+                    return 0.0;
+                }
+            }
+        }
+
         return scheduleSpeed;
     }
 

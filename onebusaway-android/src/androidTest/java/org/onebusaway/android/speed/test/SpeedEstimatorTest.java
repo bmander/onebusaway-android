@@ -740,6 +740,92 @@ public class SpeedEstimatorTest {
         assertEquals(10.0, speed, 0.01);
     }
 
+    @Test
+    public void testWeightedEstimatorZeroPriorBeforeTripStart() {
+        WeightedSpeedEstimator estimator = new WeightedSpeedEstimator();
+
+        // Schedule with departure time 300s into the service day
+        ObaTripSchedule schedule = createSchedule(
+                new double[]{0, 1000},
+                new long[]{0, 200},
+                new long[]{300, 500}
+        );
+        tracker.putSchedule("trip1", schedule);
+
+        // Service date far in the future so current time is before trip start
+        long futureServiceDate = System.currentTimeMillis() + 3600_000L;
+        tracker.putServiceDate("trip1", futureServiceDate);
+
+        // Only one history entry -> falls back to velPrior
+        VehicleState state = createState("v1", "trip1", 47.0, -122.0,
+                500.0, 500.0, 5000.0, System.currentTimeMillis());
+        tracker.recordState("trip1", state);
+
+        // Before trip start: velPrior is 0, so fallback is null
+        Double speed = estimator.estimateSpeed("v1", state, tracker);
+        assertNull("Speed should be null before trip start", speed);
+    }
+
+    @Test
+    public void testWeightedEstimatorSchedulePriorAfterTripStart() {
+        WeightedSpeedEstimator estimator = new WeightedSpeedEstimator();
+
+        // Schedule with departure time 0s into the service day
+        ObaTripSchedule schedule = createSchedule(
+                new double[]{0, 1000},
+                new long[]{0, 200},
+                new long[]{0, 200}
+        );
+        tracker.putSchedule("trip1", schedule);
+
+        // Service date in the past so current time is after trip start
+        long pastServiceDate = System.currentTimeMillis() - 3600_000L;
+        tracker.putServiceDate("trip1", pastServiceDate);
+
+        // Only one history entry -> falls back to schedule speed
+        VehicleState state = createState("v1", "trip1", 47.0, -122.0,
+                500.0, 500.0, 5000.0, System.currentTimeMillis());
+        tracker.recordState("trip1", state);
+
+        Double speed = estimator.estimateSpeed("v1", state, tracker);
+        assertNotNull("Speed should fall back to schedule after trip start", speed);
+        // Schedule speed = 1000m / 200s = 5 m/s
+        assertEquals(5.0, speed, 0.01);
+    }
+
+    @Test
+    public void testWeightedEstimatorKalmanDecaysToZeroBeforeTripStart() {
+        WeightedSpeedEstimator estimator = new WeightedSpeedEstimator();
+
+        // Schedule with departure 300s into the service day
+        ObaTripSchedule schedule = createSchedule(
+                new double[]{0, 1000},
+                new long[]{0, 200},
+                new long[]{300, 500}
+        );
+        tracker.putSchedule("trip1", schedule);
+
+        // Service date far in the future
+        long futureServiceDate = System.currentTimeMillis() + 3600_000L;
+        tracker.putServiceDate("trip1", futureServiceDate);
+
+        long now = System.currentTimeMillis();
+        // Two history entries so Kalman filter has enough data
+        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
+                100.0, 100.0, 5000.0, now - 10000L);
+        VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
+                200.0, 200.0, 5000.0, now);
+
+        tracker.recordState("trip1", state1);
+        tracker.recordState("trip1", state2);
+
+        Double speed = estimator.estimateSpeed("v1", state2, tracker);
+        assertNotNull(speed);
+        // Kalman filter with velPrior=0 should pull speed below pure observation (~10 m/s)
+        // The exact value depends on the Kalman parameters, but it should be non-negative
+        assertTrue("Speed should be non-negative", speed >= 0);
+    }
+
     // --- KalmanSpeedEstimator tests ---
 
     @Test

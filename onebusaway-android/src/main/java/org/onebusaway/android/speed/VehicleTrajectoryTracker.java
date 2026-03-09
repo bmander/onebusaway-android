@@ -98,6 +98,14 @@ public final class VehicleTrajectoryTracker {
     }
 
     /**
+     * Returns a read-only view of the history for the given key.
+     * Zero-allocation; suitable for per-frame hot-path use.
+     */
+    public List<VehicleHistoryEntry> getHistoryReadOnly(String key) {
+        return repository.getHistoryForTripReadOnly(key);
+    }
+
+    /**
      * Returns the number of history entries for the given key, without copying.
      */
     public int getHistorySize(String key) {

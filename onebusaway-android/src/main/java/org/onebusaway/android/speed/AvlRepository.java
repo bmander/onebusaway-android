@@ -145,6 +145,20 @@ public final class AvlRepository {
     }
 
     /**
+     * Returns an unmodifiable view of the history for the given trip.
+     * The caller must not hold a reference beyond the current call scope,
+     * as the underlying list may be modified by future record() calls.
+     * Suitable for read-only hot-path use (e.g., per-frame extrapolation).
+     */
+    public synchronized List<VehicleHistoryEntry> getHistoryForTripReadOnly(String tripId) {
+        List<VehicleHistoryEntry> history = tripHistory.get(tripId);
+        if (history == null) {
+            return Collections.emptyList();
+        }
+        return Collections.unmodifiableList(history);
+    }
+
+    /**
      * Returns the number of history entries for the given trip, without copying.
      */
     public synchronized int getHistorySizeForTrip(String tripId) {

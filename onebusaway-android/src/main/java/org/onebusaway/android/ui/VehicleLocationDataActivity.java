@@ -121,7 +121,8 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         mGraphView.setHighlightedStopId(mStopId);
         mCalibrationContainer = findViewById(R.id.location_data_calibration_container);
         mCalibrationText = findViewById(R.id.location_data_calibration);
-        mCalibrationTracker = new CalibrationTracker();
+        mCalibrationTracker = VehicleTrajectoryTracker.getInstance()
+                .getCalibrationTracker(mTripId);
 
         TabLayout tabs = findViewById(R.id.location_data_tabs);
         tabs.addTab(tabs.newTab().setText("Table"));

@@ -123,6 +123,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         mCalibrationText = findViewById(R.id.location_data_calibration);
         mCalibrationTracker = VehicleTrajectoryTracker.getInstance()
                 .getCalibrationTracker(mTripId);
+        mGraphView.setCalibrationTracker(mCalibrationTracker);
 
         TabLayout tabs = findViewById(R.id.location_data_tabs);
         tabs.addTab(tabs.newTab().setText("Table"));

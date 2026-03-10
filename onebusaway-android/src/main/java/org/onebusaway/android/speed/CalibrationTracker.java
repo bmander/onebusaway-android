@@ -150,6 +150,45 @@ public final class CalibrationTracker {
                 observedDist, avlTime);
     }
 
+    /** Read-only snapshot of a prediction record for external consumers (e.g. scrub UI). */
+    public static final class SnapshotRecord {
+        public final long timestamp;
+        public final double lastDist;
+        public final long lastAvlTime;
+        public final BetaDistribution.BetaParams betaParams;
+
+        SnapshotRecord(long timestamp, double lastDist, long lastAvlTime,
+                       BetaDistribution.BetaParams betaParams) {
+            this.timestamp = timestamp;
+            this.lastDist = lastDist;
+            this.lastAvlTime = lastAvlTime;
+            this.betaParams = betaParams;
+        }
+    }
+
+    /**
+     * Returns the nearest prediction snapshot for a given time (no age limit).
+     * Used by the graph scrub feature to visualize historical distributions.
+     */
+    public SnapshotRecord findSnapshotAt(long time) {
+        if (mPredictions.isEmpty() || time <= 0) return null;
+
+        PredictionRecord best = null;
+        long bestDelta = Long.MAX_VALUE;
+        for (PredictionRecord pr : mPredictions) {
+            long delta = Math.abs(pr.timestamp - time);
+            if (delta < bestDelta) {
+                bestDelta = delta;
+                best = pr;
+            } else {
+                break;
+            }
+        }
+        if (best == null) return null;
+        return new SnapshotRecord(best.timestamp, best.lastDist,
+                best.lastAvlTime, best.betaParams);
+    }
+
     /** Returns the number of scored calibration samples. */
     public int getSampleCount() {
         return mSamples.size();

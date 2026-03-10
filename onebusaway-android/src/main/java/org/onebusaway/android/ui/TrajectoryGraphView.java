@@ -31,6 +31,7 @@ import android.view.View;
 
 import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.speed.BetaDistribution;
+import org.onebusaway.android.speed.CalibrationTracker;
 import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.util.PreferenceUtils;
@@ -59,6 +60,12 @@ public class TrajectoryGraphView extends View {
     private String mHighlightedStopId;
     private long mModelCoverageMin;
     private long mModelCoverageMax;
+    private CalibrationTracker mCalibrationTracker;
+
+    // Scrub state
+    private boolean mScrubActive;
+    private long mScrubTime;
+    private CalibrationTracker.SnapshotRecord mScrubSnapshot;
 
     // Per-draw coordinate transform state (set at top of onDraw, used by toPixelX/toPixelY)
     private float mGraphW, mGraphH;
@@ -83,6 +90,8 @@ public class TrajectoryGraphView extends View {
     private final Paint mConfidenceBandPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mPdfFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mModelCoveragePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mScrubLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mScrubPdfFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private final Path mSchedulePath = new Path();
     private final Path mTrajectoryPath = new Path();
@@ -228,12 +237,69 @@ public class TrajectoryGraphView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (handleScrubTouch(event)) {
+            getParent().requestDisallowInterceptTouchEvent(true);
+            return true;
+        }
         mScaleDetector.onTouchEvent(event);
         mGestureDetector.onTouchEvent(event);
         if (mScaleX > 1f || mScaleY > 1f || mScaleDetector.isInProgress()) {
             getParent().requestDisallowInterceptTouchEvent(true);
         }
         return true;
+    }
+
+    private boolean handleScrubTouch(MotionEvent event) {
+        if (mCalibrationTracker == null
+                || mModelCoverageMin <= 0 || mModelCoverageMax <= mModelCoverageMin) {
+            return false;
+        }
+
+        float x = event.getX();
+        float y = event.getY();
+
+        switch (event.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                float covTop = toPixelY(mModelCoverageMax);
+                float covBot = toPixelY(mModelCoverageMin);
+                covTop = Math.max(mMarginTop, covTop);
+                covBot = Math.min(getHeight() - mMarginBottom, covBot);
+                // Touch target: coverage bar region with generous horizontal margin
+                if (x <= mMarginLeft + 5 * mDensity && y >= covTop && y <= covBot) {
+                    mScrubActive = true;
+                    updateScrubTime(y);
+                    invalidate();
+                    return true;
+                }
+                return false;
+
+            case MotionEvent.ACTION_MOVE:
+                if (mScrubActive) {
+                    updateScrubTime(y);
+                    invalidate();
+                    return true;
+                }
+                return false;
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                if (mScrubActive) {
+                    mScrubActive = false;
+                    mScrubSnapshot = null;
+                    invalidate();
+                    return true;
+                }
+                return false;
+        }
+        return false;
+    }
+
+    private void updateScrubTime(float pixelY) {
+        if (mGraphH <= 0 || mVisTimeRange <= 0) return;
+        float fraction = 1f - (pixelY - mMarginTop) / mGraphH;
+        long time = mVisMinTime + (long) (fraction * mVisTimeRange);
+        mScrubTime = Math.max(mModelCoverageMin, Math.min(mModelCoverageMax, time));
+        mScrubSnapshot = mCalibrationTracker.findSnapshotAt(mScrubTime);
     }
 
     private void clampOffsets() {
@@ -320,6 +386,13 @@ public class TrajectoryGraphView extends View {
 
         mModelCoveragePaint.setColor(Color.parseColor("#3066AAFF"));
         mModelCoveragePaint.setStyle(Paint.Style.FILL);
+
+        mScrubLinePaint.setColor(Color.parseColor("#66AAFF"));
+        mScrubLinePaint.setStyle(Paint.Style.STROKE);
+        mScrubLinePaint.setStrokeWidth(1.5f * mDensity);
+
+        mScrubPdfFillPaint.setColor(Color.parseColor("#4066AAFF"));
+        mScrubPdfFillPaint.setStyle(Paint.Style.FILL);
     }
 
     public void setHighlightedStopId(String stopId) {
@@ -331,6 +404,10 @@ public class TrajectoryGraphView extends View {
     public void setModelCoverageRange(long minTime, long maxTime) {
         mModelCoverageMin = minTime;
         mModelCoverageMax = maxTime;
+    }
+
+    public void setCalibrationTracker(CalibrationTracker tracker) {
+        mCalibrationTracker = tracker;
     }
 
     public void setData(List<VehicleHistoryEntry> history, ObaTripSchedule schedule,
@@ -499,6 +576,13 @@ public class TrajectoryGraphView extends View {
             covBot = Math.max(mMarginTop, Math.min(covBot, getHeight() - mMarginBottom));
             if (covBot > covTop) {
                 canvas.drawRect(barLeft, covTop, barRight, covBot, mModelCoveragePaint);
+                if (mScrubActive) {
+                    float scrubDotY = toPixelY(mScrubTime);
+                    scrubDotY = Math.max(covTop, Math.min(scrubDotY, covBot));
+                    mScrubLinePaint.setStyle(Paint.Style.FILL);
+                    canvas.drawCircle((barLeft + barRight) / 2f, scrubDotY,
+                            4 * mDensity, mScrubLinePaint);
+                }
             }
         }
 
@@ -699,6 +783,74 @@ public class TrajectoryGraphView extends View {
                 canvas.drawLine(xStart, yStart,
                         toPixelX(lastDist + velP90 * dtSec), yNow, mConfidenceBandPaint);
             }
+        }
+
+        // Draw scrub line and historical PDF when scrubbing
+        if (mScrubActive && mScrubSnapshot != null) {
+            CalibrationTracker.SnapshotRecord snap = mScrubSnapshot;
+            BetaDistribution.BetaParams sbp = snap.betaParams;
+            float scrubY = toPixelY(mScrubTime);
+            double sDtSec = (mScrubTime - snap.lastAvlTime) / 1000.0;
+
+            if (sDtSec > 0) {
+                double sPosMin = snap.lastDist;
+                double sPosMax = snap.lastDist + sbp.vMax * sDtSec;
+                double sAlpha = sbp.alpha;
+                double sBeta = sbp.beta;
+
+                // PDF max
+                double sMaxVal;
+                if (sAlpha > 1 && sBeta > 1) {
+                    double tMode = (sAlpha - 1) / (sAlpha + sBeta - 2);
+                    sMaxVal = BetaDistribution.pdf(tMode, sAlpha, sBeta);
+                } else {
+                    sMaxVal = 0;
+                    for (int i = 0; i < PDF_NUM_BINS; i++) {
+                        double val = BetaDistribution.pdf(
+                                (i + 0.5) / PDF_NUM_BINS, sAlpha, sBeta);
+                        if (val > sMaxVal) sMaxVal = val;
+                    }
+                }
+
+                // Draw PDF hanging below the scrub line
+                if (sMaxVal > 0) {
+                    float sMaxH = 80 * mDensity;
+                    double sBinStep = (sPosMax - sPosMin) / PDF_NUM_BINS;
+                    mPdfPath.reset();
+                    mPdfPath.moveTo(toPixelX(sPosMin), scrubY);
+                    for (int i = 0; i < PDF_NUM_BINS; i++) {
+                        double t = (i + 0.5) / PDF_NUM_BINS;
+                        double val = BetaDistribution.pdf(t, sAlpha, sBeta);
+                        double d = sPosMin + (i + 0.5) * sBinStep;
+                        float h = (float) (val / sMaxVal * sMaxH);
+                        mPdfPath.lineTo(toPixelX(d), scrubY + h);
+                    }
+                    mPdfPath.lineTo(toPixelX(sPosMax), scrubY);
+                    mPdfPath.close();
+                    canvas.drawPath(mPdfPath, mScrubPdfFillPaint);
+                }
+
+                // Draw CI lines from snapshot origin to scrub time
+                double sVelP10 = sbp.vMax * inverseCdfApprox(0.10, sAlpha, sBeta);
+                double sVelP90 = sbp.vMax * inverseCdfApprox(0.90, sAlpha, sBeta);
+                float sxStart = toPixelX(snap.lastDist);
+                float syStart = toPixelY(snap.lastAvlTime);
+                mScrubLinePaint.setStyle(Paint.Style.STROKE);
+                canvas.drawLine(sxStart, syStart,
+                        toPixelX(snap.lastDist + sVelP10 * sDtSec), scrubY, mScrubLinePaint);
+                canvas.drawLine(sxStart, syStart,
+                        toPixelX(snap.lastDist + sVelP90 * sDtSec), scrubY, mScrubLinePaint);
+            }
+
+            // Scrub line across graph
+            canvas.drawLine(mMarginLeft, scrubY,
+                    getWidth() - mMarginRight, scrubY, mScrubLinePaint);
+
+            // Time label
+            mReusableDate.setTime(mScrubTime);
+            String scrubLabel = mTimeFmt.format(mReusableDate);
+            canvas.drawText(scrubLabel, mMarginLeft + 5 * mDensity,
+                    scrubY - 4 * mDensity, mScrubLinePaint);
         }
 
         // Draw current time line

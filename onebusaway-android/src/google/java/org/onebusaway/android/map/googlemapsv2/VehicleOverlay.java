@@ -57,6 +57,7 @@ import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
+import org.onebusaway.android.speed.GammaSpeedModel;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.speed.VehicleState;
 import org.onebusaway.android.ui.TripDetailsActivity;
@@ -1102,7 +1103,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             Double speedMs = VehicleTrajectoryTracker.getInstance()
                     .getEstimatedSpeed(status.getActiveTripId(), vehicleState);
             if (speedMs != null) {
-                double speedMph = speedMs * VehicleTrajectoryTracker.MPS_TO_MPH;
+                double speedMph = speedMs * GammaSpeedModel.MPS_TO_MPH;
                 String speedText = r.getString(R.string.vehicle_estimated_speed,
                         String.format("%.1f", speedMph));
                 estimatedSpeedView.setText(speedText);

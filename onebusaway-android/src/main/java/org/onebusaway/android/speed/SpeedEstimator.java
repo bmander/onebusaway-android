@@ -37,20 +37,17 @@ public interface SpeedEstimator {
     }
 
     /**
-     * Returns the predicted velocity variance from the last estimateSpeed call.
-     * Used to compute confidence intervals on the trajectory graph.
-     * @return velocity variance in (m/s)², or 0 if not applicable
-     */
-    default double getLastPredictedVelVariance() {
-        return 0;
-    }
-
-    /**
      * Returns the schedule-derived speed from the last estimateSpeed call.
-     * Used as the velocity prior and to bound the Beta distribution for the position PDF.
      * @return schedule speed in m/s, or 0 if not available
      */
     default double getLastScheduleSpeed() {
         return 0;
+    }
+
+    /**
+     * Returns the GammaParams from the last estimateSpeed call, or null if not available.
+     */
+    default GammaSpeedModel.GammaParams getLastGammaParams() {
+        return null;
     }
 }

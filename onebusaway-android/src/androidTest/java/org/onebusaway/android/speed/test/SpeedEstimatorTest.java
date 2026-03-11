@@ -22,14 +22,13 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
-import org.onebusaway.android.speed.HistorySpeedEstimator;
-import org.onebusaway.android.speed.KalmanSpeedEstimator;
+import org.onebusaway.android.speed.GammaSpeedEstimator;
+import org.onebusaway.android.speed.GammaSpeedModel;
 import org.onebusaway.android.speed.ScheduleSpeedEstimator;
 import org.onebusaway.android.speed.SpeedEstimator;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.speed.VehicleState;
-import org.onebusaway.android.speed.WeightedSpeedEstimator;
 
 import androidx.test.runner.AndroidJUnit4;
 
@@ -216,7 +215,7 @@ public class SpeedEstimatorTest {
         assertEquals(42.0, speed, 0.01);
 
         // Restore default
-        tracker.setEstimator(new WeightedSpeedEstimator());
+        tracker.setEstimator(new GammaSpeedEstimator());
     }
 
     @Test
@@ -324,192 +323,6 @@ public class SpeedEstimatorTest {
         assertEquals(1, tracker.getHistorySize("trip1"));
     }
 
-    // --- HistorySpeedEstimator tests ---
-
-    @Test
-    public void testHistoryEstimatorInsufficientData() {
-        HistorySpeedEstimator estimator = new HistorySpeedEstimator();
-
-        VehicleState state = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 1000L);
-
-        // Only one entry, need at least two
-        tracker.recordState("trip1", state);
-        assertNull(estimator.estimateSpeed("v1", state, tracker));
-    }
-
-    @Test
-    public void testHistoryEstimatorWithDistanceAlongTrip() {
-        HistorySpeedEstimator estimator = new HistorySpeedEstimator();
-
-        // Vehicle moved 100m in 10 seconds = 10 m/s
-        // Window is MIN_WINDOW (120s) but only 10s of history, so uses full span
-        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 1000L);
-        VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                200.0, 200.0, 5000.0, 11000L);
-
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
-
-        Double speed = estimator.estimateSpeed("v1", state2, tracker);
-        assertNotNull(speed);
-        assertEquals(10.0, speed, 0.01);
-    }
-
-    @Test
-    public void testHistoryEstimatorFallsBackToGeographic() {
-        HistorySpeedEstimator estimator = new HistorySpeedEstimator();
-
-        // Entries with no distanceAlongTrip - should fall back to geographic distance
-        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                null, null, null, 1000L);
-        VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                null, null, null, 11000L);
-
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
-
-        Double speed = estimator.estimateSpeed("v1", state2, tracker);
-        assertNotNull(speed);
-        assertTrue(speed > 0);
-    }
-
-    @Test
-    public void testHistoryEstimatorTimeDeltaTooSmall() {
-        HistorySpeedEstimator estimator = new HistorySpeedEstimator();
-
-        // Two entries less than 1 second apart
-        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 1000L);
-        VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                200.0, 200.0, 5000.0, 1500L);
-
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
-
-        Double speed = estimator.estimateSpeed("v1", state2, tracker);
-        assertNull(speed);
-    }
-
-    @Test
-    public void testHistoryEstimatorUsesWindowedAverage() {
-        HistorySpeedEstimator estimator = new HistorySpeedEstimator();
-
-        // Three entries: window-based estimation uses full span (all < MIN_WINDOW)
-        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 1000L);
-        VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                200.0, 200.0, 5000.0, 11000L);
-        VehicleState state3 = createState("v1", "trip1", 47.002, -122.0,
-                500.0, 500.0, 5000.0, 21000L);
-
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
-        tracker.recordState("trip1", state3);
-
-        Double speed = estimator.estimateSpeed("v1", state3, tracker);
-        assertNotNull(speed);
-        // Window extends back past all entries, so uses oldest to newest:
-        // 400m in 20s = 20 m/s
-        assertEquals(20.0, speed, 0.01);
-    }
-
-    @Test
-    public void testHistoryEstimatorWindowSmoothing() {
-        HistorySpeedEstimator estimator = new HistorySpeedEstimator();
-
-        // Simulate stop/go pattern over 2 minutes:
-        // Entry 0: dist=0 at t=0s
-        // Entry 1: dist=300 at t=30s (moving 10 m/s)
-        // Entry 2: dist=300 at t=60s (stopped for 30s)
-        // Entry 3: dist=600 at t=90s (moving 10 m/s again)
-        // Entry 4: dist=600 at t=120s (stopped)
-        long base = System.currentTimeMillis() - 120_000;
-        for (int i = 0; i < 5; i++) {
-            double dist = (i <= 1) ? i * 300.0 : (i <= 2) ? 300.0 : (i <= 3) ? 600.0 : 600.0;
-            VehicleState s = createState("v1", "trip1", 47.0, -122.0,
-                    dist, dist, 5000.0, base + i * 30000L);
-            tracker.recordState("trip1", s);
-        }
-
-        Double speed = estimator.estimateSpeed("v1",
-                createState("v1", "trip1", 47.0, -122.0, 600.0, 600.0, 5000.0,
-                        base + 120000L),
-                tracker);
-        assertNotNull(speed);
-        // 600m over 120s = 5 m/s (smoothed average, not the 0 or 10 spikes)
-        assertEquals(5.0, speed, 0.01);
-    }
-
-    @Test
-    public void testHistoryEstimatorInterpolation() {
-        HistorySpeedEstimator estimator = new HistorySpeedEstimator();
-
-        // Two entries 60s apart, target falls between them
-        // Entry 0: dist=0 at t=0
-        // Entry 1: dist=600 at t=60s
-        java.util.List<VehicleHistoryEntry> history = new java.util.ArrayList<>();
-        history.add(new VehicleHistoryEntry(null, 0.0, null, 1000L, 1000L));
-        history.add(new VehicleHistoryEntry(null, 600.0, null, 61000L, 61000L));
-
-        // Target at t=31s (midpoint) should give dist=300
-        Double interp = estimator.interpolateDistanceAtTime(history, 31000L);
-        assertNotNull(interp);
-        assertEquals(300.0, interp, 1.0);
-    }
-
-    @Test
-    public void testHistoryEstimatorInterpolationClampBeforeOldest() {
-        HistorySpeedEstimator estimator = new HistorySpeedEstimator();
-
-        java.util.List<VehicleHistoryEntry> history = new java.util.ArrayList<>();
-        history.add(new VehicleHistoryEntry(null, 100.0, null, 5000L, 5000L));
-        history.add(new VehicleHistoryEntry(null, 200.0, null, 10000L, 10000L));
-
-        // Target before oldest entry — should clamp to oldest distance
-        Double interp = estimator.interpolateDistanceAtTime(history, 1000L);
-        assertNotNull(interp);
-        assertEquals(100.0, interp, 0.01);
-    }
-
-    @Test
-    public void testHistoryEstimatorBackwardJump() {
-        HistorySpeedEstimator estimator = new HistorySpeedEstimator();
-
-        // Distance goes backward (correction artifact)
-        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                500.0, 500.0, 5000.0, 1000L);
-        VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                400.0, 400.0, 5000.0, 11000L);
-
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
-
-        Double speed = estimator.estimateSpeed("v1", state2, tracker);
-        assertNotNull(speed);
-        // Backward jump should be clamped to 0
-        assertEquals(0.0, speed, 0.01);
-    }
-
-    @Test
-    public void testHistoryEstimatorSkipsNullDistanceEntries() {
-        HistorySpeedEstimator estimator = new HistorySpeedEstimator();
-
-        java.util.List<VehicleHistoryEntry> history = new java.util.ArrayList<>();
-        history.add(new VehicleHistoryEntry(null, 100.0, null, 1000L, 1000L));
-        history.add(new VehicleHistoryEntry(null, null, null, 5000L, 5000L)); // null distance
-        history.add(new VehicleHistoryEntry(null, 300.0, null, 10000L, 10000L));
-
-        // Interpolation at t=5000 should skip null entry and interpolate between 1&3
-        Double interp = estimator.interpolateDistanceAtTime(history, 3000L);
-        assertNotNull(interp);
-        // Between entry 0 (t=1000, d=100) and entry 2 (t=10000, d=300)
-        // fraction = (3000-1000)/(10000-1000) = 2/9 ≈ 0.222
-        // dist = 100 + 0.222 * 200 = 144.4
-        assertEquals(144.4, interp, 1.0);
-    }
-
     // --- ScheduleSpeedEstimator tests ---
 
     @Test
@@ -537,10 +350,6 @@ public class SpeedEstimatorTest {
     public void testScheduleEstimatorCorrectSegmentSpeed() {
         ScheduleSpeedEstimator estimator = new ScheduleSpeedEstimator();
 
-        // Create a schedule with 3 stops:
-        // Stop A: dist=0,    arrival=0,   departure=60
-        // Stop B: dist=1000, arrival=120, departure=180
-        // Stop C: dist=3000, arrival=300, departure=360
         ObaTripSchedule schedule = createSchedule(
                 new double[]{0, 1000, 3000},
                 new long[]{0, 120, 300},
@@ -548,8 +357,6 @@ public class SpeedEstimatorTest {
         );
         tracker.putSchedule("trip1", schedule);
 
-        // Vehicle at scheduledDistance=500 (between A and B)
-        // Segment speed = (1000 - 0) / (120 - 60) = 1000/60 ~= 16.67 m/s
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 500.0, 500.0, 5000.0, 10000L);
 
@@ -569,8 +376,6 @@ public class SpeedEstimatorTest {
         );
         tracker.putSchedule("trip1", schedule);
 
-        // Vehicle at scheduledDistance=1500 (between B and C)
-        // Segment speed = (3000 - 1000) / (300 - 180) = 2000/120 ~= 16.67 m/s
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 1500.0, 1500.0, 5000.0, 10000L);
 
@@ -590,8 +395,6 @@ public class SpeedEstimatorTest {
         );
         tracker.putSchedule("trip1", schedule);
 
-        // Vehicle at scheduledDistance=50 (before first stop at 100)
-        // Should use first segment: (1000 - 100) / (120 - 60) = 900/60 = 15.0 m/s
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 50.0, 50.0, 5000.0, 10000L);
 
@@ -611,8 +414,6 @@ public class SpeedEstimatorTest {
         );
         tracker.putSchedule("trip1", schedule);
 
-        // Vehicle at scheduledDistance=3500 (after last stop at 3000)
-        // Should use last segment: (3000 - 1000) / (300 - 180) = 2000/120 ~= 16.67 m/s
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 3500.0, 3500.0, 5000.0, 10000L);
 
@@ -625,7 +426,6 @@ public class SpeedEstimatorTest {
     public void testScheduleEstimatorTooFewStops() {
         ScheduleSpeedEstimator estimator = new ScheduleSpeedEstimator();
 
-        // Schedule with only 1 stop - not enough to compute segment speed
         ObaTripSchedule schedule = createSchedule(
                 new double[]{0},
                 new long[]{0},
@@ -643,7 +443,6 @@ public class SpeedEstimatorTest {
     public void testScheduleEstimatorZeroTimeDelta() {
         ScheduleSpeedEstimator estimator = new ScheduleSpeedEstimator();
 
-        // Same departure and arrival time for adjacent stops
         ObaTripSchedule schedule = createSchedule(
                 new double[]{0, 1000},
                 new long[]{60, 60},
@@ -657,40 +456,104 @@ public class SpeedEstimatorTest {
         assertNull(estimator.estimateSpeed("v1", state, tracker));
     }
 
-    // --- WeightedSpeedEstimator tests ---
+    // --- GammaSpeedModel tests ---
 
     @Test
-    public void testWeightedEstimatorHistoryOnly() {
-        WeightedSpeedEstimator estimator = new WeightedSpeedEstimator();
+    public void testGammaSpeedModel_fromSpeeds_workedExample() {
+        // v_sched = 20 mph = 20/2.23694 m/s ≈ 8.9408 m/s
+        // v_prev  = 10 mph = 10/2.23694 m/s ≈ 4.4704 m/s
+        double vSchedMps = 20.0 / GammaSpeedModel.MPS_TO_MPH;
+        double vPrevMps = 10.0 / GammaSpeedModel.MPS_TO_MPH;
 
-        // No schedule cached -> velPrior=0, Kalman filter used
-        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 1000L);
-        VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                200.0, 200.0, 5000.0, 11000L);
+        GammaSpeedModel.GammaParams params = GammaSpeedModel.fromSpeeds(vSchedMps, vPrevMps);
+        assertNotNull(params);
 
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
-
-        Double speed = estimator.estimateSpeed("v1", state2, tracker);
-        assertNotNull(speed);
-        // Kalman filter will produce approximately 10 m/s (not exact due to noise model)
-        assertEquals(10.0, speed, 2.0);
+        // v_eff = 20^(1-0.1699) * 10^0.1699
+        // beta_0(v_eff) = piecewise linear
+        // alpha = beta_0 * C * v_eff
+        // scale = C / beta_0
+        assertEquals(1.93, params.alpha, 0.15);
+        assertEquals(10.58, params.scale, 1.0);
     }
 
     @Test
-    public void testWeightedEstimatorNoData() {
-        WeightedSpeedEstimator estimator = new WeightedSpeedEstimator();
+    public void testGammaSpeedModel_cdf_quantile_roundTrip() {
+        double vSchedMps = 15.0 / GammaSpeedModel.MPS_TO_MPH;
+        GammaSpeedModel.GammaParams params = GammaSpeedModel.fromSpeeds(vSchedMps, vSchedMps);
+        assertNotNull(params);
 
-        VehicleState state = createState("v1", "trip1", 47.0, -122.0,
-                null, null, null, 1000L);
-
-        assertNull(estimator.estimateSpeed("v1", state, tracker));
+        // CDF at quantile(p) should return p
+        for (double p : new double[]{0.10, 0.25, 0.50, 0.75, 0.90}) {
+            double q = GammaSpeedModel.quantile(p, params);
+            double cdfVal = GammaSpeedModel.cdf(q, params);
+            assertEquals("CDF(quantile(" + p + ")) should equal " + p, p, cdfVal, 0.01);
+        }
     }
 
     @Test
-    public void testWeightedEstimatorWithSchedule() {
-        WeightedSpeedEstimator estimator = new WeightedSpeedEstimator();
+    public void testGammaSpeedModel_prevSpeedFallback() {
+        // prevSpeed <= 0 should fall back to schedSpeed
+        double vSchedMps = 20.0 / GammaSpeedModel.MPS_TO_MPH;
+
+        GammaSpeedModel.GammaParams params = GammaSpeedModel.fromSpeeds(vSchedMps, 0);
+        assertNotNull(params);
+
+        // Should be equivalent to fromSpeeds(vSched, vSched)
+        GammaSpeedModel.GammaParams paramsEqual = GammaSpeedModel.fromSpeeds(vSchedMps, vSchedMps);
+        assertNotNull(paramsEqual);
+
+        assertEquals(paramsEqual.alpha, params.alpha, 0.001);
+        assertEquals(paramsEqual.scale, params.scale, 0.001);
+    }
+
+    @Test
+    public void testGammaSpeedModel_schedSpeedZero_returnsNull() {
+        assertNull(GammaSpeedModel.fromSpeeds(0, 5.0));
+        assertNull(GammaSpeedModel.fromSpeeds(-1.0, 5.0));
+    }
+
+    @Test
+    public void testGammaSpeedModel_meanSpeedMps() {
+        double vSchedMps = 15.0 / GammaSpeedModel.MPS_TO_MPH;
+        GammaSpeedModel.GammaParams params = GammaSpeedModel.fromSpeeds(vSchedMps, vSchedMps);
+        assertNotNull(params);
+
+        double meanMps = GammaSpeedModel.meanSpeedMps(params);
+        assertTrue("Mean speed should be positive", meanMps > 0);
+        // Mean speed in mph should be close to 15 mph
+        double meanMph = meanMps * GammaSpeedModel.MPS_TO_MPH;
+        assertEquals(15.0, meanMph, 3.0);
+    }
+
+    @Test
+    public void testGammaSpeedModel_pdf_positiveInRange() {
+        double vSchedMps = 15.0 / GammaSpeedModel.MPS_TO_MPH;
+        GammaSpeedModel.GammaParams params = GammaSpeedModel.fromSpeeds(vSchedMps, vSchedMps);
+        assertNotNull(params);
+
+        // PDF should be 0 at speed=0 and positive for reasonable speeds
+        assertEquals(0.0, GammaSpeedModel.pdf(0, params), 0.001);
+        assertTrue("PDF should be positive at mean",
+                GammaSpeedModel.pdf(15.0, params) > 0);
+    }
+
+    @Test
+    public void testGammaSpeedModel_cdf_boundaries() {
+        double vSchedMps = 15.0 / GammaSpeedModel.MPS_TO_MPH;
+        GammaSpeedModel.GammaParams params = GammaSpeedModel.fromSpeeds(vSchedMps, vSchedMps);
+        assertNotNull(params);
+
+        assertEquals(0.0, GammaSpeedModel.cdf(0, params), 0.001);
+        assertEquals(0.0, GammaSpeedModel.cdf(-1, params), 0.001);
+        // CDF at a very high speed should be close to 1
+        assertTrue(GammaSpeedModel.cdf(100, params) > 0.99);
+    }
+
+    // --- GammaSpeedEstimator tests ---
+
+    @Test
+    public void testGammaSpeedEstimator_returnsGammaMean() {
+        GammaSpeedEstimator estimator = new GammaSpeedEstimator();
 
         // Cache a schedule: segment speed = 1000/100 = 10 m/s
         ObaTripSchedule schedule = createSchedule(
@@ -700,51 +563,52 @@ public class SpeedEstimatorTest {
         );
         tracker.putSchedule("trip1", schedule);
 
-        // History: 200m in 10s = 20 m/s actual speed
+        // Service date in the past so trip has started
+        long pastServiceDate = System.currentTimeMillis() - 3600_000L;
+        tracker.putServiceDate("trip1", pastServiceDate);
+
+        // Two history entries so v_prev can be computed
         VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
                 100.0, 100.0, 5000.0, 1000L);
         VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                300.0, 500.0, 5000.0, 11000L);
+                400.0, 400.0, 5000.0, 31000L);
 
         tracker.recordState("trip1", state1);
         tracker.recordState("trip1", state2);
 
         Double speed = estimator.estimateSpeed("v1", state2, tracker);
         assertNotNull(speed);
-        // Kalman filter with schedule prior of 10 m/s, actual ~20 m/s
-        // Result should be between schedule and actual, closer to actual for fresh data
-        assertTrue("Speed should be above schedule prior", speed > 10.0);
-        assertTrue("Speed should be at or below actual", speed <= 22.0);
+        assertTrue("Speed should be positive", speed > 0);
+
+        // GammaParams should be available
+        GammaSpeedModel.GammaParams params = estimator.getLastGammaParams();
+        assertNotNull(params);
+        assertTrue("Alpha should be positive", params.alpha > 0);
+        assertTrue("Scale should be positive", params.scale > 0);
+
+        // Speed should equal the gamma mean
+        double expectedMean = GammaSpeedModel.meanSpeedMps(params);
+        assertEquals(expectedMean, speed, 0.001);
     }
 
     @Test
-    public void testWeightedEstimatorScheduleOnly() {
-        WeightedSpeedEstimator estimator = new WeightedSpeedEstimator();
+    public void testGammaSpeedEstimator_noScheduleFallsBack() {
+        GammaSpeedEstimator estimator = new GammaSpeedEstimator();
 
-        // Cache a schedule: segment speed = 1000/100 = 10 m/s
-        ObaTripSchedule schedule = createSchedule(
-                new double[]{0, 1000},
-                new long[]{0, 200},
-                new long[]{100, 300}
-        );
-        tracker.putSchedule("trip1", schedule);
-
-        // Only one history entry (insufficient for Kalman filter)
+        // No schedule cached
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
-                500.0, 500.0, 5000.0, 10000L);
+                100.0, null, 5000.0, 1000L);
         tracker.recordState("trip1", state);
 
         Double speed = estimator.estimateSpeed("v1", state, tracker);
-        assertNotNull(speed);
-        // Schedule-only fallback: 10.0 m/s
-        assertEquals(10.0, speed, 0.01);
+        // No schedule → null
+        assertNull(speed);
     }
 
     @Test
-    public void testWeightedEstimatorZeroPriorBeforeTripStart() {
-        WeightedSpeedEstimator estimator = new WeightedSpeedEstimator();
+    public void testGammaSpeedEstimator_beforeTripStartReturnsNull() {
+        GammaSpeedEstimator estimator = new GammaSpeedEstimator();
 
-        // Schedule with departure time 300s into the service day
         ObaTripSchedule schedule = createSchedule(
                 new double[]{0, 1000},
                 new long[]{0, 200},
@@ -756,287 +620,12 @@ public class SpeedEstimatorTest {
         long futureServiceDate = System.currentTimeMillis() + 3600_000L;
         tracker.putServiceDate("trip1", futureServiceDate);
 
-        // Only one history entry -> falls back to velPrior
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 500.0, 500.0, 5000.0, System.currentTimeMillis());
         tracker.recordState("trip1", state);
 
-        // Before trip start: velPrior is 0, so fallback is null
         Double speed = estimator.estimateSpeed("v1", state, tracker);
         assertNull("Speed should be null before trip start", speed);
-    }
-
-    @Test
-    public void testWeightedEstimatorSchedulePriorAfterTripStart() {
-        WeightedSpeedEstimator estimator = new WeightedSpeedEstimator();
-
-        // Schedule with departure time 0s into the service day
-        ObaTripSchedule schedule = createSchedule(
-                new double[]{0, 1000},
-                new long[]{0, 200},
-                new long[]{0, 200}
-        );
-        tracker.putSchedule("trip1", schedule);
-
-        // Service date in the past so current time is after trip start
-        long pastServiceDate = System.currentTimeMillis() - 3600_000L;
-        tracker.putServiceDate("trip1", pastServiceDate);
-
-        // Only one history entry -> falls back to schedule speed
-        VehicleState state = createState("v1", "trip1", 47.0, -122.0,
-                500.0, 500.0, 5000.0, System.currentTimeMillis());
-        tracker.recordState("trip1", state);
-
-        Double speed = estimator.estimateSpeed("v1", state, tracker);
-        assertNotNull("Speed should fall back to schedule after trip start", speed);
-        // Schedule speed = 1000m / 200s = 5 m/s
-        assertEquals(5.0, speed, 0.01);
-    }
-
-    @Test
-    public void testWeightedEstimatorKalmanDecaysToZeroBeforeTripStart() {
-        WeightedSpeedEstimator estimator = new WeightedSpeedEstimator();
-
-        // Schedule with departure 300s into the service day
-        ObaTripSchedule schedule = createSchedule(
-                new double[]{0, 1000},
-                new long[]{0, 200},
-                new long[]{300, 500}
-        );
-        tracker.putSchedule("trip1", schedule);
-
-        // Service date far in the future
-        long futureServiceDate = System.currentTimeMillis() + 3600_000L;
-        tracker.putServiceDate("trip1", futureServiceDate);
-
-        long now = System.currentTimeMillis();
-        // Two history entries so Kalman filter has enough data
-        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, now - 10000L);
-        VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                200.0, 200.0, 5000.0, now);
-
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
-
-        Double speed = estimator.estimateSpeed("v1", state2, tracker);
-        assertNotNull(speed);
-        // Kalman filter with velPrior=0 should pull speed below pure observation (~10 m/s)
-        // The exact value depends on the Kalman parameters, but it should be non-negative
-        assertTrue("Speed should be non-negative", speed >= 0);
-    }
-
-    // --- KalmanSpeedEstimator tests ---
-
-    @Test
-    public void testKalmanEstimatorSingleEntry() {
-        KalmanSpeedEstimator estimator = new KalmanSpeedEstimator();
-
-        VehicleState state = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 1000L);
-        tracker.recordState("trip1", state);
-
-        assertNull(estimator.estimateSpeed("v1", state, tracker));
-    }
-
-    @Test
-    public void testKalmanEstimatorConstantSpeed() {
-        KalmanSpeedEstimator estimator = new KalmanSpeedEstimator();
-
-        // 5 entries at constant 10 m/s (300m every 30s)
-        VehicleState lastState = null;
-        for (int i = 0; i < 5; i++) {
-            lastState = createState("v1", "trip1", 47.0 + i * 0.001, -122.0,
-                    i * 300.0, i * 300.0, 5000.0, 1000L + i * 30000L);
-            tracker.recordState("trip1", lastState);
-        }
-
-        Double speed = estimator.estimateSpeed("v1", lastState, tracker);
-        assertNotNull(speed);
-        // Should converge close to 10 m/s
-        assertEquals(10.0, speed, 2.0);
-    }
-
-    @Test
-    public void testKalmanEstimatorStopGo() {
-        KalmanSpeedEstimator estimator = new KalmanSpeedEstimator();
-
-        // Stop/go pattern: move, stop, move, stop
-        double[] dists = {0, 300, 300, 600, 600};
-        VehicleState lastState = null;
-        for (int i = 0; i < 5; i++) {
-            lastState = createState("v1", "trip1", 47.0, -122.0,
-                    dists[i], dists[i], 5000.0, 1000L + i * 30000L);
-            tracker.recordState("trip1", lastState);
-        }
-
-        Double speed = estimator.estimateSpeed("v1", lastState, tracker);
-        assertNotNull(speed);
-        // Should produce a smooth intermediate speed, not 0 or a spike
-        assertTrue("Speed should be non-negative", speed >= 0);
-        assertTrue("Speed should be reasonable", speed < 15.0);
-    }
-
-    @Test
-    public void testKalmanEstimatorBackwardJump() {
-        KalmanSpeedEstimator estimator = new KalmanSpeedEstimator();
-
-        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                500.0, 500.0, 5000.0, 1000L);
-        VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                400.0, 400.0, 5000.0, 31000L);
-
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
-
-        Double speed = estimator.estimateSpeed("v1", state2, tracker);
-        assertNotNull(speed);
-        // Velocity clamped to non-negative
-        assertTrue("Speed should be >= 0", speed >= 0);
-    }
-
-    @Test
-    public void testKalmanEstimatorNullDistance() {
-        KalmanSpeedEstimator estimator = new KalmanSpeedEstimator();
-
-        // First entry has distance, second null, third has distance
-        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 1000L);
-        VehicleState state2 = createState("v1", "trip1", 47.0, -122.0,
-                null, null, null, 31000L);
-        VehicleState state3 = createState("v1", "trip1", 47.0, -122.0,
-                400.0, 400.0, 5000.0, 61000L);
-
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
-        tracker.recordState("trip1", state3);
-
-        Double speed = estimator.estimateSpeed("v1", state3, tracker);
-        assertNotNull(speed);
-        // 300m in 60s = 5 m/s approximately
-        assertEquals(5.0, speed, 2.0);
-    }
-
-    @Test
-    public void testKalmanEstimatorSeparateTrips() {
-        KalmanSpeedEstimator estimator = new KalmanSpeedEstimator();
-
-        // Trip 1: 10 m/s
-        VehicleState s1a = createState("v1", "trip1", 47.0, -122.0,
-                0.0, 0.0, 5000.0, 1000L);
-        VehicleState s1b = createState("v1", "trip1", 47.001, -122.0,
-                300.0, 300.0, 5000.0, 31000L);
-        tracker.recordState("trip1", s1a);
-        tracker.recordState("trip1", s1b);
-
-        // Trip 2: 20 m/s
-        VehicleState s2a = createState("v2", "trip2", 47.5, -122.5,
-                0.0, 0.0, 6000.0, 1000L);
-        VehicleState s2b = createState("v2", "trip2", 47.501, -122.5,
-                600.0, 600.0, 6000.0, 31000L);
-        tracker.recordState("trip2", s2a);
-        tracker.recordState("trip2", s2b);
-
-        Double speed1 = estimator.estimateSpeed("v1", s1b, tracker);
-        Double speed2 = estimator.estimateSpeed("v2", s2b, tracker);
-        assertNotNull(speed1);
-        assertNotNull(speed2);
-        // Speeds should be different — independent state
-        assertTrue("Trip2 should be faster", speed2 > speed1);
-    }
-
-    @Test
-    public void testKalmanEstimatorMeanReversion() {
-        KalmanSpeedEstimator estimator = new KalmanSpeedEstimator();
-
-        // Feed entries at 20 m/s with schedule prior of 10 m/s
-        VehicleState lastState = null;
-        for (int i = 0; i < 5; i++) {
-            lastState = createState("v1", "trip1", 47.0, -122.0,
-                    i * 600.0, i * 600.0, 10000.0, 1000L + i * 30000L);
-            tracker.recordState("trip1", lastState);
-        }
-
-        // With velPrior=10, fresh estimate should be closer to 20 than to 10
-        Double freshSpeed = estimator.estimateSpeed("v1", lastState, tracker, 10.0);
-        assertNotNull(freshSpeed);
-        assertTrue("Fresh speed should be above prior", freshSpeed > 12.0);
-    }
-
-    @Test
-    public void testKalmanEstimatorStaleReset() {
-        KalmanSpeedEstimator estimator = new KalmanSpeedEstimator();
-
-        // Two entries, then a 15-minute gap
-        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 1000L);
-        VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                400.0, 400.0, 5000.0, 31000L);
-        // 15 minutes later
-        VehicleState state3 = createState("v1", "trip1", 47.002, -122.0,
-                1000.0, 1000.0, 5000.0, 931000L);
-
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
-        tracker.recordState("trip1", state3);
-
-        // Should reinitialize — only one entry after reset, so null
-        Double speed = estimator.estimateSpeed("v1", state3, tracker);
-        assertNull(speed);
-    }
-
-    // --- Kalman variance tests ---
-
-    @Test
-    public void testKalmanVariancePositiveAfterObservations() {
-        KalmanSpeedEstimator estimator = new KalmanSpeedEstimator();
-
-        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, 1000L);
-        VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                400.0, 400.0, 5000.0, 31000L);
-
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
-
-        Double speed = estimator.estimateSpeed("v1", state2, tracker);
-        assertNotNull(speed);
-        assertTrue("Variance should be positive after observations",
-                estimator.getLastPredictedVelVariance() > 0);
-    }
-
-    @Test
-    public void testKalmanVarianceIncreasesWithAge() {
-        KalmanSpeedEstimator estimator = new KalmanSpeedEstimator();
-
-        // Create entries with recent timestamps so predict-to-now has varying age
-        long now = System.currentTimeMillis();
-        VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
-                100.0, 100.0, 5000.0, now - 60000L);
-        VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
-                400.0, 400.0, 5000.0, now - 30000L);
-
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
-
-        // Fresh estimate (30s stale)
-        estimator.estimateSpeed("v1", state2, tracker);
-        double freshVariance = estimator.getLastPredictedVelVariance();
-
-        // Now create a second trip with older data (120s stale)
-        VehicleState stateA = createState("v2", "trip2", 47.5, -122.5,
-                100.0, 100.0, 6000.0, now - 150000L);
-        VehicleState stateB = createState("v2", "trip2", 47.501, -122.5,
-                400.0, 400.0, 6000.0, now - 120000L);
-
-        tracker.recordState("trip2", stateA);
-        tracker.recordState("trip2", stateB);
-
-        estimator.estimateSpeed("v2", stateB, tracker);
-        double staleVariance = estimator.getLastPredictedVelVariance();
-
-        assertTrue("Variance should increase with age (stale > fresh)",
-                staleVariance > freshVariance);
     }
 
     // --- Integration test ---

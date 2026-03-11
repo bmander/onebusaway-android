@@ -30,9 +30,8 @@ import android.view.ScaleGestureDetector;
 import android.view.View;
 
 import org.onebusaway.android.io.elements.ObaTripSchedule;
-import org.onebusaway.android.speed.BetaDistribution;
-import org.onebusaway.android.speed.CalibrationTracker;
 import org.onebusaway.android.speed.DistanceExtrapolator;
+import org.onebusaway.android.speed.GammaSpeedModel;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.util.PreferenceUtils;
 
@@ -55,17 +54,8 @@ public class TrajectoryGraphView extends View {
     private long mServiceDate;
     private long mCurrentTime = System.currentTimeMillis();
     private double mEstimatedSpeedMps;
-    private double mEstimatedVelVariance;
-    private double mScheduleSpeedMps;
+    private GammaSpeedModel.GammaParams mGammaParams;
     private String mHighlightedStopId;
-    private long mModelCoverageMin;
-    private long mModelCoverageMax;
-    private CalibrationTracker mCalibrationTracker;
-
-    // Scrub state
-    private boolean mScrubActive;
-    private long mScrubTime;
-    private CalibrationTracker.SnapshotRecord mScrubSnapshot;
 
     // Per-draw coordinate transform state (set at top of onDraw, used by toPixelX/toPixelY)
     private float mGraphW, mGraphH;
@@ -88,16 +78,15 @@ public class TrajectoryGraphView extends View {
     private final Paint mDeviationLabelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mDeviationLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mConfidenceBandPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mInterpolatedDotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mPdfFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint mModelCoveragePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint mScrubLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint mScrubPdfFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private final Path mSchedulePath = new Path();
     private final Path mTrajectoryPath = new Path();
     private final Path mPdfPath = new Path();
 
     private static final int PDF_NUM_BINS = 160;
+    private final double[] mPdfValues = new double[PDF_NUM_BINS];
     private final Date mReusableDate = new Date();
 
     private final float mDensity;
@@ -237,69 +226,12 @@ public class TrajectoryGraphView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (handleScrubTouch(event)) {
-            getParent().requestDisallowInterceptTouchEvent(true);
-            return true;
-        }
         mScaleDetector.onTouchEvent(event);
         mGestureDetector.onTouchEvent(event);
         if (mScaleX > 1f || mScaleY > 1f || mScaleDetector.isInProgress()) {
             getParent().requestDisallowInterceptTouchEvent(true);
         }
         return true;
-    }
-
-    private boolean handleScrubTouch(MotionEvent event) {
-        if (mCalibrationTracker == null
-                || mModelCoverageMin <= 0 || mModelCoverageMax <= mModelCoverageMin) {
-            return false;
-        }
-
-        float x = event.getX();
-        float y = event.getY();
-
-        switch (event.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                float covTop = toPixelY(mModelCoverageMax);
-                float covBot = toPixelY(mModelCoverageMin);
-                covTop = Math.max(mMarginTop, covTop);
-                covBot = Math.min(getHeight() - mMarginBottom, covBot);
-                // Touch target: coverage bar region with generous horizontal margin
-                if (x <= mMarginLeft + 5 * mDensity && y >= covTop && y <= covBot) {
-                    mScrubActive = true;
-                    updateScrubTime(y);
-                    invalidate();
-                    return true;
-                }
-                return false;
-
-            case MotionEvent.ACTION_MOVE:
-                if (mScrubActive) {
-                    updateScrubTime(y);
-                    invalidate();
-                    return true;
-                }
-                return false;
-
-            case MotionEvent.ACTION_UP:
-            case MotionEvent.ACTION_CANCEL:
-                if (mScrubActive) {
-                    mScrubActive = false;
-                    mScrubSnapshot = null;
-                    invalidate();
-                    return true;
-                }
-                return false;
-        }
-        return false;
-    }
-
-    private void updateScrubTime(float pixelY) {
-        if (mGraphH <= 0 || mVisTimeRange <= 0) return;
-        float fraction = 1f - (pixelY - mMarginTop) / mGraphH;
-        long time = mVisMinTime + (long) (fraction * mVisTimeRange);
-        mScrubTime = Math.max(mModelCoverageMin, Math.min(mModelCoverageMax, time));
-        mScrubSnapshot = mCalibrationTracker.findSnapshotAt(mScrubTime);
     }
 
     private void clampOffsets() {
@@ -375,6 +307,9 @@ public class TrajectoryGraphView extends View {
         mDeviationLinePaint.setPathEffect(new DashPathEffect(
                 new float[]{4 * mDensity, 3 * mDensity}, 0));
 
+        mInterpolatedDotPaint.setColor(Color.parseColor("#FFAA00"));
+        mInterpolatedDotPaint.setStyle(Paint.Style.FILL);
+
         mConfidenceBandPaint.setColor(Color.parseColor("#66BBBBBB"));
         mConfidenceBandPaint.setStyle(Paint.Style.STROKE);
         mConfidenceBandPaint.setStrokeWidth(1f * mDensity);
@@ -383,16 +318,6 @@ public class TrajectoryGraphView extends View {
 
         mPdfFillPaint.setColor(Color.parseColor("#40BBBBBB"));
         mPdfFillPaint.setStyle(Paint.Style.FILL);
-
-        mModelCoveragePaint.setColor(Color.parseColor("#3066AAFF"));
-        mModelCoveragePaint.setStyle(Paint.Style.FILL);
-
-        mScrubLinePaint.setColor(Color.parseColor("#66AAFF"));
-        mScrubLinePaint.setStyle(Paint.Style.STROKE);
-        mScrubLinePaint.setStrokeWidth(1.5f * mDensity);
-
-        mScrubPdfFillPaint.setColor(Color.parseColor("#4066AAFF"));
-        mScrubPdfFillPaint.setStyle(Paint.Style.FILL);
     }
 
     public void setHighlightedStopId(String stopId) {
@@ -400,25 +325,14 @@ public class TrajectoryGraphView extends View {
         invalidate();
     }
 
-    /** Sets the time range covered by model predictions for Y-axis indicator. */
-    public void setModelCoverageRange(long minTime, long maxTime) {
-        mModelCoverageMin = minTime;
-        mModelCoverageMax = maxTime;
-    }
-
-    public void setCalibrationTracker(CalibrationTracker tracker) {
-        mCalibrationTracker = tracker;
-    }
-
     public void setData(List<VehicleHistoryEntry> history, ObaTripSchedule schedule,
-                        long serviceDate, Double estimatedSpeedMps,
-                        double estimatedVelVariance, double scheduleSpeedMps) {
+                        long serviceDate,
+                        GammaSpeedModel.GammaParams gammaParams) {
         mHistory = history != null ? new ArrayList<>(history) : new ArrayList<>();
         mSchedule = schedule;
         mServiceDate = serviceDate;
-        mEstimatedSpeedMps = estimatedSpeedMps != null ? estimatedSpeedMps : 0;
-        mEstimatedVelVariance = estimatedVelVariance;
-        mScheduleSpeedMps = scheduleSpeedMps;
+        mGammaParams = gammaParams;
+        mEstimatedSpeedMps = gammaParams != null ? GammaSpeedModel.meanSpeedMps(gammaParams) : 0;
         mCurrentTime = System.currentTimeMillis();
         invalidate();
     }
@@ -565,27 +479,6 @@ public class TrajectoryGraphView extends View {
         canvas.drawLine(mMarginLeft, getHeight() - mMarginBottom,
                 getWidth() - mMarginRight, getHeight() - mMarginBottom, mAxisPaint);
 
-        // Model coverage indicator on Y-axis
-        if (mModelCoverageMin > 0 && mModelCoverageMax > mModelCoverageMin) {
-            float covTop = toPixelY(mModelCoverageMax);
-            float covBot = toPixelY(mModelCoverageMin);
-            float barLeft = mMarginLeft - 5 * mDensity;
-            float barRight = mMarginLeft;
-            // Clamp to graph area
-            covTop = Math.max(mMarginTop, Math.min(covTop, getHeight() - mMarginBottom));
-            covBot = Math.max(mMarginTop, Math.min(covBot, getHeight() - mMarginBottom));
-            if (covBot > covTop) {
-                canvas.drawRect(barLeft, covTop, barRight, covBot, mModelCoveragePaint);
-                if (mScrubActive) {
-                    float scrubDotY = toPixelY(mScrubTime);
-                    scrubDotY = Math.max(covTop, Math.min(scrubDotY, covBot));
-                    mScrubLinePaint.setStyle(Paint.Style.FILL);
-                    canvas.drawCircle((barLeft + barRight) / 2f, scrubDotY,
-                            4 * mDensity, mScrubLinePaint);
-                }
-            }
-        }
-
         // Y-axis labels (time) — outside clip
         int timeGridCount = 5;
         long timeStep = visTimeRange / timeGridCount;
@@ -669,7 +562,10 @@ public class TrajectoryGraphView extends View {
                 } else {
                     mTrajectoryPath.lineTo(x, y);
                 }
-                canvas.drawCircle(x, y, 3 * mDensity, mTrajectoryDotPaint);
+                boolean isRawGps = e.getLastKnownDistanceAlongTrip() != null
+                        && e.getLastKnownDistanceAlongTrip() != 0.0;
+                canvas.drawCircle(x, y, 3 * mDensity,
+                        isRawGps ? mTrajectoryDotPaint : mInterpolatedDotPaint);
             }
             canvas.drawPath(mTrajectoryPath, mTrajectoryPaint);
         }
@@ -724,133 +620,60 @@ public class TrajectoryGraphView extends View {
             }
         }
 
-        // Fit a Beta distribution to the Kalman velocity estimate for CI + PDF
-        if (mEstimatedVelVariance > 0 && mEstimatedSpeedMps > 0
-                && lastDist != null && mCurrentTime > lastTime) {
+        // Gamma speed distribution → position PDF and CI bands
+        if (mGammaParams != null && lastDist != null && mCurrentTime > lastTime) {
             double dtSec = (mCurrentTime - lastTime) / 1000.0;
-            BetaDistribution.BetaParams bp = BetaDistribution.fromKalmanEstimate(
-                    mEstimatedSpeedMps, mEstimatedVelVariance, mScheduleSpeedMps);
 
-            if (bp != null) {
-                double alpha = bp.alpha;
-                double beta = bp.beta;
-                double posMin = lastDist;
-                double posMax = lastDist + bp.vMax * dtSec;
+            // Compute PDF over position by mapping speed PDF to position
+            // position = lastDist + speed_mps * dtSec
+            // speed_mph = speed_mps * MPS_TO_MPH
+            float xAxisY = getHeight() - mMarginBottom;
+            float maxHeightPx = 105 * mDensity;
 
-                // PDF max via analytical Beta mode (O(1) for bell-shaped)
-                double maxVal;
-                if (alpha > 1 && beta > 1) {
-                    double tMode = (alpha - 1) / (alpha + beta - 2);
-                    maxVal = BetaDistribution.pdf(tMode, alpha, beta);
-                } else {
-                    maxVal = 0;
-                    for (int i = 0; i < PDF_NUM_BINS; i++) {
-                        double val = BetaDistribution.pdf((i + 0.5) / PDF_NUM_BINS, alpha, beta);
-                        if (val > maxVal) maxVal = val;
-                    }
-                }
+            // Evaluate PDF across a range of positions
+            // Speed range: use quantiles to bracket
+            double speedLo = GammaSpeedModel.quantile(0.001, mGammaParams);
+            double speedHi = GammaSpeedModel.quantile(0.999, mGammaParams);
+            double posMin = lastDist + (speedLo / GammaSpeedModel.MPS_TO_MPH) * dtSec;
+            double posMax = lastDist + (speedHi / GammaSpeedModel.MPS_TO_MPH) * dtSec;
 
-                // Draw PDF
-                float xAxisY = getHeight() - mMarginBottom;
-                float maxHeightPx = 105 * mDensity;
-                double binStep = (posMax - posMin) / PDF_NUM_BINS;
+            // Evaluate PDF values and find max in a single pass
+            double maxVal = 0;
+            double binWidth = (posMax - posMin) / PDF_NUM_BINS;
+            for (int i = 0; i < PDF_NUM_BINS; i++) {
+                double speedMph = ((posMin + (i + 0.5) * binWidth) - lastDist)
+                        / dtSec * GammaSpeedModel.MPS_TO_MPH;
+                double val = GammaSpeedModel.pdf(speedMph, mGammaParams);
+                mPdfValues[i] = val;
+                if (val > maxVal) maxVal = val;
+            }
 
+            // Draw PDF from cached values
+            if (maxVal > 0) {
                 mPdfPath.reset();
                 mPdfPath.moveTo(toPixelX(posMin), xAxisY);
                 for (int i = 0; i < PDF_NUM_BINS; i++) {
-                    double t = (i + 0.5) / PDF_NUM_BINS;
-                    double val = BetaDistribution.pdf(t, alpha, beta);
-                    if (maxVal > 0) {
-                        double d = posMin + (i + 0.5) * binStep;
-                        float h = (float) (val / maxVal * maxHeightPx);
-                        mPdfPath.lineTo(toPixelX(d), xAxisY - h);
-                    }
+                    double pos = posMin + (i + 0.5) * binWidth;
+                    float h = (float) (mPdfValues[i] / maxVal * maxHeightPx);
+                    mPdfPath.lineTo(toPixelX(pos), xAxisY - h);
                 }
-                if (maxVal > 0) {
-                    mPdfPath.lineTo(toPixelX(posMax), xAxisY);
-                    mPdfPath.close();
-                    canvas.drawPath(mPdfPath, mPdfFillPaint);
-                }
-
-                // Draw 80% confidence band using exact CDF percentiles
-                double velP10 = bp.vMax * inverseCdfApprox(0.10, alpha, beta);
-                double velP90 = bp.vMax * inverseCdfApprox(0.90, alpha, beta);
-                float xStart = toPixelX(lastDist);
-                float yStart = toPixelY(lastTime);
-                float yNow = toPixelY(mCurrentTime);
-                canvas.drawLine(xStart, yStart,
-                        toPixelX(lastDist + velP10 * dtSec), yNow, mConfidenceBandPaint);
-                canvas.drawLine(xStart, yStart,
-                        toPixelX(lastDist + velP90 * dtSec), yNow, mConfidenceBandPaint);
-            }
-        }
-
-        // Draw scrub line and historical PDF when scrubbing
-        if (mScrubActive && mScrubSnapshot != null) {
-            CalibrationTracker.SnapshotRecord snap = mScrubSnapshot;
-            BetaDistribution.BetaParams sbp = snap.betaParams;
-            float scrubY = toPixelY(mScrubTime);
-            double sDtSec = (mScrubTime - snap.lastAvlTime) / 1000.0;
-
-            if (sDtSec > 0) {
-                double sPosMin = snap.lastDist;
-                double sPosMax = snap.lastDist + sbp.vMax * sDtSec;
-                double sAlpha = sbp.alpha;
-                double sBeta = sbp.beta;
-
-                // PDF max
-                double sMaxVal;
-                if (sAlpha > 1 && sBeta > 1) {
-                    double tMode = (sAlpha - 1) / (sAlpha + sBeta - 2);
-                    sMaxVal = BetaDistribution.pdf(tMode, sAlpha, sBeta);
-                } else {
-                    sMaxVal = 0;
-                    for (int i = 0; i < PDF_NUM_BINS; i++) {
-                        double val = BetaDistribution.pdf(
-                                (i + 0.5) / PDF_NUM_BINS, sAlpha, sBeta);
-                        if (val > sMaxVal) sMaxVal = val;
-                    }
-                }
-
-                // Draw PDF hanging below the scrub line
-                if (sMaxVal > 0) {
-                    float sMaxH = 80 * mDensity;
-                    double sBinStep = (sPosMax - sPosMin) / PDF_NUM_BINS;
-                    mPdfPath.reset();
-                    mPdfPath.moveTo(toPixelX(sPosMin), scrubY);
-                    for (int i = 0; i < PDF_NUM_BINS; i++) {
-                        double t = (i + 0.5) / PDF_NUM_BINS;
-                        double val = BetaDistribution.pdf(t, sAlpha, sBeta);
-                        double d = sPosMin + (i + 0.5) * sBinStep;
-                        float h = (float) (val / sMaxVal * sMaxH);
-                        mPdfPath.lineTo(toPixelX(d), scrubY + h);
-                    }
-                    mPdfPath.lineTo(toPixelX(sPosMax), scrubY);
-                    mPdfPath.close();
-                    canvas.drawPath(mPdfPath, mScrubPdfFillPaint);
-                }
-
-                // Draw CI lines from snapshot origin to scrub time
-                double sVelP10 = sbp.vMax * inverseCdfApprox(0.10, sAlpha, sBeta);
-                double sVelP90 = sbp.vMax * inverseCdfApprox(0.90, sAlpha, sBeta);
-                float sxStart = toPixelX(snap.lastDist);
-                float syStart = toPixelY(snap.lastAvlTime);
-                mScrubLinePaint.setStyle(Paint.Style.STROKE);
-                canvas.drawLine(sxStart, syStart,
-                        toPixelX(snap.lastDist + sVelP10 * sDtSec), scrubY, mScrubLinePaint);
-                canvas.drawLine(sxStart, syStart,
-                        toPixelX(snap.lastDist + sVelP90 * sDtSec), scrubY, mScrubLinePaint);
+                mPdfPath.lineTo(toPixelX(posMax), xAxisY);
+                mPdfPath.close();
+                canvas.drawPath(mPdfPath, mPdfFillPaint);
             }
 
-            // Scrub line across graph
-            canvas.drawLine(mMarginLeft, scrubY,
-                    getWidth() - mMarginRight, scrubY, mScrubLinePaint);
-
-            // Time label
-            mReusableDate.setTime(mScrubTime);
-            String scrubLabel = mTimeFmt.format(mReusableDate);
-            canvas.drawText(scrubLabel, mMarginLeft + 5 * mDensity,
-                    scrubY - 4 * mDensity, mScrubLinePaint);
+            // Draw 80% CI bands using gamma quantiles
+            double velP10Mph = GammaSpeedModel.quantile(0.10, mGammaParams);
+            double velP90Mph = GammaSpeedModel.quantile(0.90, mGammaParams);
+            double velP10Mps = velP10Mph / GammaSpeedModel.MPS_TO_MPH;
+            double velP90Mps = velP90Mph / GammaSpeedModel.MPS_TO_MPH;
+            float xStart = toPixelX(lastDist);
+            float yStart = toPixelY(lastTime);
+            float yNow = toPixelY(mCurrentTime);
+            canvas.drawLine(xStart, yStart,
+                    toPixelX(lastDist + velP10Mps * dtSec), yNow, mConfidenceBandPaint);
+            canvas.drawLine(xStart, yStart,
+                    toPixelX(lastDist + velP90Mps * dtSec), yNow, mConfidenceBandPaint);
         }
 
         // Draw current time line
@@ -872,7 +695,11 @@ public class TrajectoryGraphView extends View {
         canvas.drawText("Schedule", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
         legendY += 18 * mDensity;
         canvas.drawLine(legendX, legendY, legendX + 20 * mDensity, legendY, mTrajectoryPaint);
-        canvas.drawText("Actual", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
+        canvas.drawCircle(legendX + 10 * mDensity, legendY, 3 * mDensity, mTrajectoryDotPaint);
+        canvas.drawText("Actual (GPS)", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
+        legendY += 18 * mDensity;
+        canvas.drawCircle(legendX + 10 * mDensity, legendY, 3 * mDensity, mInterpolatedDotPaint);
+        canvas.drawText("Actual (interpolated)", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
         legendY += 18 * mDensity;
         canvas.drawLine(legendX, legendY, legendX + 20 * mDensity, legendY, mExtrapolateDashPaint);
         canvas.drawText("Estimated", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
@@ -883,13 +710,6 @@ public class TrajectoryGraphView extends View {
         canvas.drawRect(legendX, legendY - 5 * mDensity, legendX + 20 * mDensity,
                 legendY + 5 * mDensity, mPdfFillPaint);
         canvas.drawText("Position PDF", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
-        if (mModelCoverageMin > 0 && mModelCoverageMax > mModelCoverageMin) {
-            legendY += 18 * mDensity;
-            canvas.drawRect(legendX, legendY - 5 * mDensity, legendX + 20 * mDensity,
-                    legendY + 5 * mDensity, mModelCoveragePaint);
-            canvas.drawText("Model coverage", legendX + 25 * mDensity,
-                    legendY + 4 * mDensity, mLabelPaint);
-        }
     }
 
     /** Converts a distance-along-trip value to pixel X coordinate. */
@@ -949,20 +769,6 @@ public class TrajectoryGraphView extends View {
         } else {
             return String.format(Locale.US, "%.0fm", meters);
         }
-    }
-
-    /** Approximate inverse CDF via bisection on BetaDistribution.cdf(). */
-    private static double inverseCdfApprox(double p, double alpha, double beta) {
-        double lo = 0, hi = 1;
-        for (int i = 0; i < 30; i++) {
-            double mid = (lo + hi) / 2;
-            if (BetaDistribution.cdf(mid, alpha, beta) < p) {
-                lo = mid;
-            } else {
-                hi = mid;
-            }
-        }
-        return (lo + hi) / 2;
     }
 
     private static double niceStep(double raw) {

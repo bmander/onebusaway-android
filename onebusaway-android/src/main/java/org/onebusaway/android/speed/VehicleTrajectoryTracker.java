@@ -49,16 +49,13 @@ public final class VehicleTrajectoryTracker {
     private static final VehicleTrajectoryTracker INSTANCE = new VehicleTrajectoryTracker();
     private static final long POLL_INTERVAL_MS = 30_000;
 
-    /** Conversion factor: meters per second to miles per hour. */
-    public static final double MPS_TO_MPH = 2.23694;
-
     private final AvlRepository repository = AvlRepository.getInstance();
     private final Map<String, ObaTripSchedule> scheduleCache = new HashMap<>();
     private final Map<String, Long> serviceDateCache = new HashMap<>();
     private final Map<String, List<Location>> shapeCache = new HashMap<>();
     private final Map<String, double[]> shapeCumDistCache = new HashMap<>();
     private final Set<String> pendingScheduleFetches = new HashSet<>();
-    private SpeedEstimator estimator = new WeightedSpeedEstimator();
+    private SpeedEstimator estimator = new GammaSpeedEstimator();
 
     private final Handler mPollHandler = new Handler(Looper.getMainLooper());
     private final Map<String, Integer> mTripSubscribers = new HashMap<>();
@@ -66,8 +63,6 @@ public final class VehicleTrajectoryTracker {
     private final Map<String, Object> mPollTokens = new HashMap<>();
     /** Last active trip ID returned by the server for each polled trip. */
     private final Map<String, String> mLastActiveTripId = new HashMap<>();
-    private final Map<String, CalibrationTracker> mCalibrationTrackers = new HashMap<>();
-
     private VehicleTrajectoryTracker() {
     }
 
@@ -131,27 +126,17 @@ public final class VehicleTrajectoryTracker {
     }
 
     /**
-     * Returns the predicted velocity variance from the last speed estimate.
-     */
-    public synchronized double getEstimatedVelVariance() {
-        return estimator.getLastPredictedVelVariance();
-    }
-
-    /**
      * Returns the schedule-derived speed from the last speed estimate.
      */
     public synchronized double getLastScheduleSpeed() {
         return estimator.getLastScheduleSpeed();
     }
 
-    /** Returns (or creates) the CalibrationTracker for the given trip. */
-    public synchronized CalibrationTracker getCalibrationTracker(String tripId) {
-        CalibrationTracker ct = mCalibrationTrackers.get(tripId);
-        if (ct == null) {
-            ct = new CalibrationTracker();
-            mCalibrationTrackers.put(tripId, ct);
-        }
-        return ct;
+    /**
+     * Returns the GammaParams from the last speed estimate.
+     */
+    public synchronized GammaSpeedModel.GammaParams getLastGammaParams() {
+        return estimator.getLastGammaParams();
     }
 
     /**

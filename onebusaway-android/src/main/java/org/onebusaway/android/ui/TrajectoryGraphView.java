@@ -55,6 +55,8 @@ public class TrajectoryGraphView extends View {
     private long mCurrentTime = System.currentTimeMillis();
     private double mEstimatedSpeedMps;
     private GammaSpeedModel.GammaParams mGammaParams;
+    private double mCachedCiLoMps;
+    private double mCachedCiHiMps;
     private String mHighlightedStopId;
 
     // Per-draw coordinate transform state (set at top of onDraw, used by toPixelX/toPixelY)
@@ -333,6 +335,13 @@ public class TrajectoryGraphView extends View {
         mServiceDate = serviceDate;
         mGammaParams = gammaParams;
         mEstimatedSpeedMps = gammaParams != null ? GammaSpeedModel.meanSpeedMps(gammaParams) : 0;
+        if (gammaParams != null) {
+            mCachedCiLoMps = GammaSpeedModel.quantile(0.10, gammaParams) / GammaSpeedModel.MPS_TO_MPH;
+            mCachedCiHiMps = GammaSpeedModel.quantile(0.90, gammaParams) / GammaSpeedModel.MPS_TO_MPH;
+        } else {
+            mCachedCiLoMps = 0;
+            mCachedCiHiMps = 0;
+        }
         mCurrentTime = System.currentTimeMillis();
         invalidate();
     }
@@ -384,21 +393,46 @@ public class TrajectoryGraphView extends View {
 
         float graphW = getWidth() - mMarginLeft - mMarginRight;
         float graphH = getHeight() - mMarginTop - mMarginBottom;
-
         if (graphW <= 0 || graphH <= 0) return;
 
-        // Compute full data bounds
-        double minDist = 0;
-        double maxDist = 0;
-        long minTime = Long.MAX_VALUE;
-        long maxTime = Long.MIN_VALUE;
+        if (!computeDataBounds(canvas)) return;
 
+        setupVisibleWindow(graphW, graphH);
+
+        drawAxesAndLabels(canvas);
+
+        canvas.save();
+        canvas.clipRect(mMarginLeft, mMarginTop, getWidth() - mMarginRight,
+                getHeight() - mMarginBottom);
+
+        drawGridLines(canvas);
+        drawScheduleLine(canvas);
+        drawTrajectoryDots(canvas);
+
+        VehicleHistoryEntry newestValid = DistanceExtrapolator.findNewestValidEntry(mHistory);
+        Double lastDist = newestValid != null ? newestValid.getBestDistanceAlongTrip() : null;
+        long lastTime = newestValid != null ? newestValid.getLastLocationUpdateTime() : 0;
+
+        drawExtrapolationAndDeviation(canvas, lastDist, lastTime);
+        drawGammaPdfAndBands(canvas, lastDist, lastTime);
+        drawNowLine(canvas);
+
+        canvas.restore();
+
+        drawLegend(canvas);
+    }
+
+    /**
+     * Computes full data bounds from schedule and trajectory.
+     * Returns false (and draws a "no data" message) if there is nothing to show.
+     */
+    private boolean computeDataBounds(Canvas canvas) {
+        double minDist = 0, maxDist = 0;
+        long minTime = Long.MAX_VALUE, maxTime = Long.MIN_VALUE;
         boolean hasData = false;
 
-        // Schedule bounds
         if (mSchedule != null && mSchedule.getStopTimes() != null && mServiceDate > 0) {
-            ObaTripSchedule.StopTime[] stops = mSchedule.getStopTimes();
-            for (ObaTripSchedule.StopTime st : stops) {
+            for (ObaTripSchedule.StopTime st : mSchedule.getStopTimes()) {
                 double d = st.getDistanceAlongTrip();
                 long t = mServiceDate + st.getArrivalTime() * 1000;
                 if (d > maxDist) maxDist = d;
@@ -408,7 +442,6 @@ public class TrajectoryGraphView extends View {
             }
         }
 
-        // Trajectory bounds
         for (VehicleHistoryEntry e : mHistory) {
             Double d = e.getBestDistanceAlongTrip();
             if (d != null) {
@@ -428,14 +461,12 @@ public class TrajectoryGraphView extends View {
             canvas.drawText("No data available", mMarginLeft + 10 * mDensity,
                     getHeight() / 2f, mNowLabelPaint);
             mNowLabelPaint.setTextSize(10 * mDensity);
-            return;
+            return false;
         }
 
-        // Extend time range to include current time
         if (mCurrentTime < minTime) minTime = mCurrentTime;
         if (mCurrentTime + 60_000 > maxTime) maxTime = mCurrentTime + 60_000;
 
-        // Add some padding
         double distRange = maxDist - minDist;
         if (distRange < 100) distRange = 100;
         maxDist = minDist + distRange * 1.05;
@@ -446,249 +477,224 @@ public class TrajectoryGraphView extends View {
         minTime -= timeRange / 20;
         maxTime += timeRange / 20;
 
-        // Store full data bounds for gesture handlers
         mFullMinDist = minDist;
         mFullMaxDist = maxDist;
         mFullMinTime = minTime;
         mFullMaxTime = maxTime;
         clampOffsets();
+        return true;
+    }
 
-        // Compute visible window based on zoom/pan
-        double fullDistRange = maxDist - minDist;
-        long fullTimeRange = maxTime - minTime;
+    private void setupVisibleWindow(float graphW, float graphH) {
+        double fullDistRange = mFullMaxDist - mFullMinDist;
+        long fullTimeRange = mFullMaxTime - mFullMinTime;
 
-        double visDistRange = fullDistRange / mScaleX;
-        long visTimeRange = (long) (fullTimeRange / mScaleY);
-
-        double visMinDist = minDist + mOffsetDist;
-        double visMaxDist = visMinDist + visDistRange;
-        long visMinTime = minTime + mOffsetTime;
-        long visMaxTime = visMinTime + visTimeRange;
-
-        // Store for toPixelX / toPixelY helpers
         mGraphW = graphW;
         mGraphH = graphH;
-        mVisMinDist = visMinDist;
-        mVisDistRange = visDistRange;
-        mVisMinTime = visMinTime;
-        mVisTimeRange = visTimeRange;
+        mVisDistRange = fullDistRange / mScaleX;
+        mVisTimeRange = (long) (fullTimeRange / mScaleY);
+        mVisMinDist = mFullMinDist + mOffsetDist;
+        mVisMinTime = mFullMinTime + mOffsetTime;
+    }
 
-        // Draw axes (outside clip)
+    private void drawAxesAndLabels(Canvas canvas) {
         canvas.drawLine(mMarginLeft, mMarginTop, mMarginLeft, getHeight() - mMarginBottom,
                 mAxisPaint);
         canvas.drawLine(mMarginLeft, getHeight() - mMarginBottom,
                 getWidth() - mMarginRight, getHeight() - mMarginBottom, mAxisPaint);
 
-        // Y-axis labels (time) — outside clip
-        int timeGridCount = 5;
-        long timeStep = visTimeRange / timeGridCount;
-        timeStep = Math.max(10_000, (long) niceStep(timeStep));
-        long firstTimeTick = ((visMinTime / timeStep) + 1) * timeStep;
+        long visMaxTime = mVisMinTime + mVisTimeRange;
+        long timeStep = Math.max(10_000, (long) niceStep(mVisTimeRange / 5));
+        long firstTimeTick = ((mVisMinTime / timeStep) + 1) * timeStep;
         for (long t = firstTimeTick; t < visMaxTime; t += timeStep) {
             float y = toPixelY(t);
             if (y >= mMarginTop && y <= getHeight() - mMarginBottom) {
                 mReusableDate.setTime(t);
-                String label = mTimeFmt.format(mReusableDate);
-                canvas.drawText(label, 4 * mDensity, y + 4 * mDensity, mLabelPaint);
+                canvas.drawText(mTimeFmt.format(mReusableDate),
+                        4 * mDensity, y + 4 * mDensity, mLabelPaint);
             }
         }
 
-        // X-axis labels (distance) — outside clip
-        double distStepVis = visDistRange / 5;
-        distStepVis = niceStep(distStepVis);
-        double firstDistTick = Math.ceil(visMinDist / distStepVis) * distStepVis;
-        for (double d = firstDistTick; d < visMaxDist; d += distStepVis) {
+        double visMaxDist = mVisMinDist + mVisDistRange;
+        double distStep = niceStep(mVisDistRange / 5);
+        double firstDistTick = Math.ceil(mVisMinDist / distStep) * distStep;
+        for (double d = firstDistTick; d < visMaxDist; d += distStep) {
             float x = toPixelX(d);
             if (x >= mMarginLeft && x <= getWidth() - mMarginRight) {
-                String label = formatDist(d);
-                canvas.drawText(label, x - 10 * mDensity,
+                canvas.drawText(formatDist(d), x - 10 * mDensity,
                         getHeight() - mMarginBottom + 15 * mDensity, mLabelPaint);
             }
         }
+    }
 
-        // Clip to graph area for data drawing
-        canvas.save();
-        canvas.clipRect(mMarginLeft, mMarginTop, getWidth() - mMarginRight,
-                getHeight() - mMarginBottom);
-
-        // Grid lines
+    private void drawGridLines(Canvas canvas) {
+        long visMaxTime = mVisMinTime + mVisTimeRange;
+        long timeStep = Math.max(10_000, (long) niceStep(mVisTimeRange / 5));
+        long firstTimeTick = ((mVisMinTime / timeStep) + 1) * timeStep;
         for (long t = firstTimeTick; t < visMaxTime; t += timeStep) {
             canvas.drawLine(mMarginLeft, toPixelY(t), getWidth() - mMarginRight,
                     toPixelY(t), mGridPaint);
         }
-        for (double d = firstDistTick; d < visMaxDist; d += distStepVis) {
+
+        double visMaxDist = mVisMinDist + mVisDistRange;
+        double distStep = niceStep(mVisDistRange / 5);
+        double firstDistTick = Math.ceil(mVisMinDist / distStep) * distStep;
+        for (double d = firstDistTick; d < visMaxDist; d += distStep) {
             float x = toPixelX(d);
             canvas.drawLine(x, mMarginTop, x, getHeight() - mMarginBottom, mGridPaint);
         }
+    }
 
-        // Draw schedule line
-        if (mSchedule != null && mSchedule.getStopTimes() != null && mServiceDate > 0) {
-            ObaTripSchedule.StopTime[] stops = mSchedule.getStopTimes();
-            if (stops.length > 0) {
-                mSchedulePath.reset();
-                boolean first = true;
-                for (ObaTripSchedule.StopTime st : stops) {
-                    float x = toPixelX(st.getDistanceAlongTrip());
-                    long absTime = mServiceDate + st.getArrivalTime() * 1000;
-                    float y = toPixelY(absTime);
-                    if (first) {
-                        mSchedulePath.moveTo(x, y);
-                        first = false;
-                    } else {
-                        mSchedulePath.lineTo(x, y);
-                    }
-                    float dotRadius = (mHighlightedStopId != null
-                            && mHighlightedStopId.equals(st.getStopId()))
-                            ? 8 * mDensity : 4 * mDensity;
-                    canvas.drawCircle(x, y, dotRadius, mScheduleDotPaint);
-                }
-                canvas.drawPath(mSchedulePath, mSchedulePaint);
+    private void drawScheduleLine(Canvas canvas) {
+        if (mSchedule == null || mSchedule.getStopTimes() == null || mServiceDate <= 0) return;
+        ObaTripSchedule.StopTime[] stops = mSchedule.getStopTimes();
+        if (stops.length == 0) return;
+
+        mSchedulePath.reset();
+        boolean first = true;
+        for (ObaTripSchedule.StopTime st : stops) {
+            float x = toPixelX(st.getDistanceAlongTrip());
+            float y = toPixelY(mServiceDate + st.getArrivalTime() * 1000);
+            if (first) {
+                mSchedulePath.moveTo(x, y);
+                first = false;
+            } else {
+                mSchedulePath.lineTo(x, y);
             }
+            float dotRadius = (mHighlightedStopId != null
+                    && mHighlightedStopId.equals(st.getStopId()))
+                    ? 8 * mDensity : 4 * mDensity;
+            canvas.drawCircle(x, y, dotRadius, mScheduleDotPaint);
+        }
+        canvas.drawPath(mSchedulePath, mSchedulePaint);
+    }
+
+    private void drawTrajectoryDots(Canvas canvas) {
+        if (mHistory.isEmpty()) return;
+        mTrajectoryPath.reset();
+        boolean first = true;
+        for (VehicleHistoryEntry e : mHistory) {
+            Double d = e.getBestDistanceAlongTrip();
+            long t = e.getLastLocationUpdateTime();
+            if (d == null || t <= 0) continue;
+            float x = toPixelX(d);
+            float y = toPixelY(t);
+            if (first) {
+                mTrajectoryPath.moveTo(x, y);
+                first = false;
+            } else {
+                mTrajectoryPath.lineTo(x, y);
+            }
+            boolean isRawGps = e.getLastKnownDistanceAlongTrip() != null
+                    && e.getLastKnownDistanceAlongTrip() != 0.0;
+            canvas.drawCircle(x, y, 3 * mDensity,
+                    isRawGps ? mTrajectoryDotPaint : mInterpolatedDotPaint);
+        }
+        canvas.drawPath(mTrajectoryPath, mTrajectoryPaint);
+    }
+
+    private void drawExtrapolationAndDeviation(Canvas canvas, Double lastDist, long lastTime) {
+        if (mEstimatedSpeedMps <= 0 || lastDist == null || mCurrentTime <= lastTime) return;
+
+        Double extrapolated = DistanceExtrapolator.extrapolateDistance(
+                mHistory, mEstimatedSpeedMps, mCurrentTime);
+        double extrapolatedDist = extrapolated != null ? extrapolated : lastDist;
+        float x1 = toPixelX(lastDist);
+        float y1 = toPixelY(lastTime);
+        float x2 = toPixelX(extrapolatedDist);
+        float y2 = toPixelY(mCurrentTime);
+        canvas.drawLine(x1, y1, x2, y2, mExtrapolatePaint);
+
+        float xAxisY = getHeight() - mMarginBottom;
+        canvas.drawLine(x2, y2, x2, xAxisY, mExtrapolateDashPaint);
+        canvas.drawText("~" + formatDistPrecise(extrapolatedDist),
+                x2 - 10 * mDensity, xAxisY - 5 * mDensity, mExtrapolateLabelPaint);
+
+        long scheduledTime = interpolateScheduleTime(extrapolatedDist);
+        if (scheduledTime > 0) {
+            float schedY = toPixelY(scheduledTime);
+            canvas.drawCircle(x2, schedY, 5 * mDensity, mDeviationDotPaint);
+            canvas.drawLine(x2, schedY, x2, y2, mDeviationLinePaint);
+            String devLabel = formatDeviationLabel((mCurrentTime - scheduledTime) / 1000);
+            float labelX = x2 + 5 * mDensity;
+            float labelY = (schedY + y2) / 2 + 4 * mDensity;
+            canvas.drawText(devLabel, labelX, labelY, mDeviationLabelPaint);
+        }
+    }
+
+    private static String formatDeviationLabel(long devSeconds) {
+        if (devSeconds == 0) return "on time";
+        long absSeconds = Math.abs(devSeconds);
+        String magnitude;
+        if (absSeconds >= 60) {
+            long mins = absSeconds / 60;
+            long secs = absSeconds % 60;
+            magnitude = mins + "m" + (secs > 0 ? secs + "s" : "");
+        } else {
+            magnitude = absSeconds + "s";
+        }
+        return magnitude + (devSeconds > 0 ? " late" : " early");
+    }
+
+    private void drawGammaPdfAndBands(Canvas canvas, Double lastDist, long lastTime) {
+        if (mGammaParams == null || lastDist == null || mCurrentTime <= lastTime) return;
+        double dtSec = (mCurrentTime - lastTime) / 1000.0;
+        if (dtSec < 1.0) return;
+
+        float xAxisY = getHeight() - mMarginBottom;
+        float maxHeightPx = 105 * mDensity;
+
+        double speedLo = GammaSpeedModel.quantile(0.001, mGammaParams);
+        double speedHi = GammaSpeedModel.quantile(0.999, mGammaParams);
+        double posMin = lastDist + (speedLo / GammaSpeedModel.MPS_TO_MPH) * dtSec;
+        double posMax = lastDist + (speedHi / GammaSpeedModel.MPS_TO_MPH) * dtSec;
+
+        if (posMax <= posMin) return;
+        double binWidth = (posMax - posMin) / PDF_NUM_BINS;
+
+        double maxVal = 0;
+        for (int i = 0; i < PDF_NUM_BINS; i++) {
+            double speedMph = ((posMin + (i + 0.5) * binWidth) - lastDist)
+                    / dtSec * GammaSpeedModel.MPS_TO_MPH;
+            double val = GammaSpeedModel.pdf(speedMph, mGammaParams);
+            mPdfValues[i] = val;
+            if (val > maxVal) maxVal = val;
         }
 
-        // Draw trajectory line
-        if (!mHistory.isEmpty()) {
-            mTrajectoryPath.reset();
-            boolean first = true;
-            for (VehicleHistoryEntry e : mHistory) {
-                Double d = e.getBestDistanceAlongTrip();
-                long t = e.getLastLocationUpdateTime();
-                if (d == null || t <= 0) continue;
-                float x = toPixelX(d);
-                float y = toPixelY(t);
-                if (first) {
-                    mTrajectoryPath.moveTo(x, y);
-                    first = false;
-                } else {
-                    mTrajectoryPath.lineTo(x, y);
-                }
-                boolean isRawGps = e.getLastKnownDistanceAlongTrip() != null
-                        && e.getLastKnownDistanceAlongTrip() != 0.0;
-                canvas.drawCircle(x, y, 3 * mDensity,
-                        isRawGps ? mTrajectoryDotPaint : mInterpolatedDotPaint);
-            }
-            canvas.drawPath(mTrajectoryPath, mTrajectoryPaint);
-        }
-
-        VehicleHistoryEntry newestValid = DistanceExtrapolator.findNewestValidEntry(mHistory);
-        Double lastDist = newestValid != null ? newestValid.getBestDistanceAlongTrip() : null;
-        long lastTime = newestValid != null ? newestValid.getLastLocationUpdateTime() : 0;
-
-        // Draw extrapolation line from last trajectory point to "now"
-        if (mEstimatedSpeedMps > 0 && lastDist != null && mCurrentTime > lastTime) {
-            Double extrapolated = DistanceExtrapolator.extrapolateDistance(mHistory, mEstimatedSpeedMps, mCurrentTime);
-            double extrapolatedDist = extrapolated != null ? extrapolated : lastDist;
-            float x1 = toPixelX(lastDist);
-            float y1 = toPixelY(lastTime);
-            float x2 = toPixelX(extrapolatedDist);
-            float y2 = toPixelY(mCurrentTime);
-            canvas.drawLine(x1, y1, x2, y2, mExtrapolatePaint);
-            // Vertical drop line to X axis
-            float xAxisY = getHeight() - mMarginBottom;
-            canvas.drawLine(x2, y2, x2, xAxisY, mExtrapolateDashPaint);
-            // Distance label
-            String distLabel = "~" + formatDistPrecise(extrapolatedDist);
-            canvas.drawText(distLabel, x2 - 10 * mDensity,
-                    xAxisY - 5 * mDensity, mExtrapolateLabelPaint);
-
-            // Schedule deviation: find scheduled time at extrapolated distance
-            long scheduledTime = interpolateScheduleTime(extrapolatedDist);
-            if (scheduledTime > 0) {
-                float schedY = toPixelY(scheduledTime);
-                canvas.drawCircle(x2, schedY, 5 * mDensity, mDeviationDotPaint);
-                canvas.drawLine(x2, schedY, x2, y2, mDeviationLinePaint);
-                long devSeconds = (mCurrentTime - scheduledTime) / 1000;
-                String devLabel;
-                long absSeconds = Math.abs(devSeconds);
-                if (absSeconds >= 60) {
-                    long mins = absSeconds / 60;
-                    long secs = absSeconds % 60;
-                    devLabel = mins + "m" + (secs > 0 ? secs + "s" : "");
-                } else {
-                    devLabel = absSeconds + "s";
-                }
-                if (devSeconds > 0) {
-                    devLabel += " late";
-                } else if (devSeconds < 0) {
-                    devLabel += " early";
-                } else {
-                    devLabel = "on time";
-                }
-                float labelX = x2 + 5 * mDensity;
-                float labelY = (schedY + y2) / 2 + 4 * mDensity;
-                canvas.drawText(devLabel, labelX, labelY, mDeviationLabelPaint);
-            }
-        }
-
-        // Gamma speed distribution → position PDF and CI bands
-        if (mGammaParams != null && lastDist != null && mCurrentTime > lastTime) {
-            double dtSec = (mCurrentTime - lastTime) / 1000.0;
-
-            // Compute PDF over position by mapping speed PDF to position
-            // position = lastDist + speed_mps * dtSec
-            // speed_mph = speed_mps * MPS_TO_MPH
-            float xAxisY = getHeight() - mMarginBottom;
-            float maxHeightPx = 105 * mDensity;
-
-            // Evaluate PDF across a range of positions
-            // Speed range: use quantiles to bracket
-            double speedLo = GammaSpeedModel.quantile(0.001, mGammaParams);
-            double speedHi = GammaSpeedModel.quantile(0.999, mGammaParams);
-            double posMin = lastDist + (speedLo / GammaSpeedModel.MPS_TO_MPH) * dtSec;
-            double posMax = lastDist + (speedHi / GammaSpeedModel.MPS_TO_MPH) * dtSec;
-
-            // Evaluate PDF values and find max in a single pass
-            double maxVal = 0;
-            double binWidth = (posMax - posMin) / PDF_NUM_BINS;
+        if (maxVal > 0) {
+            mPdfPath.reset();
+            mPdfPath.moveTo(toPixelX(posMin), xAxisY);
             for (int i = 0; i < PDF_NUM_BINS; i++) {
-                double speedMph = ((posMin + (i + 0.5) * binWidth) - lastDist)
-                        / dtSec * GammaSpeedModel.MPS_TO_MPH;
-                double val = GammaSpeedModel.pdf(speedMph, mGammaParams);
-                mPdfValues[i] = val;
-                if (val > maxVal) maxVal = val;
+                double pos = posMin + (i + 0.5) * binWidth;
+                float h = (float) (mPdfValues[i] / maxVal * maxHeightPx);
+                mPdfPath.lineTo(toPixelX(pos), xAxisY - h);
             }
-
-            // Draw PDF from cached values
-            if (maxVal > 0) {
-                mPdfPath.reset();
-                mPdfPath.moveTo(toPixelX(posMin), xAxisY);
-                for (int i = 0; i < PDF_NUM_BINS; i++) {
-                    double pos = posMin + (i + 0.5) * binWidth;
-                    float h = (float) (mPdfValues[i] / maxVal * maxHeightPx);
-                    mPdfPath.lineTo(toPixelX(pos), xAxisY - h);
-                }
-                mPdfPath.lineTo(toPixelX(posMax), xAxisY);
-                mPdfPath.close();
-                canvas.drawPath(mPdfPath, mPdfFillPaint);
-            }
-
-            // Draw 80% CI bands using gamma quantiles
-            double velP10Mph = GammaSpeedModel.quantile(0.10, mGammaParams);
-            double velP90Mph = GammaSpeedModel.quantile(0.90, mGammaParams);
-            double velP10Mps = velP10Mph / GammaSpeedModel.MPS_TO_MPH;
-            double velP90Mps = velP90Mph / GammaSpeedModel.MPS_TO_MPH;
-            float xStart = toPixelX(lastDist);
-            float yStart = toPixelY(lastTime);
-            float yNow = toPixelY(mCurrentTime);
-            canvas.drawLine(xStart, yStart,
-                    toPixelX(lastDist + velP10Mps * dtSec), yNow, mConfidenceBandPaint);
-            canvas.drawLine(xStart, yStart,
-                    toPixelX(lastDist + velP90Mps * dtSec), yNow, mConfidenceBandPaint);
+            mPdfPath.lineTo(toPixelX(posMax), xAxisY);
+            mPdfPath.close();
+            canvas.drawPath(mPdfPath, mPdfFillPaint);
         }
 
-        // Draw current time line
+        // 80% CI bands using cached quantile results
+        float xStart = toPixelX(lastDist);
+        float yStart = toPixelY(lastTime);
+        float yNow = toPixelY(mCurrentTime);
+        canvas.drawLine(xStart, yStart,
+                toPixelX(lastDist + mCachedCiLoMps * dtSec), yNow, mConfidenceBandPaint);
+        canvas.drawLine(xStart, yStart,
+                toPixelX(lastDist + mCachedCiHiMps * dtSec), yNow, mConfidenceBandPaint);
+    }
+
+    private void drawNowLine(Canvas canvas) {
         float nowY = toPixelY(mCurrentTime);
         if (nowY >= mMarginTop && nowY <= getHeight() - mMarginBottom) {
             canvas.drawLine(mMarginLeft, nowY, getWidth() - mMarginRight, nowY, mNowLinePaint);
             mReusableDate.setTime(mCurrentTime);
-            String nowLabel = "now " + mTimeFmt.format(mReusableDate);
-            canvas.drawText(nowLabel, mMarginLeft + 5 * mDensity, nowY - 4 * mDensity,
-                    mNowLabelPaint);
+            canvas.drawText("now " + mTimeFmt.format(mReusableDate),
+                    mMarginLeft + 5 * mDensity, nowY - 4 * mDensity, mNowLabelPaint);
         }
+    }
 
-        canvas.restore();
-
-        // Legend (outside clip, fixed position)
+    private void drawLegend(Canvas canvas) {
         float legendX = mMarginLeft + 10 * mDensity;
         float legendY = mMarginTop + 15 * mDensity;
         canvas.drawLine(legendX, legendY, legendX + 20 * mDensity, legendY, mSchedulePaint);
@@ -772,6 +778,7 @@ public class TrajectoryGraphView extends View {
     }
 
     private static double niceStep(double raw) {
+        if (raw <= 0) return 1;
         double magnitude = Math.pow(10, Math.floor(Math.log10(raw)));
         double residual = raw / magnitude;
         if (residual <= 1.5) return magnitude;

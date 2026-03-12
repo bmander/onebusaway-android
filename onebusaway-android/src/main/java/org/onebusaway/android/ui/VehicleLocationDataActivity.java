@@ -206,11 +206,12 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         List<VehicleHistoryEntry> history = tracker.getHistory(mTripId);
         ObaTripSchedule schedule = tracker.getSchedule(mTripId);
         Long serviceDate = tracker.getServiceDate(mTripId);
+        GammaSpeedModel.GammaParams gammaParams = null;
         if (!tripEnded) {
+            // getEstimatedSpeed populates gamma params as a side effect
             tracker.getEstimatedSpeed(mTripId);
+            gammaParams = tracker.getLastGammaParams();
         }
-        GammaSpeedModel.GammaParams gammaParams = tripEnded ? null
-                : tracker.getLastGammaParams();
         mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0,
                 gammaParams);
     }

@@ -100,6 +100,10 @@ public final class DistanceExtrapolator {
     /**
      * Builds a cumulative distance array for a polyline. Entry i holds the total
      * distance from the first point to point i. Entry 0 is always 0.
+     * <p>
+     * Uses the same Haversine formula and Earth radius as the OBA server
+     * (SphericalGeometryLibrary) so that distance values are consistent with
+     * the server's distanceAlongTrip values.
      *
      * @param polylinePoints decoded polyline points
      * @return cumulative distance array (same length as polylinePoints), or null
@@ -109,11 +113,48 @@ public final class DistanceExtrapolator {
         double[] cumDist = new double[polylinePoints.size()];
         cumDist[0] = 0;
         for (int i = 1; i < polylinePoints.size(); i++) {
+            Location prev = polylinePoints.get(i - 1);
+            Location cur = polylinePoints.get(i);
             cumDist[i] = cumDist[i - 1]
-                    + polylinePoints.get(i - 1).distanceTo(polylinePoints.get(i));
+                    + haversineDistance(prev.getLatitude(), prev.getLongitude(),
+                                       cur.getLatitude(), cur.getLongitude());
         }
         return cumDist;
     }
+
+    /**
+     * Haversine great-circle distance matching the OBA server's
+     * SphericalGeometryLibrary.distance() exactly — same formula, same
+     * Earth radius (6371.01 km).
+     *
+     * @return distance in meters
+     */
+    static double haversineDistance(double lat1, double lon1,
+                                   double lat2, double lon2) {
+        lat1 = Math.toRadians(lat1);
+        lon1 = Math.toRadians(lon1);
+        lat2 = Math.toRadians(lat2);
+        lon2 = Math.toRadians(lon2);
+
+        double deltaLon = lon2 - lon1;
+        double cosLat2 = Math.cos(lat2);
+        double sinDeltaLon = Math.sin(deltaLon);
+        double cosLat1 = Math.cos(lat1);
+        double sinLat2 = Math.sin(lat2);
+        double sinLat1 = Math.sin(lat1);
+        double cosDeltaLon = Math.cos(deltaLon);
+
+        double y = Math.sqrt(
+                (cosLat2 * sinDeltaLon) * (cosLat2 * sinDeltaLon)
+              + (cosLat1 * sinLat2 - sinLat1 * cosLat2 * cosDeltaLon)
+              * (cosLat1 * sinLat2 - sinLat1 * cosLat2 * cosDeltaLon));
+        double x = sinLat1 * sinLat2 + cosLat1 * cosLat2 * cosDeltaLon;
+
+        return EARTH_RADIUS_METERS * Math.atan2(y, x);
+    }
+
+    /** Matches OBA server's SphericalGeometryLibrary.RADIUS_OF_EARTH_IN_KM * 1000. */
+    private static final double EARTH_RADIUS_METERS = 6371010.0;
 
     /**
      * Interpolates a position along a polyline at a given distance from the start.

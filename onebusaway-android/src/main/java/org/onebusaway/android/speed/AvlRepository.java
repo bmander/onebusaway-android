@@ -94,9 +94,12 @@ public final class AvlRepository {
             }
         }
 
-        Location position = state.getLastKnownLocation();
+        // Use the server-extrapolated position, which is derived from the same
+        // schedule model as distanceAlongTrip. Using lastKnownLocation (raw GPS)
+        // would be inconsistent with the distance values we use for speed estimation.
+        Location position = state.getPosition();
         if (position == null) {
-            position = state.getPosition();
+            position = state.getLastKnownLocation();
         }
 
         String vehicleId = state.getVehicleId();

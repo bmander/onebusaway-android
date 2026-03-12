@@ -1097,9 +1097,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             float textWidth = textPaint.measureText(label);
             int textHeight = (int) Math.ceil(fm.descent - fm.ascent);
 
-            float padX = 4 * d;
+            float padLeft = 4 * d;
+            float padRight = 6 * d;
             float padY = 2 * d;
-            int bubbleWidth = (int) (textWidth + padX * 2);
+            float pointerWidthDp = 10 * d;
+            int bubbleWidth = (int) (pointerWidthDp + padLeft + textWidth + padRight);
             int bubbleHeight = (int) (textHeight + padY * 2);
             float cornerRadius = 3 * d;
 
@@ -1121,16 +1123,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             paint.setColor(dotColor);
             c.drawCircle(dotCx, dotCy, dotRadius, paint);
 
-            // Draw bubble background
             float bubbleTop = (totalHeight - bubbleHeight) / 2f;
-            Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            bgPaint.setColor(0xDDFFFFFF);
-            bgPaint.setStyle(Paint.Style.FILL);
-            c.drawRoundRect(bubbleLeft, bubbleTop,
-                    bubbleLeft + bubbleWidth, bubbleTop + bubbleHeight,
-                    cornerRadius, cornerRadius, bgPaint);
+            float bodyLeft = drawPointerBubble(c, bubbleLeft, bubbleTop,
+                    bubbleWidth, bubbleHeight, cornerRadius, d);
 
-            float textX = bubbleLeft + padX;
+            float textX = bodyLeft + padLeft;
             float textY = bubbleTop + padY - fm.ascent;
             c.drawText(label, textX, textY, textPaint);
 
@@ -1138,6 +1135,41 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 outAnchorX[0] = dotCx / totalWidth;
             }
             return BitmapDescriptorFactory.fromBitmap(bmp);
+        }
+
+        /**
+         * Draws a 5-sided pointer bubble: a rectangle with the left side replaced
+         * by two edges meeting at a pointed tip.
+         *
+         * @return the X coordinate of the body's left edge (after the pointer),
+         *         for positioning text content
+         */
+        private float drawPointerBubble(Canvas c, float left, float top,
+                                         float width, float height,
+                                         float cornerRadius, float density) {
+            float pointerWidth = 10 * density;
+            float bodyLeft = left + pointerWidth;
+            float right = left + width;
+            float bottom = top + height;
+            float midY = top + height / 2f;
+            float r = cornerRadius;
+
+            android.graphics.Path path = new android.graphics.Path();
+            path.moveTo(left, midY);                   // pointer tip
+            path.lineTo(bodyLeft, top);                 // up to top-left
+            path.lineTo(right - r, top);                // across top
+            path.quadTo(right, top, right, top + r);    // top-right corner
+            path.lineTo(right, bottom - r);             // down right side
+            path.quadTo(right, bottom, right - r, bottom); // bottom-right corner
+            path.lineTo(bodyLeft, bottom);              // across bottom
+            path.close();                               // back to pointer tip
+
+            Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            bgPaint.setColor(0xDDFFFFFF);
+            bgPaint.setStyle(Paint.Style.FILL);
+            c.drawPath(path, bgPaint);
+
+            return bodyLeft;
         }
 
         private static final double LABEL_DEADZONE_DEG = 20.0;

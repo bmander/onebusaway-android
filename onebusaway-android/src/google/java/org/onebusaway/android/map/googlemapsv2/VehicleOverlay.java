@@ -755,6 +755,12 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                         }
                         trajectoryTracker.recordState(status.getActiveTripId(), vehicleState, blockId);
 
+                        String routeId = activeTripObj != null ? activeTripObj.getRouteId() : null;
+                        ObaRoute route = routeId != null ? response.getRoute(routeId) : null;
+                        if (route != null) {
+                            trajectoryTracker.putRouteType(status.getActiveTripId(), route.getType());
+                        }
+
                         String tripId = status.getActiveTripId();
                         String shapeId = activeTripObj != null ? activeTripObj.getShapeId() : null;
                         boolean needSchedule = tripId != null
@@ -1253,6 +1259,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
         private void createQuantileMarkers(String tripId) {
             if (tripId == null || mLastResponse == null) return;
+            Integer routeType = VehicleTrajectoryTracker.getInstance().getRouteType(tripId);
+            if (routeType != null && ObaRoute.isGradeSeparated(routeType)) return;
             Marker vehicleMarker = mVehicleMarkers.get(tripId);
             if (vehicleMarker == null) return;
             ObaTripStatus status = mVehicles.get(vehicleMarker);

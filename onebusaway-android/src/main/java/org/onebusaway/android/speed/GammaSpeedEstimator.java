@@ -40,54 +40,12 @@ public class GammaSpeedEstimator implements SpeedEstimator {
         double vSched = scheduleSpeed != null ? scheduleSpeed : 0;
         mLastScheduleSpeed = vSched;
 
-        // Before-trip-start check
         String tripId = state.getActiveTripId();
-        if (tripId != null && vSched > 0) {
-            Long serviceDate = tracker.getServiceDate(tripId);
-            ObaTripSchedule schedule = tracker.getSchedule(tripId);
-            ObaTripSchedule.StopTime[] stopTimes = schedule != null
-                    ? schedule.getStopTimes() : null;
-            if (serviceDate != null && stopTimes != null && stopTimes.length > 0) {
-                long tripStartMs = serviceDate
-                        + stopTimes[0].getDepartureTime() * 1000L;
-                if (System.currentTimeMillis() < tripStartMs) {
-                    return null;
-                }
-            }
+        if (isTripNotYetStarted(tripId, vSched, tracker)) {
+            return null;
         }
 
-        // Compute v_prev from last two AVL history entries
-        double vPrev = 0;
-        if (tripId != null) {
-            List<VehicleHistoryEntry> history = tracker.getHistoryReadOnly(tripId);
-            if (history.size() >= 2) {
-                VehicleHistoryEntry e2 = null;
-                VehicleHistoryEntry e1 = null;
-                // Find the last two entries with valid distances
-                for (int i = history.size() - 1; i >= 0; i--) {
-                    VehicleHistoryEntry e = history.get(i);
-                    if (e.getBestDistanceAlongTrip() != null
-                            && e.getLastLocationUpdateTime() > 0) {
-                        if (e2 == null) {
-                            e2 = e;
-                        } else {
-                            e1 = e;
-                            break;
-                        }
-                    }
-                }
-                if (e1 != null && e2 != null) {
-                    double dist1 = e1.getBestDistanceAlongTrip();
-                    double dist2 = e2.getBestDistanceAlongTrip();
-                    long time1 = e1.getLastLocationUpdateTime();
-                    long time2 = e2.getLastLocationUpdateTime();
-                    long dtMs = time2 - time1;
-                    if (dtMs > 0) {
-                        vPrev = Math.max(0, (dist2 - dist1) / (dtMs / 1000.0));
-                    }
-                }
-            }
-        }
+        double vPrev = computePreviousAvlSpeed(tripId, tracker);
 
         GammaSpeedModel.GammaParams params = GammaSpeedModel.fromSpeeds(vSched, vPrev);
         if (params != null) {
@@ -97,6 +55,49 @@ public class GammaSpeedEstimator implements SpeedEstimator {
 
         // Fall back to schedule speed
         return vSched > 0 ? vSched : null;
+    }
+
+    private boolean isTripNotYetStarted(String tripId, double vSched,
+                                         VehicleTrajectoryTracker tracker) {
+        if (tripId == null || vSched <= 0) return false;
+        Long serviceDate = tracker.getServiceDate(tripId);
+        ObaTripSchedule schedule = tracker.getSchedule(tripId);
+        ObaTripSchedule.StopTime[] stopTimes = schedule != null
+                ? schedule.getStopTimes() : null;
+        if (serviceDate != null && stopTimes != null && stopTimes.length > 0) {
+            long tripStartMs = serviceDate + stopTimes[0].getDepartureTime() * 1000L;
+            return System.currentTimeMillis() < tripStartMs;
+        }
+        return false;
+    }
+
+    private double computePreviousAvlSpeed(String tripId,
+                                            VehicleTrajectoryTracker tracker) {
+        if (tripId == null) return 0;
+        List<VehicleHistoryEntry> history = tracker.getHistoryReadOnly(tripId);
+        if (history.size() < 2) return 0;
+
+        VehicleHistoryEntry newer = null;
+        VehicleHistoryEntry older = null;
+        for (int i = history.size() - 1; i >= 0; i--) {
+            VehicleHistoryEntry e = history.get(i);
+            if (e.getBestDistanceAlongTrip() != null
+                    && e.getLastLocationUpdateTime() > 0) {
+                if (newer == null) {
+                    newer = e;
+                } else {
+                    older = e;
+                    break;
+                }
+            }
+        }
+        if (older == null || newer == null) return 0;
+
+        long dtMs = newer.getLastLocationUpdateTime() - older.getLastLocationUpdateTime();
+        if (dtMs <= 0) return 0;
+
+        double dd = newer.getBestDistanceAlongTrip() - older.getBestDistanceAlongTrip();
+        return Math.max(0, dd / (dtMs / 1000.0));
     }
 
     @Override

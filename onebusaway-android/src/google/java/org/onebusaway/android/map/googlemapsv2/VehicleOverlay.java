@@ -59,7 +59,6 @@ import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
-import org.onebusaway.android.speed.GammaSpeedModel;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.speed.VehicleState;
 import org.onebusaway.android.ui.TripDetailsActivity;
@@ -639,6 +638,24 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         /** The activeTripId of the currently-selected (info-window-open) vehicle, or null. */
         private String mSelectedTripId;
 
+        /** Marker showing the most recent AVL data-received position for the selected vehicle. */
+        private Marker mDataReceivedMarker;
+        /** Cached label text to skip icon rebuild when unchanged. */
+        private String mLastDataReceivedLabel;
+
+        // --- Data-received marker label constants ---
+        private static final int LABEL_SIZE_SP = 10;
+        private static final int LABEL_GAP_DP = 2;
+        private static final String DATA_RECEIVED_TITLE = "Most recent data";
+
+        // --- Label rendering state, initialized lazily to avoid per-call allocation ---
+        private Paint mLabelTitlePaint;
+        private Paint mLabelTimePaint;
+        private Paint mLabelBgPaint;
+        private Paint.FontMetrics mTitleFontMetrics;
+        private Paint.FontMetrics mTimeFontMetrics;
+        private float mLabelDensity;
+
         private static final int INITIAL_HASHMAP_SIZE = 5;
 
         MarkerData() {
@@ -758,6 +775,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             }
             // Remove markers for any previously added tripIds that aren't in the current response
             int removed = removeInactiveMarkers(activeTripIds);
+
+            // Update the data-received marker to reflect the latest AVL position
+            showOrUpdateDataReceivedMarker(mSelectedTripId);
 
             Log.d(TAG,
                     "Added " + added + ", updated " + updated + ", removed " + removed
@@ -949,6 +969,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             if (tripId != null) {
                 restoreMarkerIcon(mVehicleMarkers.get(tripId));
             }
+            removeDataReceivedMarker();
+            showOrUpdateDataReceivedMarker(tripId);
             animateChangedIcons(previousTripId);
         }
 
@@ -959,6 +981,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             if (mSelectedTripId == null) return;
             String previousTripId = mSelectedTripId;
             mSelectedTripId = null;
+            removeDataReceivedMarker();
             animateChangedIcons(previousTripId);
         }
 
@@ -970,6 +993,137 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             marker.setAlpha(1f);
             marker.setIcon(getVehicleIcon(
                     isLocationRealtime(status), status, mLastResponse));
+        }
+
+        // --- Data-received marker lifecycle ---
+
+        private void showOrUpdateDataReceivedMarker(String tripId) {
+            if (tripId == null || mLastResponse == null) return;
+
+            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+            List<VehicleHistoryEntry> history = tracker.getHistoryReadOnly(tripId);
+            if (history == null || history.isEmpty()) return;
+
+            VehicleHistoryEntry latest = history.get(history.size() - 1);
+            Location pos = latest.getPosition();
+            if (pos == null) return;
+
+            Marker vehicleMarker = mVehicleMarkers.get(tripId);
+            if (vehicleMarker == null) return;
+            ObaTripStatus status = mVehicles.get(vehicleMarker);
+            if (status == null) return;
+
+            LatLng latLng = MapHelpV2.makeLatLng(pos);
+            String label = formatElapsedTime(latest.getLastLocationUpdateTime());
+
+            if (mDataReceivedMarker != null) {
+                mDataReceivedMarker.setPosition(latLng);
+                // Skip icon rebuild if label text hasn't changed
+                if (!label.equals(mLastDataReceivedLabel)) {
+                    mLastDataReceivedLabel = label;
+                    mDataReceivedMarker.setIcon(createLabeledVehicleIcon(status, label));
+                }
+            } else {
+                mLastDataReceivedLabel = label;
+                mDataReceivedMarker = mMap.addMarker(new MarkerOptions()
+                        .position(latLng)
+                        .icon(createLabeledVehicleIcon(status, label))
+                        .anchor(0.5f, 1.0f)
+                        .zIndex(VEHICLE_MARKER_Z_INDEX + 1)
+                );
+            }
+        }
+
+        private void removeDataReceivedMarker() {
+            if (mDataReceivedMarker != null) {
+                mDataReceivedMarker.remove();
+                mDataReceivedMarker = null;
+                mLastDataReceivedLabel = null;
+            }
+        }
+
+        private String formatElapsedTime(long lastUpdateTime) {
+            if (lastUpdateTime <= 0) return "";
+            long elapsedSec = TimeUnit.MILLISECONDS.toSeconds(
+                    System.currentTimeMillis() - lastUpdateTime);
+            if (elapsedSec < 0) elapsedSec = 0;
+            if (elapsedSec < 60) {
+                return elapsedSec + " sec ago";
+            }
+            long elapsedMin = TimeUnit.SECONDS.toMinutes(elapsedSec);
+            long secMod60 = elapsedSec % 60;
+            return elapsedMin + " min " + secMod60 + " sec ago";
+        }
+
+        private void ensureLabelPaintsInitialized() {
+            if (mLabelTitlePaint != null) return;
+            mLabelDensity = mActivity.getResources().getDisplayMetrics().density;
+
+            mLabelTitlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            mLabelTitlePaint.setTextSize(LABEL_SIZE_SP * mLabelDensity);
+            mLabelTitlePaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            mLabelTitlePaint.setColor(0xFF616161);
+            mTitleFontMetrics = mLabelTitlePaint.getFontMetrics();
+
+            mLabelTimePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            mLabelTimePaint.setTextSize(LABEL_SIZE_SP * mLabelDensity);
+            mLabelTimePaint.setTypeface(android.graphics.Typeface.DEFAULT);
+            mLabelTimePaint.setColor(0xFF757575);
+            mTimeFontMetrics = mLabelTimePaint.getFontMetrics();
+
+            mLabelBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            mLabelBgPaint.setColor(0xDDFFFFFF);
+            mLabelBgPaint.setStyle(Paint.Style.FILL);
+        }
+
+        private BitmapDescriptor createLabeledVehicleIcon(ObaTripStatus status,
+                                                           String timeLine) {
+            String routeId = mLastResponse.getTrip(status.getActiveTripId()).getRouteId();
+            ObaRoute route = mLastResponse.getRoute(routeId);
+            Bitmap vehicleBmp = getBitmap(route.getType(),
+                    R.color.stop_info_scheduled_time, NO_DIRECTION);
+
+            ensureLabelPaintsInitialized();
+            float d = mLabelDensity;
+            float padX = 3 * d;
+            float padY = 1.5f * d;
+            float lineGap = d;
+            int gapPx = (int) (LABEL_GAP_DP * d);
+
+            // Measure text widths (heights come from cached font metrics)
+            float titleWidth = mLabelTitlePaint.measureText(DATA_RECEIVED_TITLE);
+            int titleHeight = (int) Math.ceil(mTitleFontMetrics.descent - mTitleFontMetrics.ascent);
+
+            float timeWidth = mLabelTimePaint.measureText(timeLine);
+            int timeHeight = (int) Math.ceil(mTimeFontMetrics.descent - mTimeFontMetrics.ascent);
+
+            // Layout
+            float maxTextWidth = Math.max(titleWidth, timeWidth);
+            int labelBlockHeight = (int) (padY + titleHeight + lineGap + timeHeight + padY);
+            int totalWidth = Math.max(vehicleBmp.getWidth(), (int) (maxTextWidth + padX * 2));
+            int totalHeight = labelBlockHeight + gapPx + vehicleBmp.getHeight();
+
+            // Draw
+            Bitmap bmp = Bitmap.createBitmap(totalWidth, totalHeight, Bitmap.Config.ARGB_8888);
+            Canvas c = new Canvas(bmp);
+
+            float labelLeft = (totalWidth - maxTextWidth) / 2f - padX;
+            float labelRight = (totalWidth + maxTextWidth) / 2f + padX;
+            c.drawRoundRect(labelLeft, 0, labelRight, labelBlockHeight,
+                    3 * d, 3 * d, mLabelBgPaint);
+
+            float titleX = (totalWidth - titleWidth) / 2f;
+            c.drawText(DATA_RECEIVED_TITLE, titleX,
+                    padY - mTitleFontMetrics.ascent, mLabelTitlePaint);
+
+            float timeX = (totalWidth - timeWidth) / 2f;
+            c.drawText(timeLine, timeX,
+                    padY + titleHeight + lineGap - mTimeFontMetrics.ascent, mLabelTimePaint);
+
+            float iconLeft = (totalWidth - vehicleBmp.getWidth()) / 2f;
+            c.drawBitmap(vehicleBmp, iconLeft, labelBlockHeight + gapPx, null);
+
+            return BitmapDescriptorFactory.fromBitmap(bmp);
         }
 
         /**
@@ -1079,6 +1233,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
          * Clears any stop markers from the map
          */
         synchronized void clear() {
+            removeDataReceivedMarker();
             if (mVehicleMarkers != null) {
                 // Clear all markers from the map
                 removeMarkersFromMap();
@@ -1159,7 +1314,6 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             Resources r = mContext.getResources();
             TextView routeView = (TextView) view.findViewById(R.id.route_and_destination);
             TextView statusView = (TextView) view.findViewById(R.id.status);
-            TextView lastUpdatedView = (TextView) view.findViewById(R.id.last_updated);
             ImageView moreView = (ImageView) view.findViewById(R.id.trip_more_info);
             moreView.setColorFilter(r.getColor(R.color.switch_thumb_normal_material_dark));
             ViewGroup occupancyView = view.findViewById(R.id.occupancy);
@@ -1193,7 +1347,6 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 // Scheduled info
                 statusView.setText(r.getString(R.string.stop_info_scheduled));
                 d.setColor(r.getColor(statusColor));
-                lastUpdatedView.setText(r.getString(R.string.vehicle_last_updated_scheduled));
                 statusView.setPadding(pSides, pTopBottom, pSides, pTopBottom);
 
                 // Hide occupancy by setting null value
@@ -1201,46 +1354,6 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.HISTORICAL);
 
                 return view;
-            }
-
-            // Update last updated time (only shown for real-time info)
-            long now = System.currentTimeMillis();
-            long lastUpdateTime;
-            // Use the last updated time for the position itself, if its available
-            if (status.getLastLocationUpdateTime() != 0) {
-                lastUpdateTime = status.getLastLocationUpdateTime();
-            } else {
-                // Use the status timestamp for last updated time
-                lastUpdateTime = status.getLastUpdateTime();
-            }
-            long elapsedSec = TimeUnit.MILLISECONDS.toSeconds(now - lastUpdateTime);
-            long elapsedMin = TimeUnit.SECONDS.toMinutes(elapsedSec);
-            long secMod60 = elapsedSec % 60;
-
-            String lastUpdated;
-            if (elapsedSec < 60) {
-                lastUpdated = r.getString(R.string.vehicle_last_updated_sec,
-                        elapsedSec);
-            } else {
-                lastUpdated = r.getString(R.string.vehicle_last_updated_min_and_sec,
-                        elapsedMin, secMod60);
-            }
-            lastUpdatedView.setText(lastUpdated);
-
-            // Show estimated speed
-            TextView estimatedSpeedView = (TextView) view.findViewById(R.id.estimated_speed);
-            VehicleState vehicleState = VehicleState.fromTripStatus(status);
-            Double speedMs = VehicleTrajectoryTracker.getInstance()
-                    .getEstimatedSpeed(status.getActiveTripId(), vehicleState);
-            if (speedMs != null) {
-                double speedMph = speedMs * GammaSpeedModel.MPS_TO_MPH;
-                String speedText = r.getString(R.string.vehicle_estimated_speed,
-                        String.format("%.1f", speedMph));
-                estimatedSpeedView.setText(speedText);
-                estimatedSpeedView.setVisibility(View.VISIBLE);
-                Log.d(TAG, "Vehicle " + status.getVehicleId()
-                        + " estimated speed: " + String.format("%.1f", speedMph) + " mph ("
-                        + String.format("%.1f", speedMs) + " m/s)");
             }
 
             if (status.getOccupancyStatus() != null) {

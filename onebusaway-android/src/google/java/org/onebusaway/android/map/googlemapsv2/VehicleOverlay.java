@@ -85,6 +85,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
     interface Controller {
         String getFocusedStopId();
+        void onVehicleSelected(String tripId);
+        void onVehicleDeselected();
     }
 
     private static final String TAG = "VehicleOverlay";
@@ -803,6 +805,15 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                                             }
                                         }
                                     }
+                                    // If this trip is selected, notify controller
+                                    // so it can update the displayed stops/polyline
+                                    if (tripId.equals(mSelectedTripId) && mController != null) {
+                                        mActivity.runOnUiThread(() -> {
+                                            if (tripId.equals(mSelectedTripId) && mController != null) {
+                                                mController.onVehicleSelected(tripId);
+                                            }
+                                        });
+                                    }
                                 } catch (Exception e) {
                                     Log.w(TAG, "Failed to fetch schedule/shape for " + tripId, e);
                                     if (fetchSchedule) {
@@ -1015,6 +1026,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             showOrUpdateDataReceivedMarker(tripId);
             createQuantileMarkers(tripId);
             animateChangedIcons(previousTripId);
+            if (mController != null && tripId != null) {
+                mController.onVehicleSelected(tripId);
+            }
         }
 
         /**
@@ -1027,6 +1041,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             removeDataReceivedMarker();
             removeQuantileMarkers();
             animateChangedIcons(previousTripId);
+            if (mController != null) {
+                mController.onVehicleDeselected();
+            }
         }
 
         private void restoreMarkerIcon(Marker marker) {

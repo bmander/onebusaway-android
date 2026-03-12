@@ -755,10 +755,12 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                         }
                         trajectoryTracker.recordState(status.getActiveTripId(), vehicleState, blockId);
 
-                        String routeId = activeTripObj != null ? activeTripObj.getRouteId() : null;
-                        ObaRoute route = routeId != null ? response.getRoute(routeId) : null;
-                        if (route != null) {
-                            trajectoryTracker.putRouteType(status.getActiveTripId(), route.getType());
+                        if (trajectoryTracker.getRouteType(status.getActiveTripId()) == null) {
+                            String routeId = activeTripObj != null ? activeTripObj.getRouteId() : null;
+                            ObaRoute route = routeId != null ? response.getRoute(routeId) : null;
+                            if (route != null) {
+                                trajectoryTracker.putRouteType(status.getActiveTripId(), route.getType());
+                            }
                         }
 
                         String tripId = status.getActiveTripId();

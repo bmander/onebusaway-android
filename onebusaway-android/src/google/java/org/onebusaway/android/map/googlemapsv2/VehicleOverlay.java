@@ -598,6 +598,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
     @Override
     public boolean markerClicked(Marker marker) {
         if(mMarkerData == null) return false;
+        if (mMarkerData.handleQuantileMarkerClick(marker)) {
+            return true;
+        }
         ObaTripStatus status = mMarkerData.getStatusFromMarker(marker);
         if (status != null) {
             mMarkerData.setSelectedTripId(status.getActiveTripId());
@@ -660,8 +663,15 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         private static final float QUANTILE_MARKER_Z_INDEX = VEHICLE_MARKER_Z_INDEX - 0.5f;
         private static final int QUANTILE_LABEL_SP = 10;
         private static final int QUANTILE_LABEL_GAP_DP = 3;
-        private static final String QUANTILE_SLOW_LABEL = "slow est.";
-        private static final String QUANTILE_FAST_LABEL = "fast est.";
+        private static final int QUANTILE_POINTER_WIDTH_DP = 10;
+        private static final String QUANTILE_SLOW_LABEL = "Slow estimate";
+        private static final String QUANTILE_FAST_LABEL = "Fast estimate";
+        private static final String QUANTILE_SLOW_EXPANDED = "Slow estimate\n10th percentile speed";
+        private static final String QUANTILE_FAST_EXPANDED = "Fast estimate\n90th percentile speed";
+        private BitmapDescriptor mQuantileSlowExpandedIcon;
+        private BitmapDescriptor mQuantileFastExpandedIcon;
+        private boolean mQuantile10Expanded;
+        private boolean mQuantile90Expanded;
 
         /** Reusable Location for quantile interpolation to avoid per-frame allocation. */
         private final Location mQuantileReusableLoc = new Location("quantile");
@@ -1078,6 +1088,16 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
          */
         private BitmapDescriptor createQuantileLabelIcon(ObaTripStatus status, String label,
                                                           float[] outAnchorX) {
+            return createQuantileLabelIconInternal(status, new String[]{label}, outAnchorX);
+        }
+
+        private BitmapDescriptor createQuantileExpandedIcon(ObaTripStatus status, String label) {
+            return createQuantileLabelIconInternal(status, label.split("\n"), null);
+        }
+
+        private BitmapDescriptor createQuantileLabelIconInternal(ObaTripStatus status,
+                                                                   String[] lines,
+                                                                   float[] outAnchorX) {
             int colorResource = getDeviationColorResource(isLocationRealtime(status), status);
             int baseColor = ContextCompat.getColor(mActivity, colorResource);
             int dotColor = (baseColor & 0x00FFFFFF) | (QUANTILE_DOT_ALPHA << 24);
@@ -1088,21 +1108,28 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             int dotSize = (dotRadius + dotStroke) * 2;
             int gap = (int) (QUANTILE_LABEL_GAP_DP * d);
 
-            // Text measurement
             Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             textPaint.setTextSize(QUANTILE_LABEL_SP * d);
             textPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
             textPaint.setColor(0xFF616161);
             Paint.FontMetrics fm = textPaint.getFontMetrics();
-            float textWidth = textPaint.measureText(label);
-            int textHeight = (int) Math.ceil(fm.descent - fm.ascent);
+            int lineHeight = (int) Math.ceil(fm.descent - fm.ascent);
+            float lineGap = d;
+
+            // Measure widest line
+            float maxLineWidth = 0;
+            for (String line : lines) {
+                maxLineWidth = Math.max(maxLineWidth, textPaint.measureText(line));
+            }
 
             float padLeft = 4 * d;
             float padRight = 6 * d;
             float padY = 2 * d;
-            float pointerWidthDp = 10 * d;
-            int bubbleWidth = (int) (pointerWidthDp + padLeft + textWidth + padRight);
-            int bubbleHeight = (int) (textHeight + padY * 2);
+            float pointerWidth = QUANTILE_POINTER_WIDTH_DP * d;
+            int textBlockHeight = lineHeight * lines.length
+                    + (int) (lineGap * (lines.length - 1));
+            int bubbleWidth = (int) (pointerWidth + padLeft + maxLineWidth + padRight);
+            int bubbleHeight = (int) (textBlockHeight + padY * 2);
             float cornerRadius = 3 * d;
 
             int totalWidth = dotSize + gap + bubbleWidth;
@@ -1125,11 +1152,13 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
             float bubbleTop = (totalHeight - bubbleHeight) / 2f;
             float bodyLeft = drawPointerBubble(c, bubbleLeft, bubbleTop,
-                    bubbleWidth, bubbleHeight, cornerRadius, d);
+                    bubbleWidth, bubbleHeight, cornerRadius, pointerWidth);
 
             float textX = bodyLeft + padLeft;
             float textY = bubbleTop + padY - fm.ascent;
-            c.drawText(label, textX, textY, textPaint);
+            for (int i = 0; i < lines.length; i++) {
+                c.drawText(lines[i], textX, textY + i * (lineHeight + lineGap), textPaint);
+            }
 
             if (outAnchorX != null && outAnchorX.length > 0) {
                 outAnchorX[0] = dotCx / totalWidth;
@@ -1146,8 +1175,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
          */
         private float drawPointerBubble(Canvas c, float left, float top,
                                          float width, float height,
-                                         float cornerRadius, float density) {
-            float pointerWidth = 10 * density;
+                                         float cornerRadius, float pointerWidth) {
             float bodyLeft = left + pointerWidth;
             float right = left + width;
             float bottom = top + height;
@@ -1234,7 +1262,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             mQuantileSlowIcon = createQuantileLabelIcon(status, QUANTILE_SLOW_LABEL, anchorOut);
             mQuantileAnchorX = anchorOut[0];
             mQuantileFastIcon = createQuantileLabelIcon(status, QUANTILE_FAST_LABEL, null);
+            mQuantileSlowExpandedIcon = createQuantileExpandedIcon(status, QUANTILE_SLOW_EXPANDED);
+            mQuantileFastExpandedIcon = createQuantileExpandedIcon(status, QUANTILE_FAST_EXPANDED);
             mCachedQuantileParams = null;
+            mQuantile10Expanded = false;
+            mQuantile90Expanded = false;
 
             LatLng pos = vehicleMarker.getPosition();
             mQuantile10Marker = addFlatQuantileMarker(pos, mQuantileSlowIcon);
@@ -1252,7 +1284,29 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             }
             mQuantileSlowIcon = null;
             mQuantileFastIcon = null;
+            mQuantileSlowExpandedIcon = null;
+            mQuantileFastExpandedIcon = null;
             mCachedQuantileParams = null;
+        }
+
+        /**
+         * Handles a click on a quantile marker by toggling between collapsed
+         * and expanded label. Returns true if the marker was a quantile marker.
+         */
+        boolean handleQuantileMarkerClick(Marker marker) {
+            if (marker.equals(mQuantile10Marker)) {
+                mQuantile10Expanded = !mQuantile10Expanded;
+                mQuantile10Marker.setIcon(mQuantile10Expanded
+                        ? mQuantileSlowExpandedIcon : mQuantileSlowIcon);
+                return true;
+            }
+            if (marker.equals(mQuantile90Marker)) {
+                mQuantile90Expanded = !mQuantile90Expanded;
+                mQuantile90Marker.setIcon(mQuantile90Expanded
+                        ? mQuantileFastExpandedIcon : mQuantileFastIcon);
+                return true;
+            }
+            return false;
         }
 
         private Marker addFlatQuantileMarker(LatLng pos, BitmapDescriptor icon) {

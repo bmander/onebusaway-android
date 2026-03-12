@@ -80,7 +80,6 @@ public class TrajectoryGraphView extends View {
     private final Paint mDeviationLabelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mDeviationLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mConfidenceBandPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint mInterpolatedDotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mPdfFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private final Path mSchedulePath = new Path();
@@ -308,9 +307,6 @@ public class TrajectoryGraphView extends View {
         mDeviationLinePaint.setStrokeWidth(1.5f * mDensity);
         mDeviationLinePaint.setPathEffect(new DashPathEffect(
                 new float[]{4 * mDensity, 3 * mDensity}, 0));
-
-        mInterpolatedDotPaint.setColor(Color.parseColor("#FFAA00"));
-        mInterpolatedDotPaint.setStyle(Paint.Style.FILL);
 
         mConfidenceBandPaint.setColor(Color.parseColor("#66BBBBBB"));
         mConfidenceBandPaint.setStyle(Paint.Style.STROKE);
@@ -585,10 +581,7 @@ public class TrajectoryGraphView extends View {
             } else {
                 mTrajectoryPath.lineTo(x, y);
             }
-            boolean isRawGps = e.getLastKnownDistanceAlongTrip() != null
-                    && e.getLastKnownDistanceAlongTrip() != 0.0;
-            canvas.drawCircle(x, y, 3 * mDensity,
-                    isRawGps ? mTrajectoryDotPaint : mInterpolatedDotPaint);
+            canvas.drawCircle(x, y, 3 * mDensity, mTrajectoryDotPaint);
         }
         canvas.drawPath(mTrajectoryPath, mTrajectoryPaint);
     }
@@ -703,9 +696,6 @@ public class TrajectoryGraphView extends View {
         canvas.drawLine(legendX, legendY, legendX + 20 * mDensity, legendY, mTrajectoryPaint);
         canvas.drawCircle(legendX + 10 * mDensity, legendY, 3 * mDensity, mTrajectoryDotPaint);
         canvas.drawText("Actual (GPS)", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
-        legendY += 18 * mDensity;
-        canvas.drawCircle(legendX + 10 * mDensity, legendY, 3 * mDensity, mInterpolatedDotPaint);
-        canvas.drawText("Actual (interpolated)", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);
         legendY += 18 * mDensity;
         canvas.drawLine(legendX, legendY, legendX + 20 * mDensity, legendY, mExtrapolateDashPaint);
         canvas.drawText("Estimated", legendX + 25 * mDensity, legendY + 4 * mDensity, mLabelPaint);

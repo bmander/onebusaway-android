@@ -375,5 +375,6 @@ public final class VehicleTrajectoryTracker {
         mPollTokens.clear();
         mPollHandler.removeCallbacksAndMessages(null);
         estimator.clearState();
+        scheduleEstimator.clearState();
     }
 }

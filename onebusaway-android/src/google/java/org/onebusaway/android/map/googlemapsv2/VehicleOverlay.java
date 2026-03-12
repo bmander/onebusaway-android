@@ -20,6 +20,8 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.graphics.drawable.GradientDrawable;
 import android.location.Location;
 import android.os.Handler;
@@ -65,6 +67,9 @@ import org.onebusaway.android.ui.TripDetailsListFragment;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.MathUtils;
 import org.onebusaway.android.util.UIUtils;
+
+import android.animation.ValueAnimator;
+import android.view.animation.AccelerateDecelerateInterpolator;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -595,6 +600,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         if(mMarkerData == null) return false;
         ObaTripStatus status = mMarkerData.getStatusFromMarker(marker);
         if (status != null) {
+            mMarkerData.setSelectedTripId(status.getActiveTripId());
             setupInfoWindow();
             marker.showInfoWindow();
             return true;
@@ -604,7 +610,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
     @Override
     public void removeMarkerClicked(LatLng latLng) {
-
+        if (mMarkerData != null) {
+            mMarkerData.clearSelectedTripId();
+        }
     }
 
     /**
@@ -627,6 +635,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
          * but do have activeTripIds.
          */
         private HashMap<String, Marker> mVehicleMarkers;
+
+        /** The activeTripId of the currently-selected (info-window-open) vehicle, or null. */
+        private String mSelectedTripId;
 
         private static final int INITIAL_HASHMAP_SIZE = 5;
 
@@ -839,7 +850,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     String tripId = entry.getKey();
                     Marker m = entry.getValue();
                     if (!activeTripIds.contains(tripId)) {
-                        // Remove the marker from map and data structures
+                        cancelAnimation(m);
                         entry.getValue().remove();
                         mVehicles.remove(m);
                         iterator.remove();
@@ -855,7 +866,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     String tripId = entry.getKey();
                     Marker m = entry.getValue();
                     if (!activeTripIds.contains(tripId)) {
-                        // Remove the marker from map and data structures
+                        cancelAnimation(m);
                         entry.getValue().remove();
                         mVehicles.remove(m);
                         mVehicleMarkers.remove(tripId);
@@ -877,24 +888,142 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
          */
         private BitmapDescriptor getVehicleIcon(boolean isRealtime, ObaTripStatus status,
                                                 ObaTripsForRouteResponse response) {
+            // If another vehicle is selected, show this one as a small dot
+            if (mSelectedTripId != null
+                    && !mSelectedTripId.equals(status.getActiveTripId())) {
+                return getDotIcon(isRealtime, status);
+            }
+
             String routeId = response.getTrip(status.getActiveTripId()).getRouteId();
             ObaRoute route = response.getRoute(routeId);
             int vehicleType = route.getType();
-
-            int colorResource;
-
-            if (isRealtime) {
-                long deviationMin = TimeUnit.SECONDS.toMinutes(status.getScheduleDeviation());
-                colorResource = ArrivalInfoUtils.computeColorFromDeviation(deviationMin);
-            } else {
-                colorResource = R.color.stop_info_scheduled_time;
-            }
+            int colorResource = getDeviationColorResource(isRealtime, status);
             double direction = MathUtils.toDirection(status.getOrientation());
             int halfWind = MathUtils.getHalfWindIndex((float) direction, NUM_DIRECTIONS - 1);
-            //Log.d(TAG, "VehicleId=" + status.getVehicleId() + ", orientation= " + status.getOrientation() + ", direction=" + direction + ", halfWind= " + halfWind + ", deviation=" + status.getScheduleDeviation());
 
             Bitmap b = getBitmap(vehicleType, colorResource, halfWind);
             return BitmapDescriptorFactory.fromBitmap(b);
+        }
+
+        private static final int DOT_RADIUS_DP = 5;
+        private LruCache<Integer, BitmapDescriptor> mDotIconCache;
+
+        private BitmapDescriptor getDotIcon(boolean isRealtime, ObaTripStatus status) {
+            int colorResource = getDeviationColorResource(isRealtime, status);
+            if (mDotIconCache == null) {
+                mDotIconCache = new LruCache<>(8);
+            }
+            BitmapDescriptor cached = mDotIconCache.get(colorResource);
+            if (cached != null) return cached;
+
+            float density = mActivity.getResources().getDisplayMetrics().density;
+            int radiusPx = (int) (DOT_RADIUS_DP * density);
+            int strokePx = (int) (1.5f * density);
+            int size = (radiusPx + strokePx) * 2;
+            float cx = size / 2f;
+            float cy = size / 2f;
+            Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+            Canvas c = new Canvas(bmp);
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            paint.setColor(0xFFFFFFFF);
+            paint.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx, cy, radiusPx + strokePx, paint);
+            paint.setColor(ContextCompat.getColor(mActivity, colorResource));
+            c.drawCircle(cx, cy, radiusPx, paint);
+            BitmapDescriptor descriptor = BitmapDescriptorFactory.fromBitmap(bmp);
+            mDotIconCache.put(colorResource, descriptor);
+            return descriptor;
+        }
+
+        private static final int ICON_TRANSITION_MS = 250;
+        private final HashMap<Marker, ValueAnimator> mRunningAnimators = new HashMap<>();
+
+        /**
+         * Sets the selected trip and collapses all other vehicle markers to small dots.
+         */
+        synchronized void setSelectedTripId(String tripId) {
+            if (tripId != null && tripId.equals(mSelectedTripId)) return;
+            String previousTripId = mSelectedTripId;
+            mSelectedTripId = tripId;
+            // Immediately restore the newly selected marker to its full icon
+            if (tripId != null) {
+                restoreMarkerIcon(mVehicleMarkers.get(tripId));
+            }
+            animateChangedIcons(previousTripId);
+        }
+
+        /**
+         * Clears the selection, restoring all markers to full vehicle icons.
+         */
+        synchronized void clearSelectedTripId() {
+            if (mSelectedTripId == null) return;
+            String previousTripId = mSelectedTripId;
+            mSelectedTripId = null;
+            animateChangedIcons(previousTripId);
+        }
+
+        private void restoreMarkerIcon(Marker marker) {
+            if (marker == null) return;
+            cancelAnimation(marker);
+            ObaTripStatus status = mVehicles.get(marker);
+            if (status == null) return;
+            marker.setAlpha(1f);
+            marker.setIcon(getVehicleIcon(
+                    isLocationRealtime(status), status, mLastResponse));
+        }
+
+        /**
+         * Animates only the markers whose icon state actually changed.
+         * @param previousTripId the previously selected trip, or null if none
+         */
+        private void animateChangedIcons(String previousTripId) {
+            if (mLastResponse == null) return;
+            for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
+                String tripId = entry.getKey();
+                // Skip the currently selected marker — already handled
+                if (mSelectedTripId != null && mSelectedTripId.equals(tripId)) continue;
+
+                boolean wasDot = previousTripId != null && !previousTripId.equals(tripId);
+                boolean shouldBeDot = mSelectedTripId != null && !mSelectedTripId.equals(tripId);
+                if (wasDot == shouldBeDot) continue;
+
+                Marker m = entry.getValue();
+                ObaTripStatus status = mVehicles.get(m);
+                if (status == null) continue;
+                boolean isRealtime = isLocationRealtime(status);
+                BitmapDescriptor newIcon = getVehicleIcon(isRealtime, status, mLastResponse);
+                animateIconTransition(m, newIcon);
+            }
+        }
+
+        private void animateIconTransition(Marker marker, BitmapDescriptor newIcon) {
+            cancelAnimation(marker);
+            ValueAnimator anim = ValueAnimator.ofFloat(0f, 1f);
+            anim.setDuration(ICON_TRANSITION_MS);
+            anim.setInterpolator(new AccelerateDecelerateInterpolator());
+            final boolean[] swapped = {false};
+            anim.addUpdateListener(animation -> {
+                float f = (float) animation.getAnimatedValue();
+                if (f < 0.5f) {
+                    marker.setAlpha(1f - f * 2f);
+                } else {
+                    if (!swapped[0]) {
+                        marker.setIcon(newIcon);
+                        swapped[0] = true;
+                    }
+                    marker.setAlpha((f - 0.5f) * 2f);
+                }
+            });
+            mRunningAnimators.put(marker, anim);
+            anim.start();
+        }
+
+        private void cancelAnimation(Marker marker) {
+            ValueAnimator existing = mRunningAnimators.remove(marker);
+            if (existing != null) {
+                existing.cancel();
+                marker.setAlpha(1f);
+            }
         }
 
         synchronized ObaTripStatus getStatusFromMarker(Marker marker) {
@@ -978,15 +1107,18 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
      * is not
      */
     protected static boolean isLocationRealtime(ObaTripStatus status) {
-        boolean isRealtime = true;
-        Location l = status.getLastKnownLocation();
-        if (l == null) {
-            isRealtime = false;
+        return status.getLastKnownLocation() != null && status.isPredicted();
+    }
+
+    /**
+     * Returns the color resource for a vehicle's schedule deviation status.
+     */
+    static int getDeviationColorResource(boolean isRealtime, ObaTripStatus status) {
+        if (isRealtime) {
+            long deviationMin = TimeUnit.SECONDS.toMinutes(status.getScheduleDeviation());
+            return ArrivalInfoUtils.computeColorFromDeviation(deviationMin);
         }
-        if (!status.isPredicted()) {
-            isRealtime = false;
-        }
-        return isRealtime;
+        return R.color.stop_info_scheduled_time;
     }
 
     /**
@@ -1049,19 +1181,17 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             int pSides = UIUtils.dpToPixels(mContext, 5);
             int pTopBottom = UIUtils.dpToPixels(mContext, 2);
 
-            int statusColor;
+            int statusColor = getDeviationColorResource(isRealtime, status);
 
             if (isRealtime) {
                 long deviationMin = TimeUnit.SECONDS.toMinutes(status.getScheduleDeviation());
                 String statusString = ArrivalInfoUtils.computeArrivalLabelFromDelay(r, deviationMin);
                 statusView.setText(statusString);
-                statusColor = ArrivalInfoUtils.computeColorFromDeviation(deviationMin);
                 d.setColor(r.getColor(statusColor));
                 statusView.setPadding(pSides, pTopBottom, pSides, pTopBottom);
             } else {
                 // Scheduled info
                 statusView.setText(r.getString(R.string.stop_info_scheduled));
-                statusColor = R.color.stop_info_scheduled_time;
                 d.setColor(r.getColor(statusColor));
                 lastUpdatedView.setText(r.getString(R.string.vehicle_last_updated_scheduled));
                 statusView.setPadding(pSides, pTopBottom, pSides, pTopBottom);

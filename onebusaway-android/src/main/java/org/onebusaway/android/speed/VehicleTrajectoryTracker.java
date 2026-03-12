@@ -22,6 +22,7 @@ import android.os.Looper;
 import android.util.Log;
 
 import org.onebusaway.android.io.ObaApi;
+import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.io.elements.ObaTripStatus;
@@ -55,6 +56,8 @@ public final class VehicleTrajectoryTracker {
     private final Map<String, List<Location>> shapeCache = new HashMap<>();
     private final Map<String, double[]> shapeCumDistCache = new HashMap<>();
     private final Set<String> pendingScheduleFetches = new HashSet<>();
+    private final Map<String, Integer> routeTypeCache = new HashMap<>();
+    private final ScheduleSpeedEstimator scheduleEstimator = new ScheduleSpeedEstimator();
     private SpeedEstimator estimator = new GammaSpeedEstimator();
 
     private final Handler mPollHandler = new Handler(Looper.getMainLooper());
@@ -115,7 +118,10 @@ public final class VehicleTrajectoryTracker {
         if (key == null || state == null) {
             return null;
         }
-        return estimator.estimateSpeed(state.getVehicleId(), state, this);
+        Integer routeType = routeTypeCache.get(key);
+        SpeedEstimator est = (routeType != null && ObaRoute.isGradeSeparated(routeType))
+                ? scheduleEstimator : estimator;
+        return est.estimateSpeed(state.getVehicleId(), state, this);
     }
 
     /**
@@ -154,6 +160,22 @@ public final class VehicleTrajectoryTracker {
         if (estimator != null) {
             this.estimator = estimator;
         }
+    }
+
+    /**
+     * Stores the route type for a trip ID.
+     */
+    public synchronized void putRouteType(String tripId, int type) {
+        if (tripId != null) {
+            routeTypeCache.put(tripId, type);
+        }
+    }
+
+    /**
+     * Returns the cached route type for the given trip, or null if not cached.
+     */
+    public synchronized Integer getRouteType(String tripId) {
+        return routeTypeCache.get(tripId);
     }
 
     /**
@@ -342,6 +364,7 @@ public final class VehicleTrajectoryTracker {
      */
     public synchronized void clearAll() {
         repository.clearAll();
+        routeTypeCache.clear();
         scheduleCache.clear();
         serviceDateCache.clear();
         shapeCache.clear();

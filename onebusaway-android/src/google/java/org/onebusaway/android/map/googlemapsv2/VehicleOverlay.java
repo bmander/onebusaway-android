@@ -58,6 +58,7 @@ import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.speed.DistanceExtrapolator;
+import org.onebusaway.android.speed.GammaSpeedModel;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.speed.VehicleState;
@@ -643,6 +644,18 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         /** Cached label text to skip icon rebuild when unchanged. */
         private String mLastDataReceivedLabel;
 
+        /** Markers showing the 10th and 90th percentile predicted positions. */
+        private Marker mQuantile10Marker;
+        private Marker mQuantile90Marker;
+        private BitmapDescriptor mQuantileDotIcon;
+
+        private static final int QUANTILE_DOT_RADIUS_DP = 6;
+        private static final int QUANTILE_DOT_ALPHA = 0xBB;
+        private static final float QUANTILE_MARKER_Z_INDEX = VEHICLE_MARKER_Z_INDEX - 0.5f;
+
+        /** Reusable Location for quantile interpolation to avoid per-frame allocation. */
+        private final Location mQuantileReusableLoc = new Location("quantile");
+
         // --- Data-received marker label constants ---
         private static final int LABEL_SIZE_SP = 10;
         private static final int LABEL_GAP_DP = 2;
@@ -970,7 +983,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 restoreMarkerIcon(mVehicleMarkers.get(tripId));
             }
             removeDataReceivedMarker();
+            removeQuantileMarkers();
             showOrUpdateDataReceivedMarker(tripId);
+            createQuantileMarkers(tripId);
             animateChangedIcons(previousTripId);
         }
 
@@ -982,6 +997,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             String previousTripId = mSelectedTripId;
             mSelectedTripId = null;
             removeDataReceivedMarker();
+            removeQuantileMarkers();
             animateChangedIcons(previousTripId);
         }
 
@@ -1040,6 +1056,73 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 mDataReceivedMarker = null;
                 mLastDataReceivedLabel = null;
             }
+        }
+
+        // --- Quantile marker lifecycle ---
+
+        private BitmapDescriptor getQuantileDotIcon(ObaTripStatus status) {
+            if (mQuantileDotIcon != null) return mQuantileDotIcon;
+
+            int colorResource = getDeviationColorResource(isLocationRealtime(status), status);
+            int baseColor = ContextCompat.getColor(mActivity, colorResource);
+            int color = (baseColor & 0x00FFFFFF) | (QUANTILE_DOT_ALPHA << 24);
+
+            float density = mActivity.getResources().getDisplayMetrics().density;
+            int radiusPx = (int) (QUANTILE_DOT_RADIUS_DP * density);
+            int strokePx = (int) (1.5f * density);
+            int size = (radiusPx + strokePx) * 2;
+            float cx = size / 2f;
+            float cy = size / 2f;
+
+            Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+            Canvas c = new Canvas(bmp);
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            paint.setColor(0x99FFFFFF);
+            paint.setStyle(Paint.Style.FILL);
+            c.drawCircle(cx, cy, radiusPx + strokePx, paint);
+            paint.setColor(color);
+            c.drawCircle(cx, cy, radiusPx, paint);
+
+            mQuantileDotIcon = BitmapDescriptorFactory.fromBitmap(bmp);
+            return mQuantileDotIcon;
+        }
+
+        private void createQuantileMarkers(String tripId) {
+            if (tripId == null || mLastResponse == null) return;
+            Marker vehicleMarker = mVehicleMarkers.get(tripId);
+            if (vehicleMarker == null) return;
+            ObaTripStatus status = mVehicles.get(vehicleMarker);
+            if (status == null) return;
+
+            LatLng pos = vehicleMarker.getPosition();
+            BitmapDescriptor icon = getQuantileDotIcon(status);
+
+            mQuantile10Marker = mMap.addMarker(new MarkerOptions()
+                    .position(pos)
+                    .icon(icon)
+                    .anchor(0.5f, 0.5f)
+                    .zIndex(QUANTILE_MARKER_Z_INDEX)
+                    .visible(false)
+            );
+            mQuantile90Marker = mMap.addMarker(new MarkerOptions()
+                    .position(pos)
+                    .icon(icon)
+                    .anchor(0.5f, 0.5f)
+                    .zIndex(QUANTILE_MARKER_Z_INDEX)
+                    .visible(false)
+            );
+        }
+
+        private void removeQuantileMarkers() {
+            if (mQuantile10Marker != null) {
+                mQuantile10Marker.remove();
+                mQuantile10Marker = null;
+            }
+            if (mQuantile90Marker != null) {
+                mQuantile90Marker.remove();
+                mQuantile90Marker = null;
+            }
+            mQuantileDotIcon = null;
         }
 
         private String formatElapsedTime(long lastUpdateTime) {
@@ -1203,6 +1286,12 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
             long now = System.currentTimeMillis();
 
+            // Capture selected-trip data for quantile markers
+            GammaSpeedModel.GammaParams selectedParams = null;
+            List<Location> selectedShape = null;
+            double[] selectedCumDist = null;
+            List<VehicleHistoryEntry> selectedHistory = null;
+
             for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
                 String tripId = entry.getKey();
                 Marker marker = entry.getValue();
@@ -1213,7 +1302,24 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
                 List<VehicleHistoryEntry> history = tracker.getHistoryReadOnly(tripId);
                 Double speed = tracker.getEstimatedSpeed(tripId);
-                if (history == null || history.isEmpty() || speed == null) continue;
+                if (history == null || history.isEmpty() || speed == null) {
+                    // Still capture shape/history for quantile display even if speed is null
+                    if (tripId.equals(mSelectedTripId)) {
+                        selectedParams = tracker.getLastGammaParams();
+                        selectedShape = shape;
+                        selectedCumDist = cumDist;
+                        selectedHistory = history;
+                    }
+                    continue;
+                }
+
+                // Capture gamma params for the selected trip
+                if (tripId.equals(mSelectedTripId)) {
+                    selectedParams = tracker.getLastGammaParams();
+                    selectedShape = shape;
+                    selectedCumDist = cumDist;
+                    selectedHistory = history;
+                }
 
                 Double extrapolatedDist = DistanceExtrapolator.extrapolateDistance(
                         history, speed, now);
@@ -1227,6 +1333,74 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 marker.setPosition(new LatLng(
                         mReusableLocation.getLatitude(), mReusableLocation.getLongitude()));
             }
+
+            // Update quantile markers for the selected vehicle
+            updateQuantileMarkers(selectedParams, selectedShape, selectedCumDist,
+                    selectedHistory, now);
+        }
+
+        private void updateQuantileMarkers(GammaSpeedModel.GammaParams params,
+                                            List<Location> shape, double[] cumDist,
+                                            List<VehicleHistoryEntry> history, long now) {
+            if (mQuantile10Marker == null || mQuantile90Marker == null) return;
+
+            if (params == null || shape == null || cumDist == null
+                    || history == null || history.isEmpty()) {
+                mQuantile10Marker.setVisible(false);
+                mQuantile90Marker.setVisible(false);
+                return;
+            }
+
+            VehicleHistoryEntry newest = DistanceExtrapolator.findNewestValidEntry(history);
+            if (newest == null) {
+                mQuantile10Marker.setVisible(false);
+                mQuantile90Marker.setVisible(false);
+                return;
+            }
+
+            Double lastDist = newest.getBestDistanceAlongTrip();
+            long lastTime = newest.getLastLocationUpdateTime();
+            if (lastDist == null || lastTime <= 0) {
+                mQuantile10Marker.setVisible(false);
+                mQuantile90Marker.setVisible(false);
+                return;
+            }
+
+            double dtSec = (now - lastTime) / 1000.0;
+            if (dtSec < 0.5) {
+                // Distribution too narrow to be meaningful
+                mQuantile10Marker.setVisible(false);
+                mQuantile90Marker.setVisible(false);
+                return;
+            }
+
+            double speed10Mph = GammaSpeedModel.quantile(0.10, params);
+            double speed90Mph = GammaSpeedModel.quantile(0.90, params);
+            double speed10Mps = speed10Mph / GammaSpeedModel.MPS_TO_MPH;
+            double speed90Mps = speed90Mph / GammaSpeedModel.MPS_TO_MPH;
+
+            double dist10 = lastDist + speed10Mps * dtSec;
+            double dist90 = lastDist + speed90Mps * dtSec;
+
+            if (DistanceExtrapolator.interpolateAlongPolyline(
+                    shape, cumDist, dist10, mQuantileReusableLoc)) {
+                mQuantile10Marker.setPosition(new LatLng(
+                        mQuantileReusableLoc.getLatitude(),
+                        mQuantileReusableLoc.getLongitude()));
+                mQuantile10Marker.setVisible(true);
+            } else {
+                mQuantile10Marker.setVisible(false);
+            }
+
+            if (DistanceExtrapolator.interpolateAlongPolyline(
+                    shape, cumDist, dist90, mQuantileReusableLoc)) {
+                mQuantile90Marker.setPosition(new LatLng(
+                        mQuantileReusableLoc.getLatitude(),
+                        mQuantileReusableLoc.getLongitude()));
+                mQuantile90Marker.setVisible(true);
+            } else {
+                mQuantile90Marker.setVisible(false);
+            }
         }
 
         /**
@@ -1234,6 +1408,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
          */
         synchronized void clear() {
             removeDataReceivedMarker();
+            removeQuantileMarkers();
             if (mVehicleMarkers != null) {
                 // Clear all markers from the map
                 removeMarkersFromMap();

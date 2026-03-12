@@ -1094,27 +1094,30 @@ public class BaseMapFragment extends SupportMapFragment
             if (clear) {
                 mLineOverlay.clear();
             }
-            PolylineOptions lineOptions;
-            StampStyle polylineArrow = TextureStyle.newBuilder(BitmapDescriptorFactory.fromResource(R.drawable.ic_navigation_expand_more)).build();
-            StyleSpan polylineArrowSpan = new StyleSpan(StrokeStyle.colorBuilder(lineOverlayColor).stamp(polylineArrow).build());
-
             int totalPoints = 0;
-
             for (ObaShape s : shapes) {
-                lineOptions = new PolylineOptions();
-                lineOptions.addSpan(polylineArrowSpan);
-
-                for (Location l : s.getPoints()) {
-                    lineOptions.add(MapHelpV2.makeLatLng(l));
-                }
-                // Add the line to the map, and keep a reference in the ArrayList
-                mLineOverlay.add(mMap.addPolyline(lineOptions));
-
-                totalPoints += lineOptions.getPoints().size();
+                totalPoints += addArrowPolyline(s.getPoints(), lineOverlayColor);
             }
-
             Log.d(TAG, "Total points for route polylines = " + totalPoints);
         }
+    }
+
+    /**
+     * Creates a directional arrow polyline from the given points and adds it to the map.
+     * @return the number of points in the polyline
+     */
+    private int addArrowPolyline(List<Location> points, int color) {
+        StampStyle arrow = TextureStyle.newBuilder(
+                BitmapDescriptorFactory.fromResource(R.drawable.ic_navigation_expand_more))
+                .build();
+        PolylineOptions lineOptions = new PolylineOptions();
+        lineOptions.addSpan(new StyleSpan(StrokeStyle.colorBuilder(color)
+                .stamp(arrow).build()));
+        for (Location l : points) {
+            lineOptions.add(MapHelpV2.makeLatLng(l));
+        }
+        mLineOverlay.add(mMap.addPolyline(lineOptions));
+        return lineOptions.getPoints().size();
     }
 
     @Override
@@ -1317,43 +1320,35 @@ public class BaseMapFragment extends SupportMapFragment
     @Override
     public void onVehicleSelected(String tripId) {
         VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-        List<Location> tripShape = tracker.getShape(tripId);
-        ObaTripSchedule schedule = tracker.getSchedule(tripId);
+        showTripPolyline(tracker.getShape(tripId));
+        showTripStops(tracker.getSchedule(tripId));
+    }
 
-        // Swap route polyline to trip-specific shape
+    private void showTripPolyline(List<Location> tripShape) {
         if (tripShape != null && mMap != null) {
             removeRouteOverlay();
-            PolylineOptions lineOptions = new PolylineOptions();
-            StampStyle arrow = TextureStyle.newBuilder(
-                    BitmapDescriptorFactory.fromResource(R.drawable.ic_navigation_expand_more))
-                    .build();
-            lineOptions.addSpan(new StyleSpan(StrokeStyle.colorBuilder(mSavedRouteOverlayColor)
-                    .stamp(arrow).build()));
-            for (Location l : tripShape) {
-                lineOptions.add(MapHelpV2.makeLatLng(l));
-            }
-            mLineOverlay.add(mMap.addPolyline(lineOptions));
+            addArrowPolyline(tripShape, mSavedRouteOverlayColor);
         }
+    }
 
-        // Swap stops to trip-specific subset
-        if (schedule != null && mSavedRouteStops != null && mSavedRouteRefs != null) {
-            ObaTripSchedule.StopTime[] stopTimes = schedule.getStopTimes();
-            if (stopTimes != null && stopTimes.length > 0) {
-                HashSet<String> tripStopIds = new HashSet<>();
-                for (ObaTripSchedule.StopTime st : stopTimes) {
-                    tripStopIds.add(st.getStopId());
-                }
-                List<ObaStop> filteredStops = new ArrayList<>();
-                for (ObaStop stop : mSavedRouteStops) {
-                    if (tripStopIds.contains(stop.getId())) {
-                        filteredStops.add(stop);
-                    }
-                }
-                if (setupStopOverlay()) {
-                    mStopOverlay.clear(false);
-                    mStopOverlay.populateStops(filteredStops, mSavedRouteRefs);
-                }
+    private void showTripStops(ObaTripSchedule schedule) {
+        if (schedule == null || mSavedRouteStops == null || mSavedRouteRefs == null) return;
+        ObaTripSchedule.StopTime[] stopTimes = schedule.getStopTimes();
+        if (stopTimes == null || stopTimes.length == 0) return;
+
+        HashSet<String> tripStopIds = new HashSet<>();
+        for (ObaTripSchedule.StopTime st : stopTimes) {
+            tripStopIds.add(st.getStopId());
+        }
+        List<ObaStop> filteredStops = new ArrayList<>();
+        for (ObaStop stop : mSavedRouteStops) {
+            if (tripStopIds.contains(stop.getId())) {
+                filteredStops.add(stop);
             }
+        }
+        if (setupStopOverlay()) {
+            mStopOverlay.clear(false);
+            mStopOverlay.populateStops(filteredStops, mSavedRouteRefs);
         }
     }
 

@@ -642,7 +642,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         private HashMap<String, Marker> mVehicleMarkers;
 
         /** The activeTripId of the currently-selected (info-window-open) vehicle, or null. */
-        private String mSelectedTripId;
+        private volatile String mSelectedTripId;
 
         /** Marker showing the most recent AVL data-received position for the selected vehicle. */
         private Marker mDataReceivedMarker;

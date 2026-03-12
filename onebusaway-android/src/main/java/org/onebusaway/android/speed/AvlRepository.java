@@ -68,15 +68,22 @@ public final class AvlRepository {
             return;
         }
 
-        List<VehicleHistoryEntry> history = tripHistory.get(tripId);
-        if (history == null) {
-            history = new ArrayList<>();
-            tripHistory.put(tripId, history);
+        // Only record entries backed by real-time AVL data.
+        // predicted=false means the server has no GPS for this vehicle
+        // and is returning a schedule-derived position.
+        if (!state.isPredicted()) {
+            return;
         }
 
         long locUpdateTime = state.getLastLocationUpdateTime();
         if (locUpdateTime <= 0) {
             return;
+        }
+
+        List<VehicleHistoryEntry> history = tripHistory.get(tripId);
+        if (history == null) {
+            history = new ArrayList<>();
+            tripHistory.put(tripId, history);
         }
 
         // Skip if lastLocationUpdateTime hasn't advanced

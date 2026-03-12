@@ -647,17 +647,13 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         /** Markers showing the 10th and 90th percentile predicted positions. */
         private Marker mQuantile10Marker;
         private Marker mQuantile90Marker;
-        /** Cached icons: [0]=normal text, [1]=flipped text (rotated 180° in place) */
-        private BitmapDescriptor[] mQuantileSlowIcons;
-        private BitmapDescriptor[] mQuantileFastIcons;
+        private BitmapDescriptor mQuantileSlowIcon;
+        private BitmapDescriptor mQuantileFastIcon;
         private float mQuantileAnchorX;
         /** Cached quantile speeds in m/s — only recomputed when gamma params change. */
         private GammaSpeedModel.GammaParams mCachedQuantileParams;
         private double mCachedSpeed10Mps;
         private double mCachedSpeed90Mps;
-        /** Current flip state for each quantile marker. */
-        private boolean mQuantile10Flipped;
-        private boolean mQuantile90Flipped;
 
         private static final int QUANTILE_DOT_RADIUS_DP = 6;
         private static final int QUANTILE_DOT_ALPHA = 0xBB;
@@ -1079,11 +1075,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
          * Returns the anchor X fraction (dot center / total width) via the first element of
          * outAnchorX if non-null, so callers can avoid recomputing layout metrics.
          *
-         * @param flipText if true, mirror the text (scale -1,-1) so it reads correctly
-         *                 when the flat marker is rotated into the opposite heading range
          */
         private BitmapDescriptor createQuantileLabelIcon(ObaTripStatus status, String label,
-                                                          boolean flipText,
                                                           float[] outAnchorX) {
             int colorResource = getDeviationColorResource(isLocationRealtime(status), status);
             int baseColor = ContextCompat.getColor(mActivity, colorResource);
@@ -1137,18 +1130,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     bubbleLeft + bubbleWidth, bubbleTop + bubbleHeight,
                     cornerRadius, cornerRadius, bgPaint);
 
-            // Draw text — flip vertically if needed
             float textX = bubbleLeft + padX;
             float textY = bubbleTop + padY - fm.ascent;
-            if (flipText) {
-                float bubbleCenterY = bubbleTop + bubbleHeight / 2f;
-                c.save();
-                c.scale(-1, -1, bubbleLeft + bubbleWidth / 2f, bubbleCenterY);
-                c.drawText(label, textX, textY, textPaint);
-                c.restore();
-            } else {
-                c.drawText(label, textX, textY, textPaint);
-            }
+            c.drawText(label, textX, textY, textPaint);
 
             if (outAnchorX != null && outAnchorX.length > 0) {
                 outAnchorX[0] = dotCx / totalWidth;
@@ -1156,35 +1140,55 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             return BitmapDescriptorFactory.fromBitmap(bmp);
         }
 
-        /**
-         * Returns true if the label text needs to be flipped (use left-variant icon).
-         * Label angle = heading - 90 (CCW). If label angle is in [0, 180), flip.
-         */
-        private boolean shouldFlipLabel(double heading) {
-            double labelAngle = (heading - 90 + 360) % 360;
-            return labelAngle >= 180 && labelAngle < 360;
+        private static final double LABEL_DEADZONE_DEG = 20.0;
+
+        /** Normalizes an angle to [0, 360). Java's % preserves sign, so this avoids negative results. */
+        private double normalizeDeg(double angle) {
+            return ((angle % 360) + 360) % 360;
         }
 
-        private static final double VERTICAL_DEADZONE_DEG = 20.0;
-
         /**
-         * Clamps heading away from 90° and 270° (which produce near-vertical labels)
-         * by snapping to the edge of ±20° deadzones around those angles.
+         * Converts a vehicle heading to the compass direction the label visually
+         * extends toward on the map (the "label azimuth").
+         * Picks heading + 90 or heading − 90, whichever places the label in the
+         * [0°, 180°] sector (the right/eastern half), so text is always upright.
          */
-        private double clampHeadingAwayFromVertical(double heading) {
-            heading = clampAwayFrom(heading, 90);
-            heading = clampAwayFrom(heading, 270);
-            return heading;
+        private double headingToLabelAzimuth(double heading) {
+            double az = normalizeDeg(heading - 90);
+            if (az > 180) {
+                az = normalizeDeg(heading + 90);
+            }
+            return az;
         }
 
-        private double clampAwayFrom(double heading, double center) {
-            if (heading >= center - VERTICAL_DEADZONE_DEG && heading < center) {
-                return center - VERTICAL_DEADZONE_DEG;
+        /**
+         * Computes the label azimuth for the given heading, clamped away from
+         * 0° (north/up) and 180° (south/down) deadzones.
+         * The result is always in [DEADZONE, 180 − DEADZONE], so the label
+         * is always on the right side and text is always upright.
+         */
+        private double clampedLabelAzimuth(double heading) {
+            double labelAz = headingToLabelAzimuth(heading);
+            labelAz = clampAzimuthAwayFrom(labelAz, 0);
+            labelAz = clampAzimuthAwayFrom(labelAz, 180);
+            return labelAz;
+        }
+
+        /**
+         * Clamps a degree value [0, 360) away from center by ±LABEL_DEADZONE_DEG,
+         * with circular wraparound.
+         */
+        private double clampAzimuthAwayFrom(double value, double center) {
+            double delta = value - center;
+            if (delta > 180) delta -= 360;
+            if (delta < -180) delta += 360;
+            if (delta >= -LABEL_DEADZONE_DEG && delta < 0) {
+                return normalizeDeg(center - LABEL_DEADZONE_DEG);
             }
-            if (heading >= center && heading < center + VERTICAL_DEADZONE_DEG) {
-                return center + VERTICAL_DEADZONE_DEG;
+            if (delta >= 0 && delta < LABEL_DEADZONE_DEG) {
+                return normalizeDeg(center + LABEL_DEADZONE_DEG);
             }
-            return heading;
+            return value;
         }
 
         private void createQuantileMarkers(String tripId) {
@@ -1194,20 +1198,15 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             ObaTripStatus status = mVehicles.get(vehicleMarker);
             if (status == null) return;
 
-            // Pre-create normal and flip-text icon variants; extract anchor X
-            // from the first icon's layout to avoid duplicating layout math.
             float[] anchorOut = new float[1];
-            mQuantileSlowIcons = createQuantileIconPair(status, QUANTILE_SLOW_LABEL, anchorOut);
+            mQuantileSlowIcon = createQuantileLabelIcon(status, QUANTILE_SLOW_LABEL, anchorOut);
             mQuantileAnchorX = anchorOut[0];
-            mQuantileFastIcons = createQuantileIconPair(status, QUANTILE_FAST_LABEL, null);
-
-            LatLng pos = vehicleMarker.getPosition();
-            mQuantile10Flipped = false;
-            mQuantile90Flipped = false;
+            mQuantileFastIcon = createQuantileLabelIcon(status, QUANTILE_FAST_LABEL, null);
             mCachedQuantileParams = null;
 
-            mQuantile10Marker = addFlatQuantileMarker(pos, mQuantileSlowIcons[0]);
-            mQuantile90Marker = addFlatQuantileMarker(pos, mQuantileFastIcons[0]);
+            LatLng pos = vehicleMarker.getPosition();
+            mQuantile10Marker = addFlatQuantileMarker(pos, mQuantileSlowIcon);
+            mQuantile90Marker = addFlatQuantileMarker(pos, mQuantileFastIcon);
         }
 
         private void removeQuantileMarkers() {
@@ -1219,18 +1218,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 mQuantile90Marker.remove();
                 mQuantile90Marker = null;
             }
-            mQuantileSlowIcons = null;
-            mQuantileFastIcons = null;
+            mQuantileSlowIcon = null;
+            mQuantileFastIcon = null;
             mCachedQuantileParams = null;
-        }
-
-        /** Creates [normal, flipped] icon pair for a label. Writes anchor X to outAnchorX[0] if non-null. */
-        private BitmapDescriptor[] createQuantileIconPair(ObaTripStatus status, String label,
-                                                           float[] outAnchorX) {
-            return new BitmapDescriptor[]{
-                    createQuantileLabelIcon(status, label, false, outAnchorX),
-                    createQuantileLabelIcon(status, label, true, null)
-            };
         }
 
         private Marker addFlatQuantileMarker(LatLng pos, BitmapDescriptor icon) {
@@ -1497,25 +1487,21 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             double dist10 = lastDist + mCachedSpeed10Mps * dtSec;
             double dist90 = lastDist + mCachedSpeed90Mps * dtSec;
 
-            mQuantile10Flipped = updateSingleQuantileMarker(
-                    mQuantile10Marker, dist10, shape, cumDist,
-                    mQuantileSlowIcons, mQuantile10Flipped);
-            mQuantile90Flipped = updateSingleQuantileMarker(
-                    mQuantile90Marker, dist90, shape, cumDist,
-                    mQuantileFastIcons, mQuantile90Flipped);
+            updateSingleQuantileMarker(mQuantile10Marker, dist10, shape, cumDist);
+            updateSingleQuantileMarker(mQuantile90Marker, dist90, shape, cumDist);
         }
 
         /**
-         * Updates a single quantile marker's position, rotation, and flip state.
-         * Returns the new flip state for the marker.
+         * Updates a single quantile marker's position and rotation.
+         * Label azimuth is always in [0°, 180°] (right side), so text is
+         * always upright — no icon flipping needed.
          */
-        private boolean updateSingleQuantileMarker(Marker marker, double distance,
-                                                    List<Location> shape, double[] cumDist,
-                                                    BitmapDescriptor[] icons, boolean wasFlipped) {
+        private void updateSingleQuantileMarker(Marker marker, double distance,
+                                                 List<Location> shape, double[] cumDist) {
             if (!DistanceExtrapolator.interpolateAlongPolyline(
                     shape, cumDist, distance, mQuantileReusableLoc)) {
                 marker.setVisible(false);
-                return wasFlipped;
+                return;
             }
             marker.setPosition(new LatLng(
                     mQuantileReusableLoc.getLatitude(),
@@ -1523,16 +1509,10 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             double heading = DistanceExtrapolator.headingAlongPolyline(
                     shape, cumDist, distance);
             if (!Double.isNaN(heading)) {
-                heading = clampHeadingAwayFromVertical(heading);
-                marker.setRotation((float) (heading - 180.0));
-                boolean flipped = shouldFlipLabel(heading);
-                if (flipped != wasFlipped && icons != null) {
-                    marker.setIcon(icons[flipped ? 1 : 0]);
-                    wasFlipped = flipped;
-                }
+                double labelAz = clampedLabelAzimuth(heading);
+                marker.setRotation((float) (labelAz - 90.0));
             }
             marker.setVisible(true);
-            return wasFlipped;
         }
 
         /**

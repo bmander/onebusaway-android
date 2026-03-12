@@ -1165,6 +1165,28 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             return labelAngle >= 180 && labelAngle < 360;
         }
 
+        private static final double VERTICAL_DEADZONE_DEG = 20.0;
+
+        /**
+         * Clamps heading away from 90° and 270° (which produce near-vertical labels)
+         * by snapping to the edge of ±20° deadzones around those angles.
+         */
+        private double clampHeadingAwayFromVertical(double heading) {
+            heading = clampAwayFrom(heading, 90);
+            heading = clampAwayFrom(heading, 270);
+            return heading;
+        }
+
+        private double clampAwayFrom(double heading, double center) {
+            if (heading >= center - VERTICAL_DEADZONE_DEG && heading < center) {
+                return center - VERTICAL_DEADZONE_DEG;
+            }
+            if (heading >= center && heading < center + VERTICAL_DEADZONE_DEG) {
+                return center + VERTICAL_DEADZONE_DEG;
+            }
+            return heading;
+        }
+
         private void createQuantileMarkers(String tripId) {
             if (tripId == null || mLastResponse == null) return;
             Marker vehicleMarker = mVehicleMarkers.get(tripId);
@@ -1501,6 +1523,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             double heading = DistanceExtrapolator.headingAlongPolyline(
                     shape, cumDist, distance);
             if (!Double.isNaN(heading)) {
+                heading = clampHeadingAwayFromVertical(heading);
                 marker.setRotation((float) (heading - 180.0));
                 boolean flipped = shouldFlipLabel(heading);
                 if (flipped != wasFlipped && icons != null) {

@@ -647,11 +647,21 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         /** Markers showing the 10th and 90th percentile predicted positions. */
         private Marker mQuantile10Marker;
         private Marker mQuantile90Marker;
-        private BitmapDescriptor mQuantileDotIcon;
+        /** Cached icons: [0]=normal text, [1]=flipped text (rotated 180° in place) */
+        private BitmapDescriptor[] mQuantileSlowIcons;
+        private BitmapDescriptor[] mQuantileFastIcons;
+        private float mQuantileAnchorX;
+        /** true = currently showing normal (non-flipped) text */
+        private boolean mQuantile10Normal = true;
+        private boolean mQuantile90Normal = true;
 
         private static final int QUANTILE_DOT_RADIUS_DP = 6;
         private static final int QUANTILE_DOT_ALPHA = 0xBB;
         private static final float QUANTILE_MARKER_Z_INDEX = VEHICLE_MARKER_Z_INDEX - 0.5f;
+        private static final int QUANTILE_LABEL_SP = 10;
+        private static final int QUANTILE_LABEL_GAP_DP = 3;
+        private static final String QUANTILE_SLOW_LABEL = "slow est.";
+        private static final String QUANTILE_FAST_LABEL = "fast est.";
 
         /** Reusable Location for quantile interpolation to avoid per-frame allocation. */
         private final Location mQuantileReusableLoc = new Location("quantile");
@@ -1060,31 +1070,94 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
         // --- Quantile marker lifecycle ---
 
-        private BitmapDescriptor getQuantileDotIcon(ObaTripStatus status) {
-            if (mQuantileDotIcon != null) return mQuantileDotIcon;
-
+        /**
+         * Creates a quantile marker icon: a dot with a text bubble beside it.
+         *
+         * @param labelOnRight true = bubble to the right of the dot; false = to the left
+         */
+        /**
+         * Creates a quantile marker icon: a dot on the left with a text bubble to its right.
+         *
+         * @param flipText if true, mirror the text vertically (scale Y by -1) so it reads
+         *                 correctly when the flat marker is rotated into the [0,180) range
+         */
+        private BitmapDescriptor createQuantileLabelIcon(ObaTripStatus status, String label,
+                                                          boolean flipText) {
             int colorResource = getDeviationColorResource(isLocationRealtime(status), status);
             int baseColor = ContextCompat.getColor(mActivity, colorResource);
-            int color = (baseColor & 0x00FFFFFF) | (QUANTILE_DOT_ALPHA << 24);
+            int dotColor = (baseColor & 0x00FFFFFF) | (QUANTILE_DOT_ALPHA << 24);
 
-            float density = mActivity.getResources().getDisplayMetrics().density;
-            int radiusPx = (int) (QUANTILE_DOT_RADIUS_DP * density);
-            int strokePx = (int) (1.5f * density);
-            int size = (radiusPx + strokePx) * 2;
-            float cx = size / 2f;
-            float cy = size / 2f;
+            float d = mActivity.getResources().getDisplayMetrics().density;
+            int dotRadius = (int) (QUANTILE_DOT_RADIUS_DP * d);
+            int dotStroke = (int) (1.5f * d);
+            int dotSize = (dotRadius + dotStroke) * 2;
+            int gap = (int) (QUANTILE_LABEL_GAP_DP * d);
 
-            Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+            // Text measurement
+            Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            textPaint.setTextSize(QUANTILE_LABEL_SP * d);
+            textPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            textPaint.setColor(0xFF616161);
+            Paint.FontMetrics fm = textPaint.getFontMetrics();
+            float textWidth = textPaint.measureText(label);
+            int textHeight = (int) Math.ceil(fm.descent - fm.ascent);
+
+            float padX = 4 * d;
+            float padY = 2 * d;
+            int bubbleWidth = (int) (textWidth + padX * 2);
+            int bubbleHeight = (int) (textHeight + padY * 2);
+            float cornerRadius = 3 * d;
+
+            int totalWidth = dotSize + gap + bubbleWidth;
+            int totalHeight = Math.max(dotSize, bubbleHeight);
+
+            Bitmap bmp = Bitmap.createBitmap(totalWidth, totalHeight, Bitmap.Config.ARGB_8888);
             Canvas c = new Canvas(bmp);
+
+            float dotCx = dotSize / 2f;
+            float bubbleLeft = dotSize + gap;
+
+            // Draw dot
+            float dotCy = totalHeight / 2f;
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             paint.setColor(0x99FFFFFF);
             paint.setStyle(Paint.Style.FILL);
-            c.drawCircle(cx, cy, radiusPx + strokePx, paint);
-            paint.setColor(color);
-            c.drawCircle(cx, cy, radiusPx, paint);
+            c.drawCircle(dotCx, dotCy, dotRadius + dotStroke, paint);
+            paint.setColor(dotColor);
+            c.drawCircle(dotCx, dotCy, dotRadius, paint);
 
-            mQuantileDotIcon = BitmapDescriptorFactory.fromBitmap(bmp);
-            return mQuantileDotIcon;
+            // Draw bubble background
+            float bubbleTop = (totalHeight - bubbleHeight) / 2f;
+            Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            bgPaint.setColor(0xDDFFFFFF);
+            bgPaint.setStyle(Paint.Style.FILL);
+            c.drawRoundRect(bubbleLeft, bubbleTop,
+                    bubbleLeft + bubbleWidth, bubbleTop + bubbleHeight,
+                    cornerRadius, cornerRadius, bgPaint);
+
+            // Draw text — flip vertically if needed
+            float textX = bubbleLeft + padX;
+            float textY = bubbleTop + padY - fm.ascent;
+            if (flipText) {
+                float bubbleCenterY = bubbleTop + bubbleHeight / 2f;
+                c.save();
+                c.scale(-1, -1, bubbleLeft + bubbleWidth / 2f, bubbleCenterY);
+                c.drawText(label, textX, textY, textPaint);
+                c.restore();
+            } else {
+                c.drawText(label, textX, textY, textPaint);
+            }
+
+            return BitmapDescriptorFactory.fromBitmap(bmp);
+        }
+
+        /**
+         * Returns true if the label text needs to be flipped (use left-variant icon).
+         * Label angle = heading - 90 (CCW). If label angle is in [0, 180), flip.
+         */
+        private boolean shouldFlipLabel(double heading) {
+            double labelAngle = (heading - 90 + 360) % 360;
+            return labelAngle >= 180 && labelAngle < 360;
         }
 
         private void createQuantileMarkers(String tripId) {
@@ -1094,20 +1167,48 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             ObaTripStatus status = mVehicles.get(vehicleMarker);
             if (status == null) return;
 
+            // Pre-create normal and flip-text icon variants
+            mQuantileSlowIcons = new BitmapDescriptor[]{
+                    createQuantileLabelIcon(status, QUANTILE_SLOW_LABEL, false),
+                    createQuantileLabelIcon(status, QUANTILE_SLOW_LABEL, true)
+            };
+            mQuantileFastIcons = new BitmapDescriptor[]{
+                    createQuantileLabelIcon(status, QUANTILE_FAST_LABEL, false),
+                    createQuantileLabelIcon(status, QUANTILE_FAST_LABEL, true)
+            };
+
+            // Compute anchor X (same for both variants — dot is always on the left)
+            float d = mActivity.getResources().getDisplayMetrics().density;
+            int dotRadius = (int) (QUANTILE_DOT_RADIUS_DP * d);
+            int dotStroke = (int) (1.5f * d);
+            int dotSize = (dotRadius + dotStroke) * 2;
+            Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            textPaint.setTextSize(QUANTILE_LABEL_SP * d);
+            textPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            float textWidth = textPaint.measureText(QUANTILE_SLOW_LABEL);
+            float padX = 4 * d;
+            int gap = (int) (QUANTILE_LABEL_GAP_DP * d);
+            int bubbleWidth = (int) (textWidth + padX * 2);
+            int totalWidth = dotSize + gap + bubbleWidth;
+            mQuantileAnchorX = (dotSize / 2f) / totalWidth;
+
             LatLng pos = vehicleMarker.getPosition();
-            BitmapDescriptor icon = getQuantileDotIcon(status);
+            mQuantile10Normal = true;
+            mQuantile90Normal = true;
 
             mQuantile10Marker = mMap.addMarker(new MarkerOptions()
                     .position(pos)
-                    .icon(icon)
-                    .anchor(0.5f, 0.5f)
+                    .icon(mQuantileSlowIcons[0])
+                    .anchor(mQuantileAnchorX, 0.5f)
+                    .flat(true)
                     .zIndex(QUANTILE_MARKER_Z_INDEX)
                     .visible(false)
             );
             mQuantile90Marker = mMap.addMarker(new MarkerOptions()
                     .position(pos)
-                    .icon(icon)
-                    .anchor(0.5f, 0.5f)
+                    .icon(mQuantileFastIcons[0])
+                    .anchor(mQuantileAnchorX, 0.5f)
+                    .flat(true)
                     .zIndex(QUANTILE_MARKER_Z_INDEX)
                     .visible(false)
             );
@@ -1122,7 +1223,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 mQuantile90Marker.remove();
                 mQuantile90Marker = null;
             }
-            mQuantileDotIcon = null;
+            mQuantileSlowIcons = null;
+            mQuantileFastIcons = null;
         }
 
         private String formatElapsedTime(long lastUpdateTime) {
@@ -1387,6 +1489,17 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 mQuantile10Marker.setPosition(new LatLng(
                         mQuantileReusableLoc.getLatitude(),
                         mQuantileReusableLoc.getLongitude()));
+                double heading10 = DistanceExtrapolator.headingAlongPolyline(
+                        shape, cumDist, dist10);
+                if (!Double.isNaN(heading10)) {
+                    mQuantile10Marker.setRotation((float) (heading10 - 180.0));
+                    boolean flip10 = shouldFlipLabel(heading10);
+                    boolean normal10 = !flip10;
+                    if (normal10 != mQuantile10Normal && mQuantileSlowIcons != null) {
+                        mQuantile10Normal = normal10;
+                        mQuantile10Marker.setIcon(mQuantileSlowIcons[flip10 ? 1 : 0]);
+                    }
+                }
                 mQuantile10Marker.setVisible(true);
             } else {
                 mQuantile10Marker.setVisible(false);
@@ -1397,6 +1510,17 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 mQuantile90Marker.setPosition(new LatLng(
                         mQuantileReusableLoc.getLatitude(),
                         mQuantileReusableLoc.getLongitude()));
+                double heading90 = DistanceExtrapolator.headingAlongPolyline(
+                        shape, cumDist, dist90);
+                if (!Double.isNaN(heading90)) {
+                    mQuantile90Marker.setRotation((float) (heading90 - 180.0));
+                    boolean flip90 = shouldFlipLabel(heading90);
+                    boolean normal90 = !flip90;
+                    if (normal90 != mQuantile90Normal && mQuantileFastIcons != null) {
+                        mQuantile90Normal = normal90;
+                        mQuantile90Marker.setIcon(mQuantileFastIcons[flip90 ? 1 : 0]);
+                    }
+                }
                 mQuantile90Marker.setVisible(true);
             } else {
                 mQuantile90Marker.setVisible(false);

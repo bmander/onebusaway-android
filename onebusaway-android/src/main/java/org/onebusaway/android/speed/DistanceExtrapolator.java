@@ -236,4 +236,61 @@ public final class DistanceExtrapolator {
         out.setLongitude(p0.getLongitude() + fraction * (p1.getLongitude() - p0.getLongitude()));
         return true;
     }
+
+    /**
+     * Returns the bearing (in degrees clockwise from north) of the polyline segment
+     * at the given distance along the polyline. Returns NaN if inputs are invalid.
+     *
+     * @param polylinePoints decoded polyline points (lat/lng)
+     * @param cumDist        precomputed cumulative distances
+     * @param distanceMeters target distance along the polyline in meters
+     * @return bearing in degrees [0, 360), or NaN
+     */
+    public static double headingAlongPolyline(List<Location> polylinePoints,
+                                               double[] cumDist,
+                                               double distanceMeters) {
+        if (polylinePoints == null || polylinePoints.size() < 2 || cumDist == null) {
+            return Double.NaN;
+        }
+
+        // Clamp to valid range
+        if (distanceMeters <= 0) {
+            return bearing(polylinePoints.get(0), polylinePoints.get(1));
+        }
+
+        int idx = Arrays.binarySearch(cumDist, distanceMeters);
+        int insertionPoint;
+        if (idx >= 0) {
+            insertionPoint = idx + 1;
+        } else {
+            insertionPoint = -idx - 1;
+        }
+
+        if (insertionPoint >= polylinePoints.size()) {
+            int n = polylinePoints.size();
+            return bearing(polylinePoints.get(n - 2), polylinePoints.get(n - 1));
+        }
+
+        int segStart = insertionPoint - 1;
+        if (segStart < 0) {
+            return bearing(polylinePoints.get(0), polylinePoints.get(1));
+        }
+
+        return bearing(polylinePoints.get(segStart), polylinePoints.get(insertionPoint));
+    }
+
+    /**
+     * Computes the initial bearing from point A to point B in degrees [0, 360).
+     */
+    private static double bearing(Location a, Location b) {
+        double lat1 = Math.toRadians(a.getLatitude());
+        double lat2 = Math.toRadians(b.getLatitude());
+        double dLon = Math.toRadians(b.getLongitude() - a.getLongitude());
+
+        double y = Math.sin(dLon) * Math.cos(lat2);
+        double x = Math.cos(lat1) * Math.sin(lat2)
+                 - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+        double brng = Math.toDegrees(Math.atan2(y, x));
+        return (brng + 360) % 360;
+    }
 }

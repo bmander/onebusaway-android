@@ -651,9 +651,13 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         private BitmapDescriptor[] mQuantileSlowIcons;
         private BitmapDescriptor[] mQuantileFastIcons;
         private float mQuantileAnchorX;
-        /** true = currently showing normal (non-flipped) text */
-        private boolean mQuantile10Normal = true;
-        private boolean mQuantile90Normal = true;
+        /** Cached quantile speeds in m/s — only recomputed when gamma params change. */
+        private GammaSpeedModel.GammaParams mCachedQuantileParams;
+        private double mCachedSpeed10Mps;
+        private double mCachedSpeed90Mps;
+        /** Current flip state for each quantile marker. */
+        private boolean mQuantile10Flipped;
+        private boolean mQuantile90Flipped;
 
         private static final int QUANTILE_DOT_RADIUS_DP = 6;
         private static final int QUANTILE_DOT_ALPHA = 0xBB;
@@ -1071,18 +1075,16 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         // --- Quantile marker lifecycle ---
 
         /**
-         * Creates a quantile marker icon: a dot with a text bubble beside it.
-         *
-         * @param labelOnRight true = bubble to the right of the dot; false = to the left
-         */
-        /**
          * Creates a quantile marker icon: a dot on the left with a text bubble to its right.
+         * Returns the anchor X fraction (dot center / total width) via the first element of
+         * outAnchorX if non-null, so callers can avoid recomputing layout metrics.
          *
-         * @param flipText if true, mirror the text vertically (scale Y by -1) so it reads
-         *                 correctly when the flat marker is rotated into the [0,180) range
+         * @param flipText if true, mirror the text (scale -1,-1) so it reads correctly
+         *                 when the flat marker is rotated into the opposite heading range
          */
         private BitmapDescriptor createQuantileLabelIcon(ObaTripStatus status, String label,
-                                                          boolean flipText) {
+                                                          boolean flipText,
+                                                          float[] outAnchorX) {
             int colorResource = getDeviationColorResource(isLocationRealtime(status), status);
             int baseColor = ContextCompat.getColor(mActivity, colorResource);
             int dotColor = (baseColor & 0x00FFFFFF) | (QUANTILE_DOT_ALPHA << 24);
@@ -1148,6 +1150,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 c.drawText(label, textX, textY, textPaint);
             }
 
+            if (outAnchorX != null && outAnchorX.length > 0) {
+                outAnchorX[0] = dotCx / totalWidth;
+            }
             return BitmapDescriptorFactory.fromBitmap(bmp);
         }
 
@@ -1167,51 +1172,20 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             ObaTripStatus status = mVehicles.get(vehicleMarker);
             if (status == null) return;
 
-            // Pre-create normal and flip-text icon variants
-            mQuantileSlowIcons = new BitmapDescriptor[]{
-                    createQuantileLabelIcon(status, QUANTILE_SLOW_LABEL, false),
-                    createQuantileLabelIcon(status, QUANTILE_SLOW_LABEL, true)
-            };
-            mQuantileFastIcons = new BitmapDescriptor[]{
-                    createQuantileLabelIcon(status, QUANTILE_FAST_LABEL, false),
-                    createQuantileLabelIcon(status, QUANTILE_FAST_LABEL, true)
-            };
-
-            // Compute anchor X (same for both variants — dot is always on the left)
-            float d = mActivity.getResources().getDisplayMetrics().density;
-            int dotRadius = (int) (QUANTILE_DOT_RADIUS_DP * d);
-            int dotStroke = (int) (1.5f * d);
-            int dotSize = (dotRadius + dotStroke) * 2;
-            Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            textPaint.setTextSize(QUANTILE_LABEL_SP * d);
-            textPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            float textWidth = textPaint.measureText(QUANTILE_SLOW_LABEL);
-            float padX = 4 * d;
-            int gap = (int) (QUANTILE_LABEL_GAP_DP * d);
-            int bubbleWidth = (int) (textWidth + padX * 2);
-            int totalWidth = dotSize + gap + bubbleWidth;
-            mQuantileAnchorX = (dotSize / 2f) / totalWidth;
+            // Pre-create normal and flip-text icon variants; extract anchor X
+            // from the first icon's layout to avoid duplicating layout math.
+            float[] anchorOut = new float[1];
+            mQuantileSlowIcons = createQuantileIconPair(status, QUANTILE_SLOW_LABEL, anchorOut);
+            mQuantileAnchorX = anchorOut[0];
+            mQuantileFastIcons = createQuantileIconPair(status, QUANTILE_FAST_LABEL, null);
 
             LatLng pos = vehicleMarker.getPosition();
-            mQuantile10Normal = true;
-            mQuantile90Normal = true;
+            mQuantile10Flipped = false;
+            mQuantile90Flipped = false;
+            mCachedQuantileParams = null;
 
-            mQuantile10Marker = mMap.addMarker(new MarkerOptions()
-                    .position(pos)
-                    .icon(mQuantileSlowIcons[0])
-                    .anchor(mQuantileAnchorX, 0.5f)
-                    .flat(true)
-                    .zIndex(QUANTILE_MARKER_Z_INDEX)
-                    .visible(false)
-            );
-            mQuantile90Marker = mMap.addMarker(new MarkerOptions()
-                    .position(pos)
-                    .icon(mQuantileFastIcons[0])
-                    .anchor(mQuantileAnchorX, 0.5f)
-                    .flat(true)
-                    .zIndex(QUANTILE_MARKER_Z_INDEX)
-                    .visible(false)
-            );
+            mQuantile10Marker = addFlatQuantileMarker(pos, mQuantileSlowIcons[0]);
+            mQuantile90Marker = addFlatQuantileMarker(pos, mQuantileFastIcons[0]);
         }
 
         private void removeQuantileMarkers() {
@@ -1225,6 +1199,27 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             }
             mQuantileSlowIcons = null;
             mQuantileFastIcons = null;
+            mCachedQuantileParams = null;
+        }
+
+        /** Creates [normal, flipped] icon pair for a label. Writes anchor X to outAnchorX[0] if non-null. */
+        private BitmapDescriptor[] createQuantileIconPair(ObaTripStatus status, String label,
+                                                           float[] outAnchorX) {
+            return new BitmapDescriptor[]{
+                    createQuantileLabelIcon(status, label, false, outAnchorX),
+                    createQuantileLabelIcon(status, label, true, null)
+            };
+        }
+
+        private Marker addFlatQuantileMarker(LatLng pos, BitmapDescriptor icon) {
+            return mMap.addMarker(new MarkerOptions()
+                    .position(pos)
+                    .icon(icon)
+                    .anchor(mQuantileAnchorX, 0.5f)
+                    .flat(true)
+                    .zIndex(QUANTILE_MARKER_Z_INDEX)
+                    .visible(false)
+            );
         }
 
         private String formatElapsedTime(long lastUpdateTime) {
@@ -1404,24 +1399,16 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
                 List<VehicleHistoryEntry> history = tracker.getHistoryReadOnly(tripId);
                 Double speed = tracker.getEstimatedSpeed(tripId);
-                if (history == null || history.isEmpty() || speed == null) {
-                    // Still capture shape/history for quantile display even if speed is null
-                    if (tripId.equals(mSelectedTripId)) {
-                        selectedParams = tracker.getLastGammaParams();
-                        selectedShape = shape;
-                        selectedCumDist = cumDist;
-                        selectedHistory = history;
-                    }
-                    continue;
-                }
 
-                // Capture gamma params for the selected trip
+                // Capture data for quantile markers regardless of speed availability
                 if (tripId.equals(mSelectedTripId)) {
                     selectedParams = tracker.getLastGammaParams();
                     selectedShape = shape;
                     selectedCumDist = cumDist;
                     selectedHistory = history;
                 }
+
+                if (history == null || history.isEmpty() || speed == null) continue;
 
                 Double extrapolatedDist = DistanceExtrapolator.extrapolateDistance(
                         history, speed, now);
@@ -1441,6 +1428,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     selectedHistory, now);
         }
 
+        private void hideQuantileMarkers() {
+            if (mQuantile10Marker != null) mQuantile10Marker.setVisible(false);
+            if (mQuantile90Marker != null) mQuantile90Marker.setVisible(false);
+        }
+
         private void updateQuantileMarkers(GammaSpeedModel.GammaParams params,
                                             List<Location> shape, double[] cumDist,
                                             List<VehicleHistoryEntry> history, long now) {
@@ -1448,83 +1440,76 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
             if (params == null || shape == null || cumDist == null
                     || history == null || history.isEmpty()) {
-                mQuantile10Marker.setVisible(false);
-                mQuantile90Marker.setVisible(false);
+                hideQuantileMarkers();
                 return;
             }
 
             VehicleHistoryEntry newest = DistanceExtrapolator.findNewestValidEntry(history);
             if (newest == null) {
-                mQuantile10Marker.setVisible(false);
-                mQuantile90Marker.setVisible(false);
+                hideQuantileMarkers();
                 return;
             }
 
             Double lastDist = newest.getBestDistanceAlongTrip();
             long lastTime = newest.getLastLocationUpdateTime();
             if (lastDist == null || lastTime <= 0) {
-                mQuantile10Marker.setVisible(false);
-                mQuantile90Marker.setVisible(false);
+                hideQuantileMarkers();
                 return;
             }
 
             double dtSec = (now - lastTime) / 1000.0;
             if (dtSec < 0.5) {
-                // Distribution too narrow to be meaningful
-                mQuantile10Marker.setVisible(false);
-                mQuantile90Marker.setVisible(false);
+                hideQuantileMarkers();
                 return;
             }
 
-            double speed10Mph = GammaSpeedModel.quantile(0.10, params);
-            double speed90Mph = GammaSpeedModel.quantile(0.90, params);
-            double speed10Mps = speed10Mph / GammaSpeedModel.MPS_TO_MPH;
-            double speed90Mps = speed90Mph / GammaSpeedModel.MPS_TO_MPH;
-
-            double dist10 = lastDist + speed10Mps * dtSec;
-            double dist90 = lastDist + speed90Mps * dtSec;
-
-            if (DistanceExtrapolator.interpolateAlongPolyline(
-                    shape, cumDist, dist10, mQuantileReusableLoc)) {
-                mQuantile10Marker.setPosition(new LatLng(
-                        mQuantileReusableLoc.getLatitude(),
-                        mQuantileReusableLoc.getLongitude()));
-                double heading10 = DistanceExtrapolator.headingAlongPolyline(
-                        shape, cumDist, dist10);
-                if (!Double.isNaN(heading10)) {
-                    mQuantile10Marker.setRotation((float) (heading10 - 180.0));
-                    boolean flip10 = shouldFlipLabel(heading10);
-                    boolean normal10 = !flip10;
-                    if (normal10 != mQuantile10Normal && mQuantileSlowIcons != null) {
-                        mQuantile10Normal = normal10;
-                        mQuantile10Marker.setIcon(mQuantileSlowIcons[flip10 ? 1 : 0]);
-                    }
-                }
-                mQuantile10Marker.setVisible(true);
-            } else {
-                mQuantile10Marker.setVisible(false);
+            // Cache quantile speeds — only recompute when gamma params change
+            if (params != mCachedQuantileParams) {
+                mCachedQuantileParams = params;
+                mCachedSpeed10Mps = GammaSpeedModel.quantile(0.10, params)
+                        / GammaSpeedModel.MPS_TO_MPH;
+                mCachedSpeed90Mps = GammaSpeedModel.quantile(0.90, params)
+                        / GammaSpeedModel.MPS_TO_MPH;
             }
 
-            if (DistanceExtrapolator.interpolateAlongPolyline(
-                    shape, cumDist, dist90, mQuantileReusableLoc)) {
-                mQuantile90Marker.setPosition(new LatLng(
-                        mQuantileReusableLoc.getLatitude(),
-                        mQuantileReusableLoc.getLongitude()));
-                double heading90 = DistanceExtrapolator.headingAlongPolyline(
-                        shape, cumDist, dist90);
-                if (!Double.isNaN(heading90)) {
-                    mQuantile90Marker.setRotation((float) (heading90 - 180.0));
-                    boolean flip90 = shouldFlipLabel(heading90);
-                    boolean normal90 = !flip90;
-                    if (normal90 != mQuantile90Normal && mQuantileFastIcons != null) {
-                        mQuantile90Normal = normal90;
-                        mQuantile90Marker.setIcon(mQuantileFastIcons[flip90 ? 1 : 0]);
-                    }
-                }
-                mQuantile90Marker.setVisible(true);
-            } else {
-                mQuantile90Marker.setVisible(false);
+            double dist10 = lastDist + mCachedSpeed10Mps * dtSec;
+            double dist90 = lastDist + mCachedSpeed90Mps * dtSec;
+
+            mQuantile10Flipped = updateSingleQuantileMarker(
+                    mQuantile10Marker, dist10, shape, cumDist,
+                    mQuantileSlowIcons, mQuantile10Flipped);
+            mQuantile90Flipped = updateSingleQuantileMarker(
+                    mQuantile90Marker, dist90, shape, cumDist,
+                    mQuantileFastIcons, mQuantile90Flipped);
+        }
+
+        /**
+         * Updates a single quantile marker's position, rotation, and flip state.
+         * Returns the new flip state for the marker.
+         */
+        private boolean updateSingleQuantileMarker(Marker marker, double distance,
+                                                    List<Location> shape, double[] cumDist,
+                                                    BitmapDescriptor[] icons, boolean wasFlipped) {
+            if (!DistanceExtrapolator.interpolateAlongPolyline(
+                    shape, cumDist, distance, mQuantileReusableLoc)) {
+                marker.setVisible(false);
+                return wasFlipped;
             }
+            marker.setPosition(new LatLng(
+                    mQuantileReusableLoc.getLatitude(),
+                    mQuantileReusableLoc.getLongitude()));
+            double heading = DistanceExtrapolator.headingAlongPolyline(
+                    shape, cumDist, distance);
+            if (!Double.isNaN(heading)) {
+                marker.setRotation((float) (heading - 180.0));
+                boolean flipped = shouldFlipLabel(heading);
+                if (flipped != wasFlipped && icons != null) {
+                    marker.setIcon(icons[flipped ? 1 : 0]);
+                    wasFlipped = flipped;
+                }
+            }
+            marker.setVisible(true);
+            return wasFlipped;
         }
 
         /**

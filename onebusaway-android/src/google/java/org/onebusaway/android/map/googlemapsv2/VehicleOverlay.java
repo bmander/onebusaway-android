@@ -615,6 +615,9 @@ public class VehicleOverlay implements MarkerListeners  {
 
         /** Reusable list for polygon vertex construction. */
         private final java.util.ArrayList<LatLng> mPdfPolygonPoints = new java.util.ArrayList<>();
+        /** Reusable offset buffers to avoid per-frame allocation. */
+        private double[] mDLatsBuf = new double[0];
+        private double[] mDLngsBuf = new double[0];
 
         // PDF transition animation state
         /** Duration of the cross-fade at each spine point, in ms. */
@@ -1738,19 +1741,23 @@ public class VehicleOverlay implements MarkerListeners  {
             mPdfPolygonPoints.clear();
             int rangeSize = endIdx - startIdx;
 
-            // Compute offsets and build right-side points (forward pass)
-            // Store dLat/dLng for reuse in left-side pass
-            double[] dLats = new double[rangeSize];
-            double[] dLngs = new double[rangeSize];
+            // Reuse offset buffers, expanding only when needed
+            if (mDLatsBuf.length < rangeSize) {
+                mDLatsBuf = new double[rangeSize];
+                mDLngsBuf = new double[rangeSize];
+            }
 
-            // For ripple: map each point's position to a fractional delay [0, 1].
-            // The ripple spans from oldLastDist (or startIdx) to distEnd.
-            // Points at the old AVL position start immediately (frac=0),
-            // points at distEnd get max delay (frac=1).
-            double rippleStart = (!Double.isNaN(mOldLastDist) && transitioning)
-                    ? mOldLastDist : lastDist;
-            double rippleSpan = distEnd - rippleStart;
-            if (rippleSpan <= 0) rippleSpan = 1; // avoid div-by-zero
+            // Precompute ripple constants only during transitions
+            double rippleInvSpan = 0;
+            double rippleStart = lastDist;
+            double invTransitionMs = 1.0 / PDF_TRANSITION_MS;
+            int oldCursor = 0; // linear scan cursor for resampleOldOffset
+            if (transitioning) {
+                rippleStart = !Double.isNaN(mOldLastDist)
+                        ? mOldLastDist : lastDist;
+                double rippleSpan = distEnd - rippleStart;
+                rippleInvSpan = (rippleSpan > 0) ? 1.0 / rippleSpan : 1.0;
+            }
 
             for (int i = startIdx; i < endIdx; i++) {
                 // New PDF is zero behind the AVL point
@@ -1761,39 +1768,51 @@ public class VehicleOverlay implements MarkerListeners  {
                 if (transitioning) {
                     // Per-point ripple: old AVL point starts immediately,
                     // front gets an additional PDF_RIPPLE_DELAY_MS delay.
-                    double frac = Math.max(0,
-                            (mSpineDistances[i] - rippleStart) / rippleSpan);
-                    frac = Math.min(frac, 1.0);
-                    long pointDelay = (long) (frac * PDF_RIPPLE_DELAY_MS);
-                    long pointElapsed = transElapsed - pointDelay;
+                    double frac = (mSpineDistances[i] - rippleStart) * rippleInvSpan;
+                    if (frac < 0) frac = 0;
+                    else if (frac > 1.0) frac = 1.0;
+                    long pointElapsed = transElapsed
+                            - (long) (frac * PDF_RIPPLE_DELAY_MS);
                     double blend;
                     if (pointElapsed <= 0) {
                         blend = 0;
                     } else if (pointElapsed >= PDF_TRANSITION_MS) {
                         blend = 1.0;
                     } else {
-                        double t = pointElapsed / (double) PDF_TRANSITION_MS;
+                        double t = pointElapsed * invTransitionMs;
                         blend = t * t * (3.0 - 2.0 * t); // smoothstep
                     }
-                    double oldOffset = resampleOldOffset(mSpineDistances[i]);
+                    double oldOffset;
+                    oldOffset = resampleOldOffsetLinear(mSpineDistances[i],
+                            oldCursor);
+                    // Advance cursor past the current distance for next iteration
+                    if (mOldPdfSpineDistances != null) {
+                        while (oldCursor < mOldPdfSpineDistances.length - 1
+                                && mOldPdfSpineDistances[oldCursor + 1]
+                                   <= mSpineDistances[i]) {
+                            oldCursor++;
+                        }
+                    }
                     offset = oldOffset + blend * (newOffset - oldOffset);
                 } else {
                     offset = newOffset;
                 }
 
                 int j = i - startIdx;
-                dLats[j] = offset * mSpinePerpCos[i];
-                dLngs[j] = offset * mSpinePerpSin[i] * mSpineLatCosInv[i];
+                mDLatsBuf[j] = offset * mSpinePerpCos[i];
+                mDLngsBuf[j] = offset * mSpinePerpSin[i] * mSpineLatCosInv[i];
 
                 mPdfPolygonPoints.add(new LatLng(
-                        mSpineLats[i] + dLats[j], mSpineLngs[i] + dLngs[j]));
+                        mSpineLats[i] + mDLatsBuf[j],
+                        mSpineLngs[i] + mDLngsBuf[j]));
             }
 
             // Backward pass: left-side offset points (mirror across route)
             for (int i = endIdx - 1; i >= startIdx; i--) {
                 int j = i - startIdx;
                 mPdfPolygonPoints.add(new LatLng(
-                        mSpineLats[i] - dLats[j], mSpineLngs[i] - dLngs[j]));
+                        mSpineLats[i] - mDLatsBuf[j],
+                        mSpineLngs[i] - mDLngsBuf[j]));
             }
 
             if (mPdfPolygonPoints.size() >= 3) {
@@ -1846,20 +1865,27 @@ public class VehicleOverlay implements MarkerListeners  {
         }
 
         /**
-         * Looks up the old PDF offset at the given distance by linearly
-         * interpolating the snapshotted old offset array.
+         * Looks up the old PDF offset at the given distance using a linear
+         * scan from the given cursor position. Since spine points are iterated
+         * in order, this is O(n) total across all calls instead of O(n log n).
+         *
+         * @param distance the distance to look up
+         * @param cursor   starting index in mOldPdfSpineDistances (caller advances)
          */
-        private double resampleOldOffset(double distance) {
+        private double resampleOldOffsetLinear(double distance, int cursor) {
             if (mOldPdfOffsets == null || mOldPdfSpineDistances == null) return 0;
             int n = mOldPdfOffsets.length;
             if (n == 0) return 0;
 
-            int idx = Arrays.binarySearch(mOldPdfSpineDistances, distance);
-            if (idx >= 0) return mOldPdfOffsets[idx];
+            // Advance cursor to find the segment containing distance
+            int ins = cursor;
+            while (ins < n && mOldPdfSpineDistances[ins] < distance) {
+                ins++;
+            }
 
-            int ins = -idx - 1;
-            if (ins <= 0) return mOldPdfOffsets[0];
             if (ins >= n) return mOldPdfOffsets[n - 1];
+            if (ins == 0) return mOldPdfOffsets[0];
+            if (mOldPdfSpineDistances[ins] == distance) return mOldPdfOffsets[ins];
 
             double d0 = mOldPdfSpineDistances[ins - 1];
             double d1 = mOldPdfSpineDistances[ins];

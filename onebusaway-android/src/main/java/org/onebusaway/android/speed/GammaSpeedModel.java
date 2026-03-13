@@ -99,6 +99,15 @@ public final class GammaSpeedModel {
     }
 
     /**
+     * Returns the median (50th percentile) speed in m/s from the gamma distribution.
+     * For a right-skewed gamma, median &lt; mean, giving a more intuitive
+     * "equal probability ahead or behind" position estimate.
+     */
+    public static double medianSpeedMps(GammaParams params) {
+        return quantile(0.50, params) / MPS_TO_MPH;
+    }
+
+    /**
      * Gamma PDF: f(x; alpha, scale) = x^(alpha-1) * exp(-x/scale) / (scale^alpha * Gamma(alpha))
      *
      * @param speedMph speed in mph

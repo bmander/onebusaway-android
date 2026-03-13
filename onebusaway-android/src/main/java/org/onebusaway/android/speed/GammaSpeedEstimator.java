@@ -50,7 +50,7 @@ public class GammaSpeedEstimator implements SpeedEstimator {
         GammaSpeedModel.GammaParams params = GammaSpeedModel.fromSpeeds(vSched, vPrev);
         if (params != null) {
             mLastGammaParams = params;
-            return GammaSpeedModel.meanSpeedMps(params);
+            return GammaSpeedModel.medianSpeedMps(params);
         }
 
         // Fall back to schedule speed

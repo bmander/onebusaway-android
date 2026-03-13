@@ -616,6 +616,18 @@ public class VehicleOverlay implements MarkerListeners  {
         /** Reusable list for polygon vertex construction. */
         private final java.util.ArrayList<LatLng> mPdfPolygonPoints = new java.util.ArrayList<>();
 
+        // PDF transition animation state
+        /** Duration of the cross-fade between old and new PDF shapes, in ms. */
+        private static final long PDF_TRANSITION_MS = 600;
+        /** Offsets (in meters) from the previous PDF, sampled at current spine distances. */
+        private double[] mOldPdfOffsets;
+        /** Spine distances corresponding to mOldPdfOffsets (for resampling on spine rebuild). */
+        private double[] mOldPdfSpineDistances;
+        /** System.currentTimeMillis() when the current transition started, or 0 if none. */
+        private long mPdfTransitionStartMs;
+        /** The last invScaleDt used, for snapshotting old offsets before a param change. */
+        private double mLastInvScaleDt;
+
         /** Reusable Location for info label interpolation to avoid per-frame allocation. */
         private final Location mInfoLabelReusableLoc = new Location("infolabel");
 
@@ -1260,6 +1272,9 @@ public class VehicleOverlay implements MarkerListeners  {
             mSpineShape = null;
             mSpineDistances = null;
             mCachedLastDist = Double.NaN;
+            mOldPdfOffsets = null;
+            mOldPdfSpineDistances = null;
+            mPdfTransitionStartMs = 0;
             mSlowEstimateIcon = null;
             mFastEstimateIcon = null;
             mSlowEstimateExpandedIcon = null;
@@ -1524,8 +1539,16 @@ public class VehicleOverlay implements MarkerListeners  {
                 return;
             }
 
-            // Cache percentile speeds, inverse scale, and PDF table
-            if (params != mCachedGammaParams) {
+            // Cache percentile speeds, inverse scale, and PDF table.
+            // Compare by value — GammaSpeedEstimator creates a new object each frame.
+            if (mCachedGammaParams == null
+                    || params.alpha != mCachedGammaParams.alpha
+                    || params.scale != mCachedGammaParams.scale) {
+                // Snapshot old PDF offsets using last frame's invScaleDt (not the
+                // new dtSec, which is near-zero right after a new AVL point).
+                snapshotOldPdfOffsets();
+                mPdfTransitionStartMs = now;
+
                 mCachedGammaParams = params;
                 mCachedSpeed10Mps = GammaSpeedModel.quantile(0.10, params)
                         / GammaSpeedModel.MPS_TO_MPH;
@@ -1543,7 +1566,7 @@ public class VehicleOverlay implements MarkerListeners  {
 
             updateInfoLabelPosition(mSlowEstimateMarker, dist10, shape, cumDist);
             updateInfoLabelPosition(mFastEstimateMarker, dist90, shape, cumDist);
-            updatePdfPolygon(lastDist, dtSec, dist99, shape, cumDist);
+            updatePdfPolygon(lastDist, dtSec, dist99, shape, cumDist, now);
         }
 
         /**
@@ -1643,7 +1666,8 @@ public class VehicleOverlay implements MarkerListeners  {
          */
         private void updatePdfPolygon(double lastDist, double dtSec,
                                        double distEnd,
-                                       List<Location> shape, double[] cumDist) {
+                                       List<Location> shape, double[] cumDist,
+                                       long now) {
             if (mPdfPolygon == null) return;
 
             // Lazily build spine on first use, shape change, or AVL position change
@@ -1657,11 +1681,45 @@ public class VehicleOverlay implements MarkerListeners  {
                 return;
             }
 
-            // Binary search for the range of spine points within [lastDist, distEnd]
-            // lastDist (AVL point) is guaranteed to be in the spine, so the PDF
-            // evaluation starts exactly at the vehicle's last known position.
+            // Per-frame: convert each spine point's distance-from-AVL to the
+            // normalized gamma variable u = distDelta / (scale * dtSec), then
+            // look up the precomputed PDF table.
+            double invScaleDt = mCachedInvScale / dtSec;
+            mLastInvScaleDt = invScaleDt;
+
+            // Compute transition blend factor
+            double blend = 1.0; // 1.0 = fully new, 0.0 = fully old
+            if (mPdfTransitionStartMs > 0 && mOldPdfOffsets != null) {
+                long elapsed = now - mPdfTransitionStartMs;
+                if (elapsed >= PDF_TRANSITION_MS) {
+                    // Transition complete
+                    mPdfTransitionStartMs = 0;
+                    mOldPdfOffsets = null;
+                    mOldPdfSpineDistances = null;
+                } else {
+                    // Smooth ease-in-out
+                    double t = elapsed / (double) PDF_TRANSITION_MS;
+                    blend = t * t * (3.0 - 2.0 * t); // smoothstep
+                }
+            }
+            boolean transitioning = blend < 1.0;
+
+            // Determine the spine range to render.
+            // New PDF starts at lastDist; during a transition, extend backward
+            // to cover the old PDF's range so those points animate to zero.
             int startIdx = Arrays.binarySearch(mSpineDistances, lastDist);
             if (startIdx < 0) startIdx = -startIdx - 1;
+
+            if (transitioning && mOldPdfSpineDistances != null
+                    && mOldPdfSpineDistances.length > 0) {
+                double oldStart = mOldPdfSpineDistances[0];
+                if (oldStart < lastDist) {
+                    int oldStartIdx = Arrays.binarySearch(mSpineDistances, oldStart);
+                    if (oldStartIdx < 0) oldStartIdx = -oldStartIdx - 1;
+                    startIdx = Math.min(startIdx, oldStartIdx);
+                }
+            }
+
             int endIdx = Arrays.binarySearch(mSpineDistances, distEnd);
             if (endIdx < 0) endIdx = -endIdx - 1;
             else endIdx++;  // include the exact match
@@ -1673,15 +1731,6 @@ public class VehicleOverlay implements MarkerListeners  {
             endIdx = Math.min(endIdx, mSpineDistances.length);
 
             mPdfPolygonPoints.clear();
-
-            // Per-frame: convert each spine point's distance-from-AVL to the
-            // normalized gamma variable u = distDelta / (scale * dtSec), then
-            // look up the precomputed normalized PDF table.
-            // mSpineDistDeltaMph[i] = distDelta * MPS_TO_MPH, so:
-            //   u = mSpineDistDeltaMph[i] * invScaleDt
-            // where invScaleDt = 1 / (scale * dtSec) = mCachedInvScale / dtSec
-            double invScaleDt = mCachedInvScale / dtSec;
-
             int rangeSize = endIdx - startIdx;
 
             // Compute offsets and build right-side points (forward pass)
@@ -1690,21 +1739,17 @@ public class VehicleOverlay implements MarkerListeners  {
             double[] dLngs = new double[rangeSize];
 
             for (int i = startIdx; i < endIdx; i++) {
-                double u = mSpineDistDeltaMph[i] * invScaleDt;
+                // New PDF is zero behind the AVL point
+                double newOffset = (mSpineDistances[i] >= lastDist)
+                        ? computePdfOffset(i, invScaleDt) : 0;
 
-                // Lookup raw PDF via linear interpolation into table
-                double pdfVal;
-                if (u <= 0 || u >= PDF_TABLE_MAX_U) {
-                    pdfVal = 0;
+                double offset;
+                if (transitioning) {
+                    double oldOffset = resampleOldOffset(mSpineDistances[i]);
+                    offset = oldOffset + blend * (newOffset - oldOffset);
                 } else {
-                    double idx = u * PDF_TABLE_INV_STEP;
-                    int lo = (int) idx;
-                    double frac = idx - lo;
-                    pdfVal = mNormalizedPdfTable[lo]
-                            + frac * (mNormalizedPdfTable[lo + 1]
-                                      - mNormalizedPdfTable[lo]);
+                    offset = newOffset;
                 }
-                double offset = pdfVal * PDF_METERS_PER_UNIT;
 
                 int j = i - startIdx;
                 dLats[j] = offset * mSpinePerpCos[i];
@@ -1727,6 +1772,71 @@ public class VehicleOverlay implements MarkerListeners  {
             } else {
                 mPdfPolygon.setVisible(false);
             }
+        }
+
+        /**
+         * Computes the perpendicular offset in meters for spine point i
+         * using the current PDF table and the given invScaleDt.
+         */
+        private double computePdfOffset(int i, double invScaleDt) {
+            double u = mSpineDistDeltaMph[i] * invScaleDt;
+            double pdfVal;
+            if (u <= 0 || u >= PDF_TABLE_MAX_U) {
+                pdfVal = 0;
+            } else {
+                double idx = u * PDF_TABLE_INV_STEP;
+                int lo = (int) idx;
+                double frac = idx - lo;
+                pdfVal = mNormalizedPdfTable[lo]
+                        + frac * (mNormalizedPdfTable[lo + 1]
+                                  - mNormalizedPdfTable[lo]);
+            }
+            return pdfVal * PDF_METERS_PER_UNIT;
+        }
+
+        /**
+         * Snapshots the current PDF offsets at all spine points so we can
+         * animate from them when the gamma params change. Called just before
+         * the new params are applied.
+         */
+        private void snapshotOldPdfOffsets() {
+            if (mSpineDistances == null || mLastInvScaleDt == 0) {
+                mOldPdfOffsets = null;
+                mOldPdfSpineDistances = null;
+                return;
+            }
+            double invScaleDt = mLastInvScaleDt;
+            int n = mSpineDistances.length;
+            mOldPdfOffsets = new double[n];
+            mOldPdfSpineDistances = new double[n];
+            for (int i = 0; i < n; i++) {
+                mOldPdfSpineDistances[i] = mSpineDistances[i];
+                mOldPdfOffsets[i] = computePdfOffset(i, invScaleDt);
+            }
+        }
+
+        /**
+         * Looks up the old PDF offset at the given distance by linearly
+         * interpolating the snapshotted old offset array.
+         */
+        private double resampleOldOffset(double distance) {
+            if (mOldPdfOffsets == null || mOldPdfSpineDistances == null) return 0;
+            int n = mOldPdfOffsets.length;
+            if (n == 0) return 0;
+
+            int idx = Arrays.binarySearch(mOldPdfSpineDistances, distance);
+            if (idx >= 0) return mOldPdfOffsets[idx];
+
+            int ins = -idx - 1;
+            if (ins <= 0) return mOldPdfOffsets[0];
+            if (ins >= n) return mOldPdfOffsets[n - 1];
+
+            double d0 = mOldPdfSpineDistances[ins - 1];
+            double d1 = mOldPdfSpineDistances[ins];
+            double segLen = d1 - d0;
+            if (segLen <= 0) return mOldPdfOffsets[ins - 1];
+            double frac = (distance - d0) / segLen;
+            return mOldPdfOffsets[ins - 1] + frac * (mOldPdfOffsets[ins] - mOldPdfOffsets[ins - 1]);
         }
 
         /**

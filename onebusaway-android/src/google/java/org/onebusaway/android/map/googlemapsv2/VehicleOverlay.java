@@ -617,14 +617,18 @@ public class VehicleOverlay implements MarkerListeners  {
         private final java.util.ArrayList<LatLng> mPdfPolygonPoints = new java.util.ArrayList<>();
 
         // PDF transition animation state
-        /** Duration of the cross-fade between old and new PDF shapes, in ms. */
+        /** Duration of the cross-fade at each spine point, in ms. */
         private static final long PDF_TRANSITION_MS = 600;
+        /** Extra delay applied to the front of the PDF, creating a back-to-front ripple. */
+        private static final long PDF_RIPPLE_DELAY_MS = 1000;
         /** Offsets (in meters) from the previous PDF, sampled at current spine distances. */
         private double[] mOldPdfOffsets;
         /** Spine distances corresponding to mOldPdfOffsets (for resampling on spine rebuild). */
         private double[] mOldPdfSpineDistances;
         /** System.currentTimeMillis() when the current transition started, or 0 if none. */
         private long mPdfTransitionStartMs;
+        /** The old AVL distance, for ripple continuity behind the new AVL point. */
+        private double mOldLastDist = Double.NaN;
         /** The last invScaleDt used, for snapshotting old offsets before a param change. */
         private double mLastInvScaleDt;
 
@@ -1275,6 +1279,7 @@ public class VehicleOverlay implements MarkerListeners  {
             mOldPdfOffsets = null;
             mOldPdfSpineDistances = null;
             mPdfTransitionStartMs = 0;
+            mOldLastDist = Double.NaN;
             mSlowEstimateIcon = null;
             mFastEstimateIcon = null;
             mSlowEstimateExpandedIcon = null;
@@ -1547,6 +1552,7 @@ public class VehicleOverlay implements MarkerListeners  {
                 // Snapshot old PDF offsets using last frame's invScaleDt (not the
                 // new dtSec, which is near-zero right after a new AVL point).
                 snapshotOldPdfOffsets();
+                mOldLastDist = mCachedLastDist;
                 mPdfTransitionStartMs = now;
 
                 mCachedGammaParams = params;
@@ -1687,22 +1693,21 @@ public class VehicleOverlay implements MarkerListeners  {
             double invScaleDt = mCachedInvScale / dtSec;
             mLastInvScaleDt = invScaleDt;
 
-            // Compute transition blend factor
-            double blend = 1.0; // 1.0 = fully new, 0.0 = fully old
+            // Check if we're in a transition
+            long transElapsed = 0;
+            boolean transitioning = false;
             if (mPdfTransitionStartMs > 0 && mOldPdfOffsets != null) {
-                long elapsed = now - mPdfTransitionStartMs;
-                if (elapsed >= PDF_TRANSITION_MS) {
-                    // Transition complete
+                transElapsed = now - mPdfTransitionStartMs;
+                if (transElapsed >= PDF_TRANSITION_MS + PDF_RIPPLE_DELAY_MS) {
+                    // Entire ripple complete
                     mPdfTransitionStartMs = 0;
                     mOldPdfOffsets = null;
                     mOldPdfSpineDistances = null;
+                    mOldLastDist = Double.NaN;
                 } else {
-                    // Smooth ease-in-out
-                    double t = elapsed / (double) PDF_TRANSITION_MS;
-                    blend = t * t * (3.0 - 2.0 * t); // smoothstep
+                    transitioning = true;
                 }
             }
-            boolean transitioning = blend < 1.0;
 
             // Determine the spine range to render.
             // New PDF starts at lastDist; during a transition, extend backward
@@ -1738,6 +1743,15 @@ public class VehicleOverlay implements MarkerListeners  {
             double[] dLats = new double[rangeSize];
             double[] dLngs = new double[rangeSize];
 
+            // For ripple: map each point's position to a fractional delay [0, 1].
+            // The ripple spans from oldLastDist (or startIdx) to distEnd.
+            // Points at the old AVL position start immediately (frac=0),
+            // points at distEnd get max delay (frac=1).
+            double rippleStart = (!Double.isNaN(mOldLastDist) && transitioning)
+                    ? mOldLastDist : lastDist;
+            double rippleSpan = distEnd - rippleStart;
+            if (rippleSpan <= 0) rippleSpan = 1; // avoid div-by-zero
+
             for (int i = startIdx; i < endIdx; i++) {
                 // New PDF is zero behind the AVL point
                 double newOffset = (mSpineDistances[i] >= lastDist)
@@ -1745,6 +1759,22 @@ public class VehicleOverlay implements MarkerListeners  {
 
                 double offset;
                 if (transitioning) {
+                    // Per-point ripple: old AVL point starts immediately,
+                    // front gets an additional PDF_RIPPLE_DELAY_MS delay.
+                    double frac = Math.max(0,
+                            (mSpineDistances[i] - rippleStart) / rippleSpan);
+                    frac = Math.min(frac, 1.0);
+                    long pointDelay = (long) (frac * PDF_RIPPLE_DELAY_MS);
+                    long pointElapsed = transElapsed - pointDelay;
+                    double blend;
+                    if (pointElapsed <= 0) {
+                        blend = 0;
+                    } else if (pointElapsed >= PDF_TRANSITION_MS) {
+                        blend = 1.0;
+                    } else {
+                        double t = pointElapsed / (double) PDF_TRANSITION_MS;
+                        blend = t * t * (3.0 - 2.0 * t); // smoothstep
+                    }
                     double oldOffset = resampleOldOffset(mSpineDistances[i]);
                     offset = oldOffset + blend * (newOffset - oldOffset);
                 } else {

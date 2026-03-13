@@ -42,6 +42,9 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.android.gms.maps.model.RoundCap;
 
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
@@ -600,7 +603,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
     @Override
     public boolean markerClicked(Marker marker) {
         if(mMarkerData == null) return false;
-        if (mMarkerData.handleQuantileMarkerClick(marker)) {
+        if (mMarkerData.handleInfoLabelClick(marker)) {
             return true;
         }
         ObaTripStatus status = mMarkerData.getStatusFromMarker(marker);
@@ -644,52 +647,58 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         /** The activeTripId of the currently-selected (info-window-open) vehicle, or null. */
         private volatile String mSelectedTripId;
 
-        /** Marker showing the most recent AVL data-received position for the selected vehicle. */
-        private Marker mDataReceivedMarker;
+        /** Icon marker (unrotated) for the most recent AVL position. */
+        private Marker mDataReceivedIconMarker;
+        /** Label marker (rotated along polyline) for the most recent AVL position. */
+        private Marker mDataReceivedLabelMarker;
         /** Cached label text to skip icon rebuild when unchanged. */
         private String mLastDataReceivedLabel;
+        /** Cached anchor X for the label marker, offset to clear the circle icon. */
+        private float mDataReceivedLabelAnchorX;
 
-        /** Markers showing the 10th and 90th percentile predicted positions. */
-        private Marker mQuantile10Marker;
-        private Marker mQuantile90Marker;
-        private BitmapDescriptor mQuantileSlowIcon;
-        private BitmapDescriptor mQuantileFastIcon;
-        private float mQuantileAnchorX;
-        /** Cached quantile speeds in m/s — only recomputed when gamma params change. */
-        private GammaSpeedModel.GammaParams mCachedQuantileParams;
+        /** Info label markers showing the slow/fast estimate positions. */
+        private Marker mSlowEstimateMarker;
+        private Marker mFastEstimateMarker;
+        private BitmapDescriptor mSlowEstimateIcon;
+        private BitmapDescriptor mFastEstimateIcon;
+        private float mInfoLabelAnchorX;
+        /** Cached percentile speeds in m/s — only recomputed when gamma params change. */
+        private GammaSpeedModel.GammaParams mCachedGammaParams;
         private double mCachedSpeed10Mps;
         private double mCachedSpeed90Mps;
 
-        private static final int QUANTILE_DOT_RADIUS_DP = 6;
-        private static final int QUANTILE_DOT_ALPHA = 0xBB;
-        private static final float QUANTILE_MARKER_Z_INDEX = VEHICLE_MARKER_Z_INDEX - 0.5f;
-        private static final int QUANTILE_LABEL_SP = 10;
-        private static final int QUANTILE_LABEL_GAP_DP = 3;
-        private static final int QUANTILE_POINTER_WIDTH_DP = 10;
-        private static final String QUANTILE_SLOW_LABEL = "Slow estimate";
-        private static final String QUANTILE_FAST_LABEL = "Fast estimate";
-        private static final String QUANTILE_SLOW_EXPANDED = "Slow estimate\n10th percentile speed";
-        private static final String QUANTILE_FAST_EXPANDED = "Fast estimate\n90th percentile speed";
-        private BitmapDescriptor mQuantileSlowExpandedIcon;
-        private BitmapDescriptor mQuantileFastExpandedIcon;
-        private boolean mQuantile10Expanded;
-        private boolean mQuantile90Expanded;
+        private static final float INFO_LABEL_Z_INDEX = VEHICLE_MARKER_Z_INDEX - 0.5f;
+        private static final int INFO_LABEL_SP = 10;
+        private static final int INFO_LABEL_POINTER_WIDTH_DP = 10;
+        private static final String SLOW_ESTIMATE_LABEL = "Slow estimate";
+        private static final String FAST_ESTIMATE_LABEL = "Fast estimate";
+        private static final String SLOW_ESTIMATE_EXPANDED = "Slow estimate\n10th percentile speed";
+        private static final String FAST_ESTIMATE_EXPANDED = "Fast estimate\n90th percentile speed";
+        private BitmapDescriptor mSlowEstimateExpandedIcon;
+        private BitmapDescriptor mFastEstimateExpandedIcon;
+        private boolean mSlowEstimateExpanded;
+        private boolean mFastEstimateExpanded;
 
-        /** Reusable Location for quantile interpolation to avoid per-frame allocation. */
-        private final Location mQuantileReusableLoc = new Location("quantile");
+        /** Outer highlight polyline: 10th–90th percentile range. */
+        private Polyline mHighlightOuterPolyline;
+        /** Inner highlight polyline: 30th–70th percentile range. */
+        private Polyline mHighlightInnerPolyline;
+        private static final float HIGHLIGHT_OUTER_WIDTH_DP = 18;
+        private static final float HIGHLIGHT_INNER_WIDTH_DP = 36;
+        private static final float HIGHLIGHT_Z_INDEX = -1f;
+        private static final int HIGHLIGHT_ALPHA = 0x88;
+        private static final int HIGHLIGHT_RGB = 0xAB47BC; // bright purple
+        /** Cached 30th/70th percentile speeds, recomputed alongside 10th/90th. */
+        private double mCachedSpeed30Mps;
+        private double mCachedSpeed70Mps;
+        /** Reusable lists for sub-polyline extraction to avoid per-frame allocation. */
+        private final java.util.ArrayList<LatLng> mHighlightOuterPoints = new java.util.ArrayList<>();
+        private final java.util.ArrayList<LatLng> mHighlightInnerPoints = new java.util.ArrayList<>();
 
-        // --- Data-received marker label constants ---
-        private static final int LABEL_SIZE_SP = 10;
-        private static final int LABEL_GAP_DP = 2;
+        /** Reusable Location for info label interpolation to avoid per-frame allocation. */
+        private final Location mInfoLabelReusableLoc = new Location("infolabel");
+
         private static final String DATA_RECEIVED_TITLE = "Most recent data";
-
-        // --- Label rendering state, initialized lazily to avoid per-call allocation ---
-        private Paint mLabelTitlePaint;
-        private Paint mLabelTimePaint;
-        private Paint mLabelBgPaint;
-        private Paint.FontMetrics mTitleFontMetrics;
-        private Paint.FontMetrics mTimeFontMetrics;
-        private float mLabelDensity;
 
         private static final int INITIAL_HASHMAP_SIZE = 5;
 
@@ -1022,9 +1031,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 restoreMarkerIcon(mVehicleMarkers.get(tripId));
             }
             removeDataReceivedMarker();
-            removeQuantileMarkers();
+            removeEstimateMarkers();
             showOrUpdateDataReceivedMarker(tripId);
-            createQuantileMarkers(tripId);
+            createEstimateMarkers(tripId);
             animateChangedIcons(previousTripId);
             if (mController != null && tripId != null) {
                 mController.onVehicleSelected(tripId);
@@ -1039,7 +1048,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             String previousTripId = mSelectedTripId;
             mSelectedTripId = null;
             removeDataReceivedMarker();
-            removeQuantileMarkers();
+            removeEstimateMarkers();
             animateChangedIcons(previousTripId);
             if (mController != null) {
                 mController.onVehicleDeselected();
@@ -1071,70 +1080,93 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
             Marker vehicleMarker = mVehicleMarkers.get(tripId);
             if (vehicleMarker == null) return;
-            ObaTripStatus status = mVehicles.get(vehicleMarker);
-            if (status == null) return;
 
             LatLng latLng = MapHelpV2.makeLatLng(pos);
             String label = formatElapsedTime(latest.getLastLocationUpdateTime());
 
-            if (mDataReceivedMarker != null) {
-                mDataReceivedMarker.setPosition(latLng);
-                // Skip icon rebuild if label text hasn't changed
+            // Compute label rotation from polyline heading
+            float labelRotation = 0f;
+            Double lastDist = latest.getBestDistanceAlongTrip();
+            List<Location> shape = tracker.getShape(tripId);
+            double[] cumDist = tracker.getShapeCumulativeDistances(tripId);
+            if (lastDist != null && shape != null && cumDist != null) {
+                double heading = DistanceExtrapolator.headingAlongPolyline(
+                        shape, cumDist, lastDist);
+                if (!Double.isNaN(heading)) {
+                    double labelAz = clampedLabelAzimuth(heading);
+                    labelRotation = (float) (labelAz - 90.0);
+                }
+            }
+
+            // Icon marker: unrotated circle with signal icon
+            if (mDataReceivedIconMarker != null) {
+                mDataReceivedIconMarker.setPosition(latLng);
+            } else {
+                mDataReceivedIconMarker = mMap.addMarker(new MarkerOptions()
+                        .position(latLng)
+                        .icon(createDataReceivedCircleIcon())
+                        .anchor(0.5f, 0.5f)
+                        .flat(true)
+                        .zIndex(INFO_LABEL_Z_INDEX + 0.1f)
+                );
+            }
+
+            // Label marker: rotated bubble
+            if (mDataReceivedLabelMarker != null) {
+                mDataReceivedLabelMarker.setPosition(latLng);
+                mDataReceivedLabelMarker.setRotation(labelRotation);
                 if (!label.equals(mLastDataReceivedLabel)) {
                     mLastDataReceivedLabel = label;
-                    mDataReceivedMarker.setIcon(createLabeledVehicleIcon(status, label));
+                    mDataReceivedLabelMarker.setIcon(createDataReceivedLabelIcon(label));
                 }
             } else {
                 mLastDataReceivedLabel = label;
-                mDataReceivedMarker = mMap.addMarker(new MarkerOptions()
+                BitmapDescriptor labelIcon = createDataReceivedLabelIcon(label);
+                mDataReceivedLabelMarker = mMap.addMarker(new MarkerOptions()
                         .position(latLng)
-                        .icon(createLabeledVehicleIcon(status, label))
-                        .anchor(0.5f, 1.0f)
-                        .zIndex(VEHICLE_MARKER_Z_INDEX + 1)
+                        .icon(labelIcon)
+                        .anchor(mDataReceivedLabelAnchorX, 0.5f)
+                        .flat(true)
+                        .rotation(labelRotation)
+                        .zIndex(INFO_LABEL_Z_INDEX)
                 );
             }
         }
 
         private void removeDataReceivedMarker() {
-            if (mDataReceivedMarker != null) {
-                mDataReceivedMarker.remove();
-                mDataReceivedMarker = null;
-                mLastDataReceivedLabel = null;
+            if (mDataReceivedIconMarker != null) {
+                mDataReceivedIconMarker.remove();
+                mDataReceivedIconMarker = null;
             }
+            if (mDataReceivedLabelMarker != null) {
+                mDataReceivedLabelMarker.remove();
+                mDataReceivedLabelMarker = null;
+            }
+            mLastDataReceivedLabel = null;
         }
 
-        // --- Quantile marker lifecycle ---
+        // --- Info label lifecycle ---
 
         /**
-         * Creates a quantile marker icon: a dot on the left with a text bubble to its right.
+         * Creates an info label icon: a pointer bubble with text.
          * Returns the anchor X fraction (dot center / total width) via the first element of
          * outAnchorX if non-null, so callers can avoid recomputing layout metrics.
          *
          */
-        private BitmapDescriptor createQuantileLabelIcon(ObaTripStatus status, String label,
-                                                          float[] outAnchorX) {
-            return createQuantileLabelIconInternal(status, new String[]{label}, outAnchorX);
+        private BitmapDescriptor createInfoLabelIcon(String label, float[] outAnchorX) {
+            return createInfoLabelIconInternal(new String[]{label}, outAnchorX);
         }
 
-        private BitmapDescriptor createQuantileExpandedIcon(ObaTripStatus status, String label) {
-            return createQuantileLabelIconInternal(status, label.split("\n"), null);
+        private BitmapDescriptor createInfoLabelExpandedIcon(String label) {
+            return createInfoLabelIconInternal(label.split("\n"), null);
         }
 
-        private BitmapDescriptor createQuantileLabelIconInternal(ObaTripStatus status,
-                                                                   String[] lines,
+        private BitmapDescriptor createInfoLabelIconInternal(String[] lines,
                                                                    float[] outAnchorX) {
-            int colorResource = getDeviationColorResource(isLocationRealtime(status), status);
-            int baseColor = ContextCompat.getColor(mActivity, colorResource);
-            int dotColor = (baseColor & 0x00FFFFFF) | (QUANTILE_DOT_ALPHA << 24);
-
             float d = mActivity.getResources().getDisplayMetrics().density;
-            int dotRadius = (int) (QUANTILE_DOT_RADIUS_DP * d);
-            int dotStroke = (int) (1.5f * d);
-            int dotSize = (dotRadius + dotStroke) * 2;
-            int gap = (int) (QUANTILE_LABEL_GAP_DP * d);
 
             Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            textPaint.setTextSize(QUANTILE_LABEL_SP * d);
+            textPaint.setTextSize(INFO_LABEL_SP * d);
             textPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
             textPaint.setColor(0xFF616161);
             Paint.FontMetrics fm = textPaint.getFontMetrics();
@@ -1150,43 +1182,27 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             float padLeft = 4 * d;
             float padRight = 6 * d;
             float padY = 2 * d;
-            float pointerWidth = QUANTILE_POINTER_WIDTH_DP * d;
+            float pointerWidth = INFO_LABEL_POINTER_WIDTH_DP * d;
             int textBlockHeight = lineHeight * lines.length
                     + (int) (lineGap * (lines.length - 1));
             int bubbleWidth = (int) (pointerWidth + padLeft + maxLineWidth + padRight);
             int bubbleHeight = (int) (textBlockHeight + padY * 2);
             float cornerRadius = 3 * d;
 
-            int totalWidth = dotSize + gap + bubbleWidth;
-            int totalHeight = Math.max(dotSize, bubbleHeight);
-
-            Bitmap bmp = Bitmap.createBitmap(totalWidth, totalHeight, Bitmap.Config.ARGB_8888);
+            Bitmap bmp = Bitmap.createBitmap(bubbleWidth, bubbleHeight, Bitmap.Config.ARGB_8888);
             Canvas c = new Canvas(bmp);
 
-            float dotCx = dotSize / 2f;
-            float bubbleLeft = dotSize + gap;
-
-            // Draw dot
-            float dotCy = totalHeight / 2f;
-            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            paint.setColor(0x99FFFFFF);
-            paint.setStyle(Paint.Style.FILL);
-            c.drawCircle(dotCx, dotCy, dotRadius + dotStroke, paint);
-            paint.setColor(dotColor);
-            c.drawCircle(dotCx, dotCy, dotRadius, paint);
-
-            float bubbleTop = (totalHeight - bubbleHeight) / 2f;
-            float bodyLeft = drawPointerBubble(c, bubbleLeft, bubbleTop,
+            float bodyLeft = drawPointerBubble(c, 0, 0,
                     bubbleWidth, bubbleHeight, cornerRadius, pointerWidth);
 
             float textX = bodyLeft + padLeft;
-            float textY = bubbleTop + padY - fm.ascent;
+            float textY = padY - fm.ascent;
             for (int i = 0; i < lines.length; i++) {
                 c.drawText(lines[i], textX, textY + i * (lineHeight + lineGap), textPaint);
             }
 
             if (outAnchorX != null && outAnchorX.length > 0) {
-                outAnchorX[0] = dotCx / totalWidth;
+                outAnchorX[0] = 0f;
             }
             return BitmapDescriptorFactory.fromBitmap(bmp);
         }
@@ -1276,73 +1292,98 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             return value;
         }
 
-        private void createQuantileMarkers(String tripId) {
+        private void createEstimateMarkers(String tripId) {
             if (tripId == null || mLastResponse == null) return;
             Integer routeType = VehicleTrajectoryTracker.getInstance().getRouteType(tripId);
             if (routeType != null && ObaRoute.isGradeSeparated(routeType)) return;
             Marker vehicleMarker = mVehicleMarkers.get(tripId);
             if (vehicleMarker == null) return;
-            ObaTripStatus status = mVehicles.get(vehicleMarker);
-            if (status == null) return;
 
             float[] anchorOut = new float[1];
-            mQuantileSlowIcon = createQuantileLabelIcon(status, QUANTILE_SLOW_LABEL, anchorOut);
-            mQuantileAnchorX = anchorOut[0];
-            mQuantileFastIcon = createQuantileLabelIcon(status, QUANTILE_FAST_LABEL, null);
-            mQuantileSlowExpandedIcon = createQuantileExpandedIcon(status, QUANTILE_SLOW_EXPANDED);
-            mQuantileFastExpandedIcon = createQuantileExpandedIcon(status, QUANTILE_FAST_EXPANDED);
-            mCachedQuantileParams = null;
-            mQuantile10Expanded = false;
-            mQuantile90Expanded = false;
+            mSlowEstimateIcon = createInfoLabelIcon(SLOW_ESTIMATE_LABEL, anchorOut);
+            mInfoLabelAnchorX = anchorOut[0];
+            mFastEstimateIcon = createInfoLabelIcon(FAST_ESTIMATE_LABEL, null);
+            mSlowEstimateExpandedIcon = createInfoLabelExpandedIcon(SLOW_ESTIMATE_EXPANDED);
+            mFastEstimateExpandedIcon = createInfoLabelExpandedIcon(FAST_ESTIMATE_EXPANDED);
+            mCachedGammaParams = null;
+            mSlowEstimateExpanded = false;
+            mFastEstimateExpanded = false;
 
             LatLng pos = vehicleMarker.getPosition();
-            mQuantile10Marker = addFlatQuantileMarker(pos, mQuantileSlowIcon);
-            mQuantile90Marker = addFlatQuantileMarker(pos, mQuantileFastIcon);
+            mSlowEstimateMarker = addFlatInfoLabelMarker(pos, mSlowEstimateIcon);
+            mFastEstimateMarker = addFlatInfoLabelMarker(pos, mFastEstimateIcon);
+
+            // Create the highlight polylines behind the route polyline
+            int highlightColor = (HIGHLIGHT_ALPHA << 24) | HIGHLIGHT_RGB;
+            float density = mActivity.getResources().getDisplayMetrics().density;
+            RoundCap roundCap = new RoundCap();
+            mHighlightOuterPolyline = mMap.addPolyline(new PolylineOptions()
+                    .width(HIGHLIGHT_OUTER_WIDTH_DP * density)
+                    .color(highlightColor)
+                    .zIndex(HIGHLIGHT_Z_INDEX)
+                    .startCap(roundCap)
+                    .endCap(roundCap)
+                    .visible(false));
+            mHighlightInnerPolyline = mMap.addPolyline(new PolylineOptions()
+                    .width(HIGHLIGHT_INNER_WIDTH_DP * density)
+                    .color(highlightColor)
+                    .zIndex(HIGHLIGHT_Z_INDEX)
+                    .startCap(roundCap)
+                    .endCap(roundCap)
+                    .visible(false));
         }
 
-        private void removeQuantileMarkers() {
-            if (mQuantile10Marker != null) {
-                mQuantile10Marker.remove();
-                mQuantile10Marker = null;
+        private void removeEstimateMarkers() {
+            if (mSlowEstimateMarker != null) {
+                mSlowEstimateMarker.remove();
+                mSlowEstimateMarker = null;
             }
-            if (mQuantile90Marker != null) {
-                mQuantile90Marker.remove();
-                mQuantile90Marker = null;
+            if (mFastEstimateMarker != null) {
+                mFastEstimateMarker.remove();
+                mFastEstimateMarker = null;
             }
-            mQuantileSlowIcon = null;
-            mQuantileFastIcon = null;
-            mQuantileSlowExpandedIcon = null;
-            mQuantileFastExpandedIcon = null;
-            mCachedQuantileParams = null;
+            if (mHighlightOuterPolyline != null) {
+                mHighlightOuterPolyline.remove();
+                mHighlightOuterPolyline = null;
+            }
+            if (mHighlightInnerPolyline != null) {
+                mHighlightInnerPolyline.remove();
+                mHighlightInnerPolyline = null;
+            }
+            mSlowEstimateIcon = null;
+            mFastEstimateIcon = null;
+            mSlowEstimateExpandedIcon = null;
+            mFastEstimateExpandedIcon = null;
+            mCachedGammaParams = null;
         }
 
         /**
-         * Handles a click on a quantile marker by toggling between collapsed
-         * and expanded label. Returns true if the marker was a quantile marker.
+         * Handles a click on an info label marker by toggling between collapsed
+         * and expanded label. Returns true if the marker was an info label.
          */
-        boolean handleQuantileMarkerClick(Marker marker) {
-            if (marker.equals(mQuantile10Marker)) {
-                mQuantile10Expanded = !mQuantile10Expanded;
-                mQuantile10Marker.setIcon(mQuantile10Expanded
-                        ? mQuantileSlowExpandedIcon : mQuantileSlowIcon);
+        boolean handleInfoLabelClick(Marker marker) {
+            if (marker.equals(mSlowEstimateMarker)) {
+                mSlowEstimateExpanded = !mSlowEstimateExpanded;
+                mSlowEstimateMarker.setIcon(mSlowEstimateExpanded
+                        ? mSlowEstimateExpandedIcon : mSlowEstimateIcon);
                 return true;
             }
-            if (marker.equals(mQuantile90Marker)) {
-                mQuantile90Expanded = !mQuantile90Expanded;
-                mQuantile90Marker.setIcon(mQuantile90Expanded
-                        ? mQuantileFastExpandedIcon : mQuantileFastIcon);
+            if (marker.equals(mFastEstimateMarker)) {
+                mFastEstimateExpanded = !mFastEstimateExpanded;
+                mFastEstimateMarker.setIcon(mFastEstimateExpanded
+                        ? mFastEstimateExpandedIcon : mFastEstimateIcon);
                 return true;
             }
             return false;
         }
 
-        private Marker addFlatQuantileMarker(LatLng pos, BitmapDescriptor icon) {
+        private Marker addFlatInfoLabelMarker(LatLng pos, BitmapDescriptor icon) {
             return mMap.addMarker(new MarkerOptions()
                     .position(pos)
                     .icon(icon)
-                    .anchor(mQuantileAnchorX, 0.5f)
+                    .anchor(mInfoLabelAnchorX, 0.5f)
                     .flat(true)
-                    .zIndex(QUANTILE_MARKER_Z_INDEX)
+                    .zIndex(INFO_LABEL_Z_INDEX)
                     .visible(false)
             );
         }
@@ -1360,75 +1401,60 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             return elapsedMin + " min " + secMod60 + " sec ago";
         }
 
-        private void ensureLabelPaintsInitialized() {
-            if (mLabelTitlePaint != null) return;
-            mLabelDensity = mActivity.getResources().getDisplayMetrics().density;
+        private static final int DATA_ICON_RADIUS_DP = 13;
+        private static final int DATA_ICON_INNER_DP = 20;
+        private static final int DATA_ICON_GAP_DP = 3;
 
-            mLabelTitlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            mLabelTitlePaint.setTextSize(LABEL_SIZE_SP * mLabelDensity);
-            mLabelTitlePaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            mLabelTitlePaint.setColor(0xFF616161);
-            mTitleFontMetrics = mLabelTitlePaint.getFontMetrics();
+        /** Creates the circle + signal icon bitmap (unrotated). */
+        private BitmapDescriptor createDataReceivedCircleIcon() {
+            float d = mActivity.getResources().getDisplayMetrics().density;
+            int circleRadius = (int) (DATA_ICON_RADIUS_DP * d);
+            int size = circleRadius * 2;
 
-            mLabelTimePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            mLabelTimePaint.setTextSize(LABEL_SIZE_SP * mLabelDensity);
-            mLabelTimePaint.setTypeface(android.graphics.Typeface.DEFAULT);
-            mLabelTimePaint.setColor(0xFF757575);
-            mTimeFontMetrics = mLabelTimePaint.getFontMetrics();
-
-            mLabelBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            mLabelBgPaint.setColor(0xDDFFFFFF);
-            mLabelBgPaint.setStyle(Paint.Style.FILL);
-        }
-
-        private BitmapDescriptor createLabeledVehicleIcon(ObaTripStatus status,
-                                                           String timeLine) {
-            String routeId = mLastResponse.getTrip(status.getActiveTripId()).getRouteId();
-            ObaRoute route = mLastResponse.getRoute(routeId);
-            Bitmap vehicleBmp = getBitmap(route.getType(),
-                    R.color.stop_info_scheduled_time, NO_DIRECTION);
-
-            ensureLabelPaintsInitialized();
-            float d = mLabelDensity;
-            float padX = 3 * d;
-            float padY = 1.5f * d;
-            float lineGap = d;
-            int gapPx = (int) (LABEL_GAP_DP * d);
-
-            // Measure text widths (heights come from cached font metrics)
-            float titleWidth = mLabelTitlePaint.measureText(DATA_RECEIVED_TITLE);
-            int titleHeight = (int) Math.ceil(mTitleFontMetrics.descent - mTitleFontMetrics.ascent);
-
-            float timeWidth = mLabelTimePaint.measureText(timeLine);
-            int timeHeight = (int) Math.ceil(mTimeFontMetrics.descent - mTimeFontMetrics.ascent);
-
-            // Layout
-            float maxTextWidth = Math.max(titleWidth, timeWidth);
-            int labelBlockHeight = (int) (padY + titleHeight + lineGap + timeHeight + padY);
-            int totalWidth = Math.max(vehicleBmp.getWidth(), (int) (maxTextWidth + padX * 2));
-            int totalHeight = labelBlockHeight + gapPx + vehicleBmp.getHeight();
-
-            // Draw
-            Bitmap bmp = Bitmap.createBitmap(totalWidth, totalHeight, Bitmap.Config.ARGB_8888);
+            Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
             Canvas c = new Canvas(bmp);
 
-            float labelLeft = (totalWidth - maxTextWidth) / 2f - padX;
-            float labelRight = (totalWidth + maxTextWidth) / 2f + padX;
-            c.drawRoundRect(labelLeft, 0, labelRight, labelBlockHeight,
-                    3 * d, 3 * d, mLabelBgPaint);
+            Paint circlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            circlePaint.setColor(0xFF616161);
+            circlePaint.setStyle(Paint.Style.FILL);
+            c.drawCircle(circleRadius, circleRadius, circleRadius, circlePaint);
 
-            float titleX = (totalWidth - titleWidth) / 2f;
-            c.drawText(DATA_RECEIVED_TITLE, titleX,
-                    padY - mTitleFontMetrics.ascent, mLabelTitlePaint);
-
-            float timeX = (totalWidth - timeWidth) / 2f;
-            c.drawText(timeLine, timeX,
-                    padY + titleHeight + lineGap - mTimeFontMetrics.ascent, mLabelTimePaint);
-
-            float iconLeft = (totalWidth - vehicleBmp.getWidth()) / 2f;
-            c.drawBitmap(vehicleBmp, iconLeft, labelBlockHeight + gapPx, null);
+            int iconSize = (int) (DATA_ICON_INNER_DP * d);
+            android.graphics.drawable.Drawable icon = ContextCompat.getDrawable(
+                    mActivity, R.drawable.ic_signal_indicator);
+            if (icon != null) {
+                int iconLeft = (size - iconSize) / 2;
+                int iconTop = (size - iconSize) / 2;
+                icon.setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize);
+                icon.draw(c);
+            }
 
             return BitmapDescriptorFactory.fromBitmap(bmp);
+        }
+
+        /** Creates the pointer-bubble label bitmap (rotated by the marker).
+         *  Also computes mDataReceivedLabelAnchorX to offset the label past the circle icon. */
+        private BitmapDescriptor createDataReceivedLabelIcon(String timeLine) {
+            String[] lines = {DATA_RECEIVED_TITLE, timeLine};
+            float[] anchorOut = new float[1];
+            BitmapDescriptor icon = createInfoLabelIconInternal(lines, anchorOut);
+            // anchorOut[0] is 0 (pointer tip). We need to shift left by circle radius + gap,
+            // expressed as a negative fraction of the label bitmap width.
+            // The bitmap width can be recovered: anchorOut is always 0 for pointer-only labels,
+            // so we compute the offset from known DP values.
+            float d = mActivity.getResources().getDisplayMetrics().density;
+            float offsetPx = DATA_ICON_RADIUS_DP * d + DATA_ICON_GAP_DP * d;
+            // We need the label bitmap width — measure it the same way as createInfoLabelIconInternal
+            Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            textPaint.setTextSize(INFO_LABEL_SP * d);
+            textPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            float maxLineWidth = 0;
+            for (String line : lines) {
+                maxLineWidth = Math.max(maxLineWidth, textPaint.measureText(line));
+            }
+            float bubbleWidth = INFO_LABEL_POINTER_WIDTH_DP * d + 4 * d + maxLineWidth + 6 * d;
+            mDataReceivedLabelAnchorX = -offsetPx / bubbleWidth;
+            return icon;
         }
 
         /**
@@ -1508,7 +1534,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
             long now = System.currentTimeMillis();
 
-            // Capture selected-trip data for quantile markers
+            // Capture selected-trip data for estimate markers
             GammaSpeedModel.GammaParams selectedParams = null;
             List<Location> selectedShape = null;
             double[] selectedCumDist = null;
@@ -1525,7 +1551,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 List<VehicleHistoryEntry> history = tracker.getHistoryReadOnly(tripId);
                 Double speed = tracker.getEstimatedSpeed(tripId);
 
-                // Capture data for quantile markers regardless of speed availability
+                // Capture data for estimate markers regardless of speed availability
                 if (tripId.equals(mSelectedTripId)) {
                     selectedParams = tracker.getLastGammaParams();
                     selectedShape = shape;
@@ -1548,77 +1574,102 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                         mReusableLocation.getLatitude(), mReusableLocation.getLongitude()));
             }
 
-            // Update quantile markers for the selected vehicle
-            updateQuantileMarkers(selectedParams, selectedShape, selectedCumDist,
+            // Update estimate markers for the selected vehicle
+            updateEstimateMarkers(selectedParams, selectedShape, selectedCumDist,
                     selectedHistory, now);
         }
 
-        private void hideQuantileMarkers() {
-            if (mQuantile10Marker != null) mQuantile10Marker.setVisible(false);
-            if (mQuantile90Marker != null) mQuantile90Marker.setVisible(false);
+        private void hideEstimateMarkers() {
+            if (mSlowEstimateMarker != null) mSlowEstimateMarker.setVisible(false);
+            if (mFastEstimateMarker != null) mFastEstimateMarker.setVisible(false);
+            if (mHighlightOuterPolyline != null) mHighlightOuterPolyline.setVisible(false);
+            if (mHighlightInnerPolyline != null) mHighlightInnerPolyline.setVisible(false);
         }
 
-        private void updateQuantileMarkers(GammaSpeedModel.GammaParams params,
+        private void updateEstimateMarkers(GammaSpeedModel.GammaParams params,
                                             List<Location> shape, double[] cumDist,
                                             List<VehicleHistoryEntry> history, long now) {
-            if (mQuantile10Marker == null || mQuantile90Marker == null) return;
+            if (mSlowEstimateMarker == null || mFastEstimateMarker == null) return;
 
             if (params == null || shape == null || cumDist == null
                     || history == null || history.isEmpty()) {
-                hideQuantileMarkers();
+                hideEstimateMarkers();
                 return;
             }
 
             VehicleHistoryEntry newest = DistanceExtrapolator.findNewestValidEntry(history);
             if (newest == null) {
-                hideQuantileMarkers();
+                hideEstimateMarkers();
                 return;
             }
 
             Double lastDist = newest.getBestDistanceAlongTrip();
             long lastTime = newest.getLastLocationUpdateTime();
             if (lastDist == null || lastTime <= 0) {
-                hideQuantileMarkers();
+                hideEstimateMarkers();
                 return;
             }
 
             double dtSec = (now - lastTime) / 1000.0;
             if (dtSec < 0.5) {
-                hideQuantileMarkers();
+                hideEstimateMarkers();
                 return;
             }
 
-            // Cache quantile speeds — only recompute when gamma params change
-            if (params != mCachedQuantileParams) {
-                mCachedQuantileParams = params;
+            // Cache percentile speeds — only recompute when gamma params change
+            if (params != mCachedGammaParams) {
+                mCachedGammaParams = params;
                 mCachedSpeed10Mps = GammaSpeedModel.quantile(0.10, params)
+                        / GammaSpeedModel.MPS_TO_MPH;
+                mCachedSpeed30Mps = GammaSpeedModel.quantile(0.30, params)
+                        / GammaSpeedModel.MPS_TO_MPH;
+                mCachedSpeed70Mps = GammaSpeedModel.quantile(0.70, params)
                         / GammaSpeedModel.MPS_TO_MPH;
                 mCachedSpeed90Mps = GammaSpeedModel.quantile(0.90, params)
                         / GammaSpeedModel.MPS_TO_MPH;
             }
 
             double dist10 = lastDist + mCachedSpeed10Mps * dtSec;
+            double dist30 = lastDist + mCachedSpeed30Mps * dtSec;
+            double dist70 = lastDist + mCachedSpeed70Mps * dtSec;
             double dist90 = lastDist + mCachedSpeed90Mps * dtSec;
 
-            updateSingleQuantileMarker(mQuantile10Marker, dist10, shape, cumDist);
-            updateSingleQuantileMarker(mQuantile90Marker, dist90, shape, cumDist);
+            updateInfoLabelPosition(mSlowEstimateMarker, dist10, shape, cumDist);
+            updateInfoLabelPosition(mFastEstimateMarker, dist90, shape, cumDist);
+            updateHighlightPolyline(mHighlightOuterPolyline, dist10, dist90,
+                    shape, cumDist, mHighlightOuterPoints);
+            updateHighlightPolyline(mHighlightInnerPolyline, dist30, dist70,
+                    shape, cumDist, mHighlightInnerPoints);
+        }
+
+        private void updateHighlightPolyline(Polyline polyline, double startDist,
+                                               double endDist, List<Location> shape,
+                                               double[] cumDist, java.util.ArrayList<LatLng> pts) {
+            if (polyline == null) return;
+            DistanceExtrapolator.subPolylineLatLng(shape, cumDist, startDist, endDist, pts);
+            if (pts.size() >= 2) {
+                polyline.setPoints(pts);
+                polyline.setVisible(true);
+            } else {
+                polyline.setVisible(false);
+            }
         }
 
         /**
-         * Updates a single quantile marker's position and rotation.
+         * Updates an info label marker's position and rotation along the polyline.
          * Label azimuth is always in [0°, 180°] (right side), so text is
          * always upright — no icon flipping needed.
          */
-        private void updateSingleQuantileMarker(Marker marker, double distance,
+        private void updateInfoLabelPosition(Marker marker, double distance,
                                                  List<Location> shape, double[] cumDist) {
             if (!DistanceExtrapolator.interpolateAlongPolyline(
-                    shape, cumDist, distance, mQuantileReusableLoc)) {
+                    shape, cumDist, distance, mInfoLabelReusableLoc)) {
                 marker.setVisible(false);
                 return;
             }
             marker.setPosition(new LatLng(
-                    mQuantileReusableLoc.getLatitude(),
-                    mQuantileReusableLoc.getLongitude()));
+                    mInfoLabelReusableLoc.getLatitude(),
+                    mInfoLabelReusableLoc.getLongitude()));
             double heading = DistanceExtrapolator.headingAlongPolyline(
                     shape, cumDist, distance);
             if (!Double.isNaN(heading)) {
@@ -1633,7 +1684,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
          */
         synchronized void clear() {
             removeDataReceivedMarker();
-            removeQuantileMarkers();
+            removeEstimateMarkers();
             if (mVehicleMarkers != null) {
                 // Clear all markers from the map
                 removeMarkersFromMap();

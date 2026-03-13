@@ -21,6 +21,9 @@ import org.onebusaway.android.io.elements.ObaTripSchedule;
 
 import org.onebusaway.android.util.LocationUtils;
 
+import com.google.android.gms.maps.model.LatLng;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -235,6 +238,44 @@ public final class DistanceExtrapolator {
         out.setLatitude(p0.getLatitude() + fraction * (p1.getLatitude() - p0.getLatitude()));
         out.setLongitude(p0.getLongitude() + fraction * (p1.getLongitude() - p0.getLongitude()));
         return true;
+    }
+
+    /**
+     * Extracts a sub-polyline between two distances along the route, returning LatLng
+     * points ready for use in a Google Maps Polyline. The result includes interpolated
+     * start/end points plus all original polyline vertices in between.
+     *
+     * @param polylinePoints decoded polyline points
+     * @param cumDist        precomputed cumulative distances
+     * @param startDist      start distance in meters
+     * @param endDist        end distance in meters
+     * @param out            list to populate (cleared first); null-safe (returns empty)
+     */
+    public static void subPolylineLatLng(List<Location> polylinePoints, double[] cumDist,
+                                          double startDist, double endDist,
+                                          List<LatLng> out) {
+        out.clear();
+        if (polylinePoints == null || polylinePoints.isEmpty()
+                || cumDist == null || startDist >= endDist) {
+            return;
+        }
+        // Add interpolated start point
+        Location loc = interpolateAlongPolyline(polylinePoints, cumDist, startDist);
+        if (loc == null) return;
+        out.add(new LatLng(loc.getLatitude(), loc.getLongitude()));
+
+        // Add all original polyline vertices between startDist and endDist
+        for (int i = 0; i < cumDist.length; i++) {
+            if (cumDist[i] > startDist && cumDist[i] < endDist) {
+                Location p = polylinePoints.get(i);
+                out.add(new LatLng(p.getLatitude(), p.getLongitude()));
+            }
+        }
+
+        // Add interpolated end point
+        loc = interpolateAlongPolyline(polylinePoints, cumDist, endDist);
+        if (loc == null) return;
+        out.add(new LatLng(loc.getLatitude(), loc.getLongitude()));
     }
 
     /**

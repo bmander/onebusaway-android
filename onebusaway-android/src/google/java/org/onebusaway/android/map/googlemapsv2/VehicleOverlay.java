@@ -588,8 +588,12 @@ public class VehicleOverlay implements MarkerListeners  {
         private double[] mSpineDistances;
         private double[] mSpineLats;
         private double[] mSpineLngs;
-        private double[] mSpineHeadings;
         private LatLng[] mSpineLatLngs;
+        // Precomputed per-spine-point values for per-frame offset calculation
+        private double[] mSpineDistDeltaMph; // (dist[i] - avlDist) * MPS_TO_MPH
+        private double[] mSpinePerpCos;      // cos(toRadians(heading + 90))
+        private double[] mSpinePerpSin;      // sin(toRadians(heading + 90))
+        private double[] mSpineLatCosInv;    // 1 / cos(toRadians(lat))
         /** Shape reference used to detect when spine needs rebuilding. */
         private List<Location> mSpineShape;
         /** Last AVL distance used to build spine; triggers rebuild when it changes. */
@@ -597,7 +601,15 @@ public class VehicleOverlay implements MarkerListeners  {
 
         // Cached gamma-derived values (recomputed only when params change)
         private double mCachedSpeed99Mps;
-        private double mCachedPeakPdf;
+        private double mCachedInvScale;  // 1 / params.scale
+
+        // Normalized PDF lookup table indexed by u = x/scale (unit-scale gamma).
+        // Depends only on alpha; rebuilt when alpha changes.
+        private static final int PDF_TABLE_SIZE = 256;
+        private static final double PDF_TABLE_MAX_U = 50.0;
+        private static final double PDF_TABLE_INV_STEP =
+                (PDF_TABLE_SIZE - 1) / PDF_TABLE_MAX_U;
+        private final double[] mNormalizedPdfTable = new double[PDF_TABLE_SIZE];
 
         /** Reusable list for polygon vertex construction. */
         private final java.util.ArrayList<LatLng> mPdfPolygonPoints = new java.util.ArrayList<>();
@@ -1510,7 +1522,7 @@ public class VehicleOverlay implements MarkerListeners  {
                 return;
             }
 
-            // Cache percentile speeds — only recompute when gamma params change
+            // Cache percentile speeds, inverse scale, and PDF table
             if (params != mCachedGammaParams) {
                 mCachedGammaParams = params;
                 mCachedSpeed10Mps = GammaSpeedModel.quantile(0.10, params)
@@ -1519,10 +1531,8 @@ public class VehicleOverlay implements MarkerListeners  {
                         / GammaSpeedModel.MPS_TO_MPH;
                 mCachedSpeed99Mps = GammaSpeedModel.quantile(PDF_UPPER_QUANTILE, params)
                         / GammaSpeedModel.MPS_TO_MPH;
-                double modeMph = (params.alpha >= 1)
-                        ? (params.alpha - 1) * params.scale : 0.01;
-                mCachedPeakPdf = GammaSpeedModel.pdf(modeMph, params);
-                if (mCachedPeakPdf <= 0) mCachedPeakPdf = 1.0;
+                mCachedInvScale = 1.0 / params.scale;
+                buildNormalizedPdfTable(params.alpha);
             }
 
             double dist10 = lastDist + mCachedSpeed10Mps * dtSec;
@@ -1531,7 +1541,7 @@ public class VehicleOverlay implements MarkerListeners  {
 
             updateInfoLabelPosition(mSlowEstimateMarker, dist10, shape, cumDist);
             updateInfoLabelPosition(mFastEstimateMarker, dist90, shape, cumDist);
-            updatePdfPolygon(params, lastDist, dtSec, dist99, shape, cumDist);
+            updatePdfPolygon(lastDist, dtSec, dist99, shape, cumDist);
         }
 
         /**
@@ -1570,28 +1580,65 @@ public class VehicleOverlay implements MarkerListeners  {
             mSpineDistances = new double[count];
             mSpineLats = new double[count];
             mSpineLngs = new double[count];
-            mSpineHeadings = new double[count];
             mSpineLatLngs = new LatLng[count];
+            mSpineDistDeltaMph = new double[count];
+            mSpinePerpCos = new double[count];
+            mSpinePerpSin = new double[count];
+            mSpineLatCosInv = new double[count];
 
             Location reusable = new Location("spine");
             int i = 0;
             for (Double d : distSet) {
                 mSpineDistances[i] = d;
                 DistanceExtrapolator.interpolateAlongPolyline(shape, cumDist, d, reusable);
-                mSpineLats[i] = reusable.getLatitude();
-                mSpineLngs[i] = reusable.getLongitude();
-                mSpineHeadings[i] = DistanceExtrapolator.headingAlongPolyline(
+                double lat = reusable.getLatitude();
+                double lng = reusable.getLongitude();
+                mSpineLats[i] = lat;
+                mSpineLngs[i] = lng;
+                mSpineLatLngs[i] = new LatLng(lat, lng);
+
+                // Precompute distance delta from AVL point (in mph-seconds)
+                mSpineDistDeltaMph[i] = (d - avlDist) * GammaSpeedModel.MPS_TO_MPH;
+
+                // Precompute perpendicular direction vector components
+                double heading = DistanceExtrapolator.headingAlongPolyline(
                         shape, cumDist, d);
-                mSpineLatLngs[i] = new LatLng(mSpineLats[i], mSpineLngs[i]);
+                double perpBearing = Math.toRadians(heading + 90.0);
+                mSpinePerpCos[i] = Math.cos(perpBearing)
+                        / DistanceExtrapolator.EARTH_RADIUS_METERS;
+                mSpinePerpSin[i] = Math.sin(perpBearing)
+                        / DistanceExtrapolator.EARTH_RADIUS_METERS;
+                mSpineLatCosInv[i] = 1.0 / Math.cos(Math.toRadians(lat));
                 i++;
+            }
+            mPdfPolygonPoints.ensureCapacity(count * 2);
+        }
+
+        /**
+         * Builds a lookup table of the normalized gamma PDF indexed by u = x/scale.
+         * Uses a unit-scale gamma Gamma(alpha, 1), so the table depends only on
+         * alpha and is valid for any scale or dtSec. Per-frame code converts
+         * spine distances to u-values and interpolates into this table.
+         */
+        private void buildNormalizedPdfTable(double alpha) {
+            GammaSpeedModel.GammaParams unitParams =
+                    new GammaSpeedModel.GammaParams(alpha, 1.0);
+            double modeU = (alpha >= 1) ? alpha - 1 : 0.01;
+            double peakPdf = GammaSpeedModel.pdf(modeU, unitParams);
+            if (peakPdf <= 0) peakPdf = 1.0;
+            double step = PDF_TABLE_MAX_U / (PDF_TABLE_SIZE - 1);
+            for (int k = 0; k < PDF_TABLE_SIZE; k++) {
+                double u = k * step;
+                mNormalizedPdfTable[k] = (u > 0)
+                        ? GammaSpeedModel.pdf(u, unitParams) / peakPdf : 0;
             }
         }
 
         /**
-         * Per-frame: looks up cached spine range, evaluates PDF, builds polygon.
+         * Per-frame: looks up cached spine range, builds polygon using
+         * precomputed spine geometry and PDF lookup table.
          */
-        private void updatePdfPolygon(GammaSpeedModel.GammaParams params,
-                                       double lastDist, double dtSec,
+        private void updatePdfPolygon(double lastDist, double dtSec,
                                        double distEnd,
                                        List<Location> shape, double[] cumDist) {
             if (mPdfPolygon == null) return;
@@ -1624,29 +1671,37 @@ public class VehicleOverlay implements MarkerListeners  {
 
             mPdfPolygonPoints.clear();
 
-            // Forward pass: offset points (PDF curve side)
+            // Per-frame: convert each spine point's distance-from-AVL to the
+            // normalized gamma variable u = distDelta / (scale * dtSec), then
+            // look up the precomputed normalized PDF table.
+            // mSpineDistDeltaMph[i] = distDelta * MPS_TO_MPH, so:
+            //   u = mSpineDistDeltaMph[i] * invScaleDt
+            // where invScaleDt = 1 / (scale * dtSec) = mCachedInvScale / dtSec
+            double invScaleDt = mCachedInvScale / dtSec;
+
             for (int i = startIdx; i < endIdx; i++) {
-                double speedMps = (mSpineDistances[i] - lastDist) / dtSec;
-                double speedMph = speedMps * GammaSpeedModel.MPS_TO_MPH;
-                double pdfVal = (speedMph > 0)
-                        ? GammaSpeedModel.pdf(speedMph, params) : 0;
-                double offsetMeters = (pdfVal / mCachedPeakPdf) * PDF_MAX_OFFSET_METERS;
+                double u = mSpineDistDeltaMph[i] * invScaleDt;
 
-                double lat = mSpineLats[i];
-                double lng = mSpineLngs[i];
-                double heading = mSpineHeadings[i];
+                // Lookup normalized PDF via linear interpolation into table
+                double normalizedPdf;
+                if (u <= 0 || u >= PDF_TABLE_MAX_U) {
+                    normalizedPdf = 0;
+                } else {
+                    double idx = u * PDF_TABLE_INV_STEP;
+                    int lo = (int) idx;
+                    double frac = idx - lo;
+                    normalizedPdf = mNormalizedPdfTable[lo]
+                            + frac * (mNormalizedPdfTable[lo + 1]
+                                      - mNormalizedPdfTable[lo]);
+                }
+                double offset = normalizedPdf * PDF_MAX_OFFSET_METERS;
 
-                // Offset perpendicular (right side: heading + 90°)
-                double perpBearing = Math.toRadians(heading + 90.0);
-                double latRad = Math.toRadians(lat);
-                double dLat = (offsetMeters / DistanceExtrapolator.EARTH_RADIUS_METERS)
-                        * Math.cos(perpBearing);
-                double dLng = (offsetMeters / DistanceExtrapolator.EARTH_RADIUS_METERS)
-                        * Math.sin(perpBearing)
-                        / Math.cos(latRad);
+                // Perpendicular offset using precomputed direction vectors
+                double dLat = offset * mSpinePerpCos[i];
+                double dLng = offset * mSpinePerpSin[i] * mSpineLatCosInv[i];
 
                 mPdfPolygonPoints.add(new LatLng(
-                        lat + Math.toDegrees(dLat), lng + Math.toDegrees(dLng)));
+                        mSpineLats[i] + dLat, mSpineLngs[i] + dLng));
             }
 
             // Backward pass: spine side (pre-built LatLngs, no computation)

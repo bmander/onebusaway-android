@@ -575,7 +575,8 @@ public class VehicleOverlay implements MarkerListeners  {
         private static final float HIGHLIGHT_Z_INDEX = -1f;
         private static final int HIGHLIGHT_RGB = 0xAB47BC; // bright purple
         private static final int PDF_FILL_ALPHA = 0x66;
-        private static final int PDF_STROKE_ALPHA = 0xAA;
+        private static final int PDF_STROKE_RGB = 0xE1BEE7; // light purple
+        private static final int PDF_STROKE_ALPHA = 0x88;
 
         /** Spacing between spine sample points in meters. */
         private static final double SPINE_SPACING_METERS = 20.0;
@@ -1298,12 +1299,12 @@ public class VehicleOverlay implements MarkerListeners  {
 
         private Polygon addPdfPolygon() {
             int fillColor = (PDF_FILL_ALPHA << 24) | HIGHLIGHT_RGB;
-            int strokeColor = (PDF_STROKE_ALPHA << 24) | HIGHLIGHT_RGB;
+            int strokeColor = (PDF_STROKE_ALPHA << 24) | PDF_STROKE_RGB;
             return mMap.addPolygon(new PolygonOptions()
                     .add(new LatLng(0, 0))  // dummy point; replaced on first update
                     .fillColor(fillColor)
                     .strokeColor(strokeColor)
-                    .strokeWidth(2f)
+                    .strokeWidth(4f)
                     .zIndex(HIGHLIGHT_Z_INDEX)
                     .visible(false));
         }

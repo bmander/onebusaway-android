@@ -27,7 +27,6 @@ import android.location.Location;
 import android.os.Handler;
 import android.util.Log;
 import android.view.Choreographer;
-import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
@@ -84,7 +83,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * A map overlay that shows vehicle positions on the map
  */
-public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, MarkerListeners  {
+public class VehicleOverlay implements MarkerListeners  {
 
     interface Controller {
         String getFocusedStopId();
@@ -102,7 +101,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
     private ObaTripsForRouteResponse mLastResponse;
 
-    private CustomInfoWindowAdapter mCustomInfoWindowAdapter;
+    private View mVehicleInfoCard;
+    private TextView mCardRouteView;
+    private TextView mCardStatusView;
+    private ViewGroup mCardOccupancyView;
+    private String mCardTripId;
 
     private Controller mController;
 
@@ -219,14 +222,6 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         mActivity = activity;
         mMap = map;
         loadIcons();
-        // Set adapter for custom info window that appears when tapping on vehicle markers
-        mCustomInfoWindowAdapter = new CustomInfoWindowAdapter(mActivity);
-        setupInfoWindow();
-    }
-
-    private void setupInfoWindow() {
-        mMap.setInfoWindowAdapter(mCustomInfoWindowAdapter);
-        mMap.setOnInfoWindowClickListener(this);
     }
 
     public void setController(Controller controller) {
@@ -269,6 +264,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             mMarkerData.clear();
             mMarkerData = null;
         }
+        hideVehicleInfoCard();
     }
 
     /**
@@ -396,21 +392,75 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         return b;
     }
 
-    @Override
-    public void onInfoWindowClick(Marker marker) {
-        if (mMarkerData != null) {
-            // Show trip details screen for the vehicle associated with this marker
-            ObaTripStatus status = mMarkerData.getStatusFromMarker(marker);
-            if (status != null) {
-                TripDetailsActivity.Builder builder =
-                        new TripDetailsActivity.Builder(mActivity, status.getActiveTripId())
-                                .setScrollMode(TripDetailsListFragment.SCROLL_MODE_VEHICLE)
-                                .setUpMode("back");
-                if (mController != null && mController.getFocusedStopId() != null) {
-                    builder.setStopId(mController.getFocusedStopId());
-                }
-                builder.start();
-            }
+    private void initVehicleInfoCard() {
+        mVehicleInfoCard = mActivity.findViewById(R.id.vehicleInfoCard);
+        if (mVehicleInfoCard == null) return;
+        mCardRouteView = mVehicleInfoCard.findViewById(R.id.route_and_destination);
+        mCardStatusView = mVehicleInfoCard.findViewById(R.id.status);
+        mCardOccupancyView = mVehicleInfoCard.findViewById(R.id.occupancy);
+        ImageView moreView = mVehicleInfoCard.findViewById(R.id.trip_more_info);
+        moreView.setColorFilter(
+                mActivity.getResources().getColor(R.color.switch_thumb_normal_material_dark));
+        mVehicleInfoCard.setOnClickListener(v -> onVehicleInfoCardClick());
+    }
+
+    private void onVehicleInfoCardClick() {
+        if (mCardTripId == null) return;
+        TripDetailsActivity.Builder builder =
+                new TripDetailsActivity.Builder(mActivity, mCardTripId)
+                        .setScrollMode(TripDetailsListFragment.SCROLL_MODE_VEHICLE)
+                        .setUpMode("back");
+        if (mController != null && mController.getFocusedStopId() != null) {
+            builder.setStopId(mController.getFocusedStopId());
+        }
+        builder.start();
+    }
+
+    private void showVehicleInfoCard(ObaTripStatus status) {
+        if (mVehicleInfoCard == null) initVehicleInfoCard();
+        if (mVehicleInfoCard == null || mLastResponse == null) return;
+
+        mCardTripId = status.getActiveTripId();
+        ObaTrip trip = mLastResponse.getTrip(mCardTripId);
+        ObaRoute route = mLastResponse.getRoute(trip.getRouteId());
+
+        mCardRouteView.setText(UIUtils.getRouteDisplayName(route) + " "
+                + mActivity.getString(R.string.trip_info_separator) + " "
+                + UIUtils.formatDisplayText(trip.getHeadsign()));
+
+        boolean isRealtime = isLocationRealtime(status);
+        Resources r = mActivity.getResources();
+        int statusColor = getDeviationColorResource(isRealtime, status);
+
+        mCardStatusView.setBackgroundResource(R.drawable.round_corners_style_b_status);
+        GradientDrawable d = (GradientDrawable) mCardStatusView.getBackground();
+        d.setColor(r.getColor(statusColor));
+        int pSides = UIUtils.dpToPixels(mActivity, 5);
+        int pTopBottom = UIUtils.dpToPixels(mActivity, 2);
+        mCardStatusView.setPadding(pSides, pTopBottom, pSides, pTopBottom);
+
+        if (isRealtime) {
+            long deviationMin = TimeUnit.SECONDS.toMinutes(status.getScheduleDeviation());
+            mCardStatusView.setText(
+                    ArrivalInfoUtils.computeArrivalLabelFromDelay(r, deviationMin));
+            UIUtils.setOccupancyVisibilityAndColor(mCardOccupancyView,
+                    status.getOccupancyStatus(), OccupancyState.REALTIME);
+            UIUtils.setOccupancyContentDescription(mCardOccupancyView,
+                    status.getOccupancyStatus(), OccupancyState.REALTIME);
+        } else {
+            mCardStatusView.setText(r.getString(R.string.stop_info_scheduled));
+            UIUtils.setOccupancyVisibilityAndColor(mCardOccupancyView,
+                    null, OccupancyState.HISTORICAL);
+            UIUtils.setOccupancyContentDescription(mCardOccupancyView,
+                    null, OccupancyState.HISTORICAL);
+        }
+
+        mVehicleInfoCard.setVisibility(View.VISIBLE);
+    }
+
+    private void hideVehicleInfoCard() {
+        if (mVehicleInfoCard != null) {
+            mVehicleInfoCard.setVisibility(View.GONE);
         }
     }
 
@@ -451,8 +501,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         ObaTripStatus status = mMarkerData.getStatusFromMarker(marker);
         if (status != null) {
             mMarkerData.setSelectedTripId(status.getActiveTripId());
-            setupInfoWindow();
-            marker.showInfoWindow();
+            showVehicleInfoCard(status);
             return true;
         }
         return false;
@@ -463,6 +512,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         if (mMarkerData != null) {
             mMarkerData.clearSelectedTripId();
         }
+        hideVehicleInfoCard();
     }
 
     /**
@@ -1591,99 +1641,4 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         return R.color.stop_info_scheduled_time;
     }
 
-    /**
-     * Adapter to show custom info windows when tapping on vehicle markers
-     */
-    class CustomInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
-
-        private LayoutInflater mInflater;
-
-        private Context mContext;
-
-        private Marker mCurrentFocusVehicleMarker;
-
-        public CustomInfoWindowAdapter(Context context) {
-            this.mInflater = LayoutInflater.from(context);
-            this.mContext = context;
-        }
-
-        @Override
-        public View getInfoWindow(Marker marker) {
-            return null;
-        }
-
-        @Override
-        public View getInfoContents(Marker marker) {
-            if (mMarkerData == null) {
-                // Markers haven't been initialized yet - use default rendering
-                return null;
-            }
-            ObaTripStatus status = mMarkerData.getStatusFromMarker(marker);
-            if (status == null) {
-                // Marker that the user tapped on wasn't a vehicle - use default rendering
-                mCurrentFocusVehicleMarker = null;
-                return null;
-            }
-            mCurrentFocusVehicleMarker = marker;
-            View view = mInflater.inflate(R.layout.vehicle_info_window, null);
-            Resources r = mContext.getResources();
-            TextView routeView = (TextView) view.findViewById(R.id.route_and_destination);
-            TextView statusView = (TextView) view.findViewById(R.id.status);
-            ImageView moreView = (ImageView) view.findViewById(R.id.trip_more_info);
-            moreView.setColorFilter(r.getColor(R.color.switch_thumb_normal_material_dark));
-            ViewGroup occupancyView = view.findViewById(R.id.occupancy);
-
-            // Get route/trip details
-            ObaTrip trip = mLastResponse.getTrip(status.getActiveTripId());
-            ObaRoute route = mLastResponse.getRoute(trip.getRouteId());
-
-            routeView.setText(UIUtils.getRouteDisplayName(route) + " " +
-                    mContext.getString(R.string.trip_info_separator) + " " + UIUtils
-                    .formatDisplayText(trip.getHeadsign()));
-
-            boolean isRealtime = isLocationRealtime(status);
-
-            statusView.setBackgroundResource(R.drawable.round_corners_style_b_status);
-            GradientDrawable d = (GradientDrawable) statusView.getBackground();
-
-            // Set padding on status view
-            int pSides = UIUtils.dpToPixels(mContext, 5);
-            int pTopBottom = UIUtils.dpToPixels(mContext, 2);
-
-            int statusColor = getDeviationColorResource(isRealtime, status);
-
-            if (isRealtime) {
-                long deviationMin = TimeUnit.SECONDS.toMinutes(status.getScheduleDeviation());
-                String statusString = ArrivalInfoUtils.computeArrivalLabelFromDelay(r, deviationMin);
-                statusView.setText(statusString);
-                d.setColor(r.getColor(statusColor));
-                statusView.setPadding(pSides, pTopBottom, pSides, pTopBottom);
-            } else {
-                // Scheduled info
-                statusView.setText(r.getString(R.string.stop_info_scheduled));
-                d.setColor(r.getColor(statusColor));
-                statusView.setPadding(pSides, pTopBottom, pSides, pTopBottom);
-
-                // Hide occupancy by setting null value
-                UIUtils.setOccupancyVisibilityAndColor(occupancyView, null, OccupancyState.HISTORICAL);
-                UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.HISTORICAL);
-
-                return view;
-            }
-
-            if (status.getOccupancyStatus() != null) {
-                // Real-time occupancy data
-                UIUtils.setOccupancyVisibilityAndColor(occupancyView, status.getOccupancyStatus(), OccupancyState.REALTIME);
-                UIUtils.setOccupancyContentDescription(occupancyView, status.getOccupancyStatus(), OccupancyState.REALTIME);
-            } else {
-                // Hide occupancy by setting null value
-                UIUtils.setOccupancyVisibilityAndColor(occupancyView, null, OccupancyState.REALTIME);
-                UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.REALTIME);
-            }
-
-            return view;
-        }
-
-
-    }
 }

@@ -1600,14 +1600,16 @@ public class VehicleOverlay implements MarkerListeners  {
                 // Precompute distance delta from AVL point (in mph-seconds)
                 mSpineDistDeltaMph[i] = (d - avlDist) * GammaSpeedModel.MPS_TO_MPH;
 
-                // Precompute perpendicular direction vector components
+                // Precompute perpendicular direction vector components.
+                // Includes radians-to-degrees conversion so per-frame code
+                // can add offsets directly to lat/lng in degrees.
                 double heading = DistanceExtrapolator.headingAlongPolyline(
                         shape, cumDist, d);
                 double perpBearing = Math.toRadians(heading + 90.0);
-                mSpinePerpCos[i] = Math.cos(perpBearing)
+                double degreesPerMeter = Math.toDegrees(1.0)
                         / DistanceExtrapolator.EARTH_RADIUS_METERS;
-                mSpinePerpSin[i] = Math.sin(perpBearing)
-                        / DistanceExtrapolator.EARTH_RADIUS_METERS;
+                mSpinePerpCos[i] = Math.cos(perpBearing) * degreesPerMeter;
+                mSpinePerpSin[i] = Math.sin(perpBearing) * degreesPerMeter;
                 mSpineLatCosInv[i] = 1.0 / Math.cos(Math.toRadians(lat));
                 i++;
             }

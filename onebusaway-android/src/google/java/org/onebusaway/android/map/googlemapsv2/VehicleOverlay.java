@@ -41,9 +41,8 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.model.Polyline;
-import com.google.android.gms.maps.model.PolylineOptions;
-import com.google.android.gms.maps.model.RoundCap;
+import com.google.android.gms.maps.model.Polygon;
+import com.google.android.gms.maps.model.PolygonOptions;
 
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
@@ -73,6 +72,7 @@ import org.onebusaway.android.util.UIUtils;
 import android.animation.ValueAnimator;
 import android.view.animation.AccelerateDecelerateInterpolator;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -570,21 +570,36 @@ public class VehicleOverlay implements MarkerListeners  {
         private boolean mSlowEstimateExpanded;
         private boolean mFastEstimateExpanded;
 
-        /** Outer highlight polyline: 10th–90th percentile range. */
-        private Polyline mHighlightOuterPolyline;
-        /** Inner highlight polyline: 30th–70th percentile range. */
-        private Polyline mHighlightInnerPolyline;
-        private static final float HIGHLIGHT_OUTER_WIDTH_DP = 18;
-        private static final float HIGHLIGHT_INNER_WIDTH_DP = 36;
+        /** Polygon showing the gamma PDF curve offset perpendicular to the route. */
+        private Polygon mPdfPolygon;
         private static final float HIGHLIGHT_Z_INDEX = -1f;
         private static final int HIGHLIGHT_ALPHA = 0x88;
         private static final int HIGHLIGHT_RGB = 0xAB47BC; // bright purple
-        /** Cached 30th/70th percentile speeds, recomputed alongside 10th/90th. */
-        private double mCachedSpeed30Mps;
-        private double mCachedSpeed70Mps;
-        /** Reusable lists for sub-polyline extraction to avoid per-frame allocation. */
-        private final java.util.ArrayList<LatLng> mHighlightOuterPoints = new java.util.ArrayList<>();
-        private final java.util.ArrayList<LatLng> mHighlightInnerPoints = new java.util.ArrayList<>();
+
+        /** Spacing between spine sample points in meters. */
+        private static final double SPINE_SPACING_METERS = 20.0;
+        /** Maximum perpendicular offset at the PDF peak, in meters. */
+        private static final double PDF_MAX_OFFSET_METERS = 150.0;
+        /** Upper percentile bound for the rendered distance range. */
+        private static final double PDF_UPPER_QUANTILE = 0.99;
+
+        // Precomputed spine for the selected trip's route shape
+        private double[] mSpineDistances;
+        private double[] mSpineLats;
+        private double[] mSpineLngs;
+        private double[] mSpineHeadings;
+        private LatLng[] mSpineLatLngs;
+        /** Shape reference used to detect when spine needs rebuilding. */
+        private List<Location> mSpineShape;
+        /** Last AVL distance used to build spine; triggers rebuild when it changes. */
+        private double mCachedLastDist = Double.NaN;
+
+        // Cached gamma-derived values (recomputed only when params change)
+        private double mCachedSpeed99Mps;
+        private double mCachedPeakPdf;
+
+        /** Reusable list for polygon vertex construction. */
+        private final java.util.ArrayList<LatLng> mPdfPolygonPoints = new java.util.ArrayList<>();
 
         /** Reusable Location for info label interpolation to avoid per-frame allocation. */
         private final Location mInfoLabelReusableLoc = new Location("infolabel");
@@ -1210,9 +1225,8 @@ public class VehicleOverlay implements MarkerListeners  {
             mSlowEstimateMarker = addFlatInfoLabelMarker(pos, mSlowEstimateIcon);
             mFastEstimateMarker = addFlatInfoLabelMarker(pos, mFastEstimateIcon);
 
-            // Create the highlight polylines behind the route polyline
-            mHighlightOuterPolyline = addHighlightPolyline(HIGHLIGHT_OUTER_WIDTH_DP);
-            mHighlightInnerPolyline = addHighlightPolyline(HIGHLIGHT_INNER_WIDTH_DP);
+            // Create the PDF polygon behind the route polyline
+            mPdfPolygon = addPdfPolygon();
         }
 
         private void removeEstimateMarkers() {
@@ -1224,14 +1238,13 @@ public class VehicleOverlay implements MarkerListeners  {
                 mFastEstimateMarker.remove();
                 mFastEstimateMarker = null;
             }
-            if (mHighlightOuterPolyline != null) {
-                mHighlightOuterPolyline.remove();
-                mHighlightOuterPolyline = null;
+            if (mPdfPolygon != null) {
+                mPdfPolygon.remove();
+                mPdfPolygon = null;
             }
-            if (mHighlightInnerPolyline != null) {
-                mHighlightInnerPolyline.remove();
-                mHighlightInnerPolyline = null;
-            }
+            mSpineShape = null;
+            mSpineDistances = null;
+            mCachedLastDist = Double.NaN;
             mSlowEstimateIcon = null;
             mFastEstimateIcon = null;
             mSlowEstimateExpandedIcon = null;
@@ -1270,16 +1283,15 @@ public class VehicleOverlay implements MarkerListeners  {
             );
         }
 
-        private Polyline addHighlightPolyline(float widthDp) {
-            int color = (HIGHLIGHT_ALPHA << 24) | HIGHLIGHT_RGB;
-            float density = mActivity.getResources().getDisplayMetrics().density;
-            RoundCap cap = new RoundCap();
-            return mMap.addPolyline(new PolylineOptions()
-                    .width(widthDp * density)
-                    .color(color)
+        private Polygon addPdfPolygon() {
+            int fillColor = (0x66 << 24) | HIGHLIGHT_RGB;
+            int strokeColor = (0xAA << 24) | HIGHLIGHT_RGB;
+            return mMap.addPolygon(new PolygonOptions()
+                    .add(new LatLng(0, 0))  // dummy point; replaced on first update
+                    .fillColor(fillColor)
+                    .strokeColor(strokeColor)
+                    .strokeWidth(2f)
                     .zIndex(HIGHLIGHT_Z_INDEX)
-                    .startCap(cap)
-                    .endCap(cap)
                     .visible(false));
         }
 
@@ -1464,8 +1476,7 @@ public class VehicleOverlay implements MarkerListeners  {
         private void hideEstimateMarkers() {
             if (mSlowEstimateMarker != null) mSlowEstimateMarker.setVisible(false);
             if (mFastEstimateMarker != null) mFastEstimateMarker.setVisible(false);
-            if (mHighlightOuterPolyline != null) mHighlightOuterPolyline.setVisible(false);
-            if (mHighlightInnerPolyline != null) mHighlightInnerPolyline.setVisible(false);
+            if (mPdfPolygon != null) mPdfPolygon.setVisible(false);
         }
 
         private void updateEstimateMarkers(GammaSpeedModel.GammaParams params,
@@ -1503,70 +1514,148 @@ public class VehicleOverlay implements MarkerListeners  {
                 mCachedGammaParams = params;
                 mCachedSpeed10Mps = GammaSpeedModel.quantile(0.10, params)
                         / GammaSpeedModel.MPS_TO_MPH;
-                mCachedSpeed30Mps = GammaSpeedModel.quantile(0.30, params)
-                        / GammaSpeedModel.MPS_TO_MPH;
-                mCachedSpeed70Mps = GammaSpeedModel.quantile(0.70, params)
-                        / GammaSpeedModel.MPS_TO_MPH;
                 mCachedSpeed90Mps = GammaSpeedModel.quantile(0.90, params)
                         / GammaSpeedModel.MPS_TO_MPH;
+                mCachedSpeed99Mps = GammaSpeedModel.quantile(PDF_UPPER_QUANTILE, params)
+                        / GammaSpeedModel.MPS_TO_MPH;
+                double modeMph = (params.alpha >= 1)
+                        ? (params.alpha - 1) * params.scale : 0.01;
+                mCachedPeakPdf = GammaSpeedModel.pdf(modeMph, params);
+                if (mCachedPeakPdf <= 0) mCachedPeakPdf = 1.0;
             }
 
             double dist10 = lastDist + mCachedSpeed10Mps * dtSec;
-            double dist30 = lastDist + mCachedSpeed30Mps * dtSec;
-            double dist70 = lastDist + mCachedSpeed70Mps * dtSec;
             double dist90 = lastDist + mCachedSpeed90Mps * dtSec;
+            double dist99 = lastDist + mCachedSpeed99Mps * dtSec;
 
             updateInfoLabelPosition(mSlowEstimateMarker, dist10, shape, cumDist);
             updateInfoLabelPosition(mFastEstimateMarker, dist90, shape, cumDist);
-            updateHighlightPolyline(mHighlightOuterPolyline, dist10, dist90,
-                    shape, cumDist, mHighlightOuterPoints);
-            updateHighlightPolyline(mHighlightInnerPolyline, dist30, dist70,
-                    shape, cumDist, mHighlightInnerPoints);
+            updatePdfPolygon(params, lastDist, dtSec, dist99, shape, cumDist);
         }
 
-        private void updateHighlightPolyline(Polyline polyline, double startDist,
-                                               double endDist, List<Location> shape,
-                                               double[] cumDist, java.util.ArrayList<LatLng> pts) {
-            if (polyline == null) return;
-            buildSubPolylineLatLng(shape, cumDist, startDist, endDist, pts);
-            if (pts.size() >= 2) {
-                polyline.setPoints(pts);
-                polyline.setVisible(true);
-            } else {
-                polyline.setVisible(false);
+        /**
+         * Precomputes spine points along the route shape by merging:
+         * 1. Regular interval points (every SPINE_SPACING_METERS)
+         * 2. Every vertex on the original polyline
+         * 3. The current AVL data point (lastDist)
+         * Called when the shape is first needed, changes, or the AVL position changes.
+         */
+        private void buildSpine(List<Location> shape, double[] cumDist, double avlDist) {
+            if (shape == null || shape.isEmpty() || cumDist == null) return;
+            mSpineShape = shape;
+            mCachedLastDist = avlDist;
+            double totalDist = cumDist[cumDist.length - 1];
+
+            // Collect all candidate distances into a sorted set (auto-deduplicates)
+            java.util.TreeSet<Double> distSet = new java.util.TreeSet<>();
+
+            // Regular interval points
+            for (double d = 0; d <= totalDist; d += SPINE_SPACING_METERS) {
+                distSet.add(d);
+            }
+            distSet.add(totalDist);
+
+            // Every polyline vertex
+            for (double d : cumDist) {
+                distSet.add(d);
+            }
+
+            // AVL data point
+            if (!Double.isNaN(avlDist) && avlDist >= 0 && avlDist <= totalDist) {
+                distSet.add(avlDist);
+            }
+
+            int count = distSet.size();
+            mSpineDistances = new double[count];
+            mSpineLats = new double[count];
+            mSpineLngs = new double[count];
+            mSpineHeadings = new double[count];
+            mSpineLatLngs = new LatLng[count];
+
+            Location reusable = new Location("spine");
+            int i = 0;
+            for (Double d : distSet) {
+                mSpineDistances[i] = d;
+                DistanceExtrapolator.interpolateAlongPolyline(shape, cumDist, d, reusable);
+                mSpineLats[i] = reusable.getLatitude();
+                mSpineLngs[i] = reusable.getLongitude();
+                mSpineHeadings[i] = DistanceExtrapolator.headingAlongPolyline(
+                        shape, cumDist, d);
+                mSpineLatLngs[i] = new LatLng(mSpineLats[i], mSpineLngs[i]);
+                i++;
             }
         }
 
         /**
-         * Builds a sub-polyline as LatLng points between two distances along the route.
-         * Uses binary search and reusable Location to minimize per-frame allocation.
+         * Per-frame: looks up cached spine range, evaluates PDF, builds polygon.
          */
-        private void buildSubPolylineLatLng(List<Location> shape, double[] cumDist,
-                                             double startDist, double endDist,
-                                             java.util.ArrayList<LatLng> out) {
-            out.clear();
-            if (shape == null || shape.isEmpty() || cumDist == null || startDist >= endDist) return;
+        private void updatePdfPolygon(GammaSpeedModel.GammaParams params,
+                                       double lastDist, double dtSec,
+                                       double distEnd,
+                                       List<Location> shape, double[] cumDist) {
+            if (mPdfPolygon == null) return;
 
-            // Interpolated start point
-            if (!DistanceExtrapolator.interpolateAlongPolyline(
-                    shape, cumDist, startDist, mInfoLabelReusableLoc)) return;
-            out.add(MapHelpV2.makeLatLng(mInfoLabelReusableLoc));
-
-            // Original vertices between startDist and endDist (binary search)
-            int[] range = DistanceExtrapolator.findVertexRange(cumDist, startDist, endDist);
-            if (range != null) {
-                for (int i = range[0]; i < range[1]; i++) {
-                    out.add(MapHelpV2.makeLatLng(shape.get(i)));
-                }
+            // Lazily build spine on first use, shape change, or AVL position change
+            if (mSpineDistances == null || shape != mSpineShape
+                    || lastDist != mCachedLastDist) {
+                buildSpine(shape, cumDist, lastDist);
             }
-
-            // Interpolated end point
-            if (!DistanceExtrapolator.interpolateAlongPolyline(
-                    shape, cumDist, endDist, mInfoLabelReusableLoc)) {
-                out.clear();
+            if (mSpineDistances == null) {
+                mPdfPolygon.setVisible(false);
                 return;
             }
-            out.add(MapHelpV2.makeLatLng(mInfoLabelReusableLoc));
+
+            // Binary search for the range of spine points within [lastDist, distEnd]
+            // lastDist (AVL point) is guaranteed to be in the spine, so the PDF
+            // evaluation starts exactly at the vehicle's last known position.
+            int startIdx = Arrays.binarySearch(mSpineDistances, lastDist);
+            if (startIdx < 0) startIdx = -startIdx - 1;
+            int endIdx = Arrays.binarySearch(mSpineDistances, distEnd);
+            if (endIdx < 0) endIdx = -endIdx - 1;
+            else endIdx++;  // include the exact match
+
+            if (startIdx >= endIdx || startIdx >= mSpineDistances.length) {
+                mPdfPolygon.setVisible(false);
+                return;
+            }
+            endIdx = Math.min(endIdx, mSpineDistances.length);
+
+            mPdfPolygonPoints.clear();
+
+            // Forward pass: offset points (PDF curve side)
+            for (int i = startIdx; i < endIdx; i++) {
+                double speedMps = (mSpineDistances[i] - lastDist) / dtSec;
+                double speedMph = speedMps * GammaSpeedModel.MPS_TO_MPH;
+                double pdfVal = (speedMph > 0)
+                        ? GammaSpeedModel.pdf(speedMph, params) : 0;
+                double offsetMeters = (pdfVal / mCachedPeakPdf) * PDF_MAX_OFFSET_METERS;
+
+                double lat = mSpineLats[i];
+                double lng = mSpineLngs[i];
+                double heading = mSpineHeadings[i];
+
+                // Offset perpendicular (right side: heading + 90°)
+                double perpBearing = Math.toRadians(heading + 90.0);
+                double latRad = Math.toRadians(lat);
+                double dLat = (offsetMeters / 6371010.0) * Math.cos(perpBearing);
+                double dLng = (offsetMeters / 6371010.0) * Math.sin(perpBearing)
+                        / Math.cos(latRad);
+
+                mPdfPolygonPoints.add(new LatLng(
+                        lat + Math.toDegrees(dLat), lng + Math.toDegrees(dLng)));
+            }
+
+            // Backward pass: spine side (pre-built LatLngs, no computation)
+            for (int i = endIdx - 1; i >= startIdx; i--) {
+                mPdfPolygonPoints.add(mSpineLatLngs[i]);
+            }
+
+            if (mPdfPolygonPoints.size() >= 3) {
+                mPdfPolygon.setPoints(mPdfPolygonPoints);
+                mPdfPolygon.setVisible(true);
+            } else {
+                mPdfPolygon.setVisible(false);
+            }
         }
 
         /**

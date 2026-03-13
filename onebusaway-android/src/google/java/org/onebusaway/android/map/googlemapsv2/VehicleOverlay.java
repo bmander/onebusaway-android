@@ -581,7 +581,8 @@ public class VehicleOverlay implements MarkerListeners  {
         /** Spacing between spine sample points in meters. */
         private static final double SPINE_SPACING_METERS = 20.0;
         /** Maximum perpendicular offset at the PDF peak, in meters. */
-        private static final double PDF_MAX_OFFSET_METERS = 90.0;
+        /** Meters of perpendicular offset per unit of raw PDF value. */
+        private static final double PDF_METERS_PER_UNIT = 197.0;
         /** Upper percentile bound for the rendered distance range. */
         private static final double PDF_UPPER_QUANTILE = 0.99;
 
@@ -1533,7 +1534,7 @@ public class VehicleOverlay implements MarkerListeners  {
                 mCachedSpeed99Mps = GammaSpeedModel.quantile(PDF_UPPER_QUANTILE, params)
                         / GammaSpeedModel.MPS_TO_MPH;
                 mCachedInvScale = 1.0 / params.scale;
-                buildNormalizedPdfTable(params.alpha);
+                buildPdfTable(params.alpha);
             }
 
             double dist10 = lastDist + mCachedSpeed10Mps * dtSec;
@@ -1618,22 +1619,21 @@ public class VehicleOverlay implements MarkerListeners  {
         }
 
         /**
-         * Builds a lookup table of the normalized gamma PDF indexed by u = x/scale.
+         * Builds a lookup table of the raw gamma PDF indexed by u = x/scale.
          * Uses a unit-scale gamma Gamma(alpha, 1), so the table depends only on
          * alpha and is valid for any scale or dtSec. Per-frame code converts
          * spine distances to u-values and interpolates into this table.
+         * Values are raw (not normalized), so the polygon height naturally
+         * reflects the actual peak probability.
          */
-        private void buildNormalizedPdfTable(double alpha) {
+        private void buildPdfTable(double alpha) {
             GammaSpeedModel.GammaParams unitParams =
                     new GammaSpeedModel.GammaParams(alpha, 1.0);
-            double modeU = (alpha >= 1) ? alpha - 1 : 0.01;
-            double peakPdf = GammaSpeedModel.pdf(modeU, unitParams);
-            if (peakPdf <= 0) peakPdf = 1.0;
             double step = PDF_TABLE_MAX_U / (PDF_TABLE_SIZE - 1);
             for (int k = 0; k < PDF_TABLE_SIZE; k++) {
                 double u = k * step;
                 mNormalizedPdfTable[k] = (u > 0)
-                        ? GammaSpeedModel.pdf(u, unitParams) / peakPdf : 0;
+                        ? GammaSpeedModel.pdf(u, unitParams) : 0;
             }
         }
 
@@ -1692,19 +1692,19 @@ public class VehicleOverlay implements MarkerListeners  {
             for (int i = startIdx; i < endIdx; i++) {
                 double u = mSpineDistDeltaMph[i] * invScaleDt;
 
-                // Lookup normalized PDF via linear interpolation into table
-                double normalizedPdf;
+                // Lookup raw PDF via linear interpolation into table
+                double pdfVal;
                 if (u <= 0 || u >= PDF_TABLE_MAX_U) {
-                    normalizedPdf = 0;
+                    pdfVal = 0;
                 } else {
                     double idx = u * PDF_TABLE_INV_STEP;
                     int lo = (int) idx;
                     double frac = idx - lo;
-                    normalizedPdf = mNormalizedPdfTable[lo]
+                    pdfVal = mNormalizedPdfTable[lo]
                             + frac * (mNormalizedPdfTable[lo + 1]
                                       - mNormalizedPdfTable[lo]);
                 }
-                double offset = normalizedPdf * PDF_MAX_OFFSET_METERS;
+                double offset = pdfVal * PDF_METERS_PER_UNIT;
 
                 int j = i - startIdx;
                 dLats[j] = offset * mSpinePerpCos[i];

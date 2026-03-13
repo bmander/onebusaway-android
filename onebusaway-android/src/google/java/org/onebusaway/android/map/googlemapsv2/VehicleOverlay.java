@@ -581,7 +581,7 @@ public class VehicleOverlay implements MarkerListeners  {
         /** Spacing between spine sample points in meters. */
         private static final double SPINE_SPACING_METERS = 20.0;
         /** Maximum perpendicular offset at the PDF peak, in meters. */
-        private static final double PDF_MAX_OFFSET_METERS = 150.0;
+        private static final double PDF_MAX_OFFSET_METERS = 90.0;
         /** Upper percentile bound for the rendered distance range. */
         private static final double PDF_UPPER_QUANTILE = 0.99;
 
@@ -1682,6 +1682,13 @@ public class VehicleOverlay implements MarkerListeners  {
             // where invScaleDt = 1 / (scale * dtSec) = mCachedInvScale / dtSec
             double invScaleDt = mCachedInvScale / dtSec;
 
+            int rangeSize = endIdx - startIdx;
+
+            // Compute offsets and build right-side points (forward pass)
+            // Store dLat/dLng for reuse in left-side pass
+            double[] dLats = new double[rangeSize];
+            double[] dLngs = new double[rangeSize];
+
             for (int i = startIdx; i < endIdx; i++) {
                 double u = mSpineDistDeltaMph[i] * invScaleDt;
 
@@ -1699,17 +1706,19 @@ public class VehicleOverlay implements MarkerListeners  {
                 }
                 double offset = normalizedPdf * PDF_MAX_OFFSET_METERS;
 
-                // Perpendicular offset using precomputed direction vectors
-                double dLat = offset * mSpinePerpCos[i];
-                double dLng = offset * mSpinePerpSin[i] * mSpineLatCosInv[i];
+                int j = i - startIdx;
+                dLats[j] = offset * mSpinePerpCos[i];
+                dLngs[j] = offset * mSpinePerpSin[i] * mSpineLatCosInv[i];
 
                 mPdfPolygonPoints.add(new LatLng(
-                        mSpineLats[i] + dLat, mSpineLngs[i] + dLng));
+                        mSpineLats[i] + dLats[j], mSpineLngs[i] + dLngs[j]));
             }
 
-            // Backward pass: spine side (pre-built LatLngs, no computation)
+            // Backward pass: left-side offset points (mirror across route)
             for (int i = endIdx - 1; i >= startIdx; i--) {
-                mPdfPolygonPoints.add(mSpineLatLngs[i]);
+                int j = i - startIdx;
+                mPdfPolygonPoints.add(new LatLng(
+                        mSpineLats[i] - dLats[j], mSpineLngs[i] - dLngs[j]));
             }
 
             if (mPdfPolygonPoints.size() >= 3) {

@@ -154,7 +154,7 @@ public final class DistanceExtrapolator {
     }
 
     /** Matches OBA server's SphericalGeometryLibrary.RADIUS_OF_EARTH_IN_KM * 1000. */
-    private static final double EARTH_RADIUS_METERS = 6371010.0;
+    public static final double EARTH_RADIUS_METERS = 6371010.0;
 
     /**
      * Interpolates a position along a polyline at a given distance from the start.

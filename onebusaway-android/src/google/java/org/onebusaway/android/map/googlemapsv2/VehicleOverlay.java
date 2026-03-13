@@ -573,8 +573,9 @@ public class VehicleOverlay implements MarkerListeners  {
         /** Polygon showing the gamma PDF curve offset perpendicular to the route. */
         private Polygon mPdfPolygon;
         private static final float HIGHLIGHT_Z_INDEX = -1f;
-        private static final int HIGHLIGHT_ALPHA = 0x88;
         private static final int HIGHLIGHT_RGB = 0xAB47BC; // bright purple
+        private static final int PDF_FILL_ALPHA = 0x66;
+        private static final int PDF_STROKE_ALPHA = 0xAA;
 
         /** Spacing between spine sample points in meters. */
         private static final double SPINE_SPACING_METERS = 20.0;
@@ -1284,8 +1285,8 @@ public class VehicleOverlay implements MarkerListeners  {
         }
 
         private Polygon addPdfPolygon() {
-            int fillColor = (0x66 << 24) | HIGHLIGHT_RGB;
-            int strokeColor = (0xAA << 24) | HIGHLIGHT_RGB;
+            int fillColor = (PDF_FILL_ALPHA << 24) | HIGHLIGHT_RGB;
+            int strokeColor = (PDF_STROKE_ALPHA << 24) | HIGHLIGHT_RGB;
             return mMap.addPolygon(new PolygonOptions()
                     .add(new LatLng(0, 0))  // dummy point; replaced on first update
                     .fillColor(fillColor)
@@ -1597,7 +1598,8 @@ public class VehicleOverlay implements MarkerListeners  {
 
             // Lazily build spine on first use, shape change, or AVL position change
             if (mSpineDistances == null || shape != mSpineShape
-                    || lastDist != mCachedLastDist) {
+                    || Double.doubleToLongBits(lastDist)
+                       != Double.doubleToLongBits(mCachedLastDist)) {
                 buildSpine(shape, cumDist, lastDist);
             }
             if (mSpineDistances == null) {
@@ -1637,8 +1639,10 @@ public class VehicleOverlay implements MarkerListeners  {
                 // Offset perpendicular (right side: heading + 90°)
                 double perpBearing = Math.toRadians(heading + 90.0);
                 double latRad = Math.toRadians(lat);
-                double dLat = (offsetMeters / 6371010.0) * Math.cos(perpBearing);
-                double dLng = (offsetMeters / 6371010.0) * Math.sin(perpBearing)
+                double dLat = (offsetMeters / DistanceExtrapolator.EARTH_RADIUS_METERS)
+                        * Math.cos(perpBearing);
+                double dLng = (offsetMeters / DistanceExtrapolator.EARTH_RADIUS_METERS)
+                        * Math.sin(perpBearing)
                         / Math.cos(latRad);
 
                 mPdfPolygonPoints.add(new LatLng(

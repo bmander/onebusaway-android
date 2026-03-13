@@ -332,8 +332,8 @@ public class TrajectoryGraphView extends View {
         mGammaParams = gammaParams;
         mEstimatedSpeedMps = gammaParams != null ? GammaSpeedModel.meanSpeedMps(gammaParams) : 0;
         if (gammaParams != null) {
-            mCachedCiLoMps = GammaSpeedModel.quantile(0.10, gammaParams) / GammaSpeedModel.MPS_TO_MPH;
-            mCachedCiHiMps = GammaSpeedModel.quantile(0.90, gammaParams) / GammaSpeedModel.MPS_TO_MPH;
+            mCachedCiLoMps = GammaSpeedModel.quantileMps(0.10, gammaParams);
+            mCachedCiHiMps = GammaSpeedModel.quantileMps(0.90, gammaParams);
         } else {
             mCachedCiLoMps = 0;
             mCachedCiHiMps = 0;

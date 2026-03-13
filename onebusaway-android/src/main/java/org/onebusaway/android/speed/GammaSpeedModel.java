@@ -45,6 +45,23 @@ public final class GammaSpeedModel {
             this.alpha = alpha;
             this.scale = scale;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof GammaParams)) return false;
+            GammaParams that = (GammaParams) o;
+            return Double.doubleToLongBits(alpha) == Double.doubleToLongBits(that.alpha)
+                    && Double.doubleToLongBits(scale) == Double.doubleToLongBits(that.scale);
+        }
+
+        @Override
+        public int hashCode() {
+            long h = 17;
+            h = 31 * h + Double.doubleToLongBits(alpha);
+            h = 31 * h + Double.doubleToLongBits(scale);
+            return (int) (h ^ (h >>> 32));
+        }
     }
 
     /**
@@ -104,7 +121,7 @@ public final class GammaSpeedModel {
      * "equal probability ahead or behind" position estimate.
      */
     public static double medianSpeedMps(GammaParams params) {
-        return quantile(0.50, params) / MPS_TO_MPH;
+        return quantileMps(0.50, params);
     }
 
     /**
@@ -136,6 +153,17 @@ public final class GammaSpeedModel {
         double x = speedMph / params.scale;
         double a = params.alpha;
         return regularizedGammaP(a, x);
+    }
+
+    /**
+     * Returns the speed at the given quantile in m/s.
+     *
+     * @param p      probability in (0, 1)
+     * @param params gamma parameters
+     * @return speed in m/s at the given quantile
+     */
+    public static double quantileMps(double p, GammaParams params) {
+        return quantile(p, params) / MPS_TO_MPH;
     }
 
     /**

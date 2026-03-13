@@ -41,9 +41,6 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.model.Polygon;
-import com.google.android.gms.maps.model.PolygonOptions;
-
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.elements.ObaRoute;
@@ -72,7 +69,6 @@ import org.onebusaway.android.util.UIUtils;
 import android.animation.ValueAnimator;
 import android.view.animation.AccelerateDecelerateInterpolator;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -548,95 +544,13 @@ public class VehicleOverlay implements MarkerListeners  {
         /** Cached anchor X for the label marker, offset to clear the circle icon. */
         private float mDataReceivedLabelAnchorX;
 
-        /** Info label markers showing the slow/fast estimate positions. */
-        private Marker mSlowEstimateMarker;
-        private Marker mFastEstimateMarker;
-        private BitmapDescriptor mSlowEstimateIcon;
-        private BitmapDescriptor mFastEstimateIcon;
-        /** Cached percentile speeds in m/s — only recomputed when gamma params change. */
-        private GammaSpeedModel.GammaParams mCachedGammaParams;
-        private double mCachedSpeed10Mps;
-        private double mCachedSpeed90Mps;
-
         private static final float INFO_LABEL_Z_INDEX = VEHICLE_MARKER_Z_INDEX - 0.5f;
-        private static final int INFO_LABEL_SP = 10;
-        private static final int INFO_LABEL_POINTER_WIDTH_DP = 10;
-        private static final String SLOW_ESTIMATE_LABEL = "Slow estimate";
-        private static final String FAST_ESTIMATE_LABEL = "Fast estimate";
-        private static final String SLOW_ESTIMATE_EXPANDED = "Slow estimate\n10th percentile speed";
-        private static final String FAST_ESTIMATE_EXPANDED = "Fast estimate\n90th percentile speed";
-        private BitmapDescriptor mSlowEstimateExpandedIcon;
-        private BitmapDescriptor mFastEstimateExpandedIcon;
-        private boolean mSlowEstimateExpanded;
-        private boolean mFastEstimateExpanded;
 
-        /** Polygon showing the gamma PDF curve offset perpendicular to the route. */
-        private Polygon mPdfPolygon;
-        private static final float HIGHLIGHT_Z_INDEX = -1f;
-        private static final int HIGHLIGHT_RGB = 0xAB47BC; // bright purple
-        private static final int PDF_FILL_ALPHA = 0x66;
-        private static final int PDF_STROKE_RGB = 0xE1BEE7; // light purple
-        private static final int PDF_STROKE_ALPHA = 0x88;
+        /** Manages slow/fast estimate labels (created/destroyed with selection). */
+        private EstimateLabelManager mEstimateLabels;
 
-        /** Spacing between spine sample points in meters. */
-        private static final double SPINE_SPACING_METERS = 20.0;
-        /** Maximum perpendicular offset at the PDF peak, in meters. */
-        /** Meters of perpendicular offset per unit of raw PDF value. */
-        private static final double PDF_METERS_PER_UNIT = 197.0;
-        /** Upper percentile bound for the rendered distance range. */
-        private static final double PDF_UPPER_QUANTILE = 0.99;
-
-        // Precomputed spine for the selected trip's route shape
-        private double[] mSpineDistances;
-        private double[] mSpineLats;
-        private double[] mSpineLngs;
-        private LatLng[] mSpineLatLngs;
-        // Precomputed per-spine-point values for per-frame offset calculation
-        private double[] mSpineDistDeltaMph; // (dist[i] - avlDist) * MPS_TO_MPH
-        private double[] mSpinePerpCos;      // cos(toRadians(heading + 90))
-        private double[] mSpinePerpSin;      // sin(toRadians(heading + 90))
-        private double[] mSpineLatCosInv;    // 1 / cos(toRadians(lat))
-        /** Shape reference used to detect when spine needs rebuilding. */
-        private List<Location> mSpineShape;
-        /** Last AVL distance used to build spine; triggers rebuild when it changes. */
-        private double mCachedLastDist = Double.NaN;
-
-        // Cached gamma-derived values (recomputed only when params change)
-        private double mCachedSpeed99Mps;
-        private double mCachedInvScale;  // 1 / params.scale
-
-        // Normalized PDF lookup table indexed by u = x/scale (unit-scale gamma).
-        // Depends only on alpha; rebuilt when alpha changes.
-        private static final int PDF_TABLE_SIZE = 256;
-        private static final double PDF_TABLE_MAX_U = 50.0;
-        private static final double PDF_TABLE_INV_STEP =
-                (PDF_TABLE_SIZE - 1) / PDF_TABLE_MAX_U;
-        private final double[] mNormalizedPdfTable = new double[PDF_TABLE_SIZE];
-
-        /** Reusable list for polygon vertex construction. */
-        private final java.util.ArrayList<LatLng> mPdfPolygonPoints = new java.util.ArrayList<>();
-        /** Reusable offset buffers to avoid per-frame allocation. */
-        private double[] mDLatsBuf = new double[0];
-        private double[] mDLngsBuf = new double[0];
-
-        // PDF transition animation state
-        /** Duration of the cross-fade at each spine point, in ms. */
-        private static final long PDF_TRANSITION_MS = 600;
-        /** Extra delay applied to the front of the PDF, creating a back-to-front ripple. */
-        private static final long PDF_RIPPLE_DELAY_MS = 1000;
-        /** Offsets (in meters) from the previous PDF, sampled at current spine distances. */
-        private double[] mOldPdfOffsets;
-        /** Spine distances corresponding to mOldPdfOffsets (for resampling on spine rebuild). */
-        private double[] mOldPdfSpineDistances;
-        /** System.currentTimeMillis() when the current transition started, or 0 if none. */
-        private long mPdfTransitionStartMs;
-        /** The old AVL distance, for ripple continuity behind the new AVL point. */
-        private double mOldLastDist = Double.NaN;
-        /** The last invScaleDt used, for snapshotting old offsets before a param change. */
-        private double mLastInvScaleDt;
-
-        /** Reusable Location for info label interpolation to avoid per-frame allocation. */
-        private final Location mInfoLabelReusableLoc = new Location("infolabel");
+        /** Renders the gamma PDF polygon overlay (created/destroyed with selection). */
+        private PdfPolygonRenderer mPdfRenderer;
 
         private static final String DATA_RECEIVED_TITLE = "Most recent data";
 
@@ -982,9 +896,9 @@ public class VehicleOverlay implements MarkerListeners  {
                 restoreMarkerIcon(mVehicleMarkers.get(tripId));
             }
             removeDataReceivedMarker();
-            removeEstimateMarkers();
+            destroyEstimateOverlays();
             showOrUpdateDataReceivedMarker(tripId);
-            createEstimateMarkers(tripId);
+            createEstimateOverlays(tripId);
             animateChangedIcons(previousTripId);
             if (mController != null && tripId != null) {
                 mController.onVehicleSelected(tripId);
@@ -999,7 +913,7 @@ public class VehicleOverlay implements MarkerListeners  {
             String previousTripId = mSelectedTripId;
             mSelectedTripId = null;
             removeDataReceivedMarker();
-            removeEstimateMarkers();
+            destroyEstimateOverlays();
             animateChangedIcons(previousTripId);
             if (mController != null) {
                 mController.onVehicleDeselected();
@@ -1044,7 +958,7 @@ public class VehicleOverlay implements MarkerListeners  {
                 double heading = DistanceExtrapolator.headingAlongPolyline(
                         shape, cumDist, lastDist);
                 if (!Double.isNaN(heading)) {
-                    double labelAz = clampedLabelAzimuth(heading);
+                    double labelAz = EstimateLabelManager.clampedLabelAzimuth(heading);
                     labelRotation = (float) (labelAz - 90.0);
                 }
             }
@@ -1096,198 +1010,31 @@ public class VehicleOverlay implements MarkerListeners  {
             mLastDataReceivedLabel = null;
         }
 
-        // --- Info label lifecycle ---
+        // --- Info label helpers (delegated to EstimateLabelManager) ---
 
-        /**
-         * Creates an info label icon: a pointer bubble with text.
-         */
-        private BitmapDescriptor createInfoLabelIcon(String label, float[] outWidth) {
-            return createInfoLabelIconInternal(new String[]{label}, outWidth);
-        }
-
-        private BitmapDescriptor createInfoLabelExpandedIcon(String label) {
-            return createInfoLabelIconInternal(label.split("\n"), null);
-        }
-
-        private BitmapDescriptor createInfoLabelIconInternal(String[] lines,
-                                                                   float[] outWidth) {
-            float d = mActivity.getResources().getDisplayMetrics().density;
-
-            Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            textPaint.setTextSize(INFO_LABEL_SP * d);
-            textPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            textPaint.setColor(0xFF616161);
-            Paint.FontMetrics fm = textPaint.getFontMetrics();
-            int lineHeight = (int) Math.ceil(fm.descent - fm.ascent);
-            float lineGap = d;
-
-            // Measure widest line
-            float maxLineWidth = 0;
-            for (String line : lines) {
-                maxLineWidth = Math.max(maxLineWidth, textPaint.measureText(line));
-            }
-
-            float padLeft = 4 * d;
-            float padRight = 6 * d;
-            float padY = 2 * d;
-            float pointerWidth = INFO_LABEL_POINTER_WIDTH_DP * d;
-            int textBlockHeight = lineHeight * lines.length
-                    + (int) (lineGap * (lines.length - 1));
-            int bubbleWidth = (int) (pointerWidth + padLeft + maxLineWidth + padRight);
-            int bubbleHeight = (int) (textBlockHeight + padY * 2);
-            float cornerRadius = 3 * d;
-
-            Bitmap bmp = Bitmap.createBitmap(bubbleWidth, bubbleHeight, Bitmap.Config.ARGB_8888);
-            Canvas c = new Canvas(bmp);
-
-            float bodyLeft = drawPointerBubble(c, 0, 0,
-                    bubbleWidth, bubbleHeight, cornerRadius, pointerWidth);
-
-            float textX = bodyLeft + padLeft;
-            float textY = padY - fm.ascent;
-            for (int i = 0; i < lines.length; i++) {
-                c.drawText(lines[i], textX, textY + i * (lineHeight + lineGap), textPaint);
-            }
-
-            if (outWidth != null && outWidth.length > 0) {
-                outWidth[0] = bubbleWidth;
-            }
-            return BitmapDescriptorFactory.fromBitmap(bmp);
-        }
-
-        /**
-         * Draws a 5-sided pointer bubble: a rectangle with the left side replaced
-         * by two edges meeting at a pointed tip.
-         *
-         * @return the X coordinate of the body's left edge (after the pointer),
-         *         for positioning text content
-         */
-        private float drawPointerBubble(Canvas c, float left, float top,
-                                         float width, float height,
-                                         float cornerRadius, float pointerWidth) {
-            float bodyLeft = left + pointerWidth;
-            float right = left + width;
-            float bottom = top + height;
-            float midY = top + height / 2f;
-            float r = cornerRadius;
-
-            android.graphics.Path path = new android.graphics.Path();
-            path.moveTo(left, midY);                   // pointer tip
-            path.lineTo(bodyLeft, top);                 // up to top-left
-            path.lineTo(right - r, top);                // across top
-            path.quadTo(right, top, right, top + r);    // top-right corner
-            path.lineTo(right, bottom - r);             // down right side
-            path.quadTo(right, bottom, right - r, bottom); // bottom-right corner
-            path.lineTo(bodyLeft, bottom);              // across bottom
-            path.close();                               // back to pointer tip
-
-            Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            bgPaint.setColor(0xDDFFFFFF);
-            bgPaint.setStyle(Paint.Style.FILL);
-            c.drawPath(path, bgPaint);
-
-            return bodyLeft;
-        }
-
-        private static final double LABEL_DEADZONE_DEG = 20.0;
-
-        /** Normalizes an angle to [0, 360). Java's % preserves sign, so this avoids negative results. */
-        private double normalizeDeg(double angle) {
-            return ((angle % 360) + 360) % 360;
-        }
-
-        /**
-         * Converts a vehicle heading to the compass direction the label visually
-         * extends toward on the map (the "label azimuth").
-         * Picks heading + 90 or heading − 90, whichever places the label in the
-         * [0°, 180°] sector (the right/eastern half), so text is always upright.
-         */
-        private double headingToLabelAzimuth(double heading) {
-            double az = normalizeDeg(heading - 90);
-            if (az > 180) {
-                az = normalizeDeg(heading + 90);
-            }
-            return az;
-        }
-
-        /**
-         * Computes the label azimuth for the given heading, clamped away from
-         * 0° (north/up) and 180° (south/down) deadzones.
-         * The result is always in [DEADZONE, 180 − DEADZONE], so the label
-         * is always on the right side and text is always upright.
-         */
-        private double clampedLabelAzimuth(double heading) {
-            double labelAz = headingToLabelAzimuth(heading);
-            labelAz = clampAzimuthAwayFrom(labelAz, 0);
-            labelAz = clampAzimuthAwayFrom(labelAz, 180);
-            return labelAz;
-        }
-
-        /**
-         * Clamps a degree value [0, 360) away from center by ±LABEL_DEADZONE_DEG,
-         * with circular wraparound.
-         */
-        private double clampAzimuthAwayFrom(double value, double center) {
-            double delta = value - center;
-            if (delta > 180) delta -= 360;
-            if (delta < -180) delta += 360;
-            if (delta >= -LABEL_DEADZONE_DEG && delta < 0) {
-                return normalizeDeg(center - LABEL_DEADZONE_DEG);
-            }
-            if (delta >= 0 && delta < LABEL_DEADZONE_DEG) {
-                return normalizeDeg(center + LABEL_DEADZONE_DEG);
-            }
-            return value;
-        }
-
-        private void createEstimateMarkers(String tripId) {
+        private void createEstimateOverlays(String tripId) {
             if (tripId == null || mLastResponse == null) return;
             Integer routeType = VehicleTrajectoryTracker.getInstance().getRouteType(tripId);
             if (routeType != null && ObaRoute.isGradeSeparated(routeType)) return;
             Marker vehicleMarker = mVehicleMarkers.get(tripId);
             if (vehicleMarker == null) return;
 
-            mSlowEstimateIcon = createInfoLabelIcon(SLOW_ESTIMATE_LABEL, null);
-            mFastEstimateIcon = createInfoLabelIcon(FAST_ESTIMATE_LABEL, null);
-            mSlowEstimateExpandedIcon = createInfoLabelExpandedIcon(SLOW_ESTIMATE_EXPANDED);
-            mFastEstimateExpandedIcon = createInfoLabelExpandedIcon(FAST_ESTIMATE_EXPANDED);
-            mCachedGammaParams = null;
-            mSlowEstimateExpanded = false;
-            mFastEstimateExpanded = false;
+            mEstimateLabels = new EstimateLabelManager(mMap, mActivity);
+            mEstimateLabels.create(vehicleMarker.getPosition());
 
-            LatLng pos = vehicleMarker.getPosition();
-            mSlowEstimateMarker = addFlatInfoLabelMarker(pos, mSlowEstimateIcon);
-            mFastEstimateMarker = addFlatInfoLabelMarker(pos, mFastEstimateIcon);
-
-            // Create the PDF polygon behind the route polyline
-            mPdfPolygon = addPdfPolygon();
+            mPdfRenderer = new PdfPolygonRenderer(mMap);
+            mPdfRenderer.create();
         }
 
-        private void removeEstimateMarkers() {
-            if (mSlowEstimateMarker != null) {
-                mSlowEstimateMarker.remove();
-                mSlowEstimateMarker = null;
+        private void destroyEstimateOverlays() {
+            if (mEstimateLabels != null) {
+                mEstimateLabels.destroy();
+                mEstimateLabels = null;
             }
-            if (mFastEstimateMarker != null) {
-                mFastEstimateMarker.remove();
-                mFastEstimateMarker = null;
+            if (mPdfRenderer != null) {
+                mPdfRenderer.destroy();
+                mPdfRenderer = null;
             }
-            if (mPdfPolygon != null) {
-                mPdfPolygon.remove();
-                mPdfPolygon = null;
-            }
-            mSpineShape = null;
-            mSpineDistances = null;
-            mCachedLastDist = Double.NaN;
-            mOldPdfOffsets = null;
-            mOldPdfSpineDistances = null;
-            mPdfTransitionStartMs = 0;
-            mOldLastDist = Double.NaN;
-            mSlowEstimateIcon = null;
-            mFastEstimateIcon = null;
-            mSlowEstimateExpandedIcon = null;
-            mFastEstimateExpandedIcon = null;
-            mCachedGammaParams = null;
         }
 
         /**
@@ -1295,42 +1042,7 @@ public class VehicleOverlay implements MarkerListeners  {
          * and expanded label. Returns true if the marker was an info label.
          */
         boolean handleInfoLabelClick(Marker marker) {
-            if (marker.equals(mSlowEstimateMarker)) {
-                mSlowEstimateExpanded = !mSlowEstimateExpanded;
-                mSlowEstimateMarker.setIcon(mSlowEstimateExpanded
-                        ? mSlowEstimateExpandedIcon : mSlowEstimateIcon);
-                return true;
-            }
-            if (marker.equals(mFastEstimateMarker)) {
-                mFastEstimateExpanded = !mFastEstimateExpanded;
-                mFastEstimateMarker.setIcon(mFastEstimateExpanded
-                        ? mFastEstimateExpandedIcon : mFastEstimateIcon);
-                return true;
-            }
-            return false;
-        }
-
-        private Marker addFlatInfoLabelMarker(LatLng pos, BitmapDescriptor icon) {
-            return mMap.addMarker(new MarkerOptions()
-                    .position(pos)
-                    .icon(icon)
-                    .anchor(0f, 0.5f)
-                    .flat(true)
-                    .zIndex(INFO_LABEL_Z_INDEX)
-                    .visible(false)
-            );
-        }
-
-        private Polygon addPdfPolygon() {
-            int fillColor = (PDF_FILL_ALPHA << 24) | HIGHLIGHT_RGB;
-            int strokeColor = (PDF_STROKE_ALPHA << 24) | PDF_STROKE_RGB;
-            return mMap.addPolygon(new PolygonOptions()
-                    .add(new LatLng(0, 0))  // dummy point; replaced on first update
-                    .fillColor(fillColor)
-                    .strokeColor(strokeColor)
-                    .strokeWidth(4f)
-                    .zIndex(HIGHLIGHT_Z_INDEX)
-                    .visible(false));
+            return mEstimateLabels != null && mEstimateLabels.handleClick(marker);
         }
 
         private String formatElapsedTime(long lastUpdateTime) {
@@ -1382,7 +1094,8 @@ public class VehicleOverlay implements MarkerListeners  {
         private BitmapDescriptor createDataReceivedLabelIcon(String timeLine) {
             String[] lines = {DATA_RECEIVED_TITLE, timeLine};
             float[] widthOut = new float[1];
-            BitmapDescriptor icon = createInfoLabelIconInternal(lines, widthOut);
+            BitmapDescriptor icon = EstimateLabelManager.createInfoLabelIcon(
+                    mActivity, lines, widthOut);
             float d = mActivity.getResources().getDisplayMetrics().density;
             float offsetPx = (DATA_ICON_RADIUS_DP + DATA_ICON_GAP_DP) * d;
             mDataReceivedLabelAnchorX = -offsetPx / widthOut[0];
@@ -1506,425 +1219,61 @@ public class VehicleOverlay implements MarkerListeners  {
                         mReusableLocation.getLatitude(), mReusableLocation.getLongitude()));
             }
 
-            // Update estimate markers for the selected vehicle
-            updateEstimateMarkers(selectedParams, selectedShape, selectedCumDist,
+            // Update estimate overlays for the selected vehicle
+            updateEstimateOverlays(selectedParams, selectedShape, selectedCumDist,
                     selectedHistory, now);
         }
 
-        private void hideEstimateMarkers() {
-            if (mSlowEstimateMarker != null) mSlowEstimateMarker.setVisible(false);
-            if (mFastEstimateMarker != null) mFastEstimateMarker.setVisible(false);
-            if (mPdfPolygon != null) mPdfPolygon.setVisible(false);
+        private void hideEstimateOverlays() {
+            if (mEstimateLabels != null) mEstimateLabels.hide();
+            if (mPdfRenderer != null) mPdfRenderer.hide();
         }
 
-        private void updateEstimateMarkers(GammaSpeedModel.GammaParams params,
+        private void updateEstimateOverlays(GammaSpeedModel.GammaParams params,
                                             List<Location> shape, double[] cumDist,
                                             List<VehicleHistoryEntry> history, long now) {
-            if (mSlowEstimateMarker == null || mFastEstimateMarker == null) return;
+            if (mEstimateLabels == null && mPdfRenderer == null) return;
 
             if (params == null || shape == null || cumDist == null
                     || history == null || history.isEmpty()) {
-                hideEstimateMarkers();
+                hideEstimateOverlays();
                 return;
             }
 
             VehicleHistoryEntry newest = DistanceExtrapolator.findNewestValidEntry(history);
             if (newest == null) {
-                hideEstimateMarkers();
+                hideEstimateOverlays();
                 return;
             }
 
             Double lastDist = newest.getBestDistanceAlongTrip();
             long lastTime = newest.getLastLocationUpdateTime();
             if (lastDist == null || lastTime <= 0) {
-                hideEstimateMarkers();
+                hideEstimateOverlays();
                 return;
             }
 
             double dtSec = (now - lastTime) / 1000.0;
             if (dtSec < 0.5) {
-                hideEstimateMarkers();
+                hideEstimateOverlays();
                 return;
             }
 
-            // Cache percentile speeds, inverse scale, and PDF table.
-            // Compare by value — GammaSpeedEstimator creates a new object each frame.
-            if (mCachedGammaParams == null
-                    || params.alpha != mCachedGammaParams.alpha
-                    || params.scale != mCachedGammaParams.scale) {
-                // Snapshot old PDF offsets using last frame's invScaleDt (not the
-                // new dtSec, which is near-zero right after a new AVL point).
-                snapshotOldPdfOffsets();
-                mOldLastDist = mCachedLastDist;
-                mPdfTransitionStartMs = now;
-
-                mCachedGammaParams = params;
-                mCachedSpeed10Mps = GammaSpeedModel.quantile(0.10, params)
-                        / GammaSpeedModel.MPS_TO_MPH;
-                mCachedSpeed90Mps = GammaSpeedModel.quantile(0.90, params)
-                        / GammaSpeedModel.MPS_TO_MPH;
-                mCachedSpeed99Mps = GammaSpeedModel.quantile(PDF_UPPER_QUANTILE, params)
-                        / GammaSpeedModel.MPS_TO_MPH;
-                mCachedInvScale = 1.0 / params.scale;
-                buildPdfTable(params.alpha);
+            if (mEstimateLabels != null) {
+                mEstimateLabels.update(params, shape, cumDist, lastDist, dtSec);
             }
-
-            double dist10 = lastDist + mCachedSpeed10Mps * dtSec;
-            double dist90 = lastDist + mCachedSpeed90Mps * dtSec;
-            double dist99 = lastDist + mCachedSpeed99Mps * dtSec;
-
-            updateInfoLabelPosition(mSlowEstimateMarker, dist10, shape, cumDist);
-            updateInfoLabelPosition(mFastEstimateMarker, dist90, shape, cumDist);
-            updatePdfPolygon(lastDist, dtSec, dist99, shape, cumDist, now);
-        }
-
-        /**
-         * Precomputes spine points along the route shape by merging:
-         * 1. Regular interval points (every SPINE_SPACING_METERS)
-         * 2. Every vertex on the original polyline
-         * 3. The current AVL data point (lastDist)
-         * Called when the shape is first needed, changes, or the AVL position changes.
-         */
-        private void buildSpine(List<Location> shape, double[] cumDist, double avlDist) {
-            if (shape == null || shape.isEmpty() || cumDist == null) return;
-            mSpineShape = shape;
-            mCachedLastDist = avlDist;
-            double totalDist = cumDist[cumDist.length - 1];
-
-            // Collect all candidate distances into a sorted set (auto-deduplicates)
-            java.util.TreeSet<Double> distSet = new java.util.TreeSet<>();
-
-            // Regular interval points
-            for (double d = 0; d <= totalDist; d += SPINE_SPACING_METERS) {
-                distSet.add(d);
-            }
-            distSet.add(totalDist);
-
-            // Every polyline vertex
-            for (double d : cumDist) {
-                distSet.add(d);
-            }
-
-            // AVL data point
-            if (!Double.isNaN(avlDist) && avlDist >= 0 && avlDist <= totalDist) {
-                distSet.add(avlDist);
-            }
-
-            int count = distSet.size();
-            mSpineDistances = new double[count];
-            mSpineLats = new double[count];
-            mSpineLngs = new double[count];
-            mSpineLatLngs = new LatLng[count];
-            mSpineDistDeltaMph = new double[count];
-            mSpinePerpCos = new double[count];
-            mSpinePerpSin = new double[count];
-            mSpineLatCosInv = new double[count];
-
-            Location reusable = new Location("spine");
-            int i = 0;
-            for (Double d : distSet) {
-                mSpineDistances[i] = d;
-                DistanceExtrapolator.interpolateAlongPolyline(shape, cumDist, d, reusable);
-                double lat = reusable.getLatitude();
-                double lng = reusable.getLongitude();
-                mSpineLats[i] = lat;
-                mSpineLngs[i] = lng;
-                mSpineLatLngs[i] = new LatLng(lat, lng);
-
-                // Precompute distance delta from AVL point (in mph-seconds)
-                mSpineDistDeltaMph[i] = (d - avlDist) * GammaSpeedModel.MPS_TO_MPH;
-
-                // Precompute perpendicular direction vector components.
-                // Includes radians-to-degrees conversion so per-frame code
-                // can add offsets directly to lat/lng in degrees.
-                double heading = DistanceExtrapolator.headingAlongPolyline(
-                        shape, cumDist, d);
-                double perpBearing = Math.toRadians(heading + 90.0);
-                double degreesPerMeter = Math.toDegrees(1.0)
-                        / DistanceExtrapolator.EARTH_RADIUS_METERS;
-                mSpinePerpCos[i] = Math.cos(perpBearing) * degreesPerMeter;
-                mSpinePerpSin[i] = Math.sin(perpBearing) * degreesPerMeter;
-                mSpineLatCosInv[i] = 1.0 / Math.cos(Math.toRadians(lat));
-                i++;
-            }
-            mPdfPolygonPoints.ensureCapacity(count * 2);
-        }
-
-        /**
-         * Builds a lookup table of the raw gamma PDF indexed by u = x/scale.
-         * Uses a unit-scale gamma Gamma(alpha, 1), so the table depends only on
-         * alpha and is valid for any scale or dtSec. Per-frame code converts
-         * spine distances to u-values and interpolates into this table.
-         * Values are raw (not normalized), so the polygon height naturally
-         * reflects the actual peak probability.
-         */
-        private void buildPdfTable(double alpha) {
-            GammaSpeedModel.GammaParams unitParams =
-                    new GammaSpeedModel.GammaParams(alpha, 1.0);
-            double step = PDF_TABLE_MAX_U / (PDF_TABLE_SIZE - 1);
-            for (int k = 0; k < PDF_TABLE_SIZE; k++) {
-                double u = k * step;
-                mNormalizedPdfTable[k] = (u > 0)
-                        ? GammaSpeedModel.pdf(u, unitParams) : 0;
+            if (mPdfRenderer != null) {
+                mPdfRenderer.update(params, shape, cumDist, lastDist, dtSec, now);
             }
         }
 
-        /**
-         * Per-frame: looks up cached spine range, builds polygon using
-         * precomputed spine geometry and PDF lookup table.
-         */
-        private void updatePdfPolygon(double lastDist, double dtSec,
-                                       double distEnd,
-                                       List<Location> shape, double[] cumDist,
-                                       long now) {
-            if (mPdfPolygon == null) return;
-
-            // Lazily build spine on first use, shape change, or AVL position change
-            if (mSpineDistances == null || shape != mSpineShape
-                    || Double.doubleToLongBits(lastDist)
-                       != Double.doubleToLongBits(mCachedLastDist)) {
-                buildSpine(shape, cumDist, lastDist);
-            }
-            if (mSpineDistances == null) {
-                mPdfPolygon.setVisible(false);
-                return;
-            }
-
-            // Per-frame: convert each spine point's distance-from-AVL to the
-            // normalized gamma variable u = distDelta / (scale * dtSec), then
-            // look up the precomputed PDF table.
-            double invScaleDt = mCachedInvScale / dtSec;
-            mLastInvScaleDt = invScaleDt;
-
-            // Check if we're in a transition
-            long transElapsed = 0;
-            boolean transitioning = false;
-            if (mPdfTransitionStartMs > 0 && mOldPdfOffsets != null) {
-                transElapsed = now - mPdfTransitionStartMs;
-                if (transElapsed >= PDF_TRANSITION_MS + PDF_RIPPLE_DELAY_MS) {
-                    // Entire ripple complete
-                    mPdfTransitionStartMs = 0;
-                    mOldPdfOffsets = null;
-                    mOldPdfSpineDistances = null;
-                    mOldLastDist = Double.NaN;
-                } else {
-                    transitioning = true;
-                }
-            }
-
-            // Determine the spine range to render.
-            // New PDF starts at lastDist; during a transition, extend backward
-            // to cover the old PDF's range so those points animate to zero.
-            int startIdx = Arrays.binarySearch(mSpineDistances, lastDist);
-            if (startIdx < 0) startIdx = -startIdx - 1;
-
-            if (transitioning && mOldPdfSpineDistances != null
-                    && mOldPdfSpineDistances.length > 0) {
-                double oldStart = mOldPdfSpineDistances[0];
-                if (oldStart < lastDist) {
-                    int oldStartIdx = Arrays.binarySearch(mSpineDistances, oldStart);
-                    if (oldStartIdx < 0) oldStartIdx = -oldStartIdx - 1;
-                    startIdx = Math.min(startIdx, oldStartIdx);
-                }
-            }
-
-            int endIdx = Arrays.binarySearch(mSpineDistances, distEnd);
-            if (endIdx < 0) endIdx = -endIdx - 1;
-            else endIdx++;  // include the exact match
-
-            if (startIdx >= endIdx || startIdx >= mSpineDistances.length) {
-                mPdfPolygon.setVisible(false);
-                return;
-            }
-            endIdx = Math.min(endIdx, mSpineDistances.length);
-
-            mPdfPolygonPoints.clear();
-            int rangeSize = endIdx - startIdx;
-
-            // Reuse offset buffers, expanding only when needed
-            if (mDLatsBuf.length < rangeSize) {
-                mDLatsBuf = new double[rangeSize];
-                mDLngsBuf = new double[rangeSize];
-            }
-
-            // Precompute ripple constants only during transitions
-            double rippleInvSpan = 0;
-            double rippleStart = lastDist;
-            double invTransitionMs = 1.0 / PDF_TRANSITION_MS;
-            int oldCursor = 0; // linear scan cursor for resampleOldOffset
-            if (transitioning) {
-                rippleStart = !Double.isNaN(mOldLastDist)
-                        ? mOldLastDist : lastDist;
-                double rippleSpan = distEnd - rippleStart;
-                rippleInvSpan = (rippleSpan > 0) ? 1.0 / rippleSpan : 1.0;
-            }
-
-            for (int i = startIdx; i < endIdx; i++) {
-                // New PDF is zero behind the AVL point
-                double newOffset = (mSpineDistances[i] >= lastDist)
-                        ? computePdfOffset(i, invScaleDt) : 0;
-
-                double offset;
-                if (transitioning) {
-                    // Per-point ripple: old AVL point starts immediately,
-                    // front gets an additional PDF_RIPPLE_DELAY_MS delay.
-                    double frac = (mSpineDistances[i] - rippleStart) * rippleInvSpan;
-                    if (frac < 0) frac = 0;
-                    else if (frac > 1.0) frac = 1.0;
-                    long pointElapsed = transElapsed
-                            - (long) (frac * PDF_RIPPLE_DELAY_MS);
-                    double blend;
-                    if (pointElapsed <= 0) {
-                        blend = 0;
-                    } else if (pointElapsed >= PDF_TRANSITION_MS) {
-                        blend = 1.0;
-                    } else {
-                        double t = pointElapsed * invTransitionMs;
-                        blend = t * t * (3.0 - 2.0 * t); // smoothstep
-                    }
-                    double oldOffset;
-                    oldOffset = resampleOldOffsetLinear(mSpineDistances[i],
-                            oldCursor);
-                    // Advance cursor past the current distance for next iteration
-                    if (mOldPdfSpineDistances != null) {
-                        while (oldCursor < mOldPdfSpineDistances.length - 1
-                                && mOldPdfSpineDistances[oldCursor + 1]
-                                   <= mSpineDistances[i]) {
-                            oldCursor++;
-                        }
-                    }
-                    offset = oldOffset + blend * (newOffset - oldOffset);
-                } else {
-                    offset = newOffset;
-                }
-
-                int j = i - startIdx;
-                mDLatsBuf[j] = offset * mSpinePerpCos[i];
-                mDLngsBuf[j] = offset * mSpinePerpSin[i] * mSpineLatCosInv[i];
-
-                mPdfPolygonPoints.add(new LatLng(
-                        mSpineLats[i] + mDLatsBuf[j],
-                        mSpineLngs[i] + mDLngsBuf[j]));
-            }
-
-            // Backward pass: left-side offset points (mirror across route)
-            for (int i = endIdx - 1; i >= startIdx; i--) {
-                int j = i - startIdx;
-                mPdfPolygonPoints.add(new LatLng(
-                        mSpineLats[i] - mDLatsBuf[j],
-                        mSpineLngs[i] - mDLngsBuf[j]));
-            }
-
-            if (mPdfPolygonPoints.size() >= 3) {
-                mPdfPolygon.setPoints(mPdfPolygonPoints);
-                mPdfPolygon.setVisible(true);
-            } else {
-                mPdfPolygon.setVisible(false);
-            }
-        }
-
-        /**
-         * Computes the perpendicular offset in meters for spine point i
-         * using the current PDF table and the given invScaleDt.
-         */
-        private double computePdfOffset(int i, double invScaleDt) {
-            double u = mSpineDistDeltaMph[i] * invScaleDt;
-            double pdfVal;
-            if (u <= 0 || u >= PDF_TABLE_MAX_U) {
-                pdfVal = 0;
-            } else {
-                double idx = u * PDF_TABLE_INV_STEP;
-                int lo = (int) idx;
-                double frac = idx - lo;
-                pdfVal = mNormalizedPdfTable[lo]
-                        + frac * (mNormalizedPdfTable[lo + 1]
-                                  - mNormalizedPdfTable[lo]);
-            }
-            return pdfVal * PDF_METERS_PER_UNIT;
-        }
-
-        /**
-         * Snapshots the current PDF offsets at all spine points so we can
-         * animate from them when the gamma params change. Called just before
-         * the new params are applied.
-         */
-        private void snapshotOldPdfOffsets() {
-            if (mSpineDistances == null || mLastInvScaleDt == 0) {
-                mOldPdfOffsets = null;
-                mOldPdfSpineDistances = null;
-                return;
-            }
-            double invScaleDt = mLastInvScaleDt;
-            int n = mSpineDistances.length;
-            mOldPdfOffsets = new double[n];
-            mOldPdfSpineDistances = new double[n];
-            for (int i = 0; i < n; i++) {
-                mOldPdfSpineDistances[i] = mSpineDistances[i];
-                mOldPdfOffsets[i] = computePdfOffset(i, invScaleDt);
-            }
-        }
-
-        /**
-         * Looks up the old PDF offset at the given distance using a linear
-         * scan from the given cursor position. Since spine points are iterated
-         * in order, this is O(n) total across all calls instead of O(n log n).
-         *
-         * @param distance the distance to look up
-         * @param cursor   starting index in mOldPdfSpineDistances (caller advances)
-         */
-        private double resampleOldOffsetLinear(double distance, int cursor) {
-            if (mOldPdfOffsets == null || mOldPdfSpineDistances == null) return 0;
-            int n = mOldPdfOffsets.length;
-            if (n == 0) return 0;
-
-            // Advance cursor to find the segment containing distance
-            int ins = cursor;
-            while (ins < n && mOldPdfSpineDistances[ins] < distance) {
-                ins++;
-            }
-
-            if (ins >= n) return mOldPdfOffsets[n - 1];
-            if (ins == 0) return mOldPdfOffsets[0];
-            if (mOldPdfSpineDistances[ins] == distance) return mOldPdfOffsets[ins];
-
-            double d0 = mOldPdfSpineDistances[ins - 1];
-            double d1 = mOldPdfSpineDistances[ins];
-            double segLen = d1 - d0;
-            if (segLen <= 0) return mOldPdfOffsets[ins - 1];
-            double frac = (distance - d0) / segLen;
-            return mOldPdfOffsets[ins - 1] + frac * (mOldPdfOffsets[ins] - mOldPdfOffsets[ins - 1]);
-        }
-
-        /**
-         * Updates an info label marker's position and rotation along the polyline.
-         * Label azimuth is always in [0°, 180°] (right side), so text is
-         * always upright — no icon flipping needed.
-         */
-        private void updateInfoLabelPosition(Marker marker, double distance,
-                                                 List<Location> shape, double[] cumDist) {
-            if (!DistanceExtrapolator.interpolateAlongPolyline(
-                    shape, cumDist, distance, mInfoLabelReusableLoc)) {
-                marker.setVisible(false);
-                return;
-            }
-            marker.setPosition(new LatLng(
-                    mInfoLabelReusableLoc.getLatitude(),
-                    mInfoLabelReusableLoc.getLongitude()));
-            double heading = DistanceExtrapolator.headingAlongPolyline(
-                    shape, cumDist, distance);
-            if (!Double.isNaN(heading)) {
-                double labelAz = clampedLabelAzimuth(heading);
-                marker.setRotation((float) (labelAz - 90.0));
-            }
-            marker.setVisible(true);
-        }
 
         /**
          * Clears any stop markers from the map
          */
         synchronized void clear() {
             removeDataReceivedMarker();
-            removeEstimateMarkers();
+            destroyEstimateOverlays();
             if (mVehicleMarkers != null) {
                 // Clear all markers from the map
                 removeMarkersFromMap();

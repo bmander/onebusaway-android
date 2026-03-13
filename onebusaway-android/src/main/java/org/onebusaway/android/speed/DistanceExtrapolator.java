@@ -21,9 +21,6 @@ import org.onebusaway.android.io.elements.ObaTripSchedule;
 
 import org.onebusaway.android.util.LocationUtils;
 
-import com.google.android.gms.maps.model.LatLng;
-
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -241,41 +238,27 @@ public final class DistanceExtrapolator {
     }
 
     /**
-     * Extracts a sub-polyline between two distances along the route, returning LatLng
-     * points ready for use in a Google Maps Polyline. The result includes interpolated
-     * start/end points plus all original polyline vertices in between.
+     * Finds the range of polyline vertex indices whose cumulative distances fall
+     * strictly between startDist and endDist. Uses binary search for O(log n).
      *
-     * @param polylinePoints decoded polyline points
-     * @param cumDist        precomputed cumulative distances
-     * @param startDist      start distance in meters
-     * @param endDist        end distance in meters
-     * @param out            list to populate (cleared first); null-safe (returns empty)
+     * @param cumDist   sorted cumulative distance array
+     * @param startDist start distance in meters
+     * @param endDist   end distance in meters
+     * @return int array {startIndex, endIndex} for use with a for loop (exclusive end),
+     *         or null if no vertices fall in range
      */
-    public static void subPolylineLatLng(List<Location> polylinePoints, double[] cumDist,
-                                          double startDist, double endDist,
-                                          List<LatLng> out) {
-        out.clear();
-        if (polylinePoints == null || polylinePoints.isEmpty()
-                || cumDist == null || startDist >= endDist) {
-            return;
-        }
-        // Add interpolated start point
-        Location loc = interpolateAlongPolyline(polylinePoints, cumDist, startDist);
-        if (loc == null) return;
-        out.add(new LatLng(loc.getLatitude(), loc.getLongitude()));
+    public static int[] findVertexRange(double[] cumDist, double startDist, double endDist) {
+        if (cumDist == null || cumDist.length == 0 || startDist >= endDist) return null;
 
-        // Add all original polyline vertices between startDist and endDist
-        for (int i = 0; i < cumDist.length; i++) {
-            if (cumDist[i] > startDist && cumDist[i] < endDist) {
-                Location p = polylinePoints.get(i);
-                out.add(new LatLng(p.getLatitude(), p.getLongitude()));
-            }
-        }
+        // Find first index where cumDist[i] > startDist
+        int rawStart = Arrays.binarySearch(cumDist, startDist);
+        int from = rawStart >= 0 ? rawStart + 1 : -rawStart - 1;
 
-        // Add interpolated end point
-        loc = interpolateAlongPolyline(polylinePoints, cumDist, endDist);
-        if (loc == null) return;
-        out.add(new LatLng(loc.getLatitude(), loc.getLongitude()));
+        // Find first index where cumDist[i] >= endDist
+        int rawEnd = Arrays.binarySearch(cumDist, endDist);
+        int to = rawEnd >= 0 ? rawEnd : -rawEnd - 1;
+
+        return from < to ? new int[]{from, to} : null;
     }
 
     /**

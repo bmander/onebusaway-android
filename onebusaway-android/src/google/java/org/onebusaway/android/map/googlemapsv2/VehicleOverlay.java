@@ -131,6 +131,73 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
     private static final int DEFAULT_VEHICLE_TYPE = ObaRoute.TYPE_BUS; // fall back on bus
 
+    /**
+     * Directional icon resource IDs indexed by [vehicleType][halfWind].
+     * Last entry in each row is the "no direction" fallback.
+     */
+    private static final int[][] VEHICLE_ICON_RES = {
+            // TYPE_TRAM (0)
+            {
+                    R.drawable.ic_marker_with_tram_smaller_north_inside,
+                    R.drawable.ic_marker_with_tram_smaller_north_east_inside,
+                    R.drawable.ic_marker_with_tram_smaller_east_inside,
+                    R.drawable.ic_marker_with_tram_smaller_south_east_inside,
+                    R.drawable.ic_marker_with_tram_smaller_south_inside,
+                    R.drawable.ic_marker_with_tram_smaller_south_west_inside,
+                    R.drawable.ic_marker_with_tram_smaller_west_inside,
+                    R.drawable.ic_marker_with_tram_smaller_north_west_inside,
+                    R.drawable.ic_marker_with_tram_smaller_none_inside,
+            },
+            // TYPE_SUBWAY (1)
+            {
+                    R.drawable.ic_marker_with_subway_smaller_north_inside,
+                    R.drawable.ic_marker_with_subway_smaller_north_east_inside,
+                    R.drawable.ic_marker_with_subway_smaller_east_inside,
+                    R.drawable.ic_marker_with_subway_smaller_south_east_inside,
+                    R.drawable.ic_marker_with_subway_smaller_south_inside,
+                    R.drawable.ic_marker_with_subway_smaller_south_west_inside,
+                    R.drawable.ic_marker_with_subway_smaller_west_inside,
+                    R.drawable.ic_marker_with_subway_smaller_north_west_inside,
+                    R.drawable.ic_marker_with_subway_smaller_none_inside,
+            },
+            // TYPE_RAIL (2)
+            {
+                    R.drawable.ic_marker_with_train_smaller_north_inside,
+                    R.drawable.ic_marker_with_train_smaller_north_east_inside,
+                    R.drawable.ic_marker_with_train_smaller_east_inside,
+                    R.drawable.ic_marker_with_train_smaller_south_east_inside,
+                    R.drawable.ic_marker_with_train_smaller_south_inside,
+                    R.drawable.ic_marker_with_train_smaller_south_west_inside,
+                    R.drawable.ic_marker_with_train_smaller_west_inside,
+                    R.drawable.ic_marker_with_train_smaller_north_west_inside,
+                    R.drawable.ic_marker_with_train_smaller_none_inside,
+            },
+            // TYPE_BUS (3)
+            {
+                    R.drawable.ic_marker_with_bus_smaller_north_inside,
+                    R.drawable.ic_marker_with_bus_smaller_north_east_inside,
+                    R.drawable.ic_marker_with_bus_smaller_east_inside,
+                    R.drawable.ic_marker_with_bus_smaller_south_east_inside,
+                    R.drawable.ic_marker_with_bus_smaller_south_inside,
+                    R.drawable.ic_marker_with_bus_smaller_south_west_inside,
+                    R.drawable.ic_marker_with_bus_smaller_west_inside,
+                    R.drawable.ic_marker_with_bus_smaller_north_west_inside,
+                    R.drawable.ic_marker_with_bus_smaller_none_inside,
+            },
+            // TYPE_FERRY (4)
+            {
+                    R.drawable.ic_marker_with_boat_smaller_north_inside,
+                    R.drawable.ic_marker_with_boat_smaller_north_east_inside,
+                    R.drawable.ic_marker_with_boat_smaller_east_inside,
+                    R.drawable.ic_marker_with_boat_smaller_south_east_inside,
+                    R.drawable.ic_marker_with_boat_smaller_south_inside,
+                    R.drawable.ic_marker_with_boat_smaller_south_west_inside,
+                    R.drawable.ic_marker_with_boat_smaller_west_inside,
+                    R.drawable.ic_marker_with_boat_smaller_north_west_inside,
+                    R.drawable.ic_marker_with_boat_smaller_none_inside,
+            },
+    };
+
     // Vehicle type (if available) -> icon set
     private static LruCache<String, Bitmap> mVehicleUncoloredIcons;
 
@@ -247,24 +314,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         Bitmap b = mVehicleUncoloredIcons.get(cacheKey);
 
         if (b == null) {  // cache miss
-            switch (vehicleType) {
-                case ObaRoute.TYPE_BUS:
-                    b = createBusIcon(halfWind);
-                    break;
-                case ObaRoute.TYPE_FERRY:
-                    b = createFerryIcon(halfWind);
-                    break;
-                case ObaRoute.TYPE_TRAM:
-                    b = createTramIcon(halfWind);
-                    break;
-                case ObaRoute.TYPE_SUBWAY:
-                    b = createSubwayIcon(halfWind);
-                    break;
-                case ObaRoute.TYPE_RAIL:
-                    b = createRailIcon(halfWind);
-                    break;
-                // default: not needed, since supported vehicles are checked prior
-            }
+            int[] res = VEHICLE_ICON_RES[vehicleType];
+            int idx = (halfWind >= 0 && halfWind < res.length - 1) ? halfWind : res.length - 1;
+            b = BitmapFactory.decodeResource(Application.get().getResources(), res[idx]);
         }
 
         mVehicleUncoloredIcons.put(cacheKey, b);
@@ -273,213 +325,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
     }
 
     private static boolean supportedVehicleType(int vehicleType) {
-        return vehicleType == ObaRoute.TYPE_BUS ||
-                vehicleType == ObaRoute.TYPE_FERRY ||
-                vehicleType == ObaRoute.TYPE_TRAM ||
-                vehicleType == ObaRoute.TYPE_SUBWAY ||
-                vehicleType == ObaRoute.TYPE_RAIL;
-
-    }
-
-    /**
-     * Create the bus icon with the given direction arrows or without a direction arrow
-     * for direction of NO_DIRECTION.  Color is black so they can be tinted later.
-     *
-     * @return vehicle icon bitmap with the arrow pointing the appropriate direction, or with
-     * no arrow for NO_DIRECTION
-     */
-    private static Bitmap createBusIcon(int halfWind) {
-        Resources r = Application.get().getResources();
-        switch (halfWind) {
-            case NORTH:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_bus_smaller_north_inside);
-            case NORTH_EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_bus_smaller_north_east_inside);
-            case EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_bus_smaller_east_inside);
-            case SOUTH_EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_bus_smaller_south_east_inside);
-            case SOUTH:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_bus_smaller_south_inside);
-            case SOUTH_WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_bus_smaller_south_west_inside);
-            case WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_bus_smaller_west_inside);
-            case NORTH_WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_bus_smaller_north_west_inside);
-            default:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_bus_smaller_none_inside);
-
-        }
-    }
-
-    /**
-     * Create the tram icon with the given direction arrows or without a direction arrow
-     * for direction of NO_DIRECTION.  Color is black so they can be tinted later.
-     *
-     * @return vehicle icon bitmap with the arrow pointing the appropriate direction, or with
-     * no arrow for NO_DIRECTION
-     */
-    private static Bitmap createTramIcon(int halfWind) {
-        Resources r = Application.get().getResources();
-        switch (halfWind) {
-            case NORTH:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_tram_smaller_north_inside);
-            case NORTH_EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_tram_smaller_north_east_inside);
-            case EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_tram_smaller_east_inside);
-            case SOUTH_EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_tram_smaller_south_east_inside);
-            case SOUTH:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_tram_smaller_south_inside);
-            case SOUTH_WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_tram_smaller_south_west_inside);
-            case WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_tram_smaller_west_inside);
-            case NORTH_WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_tram_smaller_north_west_inside);
-            default:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_tram_smaller_none_inside);
-        }
-    }
-
-    /**
-     * Create the rail icon with the given direction arrows or without a direction arrow
-     * for direction of NO_DIRECTION.  Color is black so they can be tinted later.
-     *
-     * @return vehicle icon bitmap with the arrow pointing the appropriate direction, or with
-     * no arrow for NO_DIRECTION
-     */
-    private static Bitmap createRailIcon(int halfWind) {
-        Resources r = Application.get().getResources();
-        switch (halfWind) {
-            case NORTH:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_train_smaller_north_inside);
-            case NORTH_EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_train_smaller_north_east_inside);
-            case EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_train_smaller_east_inside);
-            case SOUTH_EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_train_smaller_south_east_inside);
-            case SOUTH:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_train_smaller_south_inside);
-            case SOUTH_WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_train_smaller_south_west_inside);
-            case WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_train_smaller_west_inside);
-            case NORTH_WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_train_smaller_north_west_inside);
-            default:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_train_smaller_none_inside);
-        }
-    }
-
-    /**
-     * Create the ferry icon with the given direction arrows or without a direction arrow
-     * for direction of NO_DIRECTION.  Color is black so they can be tinted later.
-     *
-     * @return vehicle icon bitmap with the arrow pointing the appropriate direction, or with
-     * no arrow for NO_DIRECTION
-     */
-    private static Bitmap createFerryIcon(int halfWind) {
-        Resources r = Application.get().getResources();
-        switch (halfWind) {
-            case NORTH:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_boat_smaller_north_inside);
-            case NORTH_EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_boat_smaller_north_east_inside);
-            case EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_boat_smaller_east_inside);
-            case SOUTH_EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_boat_smaller_south_east_inside);
-            case SOUTH:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_boat_smaller_south_inside);
-            case SOUTH_WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_boat_smaller_south_west_inside);
-            case WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_boat_smaller_west_inside);
-            case NORTH_WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_boat_smaller_north_west_inside);
-            default:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_boat_smaller_none_inside);
-        }
-    }
-
-    /**
-     * Create the subway icon with the given direction arrows or without a direction arrow
-     * for direction of NO_DIRECTION.  Color is black so they can be tinted later.
-     *
-     * @return vehicle icon bitmap with the arrow pointing the appropriate direction, or with
-     * no arrow for NO_DIRECTION
-     */
-    private static Bitmap createSubwayIcon(int halfWind) {
-        Resources r = Application.get().getResources();
-        switch (halfWind) {
-            case NORTH:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_subway_smaller_north_inside);
-            case NORTH_EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_subway_smaller_north_east_inside);
-            case EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_subway_smaller_east_inside);
-            case SOUTH_EAST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_subway_smaller_south_east_inside);
-            case SOUTH:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_subway_smaller_south_inside);
-            case SOUTH_WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_subway_smaller_south_west_inside);
-            case WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_subway_smaller_west_inside);
-            case NORTH_WEST:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_subway_smaller_north_west_inside);
-            default:
-                return BitmapFactory
-                        .decodeResource(r, R.drawable.ic_marker_with_subway_smaller_none_inside);
-        }
+        return vehicleType >= 0 && vehicleType < VEHICLE_ICON_RES.length;
     }
 
     /**
@@ -556,18 +402,14 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             // Show trip details screen for the vehicle associated with this marker
             ObaTripStatus status = mMarkerData.getStatusFromMarker(marker);
             if (status != null) {
+                TripDetailsActivity.Builder builder =
+                        new TripDetailsActivity.Builder(mActivity, status.getActiveTripId())
+                                .setScrollMode(TripDetailsListFragment.SCROLL_MODE_VEHICLE)
+                                .setUpMode("back");
                 if (mController != null && mController.getFocusedStopId() != null) {
-                    new TripDetailsActivity.Builder(mActivity, status.getActiveTripId())
-                            .setStopId(mController.getFocusedStopId())
-                            .setScrollMode(TripDetailsListFragment.SCROLL_MODE_VEHICLE)
-                            .setUpMode("back")
-                            .start();
-                } else {
-                    new TripDetailsActivity.Builder(mActivity, status.getActiveTripId())
-                            .setScrollMode(TripDetailsListFragment.SCROLL_MODE_VEHICLE)
-                            .setUpMode("back")
-                            .start();
+                    builder.setStopId(mController.getFocusedStopId());
                 }
+                builder.start();
             }
         }
     }
@@ -661,7 +503,6 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         private Marker mFastEstimateMarker;
         private BitmapDescriptor mSlowEstimateIcon;
         private BitmapDescriptor mFastEstimateIcon;
-        private float mInfoLabelAnchorX;
         /** Cached percentile speeds in m/s — only recomputed when gamma params change. */
         private GammaSpeedModel.GammaParams mCachedGammaParams;
         private double mCachedSpeed10Mps;
@@ -757,80 +598,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                         }
                         activeTripIds.add(status.getActiveTripId());
 
-                        VehicleState vehicleState = VehicleState.fromTripStatus(status);
-                        VehicleTrajectoryTracker trajectoryTracker = VehicleTrajectoryTracker.getInstance();
-                        String blockId = null;
-                        ObaTrip activeTripObj = response.getTrip(status.getActiveTripId());
-                        if (activeTripObj != null) {
-                            blockId = activeTripObj.getBlockId();
-                        }
-                        trajectoryTracker.recordState(status.getActiveTripId(), vehicleState, blockId);
-
-                        if (trajectoryTracker.getRouteType(status.getActiveTripId()) == null) {
-                            String routeId = activeTripObj != null ? activeTripObj.getRouteId() : null;
-                            ObaRoute route = routeId != null ? response.getRoute(routeId) : null;
-                            if (route != null) {
-                                trajectoryTracker.putRouteType(status.getActiveTripId(), route.getType());
-                            }
-                        }
-
-                        String tripId = status.getActiveTripId();
-                        String shapeId = activeTripObj != null ? activeTripObj.getShapeId() : null;
-                        boolean needSchedule = tripId != null
-                                && !trajectoryTracker.isSchedulePendingOrCached(tripId);
-                        boolean needShape = tripId != null && shapeId != null
-                                && trajectoryTracker.getShape(tripId) == null;
-                        if (needSchedule || needShape) {
-                            if (needSchedule) {
-                                trajectoryTracker.markSchedulePending(tripId);
-                            }
-                            final Context ctx = Application.get().getApplicationContext();
-                            final boolean fetchSchedule = needSchedule;
-                            final boolean fetchShape = needShape;
-                            new Thread(() -> {
-                                try {
-                                    if (fetchSchedule) {
-                                        ObaTripDetailsResponse detailsResponse =
-                                                new ObaTripDetailsRequest.Builder(ctx, tripId)
-                                                        .setIncludeSchedule(true)
-                                                        .setIncludeStatus(false)
-                                                        .setIncludeTrip(false)
-                                                        .build()
-                                                        .call();
-                                        if (detailsResponse != null) {
-                                            ObaTripSchedule schedule = detailsResponse.getSchedule();
-                                            if (schedule != null) {
-                                                trajectoryTracker.putSchedule(tripId, schedule);
-                                            }
-                                        }
-                                    }
-                                    if (fetchShape) {
-                                        ObaShapeResponse shapeResponse =
-                                                ObaShapeRequest.newRequest(ctx, shapeId).call();
-                                        if (shapeResponse != null) {
-                                            List<Location> points = shapeResponse.getPoints();
-                                            if (points != null && !points.isEmpty()) {
-                                                trajectoryTracker.putShape(tripId, points);
-                                            }
-                                        }
-                                    }
-                                    // If this trip is selected, notify controller
-                                    // so it can update the displayed stops/polyline
-                                    if (tripId.equals(mSelectedTripId) && mController != null) {
-                                        mActivity.runOnUiThread(() -> {
-                                            if (tripId.equals(mSelectedTripId) && mController != null) {
-                                                mController.onVehicleSelected(tripId);
-                                            }
-                                        });
-                                    }
-                                } catch (Exception e) {
-                                    Log.w(TAG, "Failed to fetch schedule/shape for " + tripId, e);
-                                    if (fetchSchedule) {
-                                        trajectoryTracker.clearPending(tripId);
-                                    }
-                                }
-                            }).start();
-                        }
+                        recordTrajectoryState(status, response);
+                        fetchScheduleAndShapeIfNeeded(status, response);
                     }
                 }
             }
@@ -852,6 +621,89 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     mVehicleUncoloredIcons.size(),
                     mVehicleUncoloredIcons.hitCount(),
                     mVehicleUncoloredIcons.missCount()));
+        }
+
+        /**
+         * Records a vehicle state snapshot and route type into the trajectory tracker.
+         */
+        private void recordTrajectoryState(ObaTripStatus status,
+                                            ObaTripsForRouteResponse response) {
+            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+            ObaTrip activeTripObj = response.getTrip(status.getActiveTripId());
+            String blockId = activeTripObj != null ? activeTripObj.getBlockId() : null;
+            tracker.recordState(status.getActiveTripId(),
+                    VehicleState.fromTripStatus(status), blockId);
+            if (tracker.getRouteType(status.getActiveTripId()) == null) {
+                String routeId = activeTripObj != null ? activeTripObj.getRouteId() : null;
+                ObaRoute route = routeId != null ? response.getRoute(routeId) : null;
+                if (route != null) {
+                    tracker.putRouteType(status.getActiveTripId(), route.getType());
+                }
+            }
+        }
+
+        /**
+         * Fetches schedule and/or shape data in a background thread if not already cached.
+         */
+        private void fetchScheduleAndShapeIfNeeded(ObaTripStatus status,
+                                                    ObaTripsForRouteResponse response) {
+            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+            String tripId = status.getActiveTripId();
+            ObaTrip activeTripObj = response.getTrip(tripId);
+            String shapeId = activeTripObj != null ? activeTripObj.getShapeId() : null;
+            boolean needSchedule = tripId != null
+                    && !tracker.isSchedulePendingOrCached(tripId);
+            boolean needShape = tripId != null && shapeId != null
+                    && tracker.getShape(tripId) == null;
+            if (!needSchedule && !needShape) return;
+
+            if (needSchedule) {
+                tracker.markSchedulePending(tripId);
+            }
+            final Context ctx = Application.get().getApplicationContext();
+            final boolean fetchSchedule = needSchedule;
+            final boolean fetchShape = needShape;
+            new Thread(() -> {
+                try {
+                    if (fetchSchedule) {
+                        ObaTripDetailsResponse detailsResponse =
+                                new ObaTripDetailsRequest.Builder(ctx, tripId)
+                                        .setIncludeSchedule(true)
+                                        .setIncludeStatus(false)
+                                        .setIncludeTrip(false)
+                                        .build()
+                                        .call();
+                        if (detailsResponse != null) {
+                            ObaTripSchedule schedule = detailsResponse.getSchedule();
+                            if (schedule != null) {
+                                tracker.putSchedule(tripId, schedule);
+                            }
+                        }
+                    }
+                    if (fetchShape) {
+                        ObaShapeResponse shapeResponse =
+                                ObaShapeRequest.newRequest(ctx, shapeId).call();
+                        if (shapeResponse != null) {
+                            List<Location> points = shapeResponse.getPoints();
+                            if (points != null && !points.isEmpty()) {
+                                tracker.putShape(tripId, points);
+                            }
+                        }
+                    }
+                    if (tripId.equals(mSelectedTripId) && mController != null) {
+                        mActivity.runOnUiThread(() -> {
+                            if (tripId.equals(mSelectedTripId) && mController != null) {
+                                mController.onVehicleSelected(tripId);
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed to fetch schedule/shape for " + tripId, e);
+                    if (fetchSchedule) {
+                        tracker.clearPending(tripId);
+                    }
+                }
+            }).start();
         }
 
         /**
@@ -1149,12 +1001,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
         /**
          * Creates an info label icon: a pointer bubble with text.
-         * Returns the anchor X fraction (dot center / total width) via the first element of
-         * outAnchorX if non-null, so callers can avoid recomputing layout metrics.
-         *
          */
-        private BitmapDescriptor createInfoLabelIcon(String label, float[] outAnchorX) {
-            return createInfoLabelIconInternal(new String[]{label}, outAnchorX);
+        private BitmapDescriptor createInfoLabelIcon(String label, float[] outWidth) {
+            return createInfoLabelIconInternal(new String[]{label}, outWidth);
         }
 
         private BitmapDescriptor createInfoLabelExpandedIcon(String label) {
@@ -1162,7 +1011,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         }
 
         private BitmapDescriptor createInfoLabelIconInternal(String[] lines,
-                                                                   float[] outAnchorX) {
+                                                                   float[] outWidth) {
             float d = mActivity.getResources().getDisplayMetrics().density;
 
             Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -1201,8 +1050,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 c.drawText(lines[i], textX, textY + i * (lineHeight + lineGap), textPaint);
             }
 
-            if (outAnchorX != null && outAnchorX.length > 0) {
-                outAnchorX[0] = 0f;
+            if (outWidth != null && outWidth.length > 0) {
+                outWidth[0] = bubbleWidth;
             }
             return BitmapDescriptorFactory.fromBitmap(bmp);
         }
@@ -1299,9 +1148,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             Marker vehicleMarker = mVehicleMarkers.get(tripId);
             if (vehicleMarker == null) return;
 
-            float[] anchorOut = new float[1];
-            mSlowEstimateIcon = createInfoLabelIcon(SLOW_ESTIMATE_LABEL, anchorOut);
-            mInfoLabelAnchorX = anchorOut[0];
+            mSlowEstimateIcon = createInfoLabelIcon(SLOW_ESTIMATE_LABEL, null);
             mFastEstimateIcon = createInfoLabelIcon(FAST_ESTIMATE_LABEL, null);
             mSlowEstimateExpandedIcon = createInfoLabelExpandedIcon(SLOW_ESTIMATE_EXPANDED);
             mFastEstimateExpandedIcon = createInfoLabelExpandedIcon(FAST_ESTIMATE_EXPANDED);
@@ -1314,23 +1161,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             mFastEstimateMarker = addFlatInfoLabelMarker(pos, mFastEstimateIcon);
 
             // Create the highlight polylines behind the route polyline
-            int highlightColor = (HIGHLIGHT_ALPHA << 24) | HIGHLIGHT_RGB;
-            float density = mActivity.getResources().getDisplayMetrics().density;
-            RoundCap roundCap = new RoundCap();
-            mHighlightOuterPolyline = mMap.addPolyline(new PolylineOptions()
-                    .width(HIGHLIGHT_OUTER_WIDTH_DP * density)
-                    .color(highlightColor)
-                    .zIndex(HIGHLIGHT_Z_INDEX)
-                    .startCap(roundCap)
-                    .endCap(roundCap)
-                    .visible(false));
-            mHighlightInnerPolyline = mMap.addPolyline(new PolylineOptions()
-                    .width(HIGHLIGHT_INNER_WIDTH_DP * density)
-                    .color(highlightColor)
-                    .zIndex(HIGHLIGHT_Z_INDEX)
-                    .startCap(roundCap)
-                    .endCap(roundCap)
-                    .visible(false));
+            mHighlightOuterPolyline = addHighlightPolyline(HIGHLIGHT_OUTER_WIDTH_DP);
+            mHighlightInnerPolyline = addHighlightPolyline(HIGHLIGHT_INNER_WIDTH_DP);
         }
 
         private void removeEstimateMarkers() {
@@ -1381,11 +1213,24 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             return mMap.addMarker(new MarkerOptions()
                     .position(pos)
                     .icon(icon)
-                    .anchor(mInfoLabelAnchorX, 0.5f)
+                    .anchor(0f, 0.5f)
                     .flat(true)
                     .zIndex(INFO_LABEL_Z_INDEX)
                     .visible(false)
             );
+        }
+
+        private Polyline addHighlightPolyline(float widthDp) {
+            int color = (HIGHLIGHT_ALPHA << 24) | HIGHLIGHT_RGB;
+            float density = mActivity.getResources().getDisplayMetrics().density;
+            RoundCap cap = new RoundCap();
+            return mMap.addPolyline(new PolylineOptions()
+                    .width(widthDp * density)
+                    .color(color)
+                    .zIndex(HIGHLIGHT_Z_INDEX)
+                    .startCap(cap)
+                    .endCap(cap)
+                    .visible(false));
         }
 
         private String formatElapsedTime(long lastUpdateTime) {
@@ -1436,24 +1281,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
          *  Also computes mDataReceivedLabelAnchorX to offset the label past the circle icon. */
         private BitmapDescriptor createDataReceivedLabelIcon(String timeLine) {
             String[] lines = {DATA_RECEIVED_TITLE, timeLine};
-            float[] anchorOut = new float[1];
-            BitmapDescriptor icon = createInfoLabelIconInternal(lines, anchorOut);
-            // anchorOut[0] is 0 (pointer tip). We need to shift left by circle radius + gap,
-            // expressed as a negative fraction of the label bitmap width.
-            // The bitmap width can be recovered: anchorOut is always 0 for pointer-only labels,
-            // so we compute the offset from known DP values.
+            float[] widthOut = new float[1];
+            BitmapDescriptor icon = createInfoLabelIconInternal(lines, widthOut);
             float d = mActivity.getResources().getDisplayMetrics().density;
-            float offsetPx = DATA_ICON_RADIUS_DP * d + DATA_ICON_GAP_DP * d;
-            // We need the label bitmap width — measure it the same way as createInfoLabelIconInternal
-            Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            textPaint.setTextSize(INFO_LABEL_SP * d);
-            textPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-            float maxLineWidth = 0;
-            for (String line : lines) {
-                maxLineWidth = Math.max(maxLineWidth, textPaint.measureText(line));
-            }
-            float bubbleWidth = INFO_LABEL_POINTER_WIDTH_DP * d + 4 * d + maxLineWidth + 6 * d;
-            mDataReceivedLabelAnchorX = -offsetPx / bubbleWidth;
+            float offsetPx = (DATA_ICON_RADIUS_DP + DATA_ICON_GAP_DP) * d;
+            mDataReceivedLabelAnchorX = -offsetPx / widthOut[0];
             return icon;
         }
 
@@ -1646,13 +1478,45 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                                                double endDist, List<Location> shape,
                                                double[] cumDist, java.util.ArrayList<LatLng> pts) {
             if (polyline == null) return;
-            DistanceExtrapolator.subPolylineLatLng(shape, cumDist, startDist, endDist, pts);
+            buildSubPolylineLatLng(shape, cumDist, startDist, endDist, pts);
             if (pts.size() >= 2) {
                 polyline.setPoints(pts);
                 polyline.setVisible(true);
             } else {
                 polyline.setVisible(false);
             }
+        }
+
+        /**
+         * Builds a sub-polyline as LatLng points between two distances along the route.
+         * Uses binary search and reusable Location to minimize per-frame allocation.
+         */
+        private void buildSubPolylineLatLng(List<Location> shape, double[] cumDist,
+                                             double startDist, double endDist,
+                                             java.util.ArrayList<LatLng> out) {
+            out.clear();
+            if (shape == null || shape.isEmpty() || cumDist == null || startDist >= endDist) return;
+
+            // Interpolated start point
+            if (!DistanceExtrapolator.interpolateAlongPolyline(
+                    shape, cumDist, startDist, mInfoLabelReusableLoc)) return;
+            out.add(MapHelpV2.makeLatLng(mInfoLabelReusableLoc));
+
+            // Original vertices between startDist and endDist (binary search)
+            int[] range = DistanceExtrapolator.findVertexRange(cumDist, startDist, endDist);
+            if (range != null) {
+                for (int i = range[0]; i < range[1]; i++) {
+                    out.add(MapHelpV2.makeLatLng(shape.get(i)));
+                }
+            }
+
+            // Interpolated end point
+            if (!DistanceExtrapolator.interpolateAlongPolyline(
+                    shape, cumDist, endDist, mInfoLabelReusableLoc)) {
+                out.clear();
+                return;
+            }
+            out.add(MapHelpV2.makeLatLng(mInfoLabelReusableLoc));
         }
 
         /**

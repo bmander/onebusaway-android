@@ -1273,9 +1273,6 @@ public class BaseMapFragment extends SupportMapFragment
                 controller.notifyMapChanged();
             }
         }
-        if (mTripRenderer != null) {
-            mTripRenderer.onCameraZoomChanged(cameraPosition.zoom);
-        }
     }
 
     // Maps V2 Location updates

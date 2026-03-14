@@ -18,6 +18,7 @@ package org.onebusaway.android.map.googlemapsv2;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.location.Location;
 
@@ -30,8 +31,6 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
-import com.google.android.gms.maps.model.PolylineOptions;
-import com.google.android.gms.maps.model.RoundCap;
 
 import org.onebusaway.android.R;
 import org.onebusaway.android.io.elements.ObaRoute;
@@ -55,9 +54,8 @@ final class TripMapRenderer {
     // --- Constants ---
 
     public static final float TRIP_BASE_WIDTH_PX = 44f;
-    static final float TRIP_STOP_DIAMETER_PX = TRIP_BASE_WIDTH_PX * 2.5f;
-    private static final float TRIP_WIDTH_FULL_ZOOM = 16f;
-    private static final float TRIP_WIDTH_SHRINK_RATE = 0.5f;
+    private static final float STOP_STROKE_WIDTH = 4f;
+    private static final int STOP_STROKE_COLOR = 0xFF242424;
 
     private static final float INFO_LABEL_Z_INDEX = 0.5f;
     private static final String DATA_RECEIVED_TITLE = "Most recent data";
@@ -72,7 +70,7 @@ final class TripMapRenderer {
     private final ChevronPolylineHelper mChevronHelper;
 
     private final ArrayList<Polyline> mTripPolylines = new ArrayList<>();
-    private final ArrayList<Polyline> mTripStopDots = new ArrayList<>();
+    private final ArrayList<Marker> mTripStopMarkers = new ArrayList<>();
 
     private EstimateOverlayManager mEstimateOverlay;
 
@@ -82,7 +80,6 @@ final class TripMapRenderer {
     private float mDataReceivedLabelAnchorX;
     private BitmapDescriptor mCachedCircleIcon;
 
-    private float mLastTripPolylineWidth = -1f;
     private boolean mActive;
     private String mActiveTripId;
     private int mRouteColor;
@@ -123,7 +120,6 @@ final class TripMapRenderer {
         destroyEstimateOverlays();
         mActive = false;
         mActiveTripId = null;
-        mLastTripPolylineWidth = -1f;
     }
 
     boolean isActive() {
@@ -138,9 +134,8 @@ final class TripMapRenderer {
 
     private void showTripPolyline(List<Location> tripShape, int color) {
         removeTripPolylines();
-        float width = tripPolylineWidth(mMap.getCameraPosition().zoom);
-        mChevronHelper.addArrowPolyline(mMap, mTripPolylines, tripShape, color, width, 4,
-                mContext.getResources());
+        mChevronHelper.addArrowPolyline(mMap, mTripPolylines, tripShape, color,
+                TRIP_BASE_WIDTH_PX, 4, mContext.getResources());
     }
 
     private void removeTripPolylines() {
@@ -158,55 +153,42 @@ final class TripMapRenderer {
         ObaTripSchedule.StopTime[] stopTimes = schedule.getStopTimes();
         if (stopTimes == null) return;
 
-        float zoom = mMap.getCameraPosition().zoom;
-        float stopWidth = tripPolylineWidth(zoom) / TRIP_BASE_WIDTH_PX * TRIP_STOP_DIAMETER_PX;
-        double delta = 1.0;
+        BitmapDescriptor icon = makeStopCircleIcon();
         for (ObaTripSchedule.StopTime st : stopTimes) {
-            double dist = st.getDistanceAlongTrip();
-            Location locA = DistanceExtrapolator.interpolateAlongPolyline(
-                    shape, cumDist, dist - delta);
-            Location locB = DistanceExtrapolator.interpolateAlongPolyline(
-                    shape, cumDist, dist + delta);
-            if (locA == null || locB == null) continue;
-            Polyline dot = mMap.addPolyline(new PolylineOptions()
-                    .add(new LatLng(locA.getLatitude(), locA.getLongitude()),
-                         new LatLng(locB.getLatitude(), locB.getLongitude()))
-                    .width(stopWidth)
-                    .color(color)
-                    .startCap(new RoundCap())
-                    .endCap(new RoundCap())
-                    .zIndex(0f));
-            mTripStopDots.add(dot);
+            Location loc = DistanceExtrapolator.interpolateAlongPolyline(
+                    shape, cumDist, st.getDistanceAlongTrip());
+            if (loc == null) continue;
+            Marker m = mMap.addMarker(new MarkerOptions()
+                    .position(new LatLng(loc.getLatitude(), loc.getLongitude()))
+                    .icon(icon)
+                    .anchor(0.5f, 0.5f)
+                    .flat(true)
+                    .zIndex(1f));
+            mTripStopMarkers.add(m);
         }
+    }
+
+    private BitmapDescriptor makeStopCircleIcon() {
+        int size = (int) TRIP_BASE_WIDTH_PX;
+        Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(bmp);
+        float r = size / 2f;
+        Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        fill.setColor(Color.WHITE);
+        c.drawCircle(r, r, r - STOP_STROKE_WIDTH / 2f, fill);
+        Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+        stroke.setStyle(Paint.Style.STROKE);
+        stroke.setStrokeWidth(STOP_STROKE_WIDTH);
+        stroke.setColor(STOP_STROKE_COLOR);
+        c.drawCircle(r, r, r - STOP_STROKE_WIDTH / 2f, stroke);
+        return BitmapDescriptorFactory.fromBitmap(bmp);
     }
 
     private void removeTripStopCircles() {
-        for (Polyline p : mTripStopDots) {
-            p.remove();
+        for (Marker m : mTripStopMarkers) {
+            m.remove();
         }
-        mTripStopDots.clear();
-    }
-
-    // --- Zoom-adaptive width ---
-
-    static float tripPolylineWidth(float zoom) {
-        if (zoom >= TRIP_WIDTH_FULL_ZOOM) return TRIP_BASE_WIDTH_PX;
-        float dz = TRIP_WIDTH_FULL_ZOOM - zoom;
-        return (float) (TRIP_BASE_WIDTH_PX * Math.pow(2, -dz * TRIP_WIDTH_SHRINK_RATE));
-    }
-
-    void onCameraZoomChanged(float zoom) {
-        if (mTripStopDots.isEmpty() || mTripPolylines.isEmpty()) return;
-        float width = tripPolylineWidth(zoom);
-        if (width == mLastTripPolylineWidth) return;
-        mLastTripPolylineWidth = width;
-        float stopWidth = width / TRIP_BASE_WIDTH_PX * TRIP_STOP_DIAMETER_PX;
-        for (Polyline p : mTripPolylines) {
-            p.setWidth(width);
-        }
-        for (Polyline p : mTripStopDots) {
-            p.setWidth(stopWidth);
-        }
+        mTripStopMarkers.clear();
     }
 
     // --- Estimate overlays ---

@@ -410,7 +410,7 @@ public class TrajectoryGraphView extends View {
         long lastTime = newestValid != null ? newestValid.getLastLocationUpdateTime() : 0;
 
         drawExtrapolationAndDeviation(canvas, lastDist, lastTime);
-        // drawGammaPdfAndBands(canvas, lastDist, lastTime);
+        drawGammaPdfAndBands(canvas, lastDist, lastTime);
         drawNowLine(canvas);
 
         canvas.restore();

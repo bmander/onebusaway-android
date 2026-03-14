@@ -21,25 +21,21 @@
 <body>
 <div id="sidebar">
   <h2>Normal-Path Wavefront</h2>
-  <p style="font-size:12px;color:#aaa">Click canvas to add polyline vertices. The algorithm computes collision-free offset ribbons.</p>
+  <p style="font-size:12px;color:#aaa">Click to add polyline vertices. Offset edges stay parallel to originals; wavefront prevents tangles at sharp turns.</p>
   <div class="group">
     <label>Offset: <span id="offsetVal">30</span>px
       <input type="range" id="offsetSlider" min="0" max="200" value="30">
-    </label>
-    <label>Spacing: <span id="spacingVal">15</span>px
-      <input type="range" id="spacingSlider" min="5" max="40" value="15">
     </label>
     <label>Search radius: <span id="radiusVal">200</span>px
       <input type="range" id="radiusSlider" min="50" max="500" value="200">
     </label>
   </div>
   <div class="group">
-    <label><input type="checkbox" id="showSpine" checked> Spine points</label>
-    <label><input type="checkbox" id="showRawNormals"> Raw normals</label>
+    <label><input type="checkbox" id="showMiters"> Miter vectors</label>
     <label><input type="checkbox" id="showCollisions" checked> Collision events</label>
     <label><input type="checkbox" id="showPaths" checked> Normal paths</label>
-    <label><input type="checkbox" id="showRibbon" checked> Ribbon polygon</label>
-    <label><input type="checkbox" id="showNaive"> Naive ribbon (no fix)</label>
+    <label><input type="checkbox" id="showRibbon" checked> Ribbon (wavefront)</label>
+    <label><input type="checkbox" id="showNaive"> Ribbon (naive miter)</label>
   </div>
   <div class="group">
     <button class="btn-primary" id="btnClear">Clear</button>
@@ -59,24 +55,23 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
 let vertices = [];
-let spine = [];
-let normalPathsPos = [];  // per spine point, array of {t, pt}
+let edgeNormals = [];   // unit normal per edge (N-1 entries)
+let miters = [];         // miter vector per vertex (non-unit; keeps offset edges parallel)
+let normalPathsPos = [];
 let normalPathsNeg = [];
 let collisionEvents = [];
 
-// Camera transform (pan & zoom)
+// Camera
 let camX = 0, camY = 0, camZoom = 1;
 let isPanning = false, panStartX = 0, panStartY = 0, panStartCamX = 0, panStartCamY = 0;
 
 function screenToWorld(sx, sy) {
   return { x: (sx - camX) / camZoom, y: (sy - camY) / camZoom };
 }
-
 function applyCamera() {
   ctx.setTransform(devicePixelRatio * camZoom, 0, 0, devicePixelRatio * camZoom,
                    devicePixelRatio * camX, devicePixelRatio * camY);
 }
-
 function resize() {
   canvas.width = canvas.clientWidth * devicePixelRatio;
   canvas.height = canvas.clientHeight * devicePixelRatio;
@@ -84,124 +79,74 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 
-// --- Geometry helpers ---
+// --- Geometry ---
 function sub(a, b) { return {x: a.x - b.x, y: a.y - b.y}; }
 function add(a, b) { return {x: a.x + b.x, y: a.y + b.y}; }
 function scale(v, s) { return {x: v.x * s, y: v.y * s}; }
 function len(v) { return Math.hypot(v.x, v.y); }
-function normalize(v) { const l = len(v); return l < 1e-12 ? {x:0,y:0} : {x: v.x/l, y: v.y/l}; }
+function unit(v) { const l = len(v); return l < 1e-12 ? {x:0,y:0} : {x: v.x/l, y: v.y/l}; }
 function cross(a, b) { return a.x * b.y - a.y * b.x; }
 function dot(a, b) { return a.x * b.x + a.y * b.y; }
-function perp(v) { return {x: -v.y, y: v.x}; }  // 90 deg CCW
+function perp(v) { return {x: -v.y, y: v.x}; }
 
-// --- Spine sampling ---
-function sampleSpine(verts, spacing) {
-  if (verts.length < 2) return [];
-  const pts = [];
-  // Cumulative distances
-  const cumDist = [0];
-  for (let i = 1; i < verts.length; i++) {
-    cumDist.push(cumDist[i-1] + len(sub(verts[i], verts[i-1])));
+// --- Edge normals & miter vectors ---
+
+// Unit normal for each edge (perpendicular, left side)
+function computeEdgeNormals(verts) {
+  const out = [];
+  for (let i = 0; i < verts.length - 1; i++) {
+    out.push(unit(perp(sub(verts[i + 1], verts[i]))));
   }
-  const totalDist = cumDist[cumDist.length - 1];
-  if (totalDist < 1e-6) return [];
-
-  // Collect sample distances: regular intervals + vertices
-  const dists = new Set();
-  for (let d = 0; d <= totalDist; d += spacing) dists.add(d);
-  dists.add(totalDist);
-  for (const d of cumDist) dists.add(d);
-
-  const sorted = Array.from(dists).sort((a,b) => a - b);
-
-  for (const d of sorted) {
-    // Interpolate position
-    let seg = 0;
-    for (let j = 1; j < cumDist.length; j++) {
-      if (cumDist[j] >= d - 1e-9) { seg = j - 1; break; }
-    }
-    const segLen = cumDist[seg+1] - cumDist[seg];
-    const frac = segLen > 1e-9 ? (d - cumDist[seg]) / segLen : 0;
-    const pos = add(verts[seg], scale(sub(verts[seg+1], verts[seg]), frac));
-
-    // Heading: use small forward/backward delta
-    const dFwd = Math.min(d + 0.5, totalDist);
-    const dBwd = Math.max(d - 0.5, 0);
-    const ptFwd = interpPolyline(verts, cumDist, dFwd);
-    const ptBwd = interpPolyline(verts, cumDist, dBwd);
-    const tangent = normalize(sub(ptFwd, ptBwd));
-    const normal = perp(tangent); // perpendicular (left side = positive)
-
-    pts.push({ pos, normal, dist: d });
-  }
-  return pts;
+  return out;
 }
 
-function interpPolyline(verts, cumDist, d) {
-  let seg = 0;
-  for (let j = 1; j < cumDist.length; j++) {
-    if (cumDist[j] >= d - 1e-9) { seg = j - 1; break; }
-  }
-  const segLen = cumDist[seg+1] - cumDist[seg];
-  const frac = segLen > 1e-9 ? (d - cumDist[seg]) / segLen : 0;
-  return add(verts[seg], scale(sub(verts[seg+1], verts[seg]), frac));
+// Miter vector from two adjacent edge normals.
+// Satisfies dot(m, nL) = dot(m, nR) = 1, so offsetting a vertex
+// by t*m pushes both adjacent edges out by exactly t.
+function miterVec(nL, nR) {
+  const d = 1 + dot(nL, nR);
+  if (d < 1e-9) return scale(perp(nL), 100); // near-180° fold — degenerate
+  return scale(add(nL, nR), 1 / d);
 }
 
-// --- Wavefront cascade ---
+function computeMiters(verts, eNormals) {
+  const N = verts.length;
+  const out = [];
+  for (let i = 0; i < N; i++) {
+    if (i === 0)          out.push({ ...eNormals[0] });
+    else if (i === N - 1) out.push({ ...eNormals[N - 2] });
+    else                  out.push(miterVec(eNormals[i - 1], eNormals[i]));
+  }
+  return out;
+}
+
+// --- Wavefront cascade (straight skeleton) ---
+
 function computeCollisionT(rayA, rayB) {
-  // Solve: originA + (t - collapseT_A) * dirA = originB + (t - collapseT_B) * dirB
-  // originA + t*dirA - cA*dirA = originB + t*dirB - cB*dirB
-  // t*(dirA - dirB) = (originB - originA) + cA*dirA - cB*dirB
-  // t*(dirA - dirB) = (originB - cB*dirB) - (originA - cA*dirA)
-  // Let pA = originA - cA*dirA, pB = originB - cB*dirB (the "virtual origins" at t=0)
-  // t * (dirA - dirB) = pB - pA
-  // Cross product method: t = cross(pB - pA, dirB) / cross(dirA, dirB)
-
   const denom = cross(rayA.dir, rayB.dir);
   if (Math.abs(denom) < 1e-12) return Infinity;
-
   const pA = sub(rayA.origin, scale(rayA.dir, rayA.collapseT));
   const pB = sub(rayB.origin, scale(rayB.dir, rayB.collapseT));
-  const dp = sub(pB, pA);
-  const t = cross(dp, rayB.dir) / denom;
-  return t;
+  return cross(sub(pB, pA), rayB.dir) / denom;
 }
 
-function bisect(dirA, dirB) {
-  const sum = add(dirA, dirB);
-  const l = len(sum);
-  if (l < 1e-12) {
-    // Opposite directions: use perpendicular of dirA
-    return perp(dirA);
-  }
-  return scale(sum, 1 / l);
-}
+function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
+  const N = verts.length;
+  if (N < 2) return { paths: [], events: [] };
 
-function runWavefront(spinePoints, searchRadius, sign) {
-  // sign: +1 for positive side, -1 for negative side
-  const N = spinePoints.length;
-  if (N === 0) return { paths: [], events: [] };
+  const rays = verts.map((v, i) => ({
+    origin: { ...v },
+    dir: scale(miterVecs[i], sign),
+    // Track which edge normals are on each side of this vertex
+    leftEN:  i > 0     ? { ...eNormals[i - 1] } : { ...eNormals[0] },
+    rightEN: i < N - 1 ? { ...eNormals[i] }     : { ...eNormals[N - 2] },
+    collapseT: 0,
+    left: i - 1,
+    right: i + 1,
+    alive: true
+  }));
 
-  // Initialize rays
-  const rays = [];
-  for (let i = 0; i < N; i++) {
-    rays.push({
-      origin: { ...spinePoints[i].pos },
-      dir: scale(spinePoints[i].normal, sign),
-      collapseT: 0,
-      left: i - 1,
-      right: i + 1,
-      alive: true
-    });
-  }
-
-  // Normal paths: each is an array of {t, pt}
-  const paths = [];
-  for (let i = 0; i < N; i++) {
-    paths.push([]);
-  }
-
-  // Priority queue (simple sorted array - fine for demo)
+  const paths = Array.from({length: N}, () => []);
   const events = [];
   const pq = [];
 
@@ -212,39 +157,44 @@ function runWavefront(spinePoints, searchRadius, sign) {
     }
   }
 
-  // Initial events
   for (let i = 0; i < N - 1; i++) {
-    const t = computeCollisionT(rays[i], rays[i + 1]);
-    enq(t, i, i + 1);
+    enq(computeCollisionT(rays[i], rays[i + 1]), i, i + 1);
   }
 
-  // Process
   while (pq.length > 0) {
-    const ev = pq.shift();
-    const { t, iL, iR } = ev;
+    const { t, iL, iR } = pq.shift();
     if (!rays[iL].alive || !rays[iR].alive) continue;
     if (rays[iL].right !== iR) continue;
 
-    // Collision point
-    const collisionPt = add(rays[iL].origin, scale(rays[iL].dir, t - rays[iL].collapseT));
-    paths[iL].push({ t, pt: { ...collisionPt } });
-    paths[iR].push({ t, pt: { ...collisionPt } });
-    events.push({ t, pt: { ...collisionPt }, iL, iR });
+    const pt = add(rays[iL].origin, scale(rays[iL].dir, t - rays[iL].collapseT));
+    paths[iL].push({ t, pt: { ...pt } });
+    paths[iR].push({ t, pt: { ...pt } });
+    events.push({ t, pt: { ...pt }, iL, iR });
 
-    // Merge: kill iR, replace iL with bisector
+    // Merge: kill iR, update iL
     rays[iR].alive = false;
-    rays[iL].dir = bisect(rays[iL].dir, rays[iR].dir);
-    rays[iL].origin = { ...collisionPt };
+    rays[iL].origin = { ...pt };
     rays[iL].collapseT = t;
+
+    // iL inherits iR's right edge normal (the edge between them collapsed)
+    rays[iL].rightEN = { ...rays[iR].rightEN };
 
     // Re-link
     const newRight = rays[iR].right;
     rays[iL].right = newRight;
-    if (newRight < N) {
-      rays[newRight].left = iL;
-    }
+    if (newRight < N) rays[newRight].left = iL;
 
-    // Enqueue new collisions
+    // Recompute miter from the two edges now adjacent to iL
+    let nL = rays[iL].leftEN;
+    let nR = rays[iL].rightEN;
+    // Endpoint check: if iL is now an endpoint, miter = sole adjacent edge normal
+    if (rays[iL].left < 0) nL = nR;
+    if (newRight >= N)      nR = nL;
+    rays[iL].leftEN = { ...nL };
+    rays[iL].rightEN = { ...nR };
+    rays[iL].dir = scale(miterVec(nL, nR), sign);
+
+    // Enqueue new collisions with updated neighbors
     if (newRight < N) {
       const tNew = computeCollisionT(rays[iL], rays[newRight]);
       if (tNew > t) enq(tNew, iL, newRight);
@@ -256,211 +206,158 @@ function runWavefront(spinePoints, searchRadius, sign) {
     }
   }
 
-  // Store final ray info for evaluation
   for (let i = 0; i < N; i++) {
     paths[i].ray = rays[i];
     paths[i].maxSafeT = paths[i].length > 0 ? paths[i][paths[i].length - 1].t : searchRadius;
-    paths[i].spinePoint = spinePoints[i];
   }
-
   return { paths, events };
 }
 
-function evaluateNormalPath(path, spinePoint, offset, sign) {
-  // Walk the normal path to find position at given offset distance
-  if (offset <= 0) return { ...spinePoint.pos };
-  const effectiveOffset = Math.min(offset, path.maxSafeT);
+// Evaluate position along a normal path at offset t.
+// Uses linear interpolation between waypoints (correct for non-unit miter vectors).
+function evalPath(pathData, vertexPos, offset) {
+  if (offset <= 0) return { ...vertexPos };
+  const t = Math.min(offset, pathData.maxSafeT);
 
-  let pos = { ...spinePoint.pos };
-  let dir = scale(spinePoint.normal, sign);
+  let pos = { ...vertexPos };
   let currentT = 0;
 
-  for (const bend of path) {
-    if (bend.t >= effectiveOffset) {
-      // Move along current direction to target offset
-      return add(pos, scale(dir, effectiveOffset - currentT));
-    }
-    // Move to this bend point
-    pos = { ...bend.pt };
-    currentT = bend.t;
-    // Direction changes at bend - use the ray's direction after this bend
-    // We stored intermediate directions in the path entries
-  }
-
-  // Past all bends, continue along the final ray direction
-  if (path.ray && path.ray.alive) {
-    return add(pos, scale(path.ray.dir, effectiveOffset - currentT));
-  }
-  return add(pos, scale(dir, effectiveOffset - currentT));
-}
-
-// More accurate evaluation: reconstruct direction at each segment
-function evaluateNormalPathAccurate(pathData, spinePoint, offset, sign) {
-  if (offset <= 0) return { ...spinePoint.pos };
-  const effectiveOffset = Math.min(offset, pathData.maxSafeT);
-
-  let pos = { ...spinePoint.pos };
-  let currentT = 0;
-
-  // Walk through bend points
-  for (let k = 0; k < pathData.length; k++) {
-    const bend = pathData[k];
-    if (bend.t >= effectiveOffset) {
-      // Interpolate within this segment
-      const remaining = effectiveOffset - currentT;
-      const segLen = bend.t - currentT;
-      if (segLen > 1e-9) {
-        const dir = normalize(sub(bend.pt, pos));
-        return add(pos, scale(dir, remaining));
-      }
-      return { ...pos };
+  for (const bend of pathData) {
+    if (bend.t >= t) {
+      // Lerp between pos (at currentT) and bend.pt (at bend.t)
+      const frac = (t - currentT) / (bend.t - currentT);
+      return add(pos, scale(sub(bend.pt, pos), frac));
     }
     pos = { ...bend.pt };
     currentT = bend.t;
   }
 
-  // Past all bends, continue along final ray
+  // Past all bends — continue along final ray direction
   if (pathData.ray) {
-    return add(pos, scale(pathData.ray.dir, effectiveOffset - currentT));
+    return add(pos, scale(pathData.ray.dir, t - currentT));
   }
-  return add(pos, scale(scale(spinePoint.normal, sign), effectiveOffset - currentT));
+  return { ...pos };
 }
 
-// --- Recompute everything ---
+// --- Recompute ---
 function recompute() {
-  const spacing = +document.getElementById('spacingSlider').value;
   const searchRadius = +document.getElementById('radiusSlider').value;
 
-  spine = sampleSpine(vertices, spacing);
-  if (spine.length < 2) {
-    normalPathsPos = [];
-    normalPathsNeg = [];
-    collisionEvents = [];
+  edgeNormals = computeEdgeNormals(vertices);
+  miters = computeMiters(vertices, edgeNormals);
+
+  if (vertices.length < 2) {
+    normalPathsPos = []; normalPathsNeg = []; collisionEvents = [];
     return;
   }
 
-  const resPos = runWavefront(spine, searchRadius, +1);
-  const resNeg = runWavefront(spine, searchRadius, -1);
+  const resPos = runWavefront(vertices, edgeNormals, miters, searchRadius, +1);
+  const resNeg = runWavefront(vertices, edgeNormals, miters, searchRadius, -1);
   normalPathsPos = resPos.paths;
   normalPathsNeg = resNeg.paths;
   collisionEvents = [...resPos.events, ...resNeg.events];
 
   document.getElementById('stats').textContent =
-    `Spine: ${spine.length} pts | Collisions: ${collisionEvents.length}`;
+    `Vertices: ${vertices.length} | Edges: ${edgeNormals.length} | Collisions: ${collisionEvents.length}`;
 }
 
 // --- Drawing ---
 function draw() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
-  // Clear in screen space, then apply camera
   ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   ctx.clearRect(0, 0, w, h);
   applyCamera();
 
   const offset = +document.getElementById('offsetSlider').value;
-  const invZoom = 1 / camZoom; // for zoom-independent stroke widths & radii
-  const showSpine = document.getElementById('showSpine').checked;
-  const showRawNormals = document.getElementById('showRawNormals').checked;
+  const iz = 1 / camZoom;
+  const showMiters = document.getElementById('showMiters').checked;
   const showCollisions = document.getElementById('showCollisions').checked;
   const showPaths = document.getElementById('showPaths').checked;
   const showRibbon = document.getElementById('showRibbon').checked;
   const showNaive = document.getElementById('showNaive').checked;
+  const N = vertices.length;
 
-  // Draw polyline
-  if (vertices.length >= 2) {
-    ctx.strokeStyle = '#555';
-    ctx.lineWidth = 1 * invZoom;
+  // Polyline
+  if (N >= 2) {
+    ctx.strokeStyle = '#4af'; ctx.lineWidth = 2 * iz;
     ctx.beginPath();
     ctx.moveTo(vertices[0].x, vertices[0].y);
-    for (let i = 1; i < vertices.length; i++) ctx.lineTo(vertices[i].x, vertices[i].y);
+    for (let i = 1; i < N; i++) ctx.lineTo(vertices[i].x, vertices[i].y);
     ctx.stroke();
   }
 
-  // Vertex handles
-  for (const v of vertices) {
-    ctx.fillStyle = '#888';
-    ctx.beginPath();
-    ctx.arc(v.x, v.y, 4 * invZoom, 0, Math.PI * 2);
-    ctx.fill();
+  if (N < 2) {
+    if (N === 1) {
+      ctx.fillStyle = '#fff'; ctx.beginPath();
+      ctx.arc(vertices[0].x, vertices[0].y, 5 * iz, 0, Math.PI * 2); ctx.fill();
+    }
+    return;
   }
 
-  if (spine.length < 2) return;
-
-  // Naive ribbon (no fix)
+  // Naive ribbon (miter joins, no wavefront fix — tangles at sharp turns)
   if (showNaive && offset > 0) {
     ctx.strokeStyle = 'rgba(255,100,100,0.4)';
     ctx.fillStyle = 'rgba(255,100,100,0.08)';
-    ctx.lineWidth = 1 * invZoom;
+    ctx.lineWidth = 1 * iz;
     ctx.beginPath();
-    for (let i = 0; i < spine.length; i++) {
-      const p = add(spine[i].pos, scale(spine[i].normal, offset));
-      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    for (let i = 0; i < N; i++) {
+      const p = add(vertices[i], scale(miters[i], offset));
+      i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
     }
-    for (let i = spine.length - 1; i >= 0; i--) {
-      const p = add(spine[i].pos, scale(spine[i].normal, -offset));
+    for (let i = N - 1; i >= 0; i--) {
+      const p = add(vertices[i], scale(miters[i], -offset));
       ctx.lineTo(p.x, p.y);
     }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    ctx.closePath(); ctx.fill(); ctx.stroke();
   }
 
-  // Corrected ribbon
-  if (showRibbon && offset > 0 && normalPathsPos.length === spine.length) {
+  // Corrected ribbon (wavefront-fixed)
+  if (showRibbon && offset > 0 && normalPathsPos.length === N) {
     ctx.fillStyle = 'rgba(100,200,255,0.15)';
     ctx.strokeStyle = 'rgba(100,200,255,0.6)';
-    ctx.lineWidth = 1.5 * invZoom;
+    ctx.lineWidth = 1.5 * iz;
     ctx.beginPath();
-    for (let i = 0; i < spine.length; i++) {
-      const p = evaluateNormalPathAccurate(normalPathsPos[i], spine[i], offset, +1);
-      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    for (let i = 0; i < N; i++) {
+      const p = evalPath(normalPathsPos[i], vertices[i], offset);
+      i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
     }
-    for (let i = spine.length - 1; i >= 0; i--) {
-      const p = evaluateNormalPathAccurate(normalPathsNeg[i], spine[i], offset, -1);
+    for (let i = N - 1; i >= 0; i--) {
+      const p = evalPath(normalPathsNeg[i], vertices[i], offset);
       ctx.lineTo(p.x, p.y);
     }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    ctx.closePath(); ctx.fill(); ctx.stroke();
   }
 
-  // Raw normals
-  if (showRawNormals) {
-    ctx.strokeStyle = 'rgba(255,255,100,0.2)';
-    ctx.lineWidth = 0.5 * invZoom;
-    for (const sp of spine) {
-      const end = add(sp.pos, scale(sp.normal, offset));
-      ctx.beginPath();
-      ctx.moveTo(sp.pos.x, sp.pos.y);
-      ctx.lineTo(end.x, end.y);
-      ctx.stroke();
-      const endN = add(sp.pos, scale(sp.normal, -offset));
-      ctx.beginPath();
-      ctx.moveTo(sp.pos.x, sp.pos.y);
-      ctx.lineTo(endN.x, endN.y);
-      ctx.stroke();
+  // Miter vectors
+  if (showMiters && offset > 0) {
+    ctx.lineWidth = 0.5 * iz;
+    for (let i = 0; i < N; i++) {
+      for (const [s, color] of [[1, 'rgba(100,255,200,0.4)'], [-1, 'rgba(255,200,100,0.4)']]) {
+        const end = add(vertices[i], scale(miters[i], s * offset));
+        ctx.strokeStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(vertices[i].x, vertices[i].y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+      }
     }
   }
 
-  // Normal paths (visualize the piecewise-linear paths)
-  if (showPaths && normalPathsPos.length === spine.length) {
-    ctx.lineWidth = 1 * invZoom;
-    for (let i = 0; i < spine.length; i++) {
-      for (const [paths, sign, color] of [[normalPathsPos, +1, 'rgba(0,255,150,0.3)'], [normalPathsNeg, -1, 'rgba(255,150,0,0.3)']]) {
+  // Normal paths
+  if (showPaths && normalPathsPos.length === N) {
+    ctx.lineWidth = 1 * iz;
+    const searchRadius = +document.getElementById('radiusSlider').value;
+    for (let i = 0; i < N; i++) {
+      for (const [paths, color] of [[normalPathsPos, 'rgba(0,255,150,0.3)'], [normalPathsNeg, 'rgba(255,150,0,0.3)']]) {
         const path = paths[i];
         if (path.length === 0) continue;
         ctx.strokeStyle = color;
         ctx.beginPath();
-        ctx.moveTo(spine[i].pos.x, spine[i].pos.y);
-        for (const bend of path) {
-          ctx.lineTo(bend.pt.x, bend.pt.y);
-        }
-        // Extend to search radius
+        ctx.moveTo(vertices[i].x, vertices[i].y);
+        for (const bend of path) ctx.lineTo(bend.pt.x, bend.pt.y);
         if (path.ray && path.ray.alive) {
-          const lastPt = path[path.length - 1].pt;
-          const lastT = path[path.length - 1].t;
-          const searchRadius = +document.getElementById('radiusSlider').value;
-          const ext = add(lastPt, scale(path.ray.dir, searchRadius - lastT));
+          const last = path[path.length - 1];
+          const ext = add(last.pt, scale(path.ray.dir, searchRadius - last.t));
           ctx.lineTo(ext.x, ext.y);
         }
         ctx.stroke();
@@ -468,46 +365,31 @@ function draw() {
     }
   }
 
-  // Collision events
+  // Collision dots
   if (showCollisions) {
+    ctx.fillStyle = 'rgba(255,50,50,0.7)';
     for (const ev of collisionEvents) {
-      ctx.fillStyle = 'rgba(255,50,50,0.7)';
       ctx.beginPath();
-      ctx.arc(ev.pt.x, ev.pt.y, 3 * invZoom, 0, Math.PI * 2);
+      ctx.arc(ev.pt.x, ev.pt.y, 3 * iz, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
-  // Spine points
-  if (showSpine) {
-    for (const sp of spine) {
-      ctx.fillStyle = '#4af';
-      ctx.beginPath();
-      ctx.arc(sp.pos.x, sp.pos.y, 2 * invZoom, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  // Vertex handles
+  for (const v of vertices) {
+    ctx.fillStyle = '#fff'; ctx.beginPath();
+    ctx.arc(v.x, v.y, 4 * iz, 0, Math.PI * 2); ctx.fill();
   }
-
-  // Spine line
-  ctx.strokeStyle = '#4af';
-  ctx.lineWidth = 2 * invZoom;
-  ctx.beginPath();
-  ctx.moveTo(spine[0].pos.x, spine[0].pos.y);
-  for (let i = 1; i < spine.length; i++) ctx.lineTo(spine[i].pos.x, spine[i].pos.y);
-  ctx.stroke();
 }
 
 // --- Interaction ---
 
-// Middle-click pan
 canvas.addEventListener('mousedown', e => {
-  if (e.button === 1) { // middle button
+  if (e.button === 1) {
     e.preventDefault();
     isPanning = true;
-    panStartX = e.clientX;
-    panStartY = e.clientY;
-    panStartCamX = camX;
-    panStartCamY = camY;
+    panStartX = e.clientX; panStartY = e.clientY;
+    panStartCamX = camX; panStartCamY = camY;
     canvas.style.cursor = 'grabbing';
   }
 });
@@ -519,81 +401,58 @@ window.addEventListener('mousemove', e => {
   }
 });
 window.addEventListener('mouseup', e => {
-  if (e.button === 1 && isPanning) {
-    isPanning = false;
-    canvas.style.cursor = 'crosshair';
-  }
+  if (e.button === 1 && isPanning) { isPanning = false; canvas.style.cursor = 'crosshair'; }
 });
-// Prevent middle-click autoscroll
 canvas.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
 
-// Mousewheel zoom (zoom toward cursor)
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
   const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
   const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
   const newZoom = Math.max(0.1, Math.min(20, camZoom * factor));
-  // Adjust pan so the world point under the cursor stays fixed
   camX = mx - (mx - camX) * (newZoom / camZoom);
   camY = my - (my - camY) * (newZoom / camZoom);
   camZoom = newZoom;
   draw();
 }, { passive: false });
 
-// Left-click: add vertex (in world coords)
 canvas.addEventListener('click', e => {
   if (e.button !== 0) return;
   const rect = canvas.getBoundingClientRect();
-  const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-  vertices.push(world);
-  recompute();
-  draw();
+  vertices.push(screenToWorld(e.clientX - rect.left, e.clientY - rect.top));
+  recompute(); draw();
 });
 
 document.getElementById('btnClear').addEventListener('click', () => {
-  vertices = [];
-  spine = [];
-  normalPathsPos = [];
-  normalPathsNeg = [];
-  collisionEvents = [];
+  vertices = []; edgeNormals = []; miters = [];
+  normalPathsPos = []; normalPathsNeg = []; collisionEvents = [];
   draw();
 });
 
-function loadPreset(pts) {
-  vertices = pts;
-  recompute();
-  draw();
-}
+function loadPreset(pts) { vertices = pts; recompute(); draw(); }
 
-document.getElementById('btnPresetKink').addEventListener('click', () => {
-  loadPreset([{x:100,y:300},{x:300,y:300},{x:320,y:150},{x:500,y:300},{x:700,y:300}]);
-});
-document.getElementById('btnPresetU').addEventListener('click', () => {
-  loadPreset([{x:100,y:200},{x:400,y:200},{x:450,y:300},{x:400,y:400},{x:100,y:400}]);
-});
-document.getElementById('btnPresetStraight').addEventListener('click', () => {
-  loadPreset([{x:100,y:300},{x:300,y:300},{x:500,y:300},{x:700,y:300}]);
-});
-document.getElementById('btnPresetZigzag').addEventListener('click', () => {
-  loadPreset([{x:100,y:400},{x:200,y:150},{x:350,y:400},{x:500,y:150},{x:650,y:400},{x:750,y:150}]);
-});
+document.getElementById('btnPresetKink').addEventListener('click', () =>
+  loadPreset([{x:100,y:300},{x:300,y:300},{x:320,y:150},{x:500,y:300},{x:700,y:300}]));
+document.getElementById('btnPresetU').addEventListener('click', () =>
+  loadPreset([{x:100,y:200},{x:400,y:200},{x:450,y:300},{x:400,y:400},{x:100,y:400}]));
+document.getElementById('btnPresetStraight').addEventListener('click', () =>
+  loadPreset([{x:100,y:300},{x:300,y:300},{x:500,y:300},{x:700,y:300}]));
+document.getElementById('btnPresetZigzag').addEventListener('click', () =>
+  loadPreset([{x:100,y:400},{x:200,y:150},{x:350,y:400},{x:500,y:150},{x:650,y:400},{x:750,y:150}]));
 
-// Sliders
-for (const id of ['offsetSlider', 'spacingSlider', 'radiusSlider']) {
+for (const id of ['offsetSlider', 'radiusSlider']) {
   document.getElementById(id).addEventListener('input', e => {
     document.getElementById(id.replace('Slider', 'Val')).textContent = e.target.value;
-    if (id !== 'offsetSlider') recompute();
+    if (id === 'radiusSlider') recompute();
     draw();
   });
 }
-for (const id of ['showSpine','showRawNormals','showCollisions','showPaths','showRibbon','showNaive']) {
+for (const id of ['showMiters','showCollisions','showPaths','showRibbon','showNaive']) {
   document.getElementById(id).addEventListener('change', draw);
 }
 
 resize();
-// Load sharp kink preset on start
 loadPreset([{x:100,y:300},{x:300,y:300},{x:320,y:150},{x:500,y:300},{x:700,y:300}]);
 </script>
 </body>

@@ -22,8 +22,10 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
 
+import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.GammaSpeedModel;
 import org.onebusaway.android.speed.PdfSpineEvaluator;
+import org.onebusaway.android.speed.PolylineOffsets;
 import org.onebusaway.android.speed.RouteSpine;
 
 import java.util.ArrayList;
@@ -44,6 +46,9 @@ public final class PdfPolygonRenderer {
     private static final double PDF_UPPER_QUANTILE = 0.99;
     private static final long PDF_TRANSITION_MS = 600;
     private static final long PDF_RIPPLE_DELAY_MS = 1000;
+    private static final double DEGREES_PER_METER =
+            Math.toDegrees(1.0) / DistanceExtrapolator.EARTH_RADIUS_METERS;
+    private static final double WAVEFRONT_SEARCH_METERS = 500.0;
 
     private final GoogleMap mMap;
     private final RouteSpine mSpine = new RouteSpine();
@@ -51,8 +56,6 @@ public final class PdfPolygonRenderer {
 
     private Polygon mPdfPolygon;
     private final ArrayList<LatLng> mPolygonPoints = new ArrayList<>();
-    private double[] mDLatsBuf = new double[0];
-    private double[] mDLngsBuf = new double[0];
 
     // Transition animation state
     private double[] mOldPdfOffsets;
@@ -62,6 +65,17 @@ public final class PdfPolygonRenderer {
     private double mLastInvScaleDt;
     /** Tracks the previous lastDist for transition continuity. */
     private double mPrevLastDist = Double.NaN;
+
+    // Wavefront cache (recomputed each spine build)
+    private double[] mIsoX;
+    private double[] mIsoY;
+    private double mCosRefLat;
+    private PolylineOffsets.WavefrontResult mWavefrontPos;
+    private PolylineOffsets.WavefrontResult mWavefrontNeg;
+    private int mWavefrontGeneration = -1;
+    private double[] mNegLatBuf = new double[0];
+    private double[] mNegLngBuf = new double[0];
+    private final double[] mEvalOut = new double[2];
 
     // Gamma cache
     private GammaSpeedModel.GammaParams mCachedParams;
@@ -147,6 +161,12 @@ public final class PdfPolygonRenderer {
             return;
         }
 
+        // Recompute wavefront when spine is rebuilt
+        if (mWavefrontGeneration != mSpine.getGeneration()) {
+            recomputeWavefront();
+            mWavefrontGeneration = mSpine.getGeneration();
+        }
+
         // Ensure evaluator caches are current
         mEvaluator.ensureTable(params.alpha);
         mEvaluator.ensureDistDeltas(mSpine, lastDist);
@@ -195,9 +215,9 @@ public final class PdfPolygonRenderer {
         mPolygonPoints.clear();
         int rangeSize = endIdx - startIdx;
 
-        if (mDLatsBuf.length < rangeSize) {
-            mDLatsBuf = new double[rangeSize];
-            mDLngsBuf = new double[rangeSize];
+        if (mNegLatBuf.length < rangeSize) {
+            mNegLatBuf = new double[rangeSize];
+            mNegLngBuf = new double[rangeSize];
         }
 
         double rippleInvSpan = 0;
@@ -245,20 +265,24 @@ public final class PdfPolygonRenderer {
             }
 
             int j = i - startIdx;
-            mDLatsBuf[j] = offset * mSpine.perpCos[i];
-            mDLngsBuf[j] = offset * mSpine.perpSin[i] * mSpine.latCosInv[i];
+            double offsetDeg = offset * DEGREES_PER_METER;
 
-            mPolygonPoints.add(new LatLng(
-                    mSpine.lats[i] + mDLatsBuf[j],
-                    mSpine.lngs[i] + mDLngsBuf[j]));
+            // Positive side via wavefront evalPath
+            PolylineOffsets.evalPath(mWavefrontPos.paths[i],
+                    mIsoX[i], mIsoY[i], offsetDeg, mEvalOut);
+            mPolygonPoints.add(new LatLng(mEvalOut[1], mEvalOut[0] / mCosRefLat));
+
+            // Store negative side for backward pass
+            PolylineOffsets.evalPath(mWavefrontNeg.paths[i],
+                    mIsoX[i], mIsoY[i], offsetDeg, mEvalOut);
+            mNegLatBuf[j] = mEvalOut[1];
+            mNegLngBuf[j] = mEvalOut[0] / mCosRefLat;
         }
 
-        // Backward pass: mirror across route
+        // Backward pass: negative side (reverse order closes the polygon)
         for (int i = endIdx - 1; i >= startIdx; i--) {
             int j = i - startIdx;
-            mPolygonPoints.add(new LatLng(
-                    mSpine.lats[i] - mDLatsBuf[j],
-                    mSpine.lngs[i] - mDLngsBuf[j]));
+            mPolygonPoints.add(new LatLng(mNegLatBuf[j], mNegLngBuf[j]));
         }
 
         if (mPolygonPoints.size() >= 3) {
@@ -267,6 +291,26 @@ public final class PdfPolygonRenderer {
         } else {
             mPdfPolygon.setVisible(false);
         }
+    }
+
+    private void recomputeWavefront() {
+        int n = mSpine.size();
+        if (n < 2) {
+            mWavefrontPos = null;
+            mWavefrontNeg = null;
+            return;
+        }
+        // Project lat/lng to isotropic 2D using mid-latitude scaling
+        mCosRefLat = Math.cos(Math.toRadians(mSpine.lats[n / 2]));
+        mIsoX = new double[n];
+        mIsoY = new double[n];
+        for (int i = 0; i < n; i++) {
+            mIsoX[i] = mSpine.lngs[i] * mCosRefLat;
+            mIsoY[i] = mSpine.lats[i];
+        }
+        double searchRadius = WAVEFRONT_SEARCH_METERS * DEGREES_PER_METER;
+        mWavefrontPos = PolylineOffsets.runWavefront(mIsoX, mIsoY, n, searchRadius, +1);
+        mWavefrontNeg = PolylineOffsets.runWavefront(mIsoX, mIsoY, n, searchRadius, -1);
     }
 
     private void snapshotOldPdfOffsets() {

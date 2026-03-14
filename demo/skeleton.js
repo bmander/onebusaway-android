@@ -202,7 +202,6 @@ function runWavefront(verts, eNormals, eDirs, eLengths, miterVecs, searchRadius,
       }
     }
     paths[i].ray = rays[target];
-    paths[i].maxSafeT = searchRadius;
   }
   return { paths: paths, events: events };
 }

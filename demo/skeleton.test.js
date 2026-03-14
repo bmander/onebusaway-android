@@ -8,7 +8,6 @@ const {
   SURVIVOR_CLIP_MITER
 } = require('./skeleton.js');
 
-const EPS = 1e-9;
 function near(a, b, tol = 1e-6) { return Math.abs(a - b) < tol; }
 function vecNear(a, b, tol = 1e-6) { return near(a.x, b.x, tol) && near(a.y, b.y, tol); }
 

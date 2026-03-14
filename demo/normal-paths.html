@@ -39,6 +39,7 @@
   </div>
   <div class="group">
     <button class="btn-primary" id="btnClear">Clear</button>
+    <button class="btn-secondary" id="btnCopyPath">Copy path to clipboard</button>
     <button class="btn-secondary" id="btnPresetKink">Preset: Sharp kink</button>
     <button class="btn-secondary" id="btnPresetU">Preset: U-turn</button>
     <button class="btn-secondary" id="btnPresetStraight">Preset: Straight</button>
@@ -54,12 +55,27 @@
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
+// Cache DOM elements
+const elOffsetSlider = document.getElementById('offsetSlider');
+const elOffsetVal = document.getElementById('offsetVal');
+const elRadiusSlider = document.getElementById('radiusSlider');
+const elRadiusVal = document.getElementById('radiusVal');
+const elStats = document.getElementById('stats');
+const elShowMiters = document.getElementById('showMiters');
+const elShowCollisions = document.getElementById('showCollisions');
+const elShowPaths = document.getElementById('showPaths');
+const elShowRibbon = document.getElementById('showRibbon');
+const elShowNaive = document.getElementById('showNaive');
+const elBtnCopyPath = document.getElementById('btnCopyPath');
+
 let vertices = [];
-let edgeNormals = [];   // unit normal per edge (N-1 entries)
-let miters = [];         // miter vector per vertex (non-unit; keeps offset edges parallel)
+let edgeNormals = [];
+let miters = [];
 let normalPathsPos = [];
 let normalPathsNeg = [];
 let collisionEvents = [];
+const MAX_EXTENSION_MITER = 8;
+const MIN_EXTENSION_DENOM = 2 / (MAX_EXTENSION_MITER * MAX_EXTENSION_MITER);
 
 // Camera
 let camX = 0, camY = 0, camZoom = 1;
@@ -91,7 +107,6 @@ function perp(v) { return {x: -v.y, y: v.x}; }
 
 // --- Edge normals & miter vectors ---
 
-// Unit normal for each edge (perpendicular, left side)
 function computeEdgeNormals(verts) {
   const out = [];
   for (let i = 0; i < verts.length - 1; i++) {
@@ -105,16 +120,24 @@ function computeEdgeNormals(verts) {
 // by t*m pushes both adjacent edges out by exactly t.
 function miterVec(nL, nR) {
   const d = 1 + dot(nL, nR);
-  if (d < 1e-9) return scale(perp(nL), 100); // near-180° fold — degenerate
+  if (d < 1e-9) return scale(perp(nL), 100);
   return scale(add(nL, nR), 1 / d);
+}
+
+function shouldExtendRay(dir) {
+  return len(dir) <= MAX_EXTENSION_MITER;
+}
+
+function isNearOpposed(nL, nR) {
+  return 1 + dot(nL, nR) < MIN_EXTENSION_DENOM;
 }
 
 function computeMiters(verts, eNormals) {
   const N = verts.length;
   const out = [];
   for (let i = 0; i < N; i++) {
-    if (i === 0)          out.push({ ...eNormals[0] });
-    else if (i === N - 1) out.push({ ...eNormals[N - 2] });
+    if (i === 0)          out.push(eNormals[0]);
+    else if (i === N - 1) out.push(eNormals[N - 2]);
     else                  out.push(miterVec(eNormals[i - 1], eNormals[i]));
   }
   return out;
@@ -130,31 +153,46 @@ function computeCollisionT(rayA, rayB) {
   return cross(sub(pB, pA), rayB.dir) / denom;
 }
 
+// Binary insertion into a sorted-descending array (pop from end = extract min)
+function pqInsert(pq, ev) {
+  let lo = 0, hi = pq.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (pq[mid].t > ev.t) lo = mid + 1; else hi = mid;
+  }
+  pq.splice(lo, 0, ev);
+}
+
 function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
   const N = verts.length;
   if (N < 2) return { paths: [], events: [] };
 
   const rays = verts.map((v, i) => ({
-    origin: { ...v },
+    origin: v,
     dir: scale(miterVecs[i], sign),
-    // Track which edge normals are on each side of this vertex
-    leftEN:  i > 0     ? { ...eNormals[i - 1] } : { ...eNormals[0] },
-    rightEN: i < N - 1 ? { ...eNormals[i] }     : { ...eNormals[N - 2] },
+    leftEN:  eNormals[i > 0 ? i - 1 : 0],
+    rightEN: eNormals[i < N - 1 ? i : N - 2],
     collapseT: 0,
     left: i - 1,
     right: i + 1,
     alive: true,
-    version: 0
+    version: 0,
+    extendable: (i === 0 || i === N - 1 || !isNearOpposed(eNormals[i - 1], eNormals[i])) &&
+      shouldExtendRay(scale(miterVecs[i], sign))
   }));
 
   const paths = Array.from({length: N}, () => []);
   const events = [];
-  const pq = [];
+  const pq = []; // sorted descending by t; pop from end = min
+
+  function isEndpointRay(i) {
+    return rays[i].left < 0 || rays[i].right >= N;
+  }
 
   function enq(t, iL, iR) {
+    if (isEndpointRay(iL) || isEndpointRay(iR)) return;
     if (t > 0 && t < searchRadius && isFinite(t)) {
-      pq.push({ t, iL, iR, vL: rays[iL].version, vR: rays[iR].version });
-      pq.sort((a, b) => a.t - b.t);
+      pqInsert(pq, { t, iL, iR, vL: rays[iL].version, vR: rays[iR].version });
     }
   }
 
@@ -163,44 +201,37 @@ function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
   }
 
   while (pq.length > 0) {
-    const { t, iL, iR, vL, vR } = pq.shift();
+    const { t, iL, iR, vL, vR } = pq.pop();
     if (!rays[iL].alive || !rays[iR].alive) continue;
     if (rays[iL].right !== iR) continue;
-    // Rays can be recomputed after an earlier merge. Skip any queued
-    // collision that was scheduled against an older ray state.
     if (rays[iL].version !== vL || rays[iR].version !== vR) continue;
 
     const pt = add(rays[iL].origin, scale(rays[iL].dir, t - rays[iL].collapseT));
-    paths[iL].push({ t, pt: { ...pt } });
-    paths[iR].push({ t, pt: { ...pt } });
-    events.push({ t, pt: { ...pt }, iL, iR });
+    paths[iL].push({ t, pt });
+    paths[iR].push({ t, pt });
+    events.push({ t, pt, iL, iR });
 
-    // Merge: kill iR, update iL
     rays[iR].alive = false;
     rays[iR].mergedInto = iL;
-    rays[iL].origin = { ...pt };
+    rays[iL].origin = pt;
     rays[iL].collapseT = t;
+    rays[iL].rightEN = rays[iR].rightEN;
 
-    // iL inherits iR's right edge normal (the edge between them collapsed)
-    rays[iL].rightEN = { ...rays[iR].rightEN };
-
-    // Re-link
     const newRight = rays[iR].right;
     rays[iL].right = newRight;
     if (newRight < N) rays[newRight].left = iL;
 
-    // Recompute miter from the two edges now adjacent to iL
     let nL = rays[iL].leftEN;
     let nR = rays[iL].rightEN;
-    // Endpoint check: if iL is now an endpoint, miter = sole adjacent edge normal
+    const collapsedOpposed = isNearOpposed(nL, nR);
     if (rays[iL].left < 0) nL = nR;
     if (newRight >= N)      nR = nL;
-    rays[iL].leftEN = { ...nL };
-    rays[iL].rightEN = { ...nR };
+    rays[iL].leftEN = nL;
+    rays[iL].rightEN = nR;
     rays[iL].dir = scale(miterVec(nL, nR), sign);
     rays[iL].version++;
+    rays[iL].extendable = !collapsedOpposed && shouldExtendRay(rays[iL].dir);
 
-    // Enqueue new collisions with updated neighbors
     if (newRight < N) {
       const tNew = computeCollisionT(rays[iL], rays[newRight]);
       if (tNew > t) enq(tNew, iL, newRight);
@@ -213,7 +244,6 @@ function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
   }
 
   // Post-process: extend each killed ray's path along its merge chain
-  // so that evalPath can follow through skeleton nodes to the survivor.
   for (let i = 0; i < N; i++) {
     let target = i;
     while (rays[target].mergedInto !== undefined) {
@@ -221,11 +251,10 @@ function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
       const lastT = paths[i].length > 0 ? paths[i][paths[i].length - 1].t : 0;
       for (const bend of paths[target]) {
         if (bend.t > lastT + 1e-12) {
-          paths[i].push({ t: bend.t, pt: { ...bend.pt } });
+          paths[i].push(bend);
         }
       }
     }
-    // target is the ultimate surviving ray
     paths[i].ray = rays[target];
     paths[i].maxSafeT = searchRadius;
   }
@@ -233,11 +262,10 @@ function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
 }
 
 // Evaluate position along a normal path at offset t.
-// Uses linear interpolation between waypoints (correct for non-unit miter vectors).
 function evalPath(pathData, vertexPos, offset) {
-  if (offset <= 0) return { ...vertexPos };
+  if (offset <= 0) return vertexPos;
 
-  let pos = { ...vertexPos };
+  let pos = vertexPos;
   let currentT = 0;
 
   for (const bend of pathData) {
@@ -245,20 +273,44 @@ function evalPath(pathData, vertexPos, offset) {
       const frac = (offset - currentT) / (bend.t - currentT);
       return add(pos, scale(sub(bend.pt, pos), frac));
     }
-    pos = { ...bend.pt };
+    pos = bend.pt;
     currentT = bend.t;
   }
 
-  // Past all bends — continue along surviving ray's direction
-  if (pathData.ray) {
+  if (pathData.ray && pathData.ray.extendable) {
     return add(pos, scale(pathData.ray.dir, offset - currentT));
   }
-  return { ...pos };
+  return pos;
+}
+
+function formatVertex(n) {
+  return Number(n.toFixed(6));
+}
+
+function serializePath(verts) {
+  return verts.map(v => `(${formatVertex(v.x)}, ${formatVertex(v.y)})`).join(' -> ');
+}
+
+async function copyPathToClipboard() {
+  const label = 'Copy path to clipboard';
+  if (vertices.length === 0) {
+    elBtnCopyPath.textContent = 'No path to copy';
+    setTimeout(() => { elBtnCopyPath.textContent = label; }, 1200);
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(serializePath(vertices));
+    elBtnCopyPath.textContent = 'Copied';
+  } catch {
+    elBtnCopyPath.textContent = 'Copy failed';
+  }
+  setTimeout(() => { elBtnCopyPath.textContent = label; }, 1200);
 }
 
 // --- Recompute ---
 function recompute() {
-  const searchRadius = +document.getElementById('radiusSlider').value;
+  const searchRadius = +elRadiusSlider.value;
 
   edgeNormals = computeEdgeNormals(vertices);
   miters = computeMiters(vertices, edgeNormals);
@@ -272,26 +324,42 @@ function recompute() {
   const resNeg = runWavefront(vertices, edgeNormals, miters, searchRadius, -1);
   normalPathsPos = resPos.paths;
   normalPathsNeg = resNeg.paths;
-  collisionEvents = [...resPos.events, ...resNeg.events];
+  collisionEvents = resPos.events.concat(resNeg.events);
 
-  document.getElementById('stats').textContent =
+  elStats.textContent =
     `Vertices: ${vertices.length} | Edges: ${edgeNormals.length} | Collisions: ${collisionEvents.length}`;
 }
 
 // --- Drawing ---
+
+// Draw a ribbon polygon: forward pass builds one side, backward pass the other.
+function drawRibbon(N, posFn, negFn, fill, stroke, lw, iz) {
+  if (N < 2) return;
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = lw * iz;
+  ctx.beginPath();
+  for (let i = 0; i < N; i++) {
+    const p = posFn(i);
+    i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+  }
+  for (let i = N - 1; i >= 0; i--) {
+    const p = negFn(i);
+    ctx.lineTo(p.x, p.y);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
+const TAU = Math.PI * 2;
+
 function draw() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
   ctx.clearRect(0, 0, w, h);
   applyCamera();
 
-  const offset = +document.getElementById('offsetSlider').value;
+  const offset = +elOffsetSlider.value;
   const iz = 1 / camZoom;
-  const showMiters = document.getElementById('showMiters').checked;
-  const showCollisions = document.getElementById('showCollisions').checked;
-  const showPaths = document.getElementById('showPaths').checked;
-  const showRibbon = document.getElementById('showRibbon').checked;
-  const showNaive = document.getElementById('showNaive').checked;
   const N = vertices.length;
 
   // Polyline
@@ -306,47 +374,29 @@ function draw() {
   if (N < 2) {
     if (N === 1) {
       ctx.fillStyle = '#fff'; ctx.beginPath();
-      ctx.arc(vertices[0].x, vertices[0].y, 5 * iz, 0, Math.PI * 2); ctx.fill();
+      ctx.arc(vertices[0].x, vertices[0].y, 5 * iz, 0, TAU); ctx.fill();
     }
     return;
   }
 
-  // Naive ribbon (miter joins, no wavefront fix — tangles at sharp turns)
-  if (showNaive && offset > 0) {
-    ctx.strokeStyle = 'rgba(255,100,100,0.4)';
-    ctx.fillStyle = 'rgba(255,100,100,0.08)';
-    ctx.lineWidth = 1 * iz;
-    ctx.beginPath();
-    for (let i = 0; i < N; i++) {
-      const p = add(vertices[i], scale(miters[i], offset));
-      i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
-    }
-    for (let i = N - 1; i >= 0; i--) {
-      const p = add(vertices[i], scale(miters[i], -offset));
-      ctx.lineTo(p.x, p.y);
-    }
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+  // Naive ribbon (miter joins, no wavefront fix)
+  if (elShowNaive.checked && offset > 0) {
+    drawRibbon(N,
+      i => add(vertices[i], scale(miters[i], offset)),
+      i => add(vertices[i], scale(miters[i], -offset)),
+      'rgba(255,100,100,0.08)', 'rgba(255,100,100,0.4)', 1, iz);
   }
 
   // Corrected ribbon (wavefront-fixed)
-  if (showRibbon && offset > 0 && normalPathsPos.length === N) {
-    ctx.fillStyle = 'rgba(100,200,255,0.15)';
-    ctx.strokeStyle = 'rgba(100,200,255,0.6)';
-    ctx.lineWidth = 1.5 * iz;
-    ctx.beginPath();
-    for (let i = 0; i < N; i++) {
-      const p = evalPath(normalPathsPos[i], vertices[i], offset);
-      i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
-    }
-    for (let i = N - 1; i >= 0; i--) {
-      const p = evalPath(normalPathsNeg[i], vertices[i], offset);
-      ctx.lineTo(p.x, p.y);
-    }
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+  if (elShowRibbon.checked && offset > 0 && normalPathsPos.length === N) {
+    drawRibbon(N,
+      i => evalPath(normalPathsPos[i], vertices[i], offset),
+      i => evalPath(normalPathsNeg[i], vertices[i], offset),
+      'rgba(100,200,255,0.15)', 'rgba(100,200,255,0.6)', 1.5, iz);
   }
 
   // Miter vectors
-  if (showMiters && offset > 0) {
+  if (elShowMiters.checked && offset > 0) {
     ctx.lineWidth = 0.5 * iz;
     for (let i = 0; i < N; i++) {
       for (const [s, color] of [[1, 'rgba(100,255,200,0.4)'], [-1, 'rgba(255,200,100,0.4)']]) {
@@ -361,9 +411,9 @@ function draw() {
   }
 
   // Normal paths
-  if (showPaths && normalPathsPos.length === N) {
+  if (elShowPaths.checked && normalPathsPos.length === N) {
     ctx.lineWidth = 1 * iz;
-    const searchRadius = +document.getElementById('radiusSlider').value;
+    const searchRadius = +elRadiusSlider.value;
     for (let i = 0; i < N; i++) {
       for (const [paths, color] of [[normalPathsPos, 'rgba(0,255,150,0.3)'], [normalPathsNeg, 'rgba(255,150,0,0.3)']]) {
         const path = paths[i];
@@ -372,7 +422,7 @@ function draw() {
         ctx.beginPath();
         ctx.moveTo(vertices[i].x, vertices[i].y);
         for (const bend of path) ctx.lineTo(bend.pt.x, bend.pt.y);
-        if (path.ray && path.ray.alive) {
+        if (path.ray && path.ray.alive && path.ray.extendable) {
           const last = path[path.length - 1];
           const ext = add(last.pt, scale(path.ray.dir, searchRadius - last.t));
           ctx.lineTo(ext.x, ext.y);
@@ -383,11 +433,11 @@ function draw() {
   }
 
   // Collision dots
-  if (showCollisions) {
+  if (elShowCollisions.checked) {
     ctx.fillStyle = 'rgba(255,50,50,0.7)';
     for (const ev of collisionEvents) {
       ctx.beginPath();
-      ctx.arc(ev.pt.x, ev.pt.y, 3 * iz, 0, Math.PI * 2);
+      ctx.arc(ev.pt.x, ev.pt.y, 3 * iz, 0, TAU);
       ctx.fill();
     }
   }
@@ -395,7 +445,7 @@ function draw() {
   // Vertex handles
   for (const v of vertices) {
     ctx.fillStyle = '#fff'; ctx.beginPath();
-    ctx.arc(v.x, v.y, 4 * iz, 0, Math.PI * 2); ctx.fill();
+    ctx.arc(v.x, v.y, 4 * iz, 0, TAU); ctx.fill();
   }
 }
 
@@ -457,16 +507,12 @@ document.getElementById('btnPresetStraight').addEventListener('click', () =>
   loadPreset([{x:100,y:300},{x:300,y:300},{x:500,y:300},{x:700,y:300}]));
 document.getElementById('btnPresetZigzag').addEventListener('click', () =>
   loadPreset([{x:100,y:400},{x:200,y:150},{x:350,y:400},{x:500,y:150},{x:650,y:400},{x:750,y:150}]));
+elBtnCopyPath.addEventListener('click', copyPathToClipboard);
 
-for (const id of ['offsetSlider', 'radiusSlider']) {
-  document.getElementById(id).addEventListener('input', e => {
-    document.getElementById(id.replace('Slider', 'Val')).textContent = e.target.value;
-    if (id === 'radiusSlider') recompute();
-    draw();
-  });
-}
-for (const id of ['showMiters','showCollisions','showPaths','showRibbon','showNaive']) {
-  document.getElementById(id).addEventListener('change', draw);
+elOffsetSlider.addEventListener('input', () => { elOffsetVal.textContent = elOffsetSlider.value; draw(); });
+elRadiusSlider.addEventListener('input', () => { elRadiusVal.textContent = elRadiusSlider.value; recompute(); draw(); });
+for (const el of [elShowMiters, elShowCollisions, elShowPaths, elShowRibbon, elShowNaive]) {
+  el.addEventListener('change', draw);
 }
 
 resize();

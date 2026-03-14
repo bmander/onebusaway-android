@@ -35,14 +35,40 @@ public final class EstimateOverlayManager {
 
     private final EstimateLabelManager mLabels;
     private final PdfOverlayRenderer mPdfOverlay;
+    private final double mLabelLowQuantile;
+    private final double mLabelHighQuantile;
+    private final double mPdfLowQuantile;
+    private final double mPdfHighQuantile;
 
+    private final int mSegmentCount;
     private GammaSpeedModel.GammaParams mCachedParams;
-    private double mCachedSpeed10Mps;
-    private double mCachedSpeed90Mps;
+    private double mCachedLabelSpeedLowMps;
+    private double mCachedLabelSpeedHighMps;
+    private double[] mCachedPdfEdgeSpeedsMps;
+    private double[] mCachedPdfMidPdfValues;
 
     public EstimateOverlayManager(GoogleMap map, Context context) {
+        this(map, context, 0.10, 0.90, 0.01, 0.99, 9);
+    }
+
+    /**
+     * @param labelLowQuantile  quantile for the slow estimate label (e.g. 0.10)
+     * @param labelHighQuantile quantile for the fast estimate label (e.g. 0.90)
+     * @param pdfLowQuantile    quantile for the PDF overlay start (e.g. 0.01)
+     * @param pdfHighQuantile   quantile for the PDF overlay end (e.g. 0.99)
+     * @param segmentCount      number of opacity segments in the PDF overlay
+     */
+    public EstimateOverlayManager(GoogleMap map, Context context,
+                                  double labelLowQuantile, double labelHighQuantile,
+                                  double pdfLowQuantile, double pdfHighQuantile,
+                                  int segmentCount) {
         mLabels = new EstimateLabelManager(map, context);
-        mPdfOverlay = new PdfOverlayRenderer(map);
+        mPdfOverlay = new PdfOverlayRenderer(map, segmentCount);
+        mSegmentCount = segmentCount;
+        mLabelLowQuantile = labelLowQuantile;
+        mLabelHighQuantile = labelHighQuantile;
+        mPdfLowQuantile = pdfLowQuantile;
+        mPdfHighQuantile = pdfHighQuantile;
     }
 
     /** Creates all overlays at the given initial position. */
@@ -73,15 +99,30 @@ public final class EstimateOverlayManager {
                        double lastDist, double dtSec) {
         if (!params.equals(mCachedParams)) {
             mCachedParams = params;
-            mCachedSpeed10Mps = GammaSpeedModel.quantileMps(0.10, params);
-            mCachedSpeed90Mps = GammaSpeedModel.quantileMps(0.90, params);
+            mCachedLabelSpeedLowMps = GammaSpeedModel.quantileMps(mLabelLowQuantile, params);
+            mCachedLabelSpeedHighMps = GammaSpeedModel.quantileMps(mLabelHighQuantile, params);
+
+            mCachedPdfEdgeSpeedsMps = new double[mSegmentCount + 1];
+            for (int i = 0; i <= mSegmentCount; i++) {
+                double p = mPdfLowQuantile
+                        + (mPdfHighQuantile - mPdfLowQuantile) * i / mSegmentCount;
+                mCachedPdfEdgeSpeedsMps[i] = GammaSpeedModel.quantileMps(p, params);
+            }
+            mCachedPdfMidPdfValues = new double[mSegmentCount];
+            for (int i = 0; i < mSegmentCount; i++) {
+                double midSpeedMph = (mCachedPdfEdgeSpeedsMps[i]
+                        + mCachedPdfEdgeSpeedsMps[i + 1])
+                        / 2.0 * GammaSpeedModel.MPS_TO_MPH;
+                mCachedPdfMidPdfValues[i] = GammaSpeedModel.pdf(midSpeedMph, params);
+            }
         }
 
-        double dist10 = lastDist + mCachedSpeed10Mps * dtSec;
-        double dist90 = lastDist + mCachedSpeed90Mps * dtSec;
-
-        mLabels.update(dist10, dist90, shape, cumDist);
-        mPdfOverlay.update(params, dist10, dist90, lastDist, dtSec, shape, cumDist);
+        mLabels.update(
+                lastDist + mCachedLabelSpeedLowMps * dtSec,
+                lastDist + mCachedLabelSpeedHighMps * dtSec,
+                shape, cumDist);
+        mPdfOverlay.update(mCachedPdfEdgeSpeedsMps, mCachedPdfMidPdfValues,
+                lastDist, dtSec, shape, cumDist);
     }
 
     /** Delegates click handling to the estimate labels. */

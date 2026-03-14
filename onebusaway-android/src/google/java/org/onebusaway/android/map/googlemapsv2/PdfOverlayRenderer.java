@@ -23,7 +23,6 @@ import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 
 import org.onebusaway.android.speed.DistanceExtrapolator;
-import org.onebusaway.android.speed.GammaSpeedModel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,27 +34,30 @@ import java.util.List;
  */
 public final class PdfOverlayRenderer {
 
-    private static final int SEGMENT_COUNT = 6;
     private static final float WIDTH_PX = 50f;
     private static final float Z_INDEX = 2f;
-    private static final int BASE_COLOR = 0x00FF0000; // red, alpha set per-frame
+    private static final int BASE_COLOR = 0x000000FF; // blue, alpha set per-frame
 
     private final GoogleMap mMap;
+    private final int mSegmentCount;
     private Polyline[] mSegments;
 
     // Pre-allocated arrays to avoid per-frame allocation
-    private final double[] mSegDists = new double[SEGMENT_COUNT + 1];
-    private final double[] mPdfValues = new double[SEGMENT_COUNT];
+    private final double[] mSegDists;
+    private final double[] mPdfValues;
     private final Location mReusableLoc = new Location("pdf");
 
-    public PdfOverlayRenderer(GoogleMap map) {
+    public PdfOverlayRenderer(GoogleMap map, int segmentCount) {
         mMap = map;
+        mSegmentCount = segmentCount;
+        mSegDists = new double[segmentCount + 1];
+        mPdfValues = new double[segmentCount];
     }
 
     /** Creates the polyline segments on the map. */
     public void create() {
-        mSegments = new Polyline[SEGMENT_COUNT];
-        for (int i = 0; i < SEGMENT_COUNT; i++) {
+        mSegments = new Polyline[mSegmentCount];
+        for (int i = 0; i < mSegmentCount; i++) {
             mSegments[i] = mMap.addPolyline(new PolylineOptions()
                     .width(WIDTH_PX)
                     .color(BASE_COLOR)
@@ -81,37 +83,32 @@ public final class PdfOverlayRenderer {
     }
 
     /**
-     * Per-frame update: positions segments and sets opacities from the gamma PDF.
+     * Per-frame update: positions segments and sets opacities from pre-computed PDF values.
      *
-     * @param params  gamma distribution parameters (for PDF evaluation)
-     * @param dist10  slow estimate distance (10th percentile)
-     * @param dist90  fast estimate distance (90th percentile)
-     * @param lastDist AVL distance along the trip
-     * @param dtSec   seconds since last AVL update
-     * @param shape   decoded polyline points
-     * @param cumDist precomputed cumulative distances
+     * @param edgeSpeedsMps edge speeds in m/s (length segmentCount + 1)
+     * @param pdfValues     PDF values at segment midpoints (length segmentCount)
+     * @param lastDist      AVL distance along the trip
+     * @param dtSec         seconds since last AVL update
+     * @param shape         decoded polyline points
+     * @param cumDist       precomputed cumulative distances
      */
-    public void update(GammaSpeedModel.GammaParams params,
-                       double dist10, double dist90,
+    public void update(double[] edgeSpeedsMps, double[] pdfValues,
                        double lastDist, double dtSec,
                        List<Location> shape, double[] cumDist) {
         if (mSegments == null) return;
 
-        // Compute boundary distances and PDF values at each segment midpoint
+        // Convert edge speeds to distances and find max PDF value
         double maxPdf = 0;
-        for (int i = 0; i <= SEGMENT_COUNT; i++) {
-            mSegDists[i] = dist10 + (dist90 - dist10) * i / SEGMENT_COUNT;
+        for (int i = 0; i <= mSegmentCount; i++) {
+            mSegDists[i] = lastDist + edgeSpeedsMps[i] * dtSec;
         }
-        for (int i = 0; i < SEGMENT_COUNT; i++) {
-            double midDist = (mSegDists[i] + mSegDists[i + 1]) / 2.0;
-            double speedMps = (midDist - lastDist) / dtSec;
-            double speedMph = speedMps * GammaSpeedModel.MPS_TO_MPH;
-            mPdfValues[i] = GammaSpeedModel.pdf(speedMph, params);
+        for (int i = 0; i < mSegmentCount; i++) {
+            mPdfValues[i] = pdfValues[i];
             if (mPdfValues[i] > maxPdf) maxPdf = mPdfValues[i];
         }
 
         // Update each segment's geometry and opacity
-        for (int i = 0; i < SEGMENT_COUNT; i++) {
+        for (int i = 0; i < mSegmentCount; i++) {
             updateSegment(i, mSegDists[i], mSegDists[i + 1],
                     mPdfValues[i], maxPdf, shape, cumDist);
         }

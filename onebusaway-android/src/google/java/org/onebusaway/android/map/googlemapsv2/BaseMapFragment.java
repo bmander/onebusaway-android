@@ -78,6 +78,9 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.location.Location;
 import android.os.Bundle;
@@ -1106,18 +1109,43 @@ public class BaseMapFragment extends SupportMapFragment
      * Creates a directional arrow polyline from the given points and adds it to the map.
      * @return the number of points in the polyline
      */
+    /**
+     * Creates a bitmap that tiles along a polyline with extra transparent
+     * padding so the visible stamp repeats less frequently.
+     *
+     * @param spacingMultiplier 1 = default density, 4 = one-quarter as many stamps
+     */
+    private Bitmap spacedStamp(int resId, int spacingMultiplier) {
+        Bitmap original = BitmapFactory.decodeResource(getResources(), resId);
+        if (spacingMultiplier <= 1) return original;
+        Bitmap padded = Bitmap.createBitmap(
+                original.getWidth(),
+                original.getHeight() * spacingMultiplier,
+                Bitmap.Config.ARGB_8888);
+        new Canvas(padded).drawBitmap(original, 0, 0, null);
+        return padded;
+    }
+
+    private StampStyle chevronStamp(int spacingMultiplier) {
+        return TextureStyle.newBuilder(BitmapDescriptorFactory.fromBitmap(
+                spacedStamp(R.drawable.ic_navigation_expand_more, spacingMultiplier))).build();
+    }
+
     private int addArrowPolyline(List<Location> points, int color) {
-        StampStyle arrow = TextureStyle.newBuilder(
-                BitmapDescriptorFactory.fromResource(R.drawable.ic_navigation_expand_more))
-                .build();
-        PolylineOptions lineOptions = new PolylineOptions();
-        lineOptions.addSpan(new StyleSpan(StrokeStyle.colorBuilder(color)
-                .stamp(arrow).build()));
+        return addArrowPolyline(points, color, 10f, 1);
+    }
+
+    private int addArrowPolyline(List<Location> points, int color, float width,
+                                 int stampSpacing) {
+        PolylineOptions opts = new PolylineOptions();
+        opts.width(width);
+        opts.addSpan(new StyleSpan(StrokeStyle.colorBuilder(color)
+                .stamp(chevronStamp(stampSpacing)).build()));
         for (Location l : points) {
-            lineOptions.add(MapHelpV2.makeLatLng(l));
+            opts.add(MapHelpV2.makeLatLng(l));
         }
-        mLineOverlay.add(mMap.addPolyline(lineOptions));
-        return lineOptions.getPoints().size();
+        mLineOverlay.add(mMap.addPolyline(opts));
+        return opts.getPoints().size();
     }
 
     @Override
@@ -1327,7 +1355,7 @@ public class BaseMapFragment extends SupportMapFragment
     private void showTripPolyline(List<Location> tripShape) {
         if (tripShape != null && mMap != null) {
             removeRouteOverlay();
-            addArrowPolyline(tripShape, mSavedRouteOverlayColor);
+            addArrowPolyline(tripShape, mSavedRouteOverlayColor, 50f, 4);
         }
     }
 

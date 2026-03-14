@@ -1022,8 +1022,8 @@ public class VehicleOverlay implements MarkerListeners  {
             mEstimateLabels = new EstimateLabelManager(mMap, mActivity);
             mEstimateLabels.create(vehicleMarker.getPosition());
 
-            mPdfRenderer = new PdfPolygonRenderer(mMap);
-            mPdfRenderer.create();
+            // mPdfRenderer = new PdfPolygonRenderer(mMap);
+            // mPdfRenderer.create();
         }
 
         private void destroyEstimateOverlays() {
@@ -1031,10 +1031,10 @@ public class VehicleOverlay implements MarkerListeners  {
                 mEstimateLabels.destroy();
                 mEstimateLabels = null;
             }
-            if (mPdfRenderer != null) {
-                mPdfRenderer.destroy();
-                mPdfRenderer = null;
-            }
+            // if (mPdfRenderer != null) {
+            //     mPdfRenderer.destroy();
+            //     mPdfRenderer = null;
+            // }
         }
 
         /**
@@ -1226,7 +1226,7 @@ public class VehicleOverlay implements MarkerListeners  {
 
         private void hideEstimateOverlays() {
             if (mEstimateLabels != null) mEstimateLabels.hide();
-            if (mPdfRenderer != null) mPdfRenderer.hide();
+            // if (mPdfRenderer != null) mPdfRenderer.hide();
         }
 
         private void updateEstimateOverlays(GammaSpeedModel.GammaParams params,
@@ -1262,9 +1262,9 @@ public class VehicleOverlay implements MarkerListeners  {
             if (mEstimateLabels != null) {
                 mEstimateLabels.update(params, shape, cumDist, lastDist, dtSec);
             }
-            if (mPdfRenderer != null) {
-                mPdfRenderer.update(params, shape, cumDist, lastDist, dtSec, now);
-            }
+            // if (mPdfRenderer != null) {
+            //     mPdfRenderer.update(params, shape, cumDist, lastDist, dtSec, now);
+            // }
         }
 
 

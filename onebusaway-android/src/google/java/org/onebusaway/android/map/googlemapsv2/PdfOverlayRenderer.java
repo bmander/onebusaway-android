@@ -36,22 +36,19 @@ public final class PdfOverlayRenderer {
 
     private static final float WIDTH_PX = 50f;
     private static final float Z_INDEX = 2f;
-    private static final int BASE_COLOR = 0x000000FF; // blue, alpha set per-frame
 
     private final GoogleMap mMap;
     private final int mSegmentCount;
     private Polyline[] mSegments;
 
-    // Pre-allocated arrays to avoid per-frame allocation
+    // Pre-allocated array to avoid per-frame allocation
     private final double[] mSegDists;
-    private final double[] mPdfValues;
     private final Location mReusableLoc = new Location("pdf");
 
     public PdfOverlayRenderer(GoogleMap map, int segmentCount) {
         mMap = map;
         mSegmentCount = segmentCount;
         mSegDists = new double[segmentCount + 1];
-        mPdfValues = new double[segmentCount];
     }
 
     /** Creates the polyline segments on the map. */
@@ -60,7 +57,7 @@ public final class PdfOverlayRenderer {
         for (int i = 0; i < mSegmentCount; i++) {
             mSegments[i] = mMap.addPolyline(new PolylineOptions()
                     .width(WIDTH_PX)
-                    .color(BASE_COLOR)
+                    .color(0)
                     .zIndex(Z_INDEX));
         }
     }
@@ -89,11 +86,12 @@ public final class PdfOverlayRenderer {
      * @param pdfValues     PDF values at segment midpoints (length segmentCount)
      * @param lastDist      AVL distance along the trip
      * @param dtSec         seconds since last AVL update
+     * @param baseColor     RGB color (alpha ignored) for the overlay segments
      * @param shape         decoded polyline points
      * @param cumDist       precomputed cumulative distances
      */
     public void update(double[] edgeSpeedsMps, double[] pdfValues,
-                       double lastDist, double dtSec,
+                       double lastDist, double dtSec, int baseColor,
                        List<Location> shape, double[] cumDist) {
         if (mSegments == null) return;
 
@@ -103,19 +101,19 @@ public final class PdfOverlayRenderer {
             mSegDists[i] = lastDist + edgeSpeedsMps[i] * dtSec;
         }
         for (int i = 0; i < mSegmentCount; i++) {
-            mPdfValues[i] = pdfValues[i];
-            if (mPdfValues[i] > maxPdf) maxPdf = mPdfValues[i];
+            if (pdfValues[i] > maxPdf) maxPdf = pdfValues[i];
         }
 
         // Update each segment's geometry and opacity
+        int rgb = baseColor & 0x00FFFFFF;
         for (int i = 0; i < mSegmentCount; i++) {
             updateSegment(i, mSegDists[i], mSegDists[i + 1],
-                    mPdfValues[i], maxPdf, shape, cumDist);
+                    pdfValues[i], maxPdf, rgb, shape, cumDist);
         }
     }
 
     private void updateSegment(int index, double segStart, double segEnd,
-                               double pdfValue, double maxPdf,
+                               double pdfValue, double maxPdf, int rgb,
                                List<Location> shape, double[] cumDist) {
         List<LatLng> pts = new ArrayList<>();
 
@@ -141,7 +139,7 @@ public final class PdfOverlayRenderer {
 
         int alpha = maxPdf > 0 ? (int) (255 * pdfValue / maxPdf) : 0;
         mSegments[index].setPoints(pts);
-        mSegments[index].setColor((alpha << 24) | BASE_COLOR);
+        mSegments[index].setColor((alpha << 24) | rgb);
         mSegments[index].setVisible(true);
     }
 }

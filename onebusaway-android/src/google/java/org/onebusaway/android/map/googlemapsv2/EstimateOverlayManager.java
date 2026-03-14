@@ -44,8 +44,8 @@ public final class EstimateOverlayManager {
     private GammaSpeedModel.GammaParams mCachedParams;
     private double mCachedLabelSpeedLowMps;
     private double mCachedLabelSpeedHighMps;
-    private double[] mCachedPdfEdgeSpeedsMps;
-    private double[] mCachedPdfMidPdfValues;
+    private final double[] mCachedPdfEdgeSpeedsMps;
+    private final double[] mCachedPdfMidPdfValues;
 
     public EstimateOverlayManager(GoogleMap map, Context context) {
         this(map, context, 0.10, 0.90, 0.01, 0.99, 9);
@@ -65,6 +65,8 @@ public final class EstimateOverlayManager {
         mLabels = new EstimateLabelManager(map, context);
         mPdfOverlay = new PdfOverlayRenderer(map, segmentCount);
         mSegmentCount = segmentCount;
+        mCachedPdfEdgeSpeedsMps = new double[segmentCount + 1];
+        mCachedPdfMidPdfValues = new double[segmentCount];
         mLabelLowQuantile = labelLowQuantile;
         mLabelHighQuantile = labelHighQuantile;
         mPdfLowQuantile = pdfLowQuantile;
@@ -96,19 +98,17 @@ public final class EstimateOverlayManager {
      */
     public void update(GammaSpeedModel.GammaParams params,
                        List<Location> shape, double[] cumDist,
-                       double lastDist, double dtSec) {
+                       double lastDist, double dtSec, int baseColor) {
         if (!params.equals(mCachedParams)) {
             mCachedParams = params;
             mCachedLabelSpeedLowMps = GammaSpeedModel.quantileMps(mLabelLowQuantile, params);
             mCachedLabelSpeedHighMps = GammaSpeedModel.quantileMps(mLabelHighQuantile, params);
 
-            mCachedPdfEdgeSpeedsMps = new double[mSegmentCount + 1];
             for (int i = 0; i <= mSegmentCount; i++) {
                 double p = mPdfLowQuantile
                         + (mPdfHighQuantile - mPdfLowQuantile) * i / mSegmentCount;
                 mCachedPdfEdgeSpeedsMps[i] = GammaSpeedModel.quantileMps(p, params);
             }
-            mCachedPdfMidPdfValues = new double[mSegmentCount];
             for (int i = 0; i < mSegmentCount; i++) {
                 double midSpeedMph = (mCachedPdfEdgeSpeedsMps[i]
                         + mCachedPdfEdgeSpeedsMps[i + 1])
@@ -122,7 +122,7 @@ public final class EstimateOverlayManager {
                 lastDist + mCachedLabelSpeedHighMps * dtSec,
                 shape, cumDist);
         mPdfOverlay.update(mCachedPdfEdgeSpeedsMps, mCachedPdfMidPdfValues,
-                lastDist, dtSec, shape, cumDist);
+                lastDist, dtSec, baseColor, shape, cumDist);
     }
 
     /** Delegates click handling to the estimate labels. */

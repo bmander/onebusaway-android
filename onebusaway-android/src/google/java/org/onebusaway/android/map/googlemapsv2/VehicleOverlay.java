@@ -1174,6 +1174,7 @@ public class VehicleOverlay implements MarkerListeners  {
             List<Location> selectedShape = null;
             double[] selectedCumDist = null;
             List<VehicleHistoryEntry> selectedHistory = null;
+            int selectedColor = 0;
 
             for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
                 String tripId = entry.getKey();
@@ -1192,6 +1193,12 @@ public class VehicleOverlay implements MarkerListeners  {
                     selectedShape = shape;
                     selectedCumDist = cumDist;
                     selectedHistory = history;
+                    ObaTripStatus status = mVehicles.get(marker);
+                    if (status != null) {
+                        int colorRes = getDeviationColorResource(
+                                isLocationRealtime(status), status);
+                        selectedColor = ContextCompat.getColor(mActivity, colorRes);
+                    }
                 }
 
                 if (history == null || history.isEmpty() || speed == null) continue;
@@ -1211,7 +1218,7 @@ public class VehicleOverlay implements MarkerListeners  {
 
             // Update estimate overlays for the selected vehicle
             updateEstimateOverlays(selectedParams, selectedShape, selectedCumDist,
-                    selectedHistory, now);
+                    selectedHistory, now, selectedColor);
         }
 
         private void hideEstimateOverlays() {
@@ -1220,7 +1227,8 @@ public class VehicleOverlay implements MarkerListeners  {
 
         private void updateEstimateOverlays(GammaSpeedModel.GammaParams params,
                                             List<Location> shape, double[] cumDist,
-                                            List<VehicleHistoryEntry> history, long now) {
+                                            List<VehicleHistoryEntry> history, long now,
+                                            int baseColor) {
             if (mEstimateOverlay == null) return;
 
             if (params == null || shape == null || cumDist == null
@@ -1248,7 +1256,7 @@ public class VehicleOverlay implements MarkerListeners  {
                 return;
             }
 
-            mEstimateOverlay.update(params, shape, cumDist, lastDist, dtSec);
+            mEstimateOverlay.update(params, shape, cumDist, lastDist, dtSec, baseColor);
         }
 
 

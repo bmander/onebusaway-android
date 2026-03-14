@@ -173,6 +173,7 @@ function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
 
     // Merge: kill iR, update iL
     rays[iR].alive = false;
+    rays[iR].mergedInto = iL;
     rays[iL].origin = { ...pt };
     rays[iL].collapseT = t;
 
@@ -206,9 +207,22 @@ function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
     }
   }
 
+  // Post-process: extend each killed ray's path along its merge chain
+  // so that evalPath can follow through skeleton nodes to the survivor.
   for (let i = 0; i < N; i++) {
-    paths[i].ray = rays[i];
-    paths[i].maxSafeT = paths[i].length > 0 ? paths[i][paths[i].length - 1].t : searchRadius;
+    let target = i;
+    while (rays[target].mergedInto !== undefined) {
+      target = rays[target].mergedInto;
+      const lastT = paths[i].length > 0 ? paths[i][paths[i].length - 1].t : 0;
+      for (const bend of paths[target]) {
+        if (bend.t > lastT + 1e-12) {
+          paths[i].push({ t: bend.t, pt: { ...bend.pt } });
+        }
+      }
+    }
+    // target is the ultimate surviving ray
+    paths[i].ray = rays[target];
+    paths[i].maxSafeT = searchRadius;
   }
   return { paths, events };
 }
@@ -217,24 +231,22 @@ function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
 // Uses linear interpolation between waypoints (correct for non-unit miter vectors).
 function evalPath(pathData, vertexPos, offset) {
   if (offset <= 0) return { ...vertexPos };
-  const t = Math.min(offset, pathData.maxSafeT);
 
   let pos = { ...vertexPos };
   let currentT = 0;
 
   for (const bend of pathData) {
-    if (bend.t >= t) {
-      // Lerp between pos (at currentT) and bend.pt (at bend.t)
-      const frac = (t - currentT) / (bend.t - currentT);
+    if (bend.t >= offset) {
+      const frac = (offset - currentT) / (bend.t - currentT);
       return add(pos, scale(sub(bend.pt, pos), frac));
     }
     pos = { ...bend.pt };
     currentT = bend.t;
   }
 
-  // Past all bends — continue along final ray direction
+  // Past all bends — continue along surviving ray's direction
   if (pathData.ray) {
-    return add(pos, scale(pathData.ray.dir, t - currentT));
+    return add(pos, scale(pathData.ray.dir, offset - currentT));
   }
   return { ...pos };
 }

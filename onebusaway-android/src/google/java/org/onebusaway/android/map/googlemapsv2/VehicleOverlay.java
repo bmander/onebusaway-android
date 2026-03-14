@@ -41,8 +41,6 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.model.Polyline;
-import com.google.android.gms.maps.model.PolylineOptions;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.elements.ObaRoute;
@@ -71,7 +69,6 @@ import org.onebusaway.android.util.UIUtils;
 import android.animation.ValueAnimator;
 import android.view.animation.AccelerateDecelerateInterpolator;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -549,15 +546,8 @@ public class VehicleOverlay implements MarkerListeners  {
 
         private static final float INFO_LABEL_Z_INDEX = VEHICLE_MARKER_Z_INDEX - 0.5f;
 
-        /** Manages slow/fast estimate labels (created/destroyed with selection). */
-        private EstimateLabelManager mEstimateLabels;
-
-        /** Renders the gamma PDF polygon overlay (created/destroyed with selection). */
-        private PdfPolygonRenderer mPdfRenderer;
-
-        /** Polyline segments representing the PDF with varying opacity. */
-        private static final int PDF_SEGMENT_COUNT = 6;
-        private Polyline[] mPdfSegments;
+        /** Manages all estimate overlays: labels + PDF segments. */
+        private EstimateOverlayManager mEstimateOverlay;
 
         private static final String DATA_RECEIVED_TITLE = "Most recent data";
 
@@ -1026,34 +1016,15 @@ public class VehicleOverlay implements MarkerListeners  {
             Marker vehicleMarker = mVehicleMarkers.get(tripId);
             if (vehicleMarker == null) return;
 
-            mEstimateLabels = new EstimateLabelManager(mMap, mActivity);
-            mEstimateLabels.create(vehicleMarker.getPosition());
-
-            mPdfSegments = new Polyline[PDF_SEGMENT_COUNT];
-            for (int i = 0; i < PDF_SEGMENT_COUNT; i++) {
-                mPdfSegments[i] = mMap.addPolyline(new PolylineOptions()
-                        .width(50f)
-                        .color(0x00FF0000)
-                        .zIndex(2f));
-            }
-
-            // mPdfRenderer = new PdfPolygonRenderer(mMap);
-            // mPdfRenderer.create();
+            mEstimateOverlay = new EstimateOverlayManager(mMap, mActivity);
+            mEstimateOverlay.create(vehicleMarker.getPosition());
         }
 
         private void destroyEstimateOverlays() {
-            if (mEstimateLabels != null) {
-                mEstimateLabels.destroy();
-                mEstimateLabels = null;
+            if (mEstimateOverlay != null) {
+                mEstimateOverlay.destroy();
+                mEstimateOverlay = null;
             }
-            if (mPdfSegments != null) {
-                for (Polyline p : mPdfSegments) p.remove();
-                mPdfSegments = null;
-            }
-            // if (mPdfRenderer != null) {
-            //     mPdfRenderer.destroy();
-            //     mPdfRenderer = null;
-            // }
         }
 
         /**
@@ -1061,7 +1032,7 @@ public class VehicleOverlay implements MarkerListeners  {
          * and expanded label. Returns true if the marker was an info label.
          */
         boolean handleInfoLabelClick(Marker marker) {
-            return mEstimateLabels != null && mEstimateLabels.handleClick(marker);
+            return mEstimateOverlay != null && mEstimateOverlay.handleClick(marker);
         }
 
         private String formatElapsedTime(long lastUpdateTime) {
@@ -1244,17 +1215,13 @@ public class VehicleOverlay implements MarkerListeners  {
         }
 
         private void hideEstimateOverlays() {
-            if (mEstimateLabels != null) mEstimateLabels.hide();
-            if (mPdfSegments != null) {
-                for (Polyline p : mPdfSegments) p.setVisible(false);
-            }
-            // if (mPdfRenderer != null) mPdfRenderer.hide();
+            if (mEstimateOverlay != null) mEstimateOverlay.hide();
         }
 
         private void updateEstimateOverlays(GammaSpeedModel.GammaParams params,
                                             List<Location> shape, double[] cumDist,
                                             List<VehicleHistoryEntry> history, long now) {
-            if (mEstimateLabels == null && mPdfSegments == null) return;
+            if (mEstimateOverlay == null) return;
 
             if (params == null || shape == null || cumDist == null
                     || history == null || history.isEmpty()) {
@@ -1281,67 +1248,7 @@ public class VehicleOverlay implements MarkerListeners  {
                 return;
             }
 
-            if (mEstimateLabels != null) {
-                mEstimateLabels.update(params, shape, cumDist, lastDist, dtSec);
-            }
-            if (mPdfSegments != null) {
-                updatePdfOverlay(params, shape, cumDist, lastDist, dtSec);
-            }
-        }
-
-        private void updatePdfOverlay(GammaSpeedModel.GammaParams params,
-                                      List<Location> shape, double[] cumDist,
-                                      double lastDist, double dtSec) {
-            double speed10 = GammaSpeedModel.quantileMps(0.10, params);
-            double speed90 = GammaSpeedModel.quantileMps(0.90, params);
-            double dist10 = lastDist + speed10 * dtSec;
-            double dist90 = lastDist + speed90 * dtSec;
-
-            // Compute PDF value at each segment midpoint to find max for normalization
-            double[] segDists = new double[PDF_SEGMENT_COUNT + 1];
-            double[] pdfValues = new double[PDF_SEGMENT_COUNT];
-            double maxPdf = 0;
-            for (int i = 0; i <= PDF_SEGMENT_COUNT; i++) {
-                segDists[i] = dist10 + (dist90 - dist10) * i / PDF_SEGMENT_COUNT;
-            }
-            for (int i = 0; i < PDF_SEGMENT_COUNT; i++) {
-                double midDist = (segDists[i] + segDists[i + 1]) / 2.0;
-                double speedMps = (midDist - lastDist) / dtSec;
-                double speedMph = speedMps * GammaSpeedModel.MPS_TO_MPH;
-                pdfValues[i] = GammaSpeedModel.pdf(speedMph, params);
-                if (pdfValues[i] > maxPdf) maxPdf = pdfValues[i];
-            }
-
-            // Update each segment's points and opacity
-            for (int i = 0; i < PDF_SEGMENT_COUNT; i++) {
-                double segStart = segDists[i];
-                double segEnd = segDists[i + 1];
-
-                List<LatLng> pts = new ArrayList<>();
-                Location loc = DistanceExtrapolator.interpolateAlongPolyline(
-                        shape, cumDist, segStart);
-                if (loc == null) { mPdfSegments[i].setVisible(false); continue; }
-                pts.add(new LatLng(loc.getLatitude(), loc.getLongitude()));
-
-                int[] range = DistanceExtrapolator.findVertexRange(cumDist, segStart, segEnd);
-                if (range != null) {
-                    for (int j = range[0]; j < range[1]; j++) {
-                        Location v = shape.get(j);
-                        pts.add(new LatLng(v.getLatitude(), v.getLongitude()));
-                    }
-                }
-
-                loc = DistanceExtrapolator.interpolateAlongPolyline(shape, cumDist, segEnd);
-                if (loc == null) { mPdfSegments[i].setVisible(false); continue; }
-                pts.add(new LatLng(loc.getLatitude(), loc.getLongitude()));
-
-                int alpha = maxPdf > 0
-                        ? (int) (255 * pdfValues[i] / maxPdf)
-                        : 0;
-                mPdfSegments[i].setPoints(pts);
-                mPdfSegments[i].setColor((alpha << 24) | 0x00FF0000);
-                mPdfSegments[i].setVisible(true);
-            }
+            mEstimateOverlay.update(params, shape, cumDist, lastDist, dtSec);
         }
 
 

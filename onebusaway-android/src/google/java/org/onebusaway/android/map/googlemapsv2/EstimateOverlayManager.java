@@ -1,0 +1,91 @@
+/*
+ * Copyright (C) 2024 Open Transit Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.onebusaway.android.map.googlemapsv2;
+
+import android.content.Context;
+import android.location.Location;
+
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+
+import org.onebusaway.android.speed.GammaSpeedModel;
+
+import java.util.List;
+
+/**
+ * Manages all estimate-related map overlays for a selected vehicle:
+ * the slow/fast estimate labels and the PDF opacity segments.
+ * Computes quantile speeds once per param change and shares them.
+ */
+public final class EstimateOverlayManager {
+
+    private final EstimateLabelManager mLabels;
+    private final PdfOverlayRenderer mPdfOverlay;
+
+    private GammaSpeedModel.GammaParams mCachedParams;
+    private double mCachedSpeed10Mps;
+    private double mCachedSpeed90Mps;
+
+    public EstimateOverlayManager(GoogleMap map, Context context) {
+        mLabels = new EstimateLabelManager(map, context);
+        mPdfOverlay = new PdfOverlayRenderer(map);
+    }
+
+    /** Creates all overlays at the given initial position. */
+    public void create(LatLng initialPosition) {
+        mLabels.create(initialPosition);
+        mPdfOverlay.create();
+        mCachedParams = null;
+    }
+
+    /** Removes all overlays from the map. */
+    public void destroy() {
+        mLabels.destroy();
+        mPdfOverlay.destroy();
+        mCachedParams = null;
+    }
+
+    /** Hides all overlays without removing them. */
+    public void hide() {
+        mLabels.hide();
+        mPdfOverlay.hide();
+    }
+
+    /**
+     * Per-frame update for all estimate overlays.
+     */
+    public void update(GammaSpeedModel.GammaParams params,
+                       List<Location> shape, double[] cumDist,
+                       double lastDist, double dtSec) {
+        if (!params.equals(mCachedParams)) {
+            mCachedParams = params;
+            mCachedSpeed10Mps = GammaSpeedModel.quantileMps(0.10, params);
+            mCachedSpeed90Mps = GammaSpeedModel.quantileMps(0.90, params);
+        }
+
+        double dist10 = lastDist + mCachedSpeed10Mps * dtSec;
+        double dist90 = lastDist + mCachedSpeed90Mps * dtSec;
+
+        mLabels.update(dist10, dist90, shape, cumDist);
+        mPdfOverlay.update(params, dist10, dist90, lastDist, dtSec, shape, cumDist);
+    }
+
+    /** Delegates click handling to the estimate labels. */
+    public boolean handleClick(Marker marker) {
+        return mLabels.handleClick(marker);
+    }
+}

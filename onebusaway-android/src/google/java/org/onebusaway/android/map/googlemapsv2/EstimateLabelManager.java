@@ -29,7 +29,6 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import org.onebusaway.android.speed.DistanceExtrapolator;
-import org.onebusaway.android.speed.GammaSpeedModel;
 
 import java.util.List;
 
@@ -60,10 +59,6 @@ public final class EstimateLabelManager {
     private boolean mSlowEstimateExpanded;
     private boolean mFastEstimateExpanded;
 
-    private GammaSpeedModel.GammaParams mCachedParams;
-    private double mCachedSpeed10Mps;
-    private double mCachedSpeed90Mps;
-
     private final Location mReusableLoc = new Location("label");
 
     public EstimateLabelManager(GoogleMap map, Context context) {
@@ -77,7 +72,6 @@ public final class EstimateLabelManager {
         mFastEstimateIcon = createInfoLabelIcon(FAST_ESTIMATE_LABEL, null);
         mSlowEstimateExpandedIcon = createInfoLabelExpandedIcon(SLOW_ESTIMATE_EXPANDED);
         mFastEstimateExpandedIcon = createInfoLabelExpandedIcon(FAST_ESTIMATE_EXPANDED);
-        mCachedParams = null;
         mSlowEstimateExpanded = false;
         mFastEstimateExpanded = false;
 
@@ -99,7 +93,6 @@ public final class EstimateLabelManager {
         mFastEstimateIcon = null;
         mSlowEstimateExpandedIcon = null;
         mFastEstimateExpandedIcon = null;
-        mCachedParams = null;
     }
 
     /** Hides the markers without removing them. */
@@ -113,28 +106,16 @@ public final class EstimateLabelManager {
     }
 
     /**
-     * Per-frame update: caches gamma params, computes distances, positions labels.
+     * Per-frame update: positions labels at the given distances along the polyline.
      *
-     * @param params  gamma distribution parameters
+     * @param dist10  slow estimate distance (10th percentile)
+     * @param dist90  fast estimate distance (90th percentile)
      * @param shape   decoded polyline points
      * @param cumDist precomputed cumulative distances
-     * @param lastDist AVL distance along the trip
-     * @param dtSec   seconds since last AVL update
      */
-    public void update(GammaSpeedModel.GammaParams params,
-                       List<Location> shape, double[] cumDist,
-                       double lastDist, double dtSec) {
+    public void update(double dist10, double dist90,
+                       List<Location> shape, double[] cumDist) {
         if (mSlowEstimateMarker == null || mFastEstimateMarker == null) return;
-
-        // Cache percentile speeds
-        if (!params.equals(mCachedParams)) {
-            mCachedParams = params;
-            mCachedSpeed10Mps = GammaSpeedModel.quantileMps(0.10, params);
-            mCachedSpeed90Mps = GammaSpeedModel.quantileMps(0.90, params);
-        }
-
-        double dist10 = lastDist + mCachedSpeed10Mps * dtSec;
-        double dist90 = lastDist + mCachedSpeed90Mps * dtSec;
 
         updateInfoLabelPosition(mSlowEstimateMarker, dist10, shape, cumDist);
         updateInfoLabelPosition(mFastEstimateMarker, dist90, shape, cumDist);

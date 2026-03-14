@@ -23,20 +23,12 @@ import com.google.android.gms.maps.LocationSource;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.UiSettings;
-import com.google.android.gms.maps.model.BitmapDescriptor;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
-import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
-import com.google.android.gms.maps.model.PolylineOptions;
-import com.google.android.gms.maps.model.StampStyle;
-import com.google.android.gms.maps.model.StrokeStyle;
-import com.google.android.gms.maps.model.StyleSpan;
-import com.google.android.gms.maps.model.TextureStyle;
 import com.google.android.gms.maps.model.VisibleRegion;
 import com.google.firebase.analytics.FirebaseAnalytics;
 
@@ -51,7 +43,6 @@ import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaShape;
 import org.onebusaway.android.io.elements.ObaStop;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
-import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.io.request.ObaResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
@@ -81,9 +72,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
@@ -183,7 +171,6 @@ public class BaseMapFragment extends SupportMapFragment
     private String mMapMode = "";
 
     private ArrayList<Polyline> mLineOverlay = new ArrayList<Polyline>();
-    private ArrayList<Marker> mTripStopMarkers = new ArrayList<Marker>();
 
     // Saved route overlay state for restoration after vehicle deselection
     private ObaShape[] mSavedRouteShapes;
@@ -592,11 +579,18 @@ public class BaseMapFragment extends SupportMapFragment
         return true;
     }
 
+    private final ChevronPolylineHelper mChevronHelper = new ChevronPolylineHelper();
+    private TripMapRenderer mTripRenderer;
+
     public void setupVehicleOverlay() {
         Activity a = getActivity();
         if (mVehicleOverlay == null && a != null) {
+            if (mTripRenderer == null) {
+                mTripRenderer = new TripMapRenderer(mMap, a, mChevronHelper);
+            }
             mVehicleOverlay = new VehicleOverlay(a, mMap);
             mVehicleOverlay.setController(this);
+            mVehicleOverlay.setTripRenderer(mTripRenderer);
         }
     }
 
@@ -1111,49 +1105,9 @@ public class BaseMapFragment extends SupportMapFragment
         }
     }
 
-    private final HashMap<Integer, StampStyle> mChevronStampCache = new HashMap<>();
-
-    /**
-     * Creates a bitmap that tiles along a polyline with extra transparent
-     * padding so the visible stamp repeats less frequently.
-     *
-     * @param spacingMultiplier 1 = default density, 4 = one-quarter as many stamps
-     */
-    private Bitmap spacedStamp(int resId, int spacingMultiplier) {
-        Bitmap original = BitmapFactory.decodeResource(getResources(), resId);
-        if (spacingMultiplier <= 1) return original;
-        Bitmap padded = Bitmap.createBitmap(
-                original.getWidth(),
-                original.getHeight() * spacingMultiplier,
-                Bitmap.Config.ARGB_8888);
-        new Canvas(padded).drawBitmap(original, 0, 0, null);
-        return padded;
-    }
-
-    private StampStyle chevronStamp(int spacingMultiplier) {
-        StampStyle cached = mChevronStampCache.get(spacingMultiplier);
-        if (cached != null) return cached;
-        cached = TextureStyle.newBuilder(BitmapDescriptorFactory.fromBitmap(
-                spacedStamp(R.drawable.ic_navigation_expand_more, spacingMultiplier))).build();
-        mChevronStampCache.put(spacingMultiplier, cached);
-        return cached;
-    }
-
     private int addArrowPolyline(List<Location> points, int color) {
-        return addArrowPolyline(points, color, 10f, 1);
-    }
-
-    private int addArrowPolyline(List<Location> points, int color, float width,
-                                 int stampSpacing) {
-        PolylineOptions opts = new PolylineOptions();
-        opts.width(width);
-        opts.addSpan(new StyleSpan(StrokeStyle.colorBuilder(color)
-                .stamp(chevronStamp(stampSpacing)).build()));
-        for (Location l : points) {
-            opts.add(MapHelpV2.makeLatLng(l));
-        }
-        mLineOverlay.add(mMap.addPolyline(opts));
-        return opts.getPoints().size();
+        return mChevronHelper.addArrowPolyline(mMap, mLineOverlay, points, color,
+                getResources());
     }
 
     @Override
@@ -1319,6 +1273,9 @@ public class BaseMapFragment extends SupportMapFragment
                 controller.notifyMapChanged();
             }
         }
+        if (mTripRenderer != null) {
+            mTripRenderer.onCameraZoomChanged(cameraPosition.zoom);
+        }
     }
 
     // Maps V2 Location updates
@@ -1354,75 +1311,22 @@ public class BaseMapFragment extends SupportMapFragment
     }
 
     @Override
-    public void onVehicleSelected(String tripId) {
-        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-        List<Location> shape = tracker.getShape(tripId);
-        double[] cumDist = tracker.getShapeCumulativeDistances(tripId);
-        showTripPolyline(shape);
-        showTripStopCircles(tracker.getSchedule(tripId), shape, cumDist);
-    }
-
-    private static final float TRIP_POLYLINE_WIDTH_PX = 50f;
-
-    private void showTripPolyline(List<Location> tripShape) {
-        if (tripShape != null && mMap != null) {
-            removeRouteOverlay();
-            addArrowPolyline(tripShape, mSavedRouteOverlayColor, TRIP_POLYLINE_WIDTH_PX, 4);
-        }
-    }
-
-    private BitmapDescriptor makeStopCircleIcon(int strokeColor) {
-        int size = (int) TRIP_POLYLINE_WIDTH_PX;
-        Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(bmp);
-        float r = size / 2f;
-        float strokeWidth = 4f;
-        Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
-        fill.setColor(Color.WHITE);
-        c.drawCircle(r, r, r - strokeWidth / 2f, fill);
-        Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
-        stroke.setStyle(Paint.Style.STROKE);
-        stroke.setStrokeWidth(strokeWidth);
-        stroke.setColor(strokeColor);
-        c.drawCircle(r, r, r - strokeWidth / 2f, stroke);
-        return BitmapDescriptorFactory.fromBitmap(bmp);
-    }
-
-    private void showTripStopCircles(ObaTripSchedule schedule,
-                                     List<Location> shape, double[] cumDist) {
-        if (mMap == null || schedule == null || shape == null || cumDist == null) return;
+    public void onVehicleSelected(String tripId, LatLng vehiclePosition, Integer routeType) {
+        removeRouteOverlay();
         if (setupStopOverlay()) {
             mStopOverlay.clear(false);
         }
-        ObaTripSchedule.StopTime[] stopTimes = schedule.getStopTimes();
-        if (stopTimes == null) return;
-
-        BitmapDescriptor icon = makeStopCircleIcon(mSavedRouteOverlayColor);
-        for (ObaTripSchedule.StopTime st : stopTimes) {
-            Location loc = DistanceExtrapolator.interpolateAlongPolyline(
-                    shape, cumDist, st.getDistanceAlongTrip());
-            if (loc == null) continue;
-            Marker m = mMap.addMarker(new MarkerOptions()
-                    .position(new LatLng(loc.getLatitude(), loc.getLongitude()))
-                    .icon(icon)
-                    .anchor(0.5f, 0.5f)
-                    .flat(true)
-                    .zIndex(1f));
-            mTripStopMarkers.add(m);
-        }
-    }
-
-    private void removeTripStopCircles() {
-        for (Marker m : mTripStopMarkers) {
-            m.remove();
-        }
-        mTripStopMarkers.clear();
+        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+        List<Location> shape = tracker.getShape(tripId);
+        double[] cumDist = tracker.getShapeCumulativeDistances(tripId);
+        ObaTripSchedule schedule = tracker.getSchedule(tripId);
+        mTripRenderer.activate(tripId, shape, cumDist, schedule, mSavedRouteOverlayColor,
+                vehiclePosition, routeType);
     }
 
     @Override
     public void onVehicleDeselected() {
-        // Remove trip stop circles
-        removeTripStopCircles();
+        mTripRenderer.deactivate();
         // Restore original route polyline
         if (mSavedRouteShapes != null) {
             removeRouteOverlay();

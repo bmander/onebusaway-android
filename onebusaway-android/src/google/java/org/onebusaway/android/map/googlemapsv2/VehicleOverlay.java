@@ -20,11 +20,8 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.graphics.Paint;
 import android.graphics.drawable.GradientDrawable;
 import android.location.Location;
-import android.os.Handler;
 import android.util.Log;
 import android.view.Choreographer;
 import android.view.View;
@@ -66,8 +63,6 @@ import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.MathUtils;
 import org.onebusaway.android.util.UIUtils;
 
-import android.animation.ValueAnimator;
-import android.view.animation.AccelerateDecelerateInterpolator;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -83,7 +78,7 @@ public class VehicleOverlay implements MarkerListeners  {
 
     interface Controller {
         String getFocusedStopId();
-        void onVehicleSelected(String tripId);
+        void onVehicleSelected(String tripId, LatLng vehiclePosition, Integer routeType);
         void onVehicleDeselected();
     }
 
@@ -104,6 +99,8 @@ public class VehicleOverlay implements MarkerListeners  {
     private String mCardTripId;
 
     private Controller mController;
+
+    private TripMapRenderer mTripRenderer;
 
     private boolean mExtrapolationTicking;
     private final Choreographer.FrameCallback mFrameCallback = this::onExtrapolationFrame;
@@ -224,6 +221,10 @@ public class VehicleOverlay implements MarkerListeners  {
         mController = controller;
     }
 
+    void setTripRenderer(TripMapRenderer renderer) {
+        mTripRenderer = renderer;
+    }
+
     /**
      * Updates vehicles for the provided routeIds from the status info from the given
      * ObaTripsForRouteResponse
@@ -256,6 +257,9 @@ public class VehicleOverlay implements MarkerListeners  {
      */
     public synchronized void clear() {
         stopExtrapolationTicking();
+        if (mTripRenderer != null) {
+            mTripRenderer.deactivate();
+        }
         if (mMarkerData != null) {
             mMarkerData.clear();
             mMarkerData = null;
@@ -491,7 +495,7 @@ public class VehicleOverlay implements MarkerListeners  {
     @Override
     public boolean markerClicked(Marker marker) {
         if(mMarkerData == null) return false;
-        if (mMarkerData.handleInfoLabelClick(marker)) {
+        if (mTripRenderer != null && mTripRenderer.handleEstimateLabelClick(marker)) {
             return true;
         }
         ObaTripStatus status = mMarkerData.getStatusFromMarker(marker);
@@ -534,22 +538,6 @@ public class VehicleOverlay implements MarkerListeners  {
 
         /** The activeTripId of the currently-selected (info-window-open) vehicle, or null. */
         private volatile String mSelectedTripId;
-
-        /** Icon marker (unrotated) for the most recent AVL position. */
-        private Marker mDataReceivedIconMarker;
-        /** Label marker (rotated along polyline) for the most recent AVL position. */
-        private Marker mDataReceivedLabelMarker;
-        /** Cached label text to skip icon rebuild when unchanged. */
-        private String mLastDataReceivedLabel;
-        /** Cached anchor X for the label marker, offset to clear the circle icon. */
-        private float mDataReceivedLabelAnchorX;
-
-        private static final float INFO_LABEL_Z_INDEX = VEHICLE_MARKER_Z_INDEX - 0.5f;
-
-        /** Manages all estimate overlays: labels + PDF segments. */
-        private EstimateOverlayManager mEstimateOverlay;
-
-        private static final String DATA_RECEIVED_TITLE = "Most recent data";
 
         private static final int INITIAL_HASHMAP_SIZE = 5;
 
@@ -617,7 +605,13 @@ public class VehicleOverlay implements MarkerListeners  {
             int removed = removeInactiveMarkers(activeTripIds);
 
             // Update the data-received marker to reflect the latest AVL position
-            showOrUpdateDataReceivedMarker(mSelectedTripId);
+            if (mTripRenderer != null && mSelectedTripId != null) {
+                VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+                mTripRenderer.showOrUpdateDataReceivedMarker(mSelectedTripId,
+                        tracker.getShape(mSelectedTripId),
+                        tracker.getShapeCumulativeDistances(mSelectedTripId),
+                        tracker.getHistoryReadOnly(mSelectedTripId));
+            }
 
             Log.d(TAG,
                     "Added " + added + ", updated " + updated + ", removed " + removed
@@ -703,7 +697,11 @@ public class VehicleOverlay implements MarkerListeners  {
                     if (tripId.equals(mSelectedTripId) && mController != null) {
                         mActivity.runOnUiThread(() -> {
                             if (tripId.equals(mSelectedTripId) && mController != null) {
-                                mController.onVehicleSelected(tripId);
+                                Marker vm = mVehicleMarkers.get(tripId);
+                                LatLng vPos = vm != null ? vm.getPosition() : null;
+                                Integer rType = VehicleTrajectoryTracker.getInstance()
+                                        .getRouteType(tripId);
+                                mController.onVehicleSelected(tripId, vPos, rType);
                             }
                         });
                     }
@@ -735,6 +733,11 @@ public class VehicleOverlay implements MarkerListeners  {
             ProprietaryMapHelpV2.setZIndex(m, VEHICLE_MARKER_Z_INDEX);
             mVehicleMarkers.put(status.getActiveTripId(), m);
             mVehicles.put(m, status);
+            // Hide non-selected markers when a vehicle is selected
+            if (mSelectedTripId != null
+                    && !mSelectedTripId.equals(status.getActiveTripId())) {
+                m.setVisible(false);
+            }
         }
 
         /**
@@ -793,7 +796,6 @@ public class VehicleOverlay implements MarkerListeners  {
                     String tripId = entry.getKey();
                     Marker m = entry.getValue();
                     if (!activeTripIds.contains(tripId)) {
-                        cancelAnimation(m);
                         entry.getValue().remove();
                         mVehicles.remove(m);
                         iterator.remove();
@@ -809,7 +811,6 @@ public class VehicleOverlay implements MarkerListeners  {
                     String tripId = entry.getKey();
                     Marker m = entry.getValue();
                     if (!activeTripIds.contains(tripId)) {
-                        cancelAnimation(m);
                         entry.getValue().remove();
                         mVehicles.remove(m);
                         mVehicleMarkers.remove(tripId);
@@ -831,12 +832,6 @@ public class VehicleOverlay implements MarkerListeners  {
          */
         private BitmapDescriptor getVehicleIcon(boolean isRealtime, ObaTripStatus status,
                                                 ObaTripsForRouteResponse response) {
-            // If another vehicle is selected, show this one as a small dot
-            if (mSelectedTripId != null
-                    && !mSelectedTripId.equals(status.getActiveTripId())) {
-                return getDotIcon(isRealtime, status);
-            }
-
             String routeId = response.getTrip(status.getActiveTripId()).getRouteId();
             ObaRoute route = response.getRoute(routeId);
             int vehicleType = route.getType();
@@ -848,41 +843,9 @@ public class VehicleOverlay implements MarkerListeners  {
             return BitmapDescriptorFactory.fromBitmap(b);
         }
 
-        private static final int DOT_RADIUS_DP = 5;
-        private LruCache<Integer, BitmapDescriptor> mDotIconCache;
-
-        private BitmapDescriptor getDotIcon(boolean isRealtime, ObaTripStatus status) {
-            int colorResource = getDeviationColorResource(isRealtime, status);
-            if (mDotIconCache == null) {
-                mDotIconCache = new LruCache<>(8);
-            }
-            BitmapDescriptor cached = mDotIconCache.get(colorResource);
-            if (cached != null) return cached;
-
-            float density = mActivity.getResources().getDisplayMetrics().density;
-            int radiusPx = (int) (DOT_RADIUS_DP * density);
-            int strokePx = (int) (1.5f * density);
-            int size = (radiusPx + strokePx) * 2;
-            float cx = size / 2f;
-            float cy = size / 2f;
-            Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-            Canvas c = new Canvas(bmp);
-            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            paint.setColor(0xFFFFFFFF);
-            paint.setStyle(Paint.Style.FILL);
-            c.drawCircle(cx, cy, radiusPx + strokePx, paint);
-            paint.setColor(ContextCompat.getColor(mActivity, colorResource));
-            c.drawCircle(cx, cy, radiusPx, paint);
-            BitmapDescriptor descriptor = BitmapDescriptorFactory.fromBitmap(bmp);
-            mDotIconCache.put(colorResource, descriptor);
-            return descriptor;
-        }
-
-        private static final int ICON_TRANSITION_MS = 250;
-        private final HashMap<Marker, ValueAnimator> mRunningAnimators = new HashMap<>();
 
         /**
-         * Sets the selected trip and collapses all other vehicle markers to small dots.
+         * Sets the selected trip and hides all other vehicle markers.
          */
         synchronized void setSelectedTripId(String tripId) {
             if (tripId != null && tripId.equals(mSelectedTripId)) return;
@@ -892,13 +855,12 @@ public class VehicleOverlay implements MarkerListeners  {
             if (tripId != null) {
                 restoreMarkerIcon(mVehicleMarkers.get(tripId));
             }
-            removeDataReceivedMarker();
-            destroyEstimateOverlays();
-            showOrUpdateDataReceivedMarker(tripId);
-            createEstimateOverlays(tripId);
             animateChangedIcons(previousTripId);
             if (mController != null && tripId != null) {
-                mController.onVehicleSelected(tripId);
+                Marker vehicleMarker = mVehicleMarkers.get(tripId);
+                LatLng vehiclePos = vehicleMarker != null ? vehicleMarker.getPosition() : null;
+                Integer routeType = VehicleTrajectoryTracker.getInstance().getRouteType(tripId);
+                mController.onVehicleSelected(tripId, vehiclePos, routeType);
             }
         }
 
@@ -909,8 +871,6 @@ public class VehicleOverlay implements MarkerListeners  {
             if (mSelectedTripId == null) return;
             String previousTripId = mSelectedTripId;
             mSelectedTripId = null;
-            removeDataReceivedMarker();
-            destroyEstimateOverlays();
             animateChangedIcons(previousTripId);
             if (mController != null) {
                 mController.onVehicleDeselected();
@@ -919,230 +879,27 @@ public class VehicleOverlay implements MarkerListeners  {
 
         private void restoreMarkerIcon(Marker marker) {
             if (marker == null) return;
-            cancelAnimation(marker);
             ObaTripStatus status = mVehicles.get(marker);
             if (status == null) return;
-            marker.setAlpha(1f);
             marker.setIcon(getVehicleIcon(
                     isLocationRealtime(status), status, mLastResponse));
         }
 
-        // --- Data-received marker lifecycle ---
-
-        private void showOrUpdateDataReceivedMarker(String tripId) {
-            if (tripId == null || mLastResponse == null) return;
-
-            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-            List<VehicleHistoryEntry> history = tracker.getHistoryReadOnly(tripId);
-            if (history == null || history.isEmpty()) return;
-
-            VehicleHistoryEntry latest = history.get(history.size() - 1);
-            Location pos = latest.getPosition();
-            if (pos == null) return;
-
-            Marker vehicleMarker = mVehicleMarkers.get(tripId);
-            if (vehicleMarker == null) return;
-
-            LatLng latLng = MapHelpV2.makeLatLng(pos);
-            String label = formatElapsedTime(latest.getLastLocationUpdateTime());
-
-            // Compute label rotation from polyline heading
-            float labelRotation = 0f;
-            Double lastDist = latest.getBestDistanceAlongTrip();
-            List<Location> shape = tracker.getShape(tripId);
-            double[] cumDist = tracker.getShapeCumulativeDistances(tripId);
-            if (lastDist != null && shape != null && cumDist != null) {
-                double heading = DistanceExtrapolator.headingAlongPolyline(
-                        shape, cumDist, lastDist);
-                if (!Double.isNaN(heading)) {
-                    double labelAz = EstimateLabelManager.clampedLabelAzimuth(heading);
-                    labelRotation = (float) (labelAz - 90.0);
-                }
-            }
-
-            // Icon marker: unrotated circle with signal icon
-            if (mDataReceivedIconMarker != null) {
-                mDataReceivedIconMarker.setPosition(latLng);
-            } else {
-                mDataReceivedIconMarker = mMap.addMarker(new MarkerOptions()
-                        .position(latLng)
-                        .icon(createDataReceivedCircleIcon())
-                        .anchor(0.5f, 0.5f)
-                        .flat(true)
-                        .zIndex(INFO_LABEL_Z_INDEX + 0.1f)
-                );
-            }
-
-            // Label marker: rotated bubble
-            if (mDataReceivedLabelMarker != null) {
-                mDataReceivedLabelMarker.setPosition(latLng);
-                mDataReceivedLabelMarker.setRotation(labelRotation);
-                if (!label.equals(mLastDataReceivedLabel)) {
-                    mLastDataReceivedLabel = label;
-                    mDataReceivedLabelMarker.setIcon(createDataReceivedLabelIcon(label));
-                }
-            } else {
-                mLastDataReceivedLabel = label;
-                BitmapDescriptor labelIcon = createDataReceivedLabelIcon(label);
-                mDataReceivedLabelMarker = mMap.addMarker(new MarkerOptions()
-                        .position(latLng)
-                        .icon(labelIcon)
-                        .anchor(mDataReceivedLabelAnchorX, 0.5f)
-                        .flat(true)
-                        .rotation(labelRotation)
-                        .zIndex(INFO_LABEL_Z_INDEX)
-                );
-            }
-        }
-
-        private void removeDataReceivedMarker() {
-            if (mDataReceivedIconMarker != null) {
-                mDataReceivedIconMarker.remove();
-                mDataReceivedIconMarker = null;
-            }
-            if (mDataReceivedLabelMarker != null) {
-                mDataReceivedLabelMarker.remove();
-                mDataReceivedLabelMarker = null;
-            }
-            mLastDataReceivedLabel = null;
-        }
-
-        // --- Info label helpers (delegated to EstimateLabelManager) ---
-
-        private void createEstimateOverlays(String tripId) {
-            if (tripId == null || mLastResponse == null) return;
-            Integer routeType = VehicleTrajectoryTracker.getInstance().getRouteType(tripId);
-            if (routeType != null && ObaRoute.isGradeSeparated(routeType)) return;
-            Marker vehicleMarker = mVehicleMarkers.get(tripId);
-            if (vehicleMarker == null) return;
-
-            mEstimateOverlay = new EstimateOverlayManager(mMap, mActivity);
-            mEstimateOverlay.create(vehicleMarker.getPosition());
-        }
-
-        private void destroyEstimateOverlays() {
-            if (mEstimateOverlay != null) {
-                mEstimateOverlay.destroy();
-                mEstimateOverlay = null;
-            }
-        }
-
         /**
-         * Handles a click on an info label marker by toggling between collapsed
-         * and expanded label. Returns true if the marker was an info label.
-         */
-        boolean handleInfoLabelClick(Marker marker) {
-            return mEstimateOverlay != null && mEstimateOverlay.handleClick(marker);
-        }
-
-        private String formatElapsedTime(long lastUpdateTime) {
-            if (lastUpdateTime <= 0) return "";
-            long elapsedSec = TimeUnit.MILLISECONDS.toSeconds(
-                    System.currentTimeMillis() - lastUpdateTime);
-            if (elapsedSec < 0) elapsedSec = 0;
-            if (elapsedSec < 60) {
-                return elapsedSec + " sec ago";
-            }
-            long elapsedMin = TimeUnit.SECONDS.toMinutes(elapsedSec);
-            long secMod60 = elapsedSec % 60;
-            return elapsedMin + " min " + secMod60 + " sec ago";
-        }
-
-        private static final int DATA_ICON_RADIUS_DP = 13;
-        private static final int DATA_ICON_INNER_DP = 20;
-        private static final int DATA_ICON_GAP_DP = 3;
-
-        /** Creates the circle + signal icon bitmap (unrotated). */
-        private BitmapDescriptor createDataReceivedCircleIcon() {
-            float d = mActivity.getResources().getDisplayMetrics().density;
-            int circleRadius = (int) (DATA_ICON_RADIUS_DP * d);
-            int size = circleRadius * 2;
-
-            Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-            Canvas c = new Canvas(bmp);
-
-            Paint circlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            circlePaint.setColor(0xFF616161);
-            circlePaint.setStyle(Paint.Style.FILL);
-            c.drawCircle(circleRadius, circleRadius, circleRadius, circlePaint);
-
-            int iconSize = (int) (DATA_ICON_INNER_DP * d);
-            android.graphics.drawable.Drawable icon = ContextCompat.getDrawable(
-                    mActivity, R.drawable.ic_signal_indicator);
-            if (icon != null) {
-                int iconLeft = (size - iconSize) / 2;
-                int iconTop = (size - iconSize) / 2;
-                icon.setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize);
-                icon.draw(c);
-            }
-
-            return BitmapDescriptorFactory.fromBitmap(bmp);
-        }
-
-        /** Creates the pointer-bubble label bitmap (rotated by the marker).
-         *  Also computes mDataReceivedLabelAnchorX to offset the label past the circle icon. */
-        private BitmapDescriptor createDataReceivedLabelIcon(String timeLine) {
-            String[] lines = {DATA_RECEIVED_TITLE, timeLine};
-            float[] widthOut = new float[1];
-            BitmapDescriptor icon = EstimateLabelManager.createInfoLabelIcon(
-                    mActivity, lines, widthOut);
-            float d = mActivity.getResources().getDisplayMetrics().density;
-            float offsetPx = (DATA_ICON_RADIUS_DP + DATA_ICON_GAP_DP) * d;
-            mDataReceivedLabelAnchorX = -offsetPx / widthOut[0];
-            return icon;
-        }
-
-        /**
-         * Animates only the markers whose icon state actually changed.
+         * Toggles visibility for markers whose state changed due to selection.
          * @param previousTripId the previously selected trip, or null if none
          */
         private void animateChangedIcons(String previousTripId) {
-            if (mLastResponse == null) return;
             for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
                 String tripId = entry.getKey();
                 // Skip the currently selected marker — already handled
                 if (mSelectedTripId != null && mSelectedTripId.equals(tripId)) continue;
 
-                boolean wasDot = previousTripId != null && !previousTripId.equals(tripId);
-                boolean shouldBeDot = mSelectedTripId != null && !mSelectedTripId.equals(tripId);
-                if (wasDot == shouldBeDot) continue;
+                boolean wasHidden = previousTripId != null && !previousTripId.equals(tripId);
+                boolean shouldHide = mSelectedTripId != null && !mSelectedTripId.equals(tripId);
+                if (wasHidden == shouldHide) continue;
 
-                Marker m = entry.getValue();
-                ObaTripStatus status = mVehicles.get(m);
-                if (status == null) continue;
-                boolean isRealtime = isLocationRealtime(status);
-                BitmapDescriptor newIcon = getVehicleIcon(isRealtime, status, mLastResponse);
-                animateIconTransition(m, newIcon);
-            }
-        }
-
-        private void animateIconTransition(Marker marker, BitmapDescriptor newIcon) {
-            cancelAnimation(marker);
-            ValueAnimator anim = ValueAnimator.ofFloat(0f, 1f);
-            anim.setDuration(ICON_TRANSITION_MS);
-            anim.setInterpolator(new AccelerateDecelerateInterpolator());
-            final boolean[] swapped = {false};
-            anim.addUpdateListener(animation -> {
-                float f = (float) animation.getAnimatedValue();
-                if (f < 0.5f) {
-                    marker.setAlpha(1f - f * 2f);
-                } else {
-                    if (!swapped[0]) {
-                        marker.setIcon(newIcon);
-                        swapped[0] = true;
-                    }
-                    marker.setAlpha((f - 0.5f) * 2f);
-                }
-            });
-            mRunningAnimators.put(marker, anim);
-            anim.start();
-        }
-
-        private void cancelAnimation(Marker marker) {
-            ValueAnimator existing = mRunningAnimators.remove(marker);
-            if (existing != null) {
-                existing.cancel();
-                marker.setAlpha(1f);
+                entry.getValue().setVisible(!shouldHide);
             }
         }
 
@@ -1217,46 +974,12 @@ public class VehicleOverlay implements MarkerListeners  {
             }
 
             // Update estimate overlays for the selected vehicle
-            updateEstimateOverlays(selectedParams, selectedShape, selectedCumDist,
-                    selectedHistory, now, selectedColor);
-        }
-
-        private void hideEstimateOverlays() {
-            if (mEstimateOverlay != null) mEstimateOverlay.hide();
-        }
-
-        private void updateEstimateOverlays(GammaSpeedModel.GammaParams params,
-                                            List<Location> shape, double[] cumDist,
-                                            List<VehicleHistoryEntry> history, long now,
-                                            int baseColor) {
-            if (mEstimateOverlay == null) return;
-
-            if (params == null || shape == null || cumDist == null
-                    || history == null || history.isEmpty()) {
-                hideEstimateOverlays();
-                return;
+            if (mTripRenderer != null) {
+                mTripRenderer.showOrUpdateDataReceivedMarker(mSelectedTripId,
+                        selectedShape, selectedCumDist, selectedHistory);
+                mTripRenderer.updateEstimateOverlays(selectedParams, selectedShape,
+                        selectedCumDist, selectedHistory, now, selectedColor);
             }
-
-            VehicleHistoryEntry newest = DistanceExtrapolator.findNewestValidEntry(history);
-            if (newest == null) {
-                hideEstimateOverlays();
-                return;
-            }
-
-            Double lastDist = newest.getBestDistanceAlongTrip();
-            long lastTime = newest.getLastLocationUpdateTime();
-            if (lastDist == null || lastTime <= 0) {
-                hideEstimateOverlays();
-                return;
-            }
-
-            double dtSec = (now - lastTime) / 1000.0;
-            if (dtSec < 0.5) {
-                hideEstimateOverlays();
-                return;
-            }
-
-            mEstimateOverlay.update(params, shape, cumDist, lastDist, dtSec, baseColor);
         }
 
 
@@ -1264,8 +987,6 @@ public class VehicleOverlay implements MarkerListeners  {
          * Clears any stop markers from the map
          */
         synchronized void clear() {
-            removeDataReceivedMarker();
-            destroyEstimateOverlays();
             if (mVehicleMarkers != null) {
                 // Clear all markers from the map
                 removeMarkersFromMap();

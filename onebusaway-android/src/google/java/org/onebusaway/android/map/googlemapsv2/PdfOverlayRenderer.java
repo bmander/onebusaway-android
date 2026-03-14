@@ -34,20 +34,21 @@ import java.util.List;
  */
 public final class PdfOverlayRenderer {
 
-    private static final float WIDTH_PX = 50f;
     private static final float Z_INDEX = 2f;
 
     private final GoogleMap mMap;
     private final int mSegmentCount;
+    private final float mWidthPx;
     private Polyline[] mSegments;
 
     // Pre-allocated array to avoid per-frame allocation
     private final double[] mSegDists;
     private final Location mReusableLoc = new Location("pdf");
 
-    public PdfOverlayRenderer(GoogleMap map, int segmentCount) {
+    public PdfOverlayRenderer(GoogleMap map, int segmentCount, float widthPx) {
         mMap = map;
         mSegmentCount = segmentCount;
+        mWidthPx = widthPx;
         mSegDists = new double[segmentCount + 1];
     }
 
@@ -56,7 +57,7 @@ public final class PdfOverlayRenderer {
         mSegments = new Polyline[mSegmentCount];
         for (int i = 0; i < mSegmentCount; i++) {
             mSegments[i] = mMap.addPolyline(new PolylineOptions()
-                    .width(WIDTH_PX)
+                    .width(mWidthPx)
                     .color(0)
                     .zIndex(Z_INDEX));
         }

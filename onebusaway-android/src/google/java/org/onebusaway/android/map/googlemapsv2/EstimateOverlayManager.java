@@ -63,7 +63,8 @@ public final class EstimateOverlayManager {
                                   double pdfLowQuantile, double pdfHighQuantile,
                                   int segmentCount) {
         mLabels = new EstimateLabelManager(map, context);
-        mPdfOverlay = new PdfOverlayRenderer(map, segmentCount);
+        mPdfOverlay = new PdfOverlayRenderer(map, segmentCount,
+                TripMapRenderer.TRIP_BASE_WIDTH_PX);
         mSegmentCount = segmentCount;
         mCachedPdfEdgeSpeedsMps = new double[segmentCount + 1];
         mCachedPdfMidPdfValues = new double[segmentCount];

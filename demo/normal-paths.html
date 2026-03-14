@@ -143,7 +143,8 @@ function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
     collapseT: 0,
     left: i - 1,
     right: i + 1,
-    alive: true
+    alive: true,
+    version: 0
   }));
 
   const paths = Array.from({length: N}, () => []);
@@ -152,7 +153,7 @@ function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
 
   function enq(t, iL, iR) {
     if (t > 0 && t < searchRadius && isFinite(t)) {
-      pq.push({ t, iL, iR });
+      pq.push({ t, iL, iR, vL: rays[iL].version, vR: rays[iR].version });
       pq.sort((a, b) => a.t - b.t);
     }
   }
@@ -162,9 +163,12 @@ function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
   }
 
   while (pq.length > 0) {
-    const { t, iL, iR } = pq.shift();
+    const { t, iL, iR, vL, vR } = pq.shift();
     if (!rays[iL].alive || !rays[iR].alive) continue;
     if (rays[iL].right !== iR) continue;
+    // Rays can be recomputed after an earlier merge. Skip any queued
+    // collision that was scheduled against an older ray state.
+    if (rays[iL].version !== vL || rays[iR].version !== vR) continue;
 
     const pt = add(rays[iL].origin, scale(rays[iL].dir, t - rays[iL].collapseT));
     paths[iL].push({ t, pt: { ...pt } });
@@ -194,6 +198,7 @@ function runWavefront(verts, eNormals, miterVecs, searchRadius, sign) {
     rays[iL].leftEN = { ...nL };
     rays[iL].rightEN = { ...nR };
     rays[iL].dir = scale(miterVec(nL, nR), sign);
+    rays[iL].version++;
 
     // Enqueue new collisions with updated neighbors
     if (newRight < N) {

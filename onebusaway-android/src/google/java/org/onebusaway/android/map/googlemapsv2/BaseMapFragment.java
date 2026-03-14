@@ -48,6 +48,8 @@ import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaShape;
 import org.onebusaway.android.io.elements.ObaStop;
+import org.onebusaway.android.io.elements.ObaTripSchedule;
+import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.io.request.ObaResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.DirectionsMapController;
@@ -173,6 +175,12 @@ public class BaseMapFragment extends SupportMapFragment
     private String mMapMode = "";
 
     private ArrayList<Polyline> mLineOverlay = new ArrayList<Polyline>();
+
+    // Saved route overlay state for restoration after vehicle deselection
+    private ObaShape[] mSavedRouteShapes;
+    private int mSavedRouteOverlayColor;
+    private List<ObaStop> mSavedRouteStops;
+    private ObaReferences mSavedRouteRefs;
 
     // Markers that are added to the map by classes external to this map package
     private SimpleMarkerOverlay mSimpleMarkerOverlay;
@@ -728,6 +736,9 @@ public class BaseMapFragment extends SupportMapFragment
 
     @Override
     public void showStops(List<ObaStop> stops, ObaReferences refs) {
+        // Save for restoration after vehicle deselection
+        mSavedRouteStops = stops;
+        mSavedRouteRefs = refs;
         // Make sure that the stop overlay has been successfully initialized
         if (setupStopOverlay() && stops != null) {
             mStopOverlay.populateStops(stops, refs);
@@ -1076,31 +1087,37 @@ public class BaseMapFragment extends SupportMapFragment
 
     @Override
     public void setRouteOverlay(int lineOverlayColor, ObaShape[] shapes, boolean clear) {
+        // Save for restoration after vehicle deselection
+        mSavedRouteShapes = shapes;
+        mSavedRouteOverlayColor = lineOverlayColor;
         if (mMap != null) {
             if (clear) {
                 mLineOverlay.clear();
             }
-            PolylineOptions lineOptions;
-            StampStyle polylineArrow = TextureStyle.newBuilder(BitmapDescriptorFactory.fromResource(R.drawable.ic_navigation_expand_more)).build();
-            StyleSpan polylineArrowSpan = new StyleSpan(StrokeStyle.colorBuilder(lineOverlayColor).stamp(polylineArrow).build());
-
             int totalPoints = 0;
-
             for (ObaShape s : shapes) {
-                lineOptions = new PolylineOptions();
-                lineOptions.addSpan(polylineArrowSpan);
-
-                for (Location l : s.getPoints()) {
-                    lineOptions.add(MapHelpV2.makeLatLng(l));
-                }
-                // Add the line to the map, and keep a reference in the ArrayList
-                mLineOverlay.add(mMap.addPolyline(lineOptions));
-
-                totalPoints += lineOptions.getPoints().size();
+                totalPoints += addArrowPolyline(s.getPoints(), lineOverlayColor);
             }
-
             Log.d(TAG, "Total points for route polylines = " + totalPoints);
         }
+    }
+
+    /**
+     * Creates a directional arrow polyline from the given points and adds it to the map.
+     * @return the number of points in the polyline
+     */
+    private int addArrowPolyline(List<Location> points, int color) {
+        StampStyle arrow = TextureStyle.newBuilder(
+                BitmapDescriptorFactory.fromResource(R.drawable.ic_navigation_expand_more))
+                .build();
+        PolylineOptions lineOptions = new PolylineOptions();
+        lineOptions.addSpan(new StyleSpan(StrokeStyle.colorBuilder(color)
+                .stamp(arrow).build()));
+        for (Location l : points) {
+            lineOptions.add(MapHelpV2.makeLatLng(l));
+        }
+        mLineOverlay.add(mMap.addPolyline(lineOptions));
+        return lineOptions.getPoints().size();
     }
 
     @Override
@@ -1298,6 +1315,55 @@ public class BaseMapFragment extends SupportMapFragment
     @Override
     public String getFocusedStopId() {
         return mFocusStopId;
+    }
+
+    @Override
+    public void onVehicleSelected(String tripId) {
+        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+        showTripPolyline(tracker.getShape(tripId));
+        showTripStops(tracker.getSchedule(tripId));
+    }
+
+    private void showTripPolyline(List<Location> tripShape) {
+        if (tripShape != null && mMap != null) {
+            removeRouteOverlay();
+            addArrowPolyline(tripShape, mSavedRouteOverlayColor);
+        }
+    }
+
+    private void showTripStops(ObaTripSchedule schedule) {
+        if (schedule == null || mSavedRouteStops == null || mSavedRouteRefs == null) return;
+        ObaTripSchedule.StopTime[] stopTimes = schedule.getStopTimes();
+        if (stopTimes == null || stopTimes.length == 0) return;
+
+        HashSet<String> tripStopIds = new HashSet<>();
+        for (ObaTripSchedule.StopTime st : stopTimes) {
+            tripStopIds.add(st.getStopId());
+        }
+        List<ObaStop> filteredStops = new ArrayList<>();
+        for (ObaStop stop : mSavedRouteStops) {
+            if (tripStopIds.contains(stop.getId())) {
+                filteredStops.add(stop);
+            }
+        }
+        if (setupStopOverlay()) {
+            mStopOverlay.clear(false);
+            mStopOverlay.populateStops(filteredStops, mSavedRouteRefs);
+        }
+    }
+
+    @Override
+    public void onVehicleDeselected() {
+        // Restore original route polyline
+        if (mSavedRouteShapes != null) {
+            removeRouteOverlay();
+            setRouteOverlay(mSavedRouteOverlayColor, mSavedRouteShapes);
+        }
+        // Restore original stops
+        if (mSavedRouteStops != null && mSavedRouteRefs != null && setupStopOverlay()) {
+            mStopOverlay.clear(false);
+            mStopOverlay.populateStops(mSavedRouteStops, mSavedRouteRefs);
+        }
     }
 
     //

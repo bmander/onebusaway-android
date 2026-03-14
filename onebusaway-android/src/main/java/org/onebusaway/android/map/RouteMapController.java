@@ -17,6 +17,7 @@
 package org.onebusaway.android.map;
 
 import org.onebusaway.android.R;
+import org.onebusaway.android.ui.RouteDebugActivity;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.ObaApi;
 import org.onebusaway.android.io.elements.ObaRoute;
@@ -26,6 +27,7 @@ import org.onebusaway.android.io.request.ObaStopsForRouteResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteRequest;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.googlemapsv2.BaseMapFragment;
+import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.UIUtils;
 
@@ -143,6 +145,9 @@ public class RouteMapController implements MapModeController {
         mVehiclesLoader.stopLoading();
         mVehiclesLoader.reset();
         mVehicleRefreshHandler.removeCallbacks(mVehicleRefresh);
+
+        // Clear vehicle speed history
+        VehicleTrajectoryTracker.getInstance().clearAll();
 
         // Clear the existing route and vehicle overlays
         mFragment.getMapView().removeRouteOverlay();
@@ -295,6 +300,15 @@ public class RouteMapController implements MapModeController {
             mRouteLongName = (TextView) mView.findViewById(R.id.long_name);
             mAgencyName = (TextView) mView.findViewById(R.id.agency);
             mProgressBar = (ProgressBar) mView.findViewById(R.id.route_info_loading_spinner);
+
+            // Make the header clickable to launch route debug
+            View.OnClickListener debugClick =
+                    v -> RouteDebugActivity.start(mActivity, mRouteId);
+            mView.setClickable(true);
+            mView.setOnClickListener(debugClick);
+            mRouteShortName.setOnClickListener(debugClick);
+            mRouteLongName.setOnClickListener(debugClick);
+            mAgencyName.setOnClickListener(debugClick);
 
             // Make sure the cancel button is shown
             View cancel = mView.findViewById(R.id.cancel_route_mode);

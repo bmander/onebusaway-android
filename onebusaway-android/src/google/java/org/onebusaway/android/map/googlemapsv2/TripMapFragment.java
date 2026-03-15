@@ -32,8 +32,10 @@ import androidx.core.content.ContextCompat;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.GoogleMapOptions;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
@@ -69,6 +71,27 @@ public class TripMapFragment extends SupportMapFragment
 
     public interface Callback {
         void onShowList();
+    }
+
+    /**
+     * Creates a TripMapFragment with the initial camera centered on the trip's
+     * cached shape bounds (if available), so the map appears in the right place
+     * without an animated transition from the default position.
+     */
+    public static TripMapFragment newInstance(String tripId) {
+        GoogleMapOptions options = new GoogleMapOptions();
+        List<Location> shape = VehicleTrajectoryTracker.getInstance().getShape(tripId);
+        LatLngBounds bounds = MapHelpV2.getBounds(shape);
+        if (bounds != null) {
+            options.camera(new CameraPosition(bounds.getCenter(), 12f, 0, 0));
+        }
+        Bundle args = new Bundle();
+        // "MapOptions" is the internal key SupportMapFragment uses to read
+        // GoogleMapOptions from arguments (see SupportMapFragment.newInstance()).
+        args.putParcelable("MapOptions", options);
+        TripMapFragment fragment = new TripMapFragment();
+        fragment.setArguments(args);
+        return fragment;
     }
 
     private GoogleMap mMap;
@@ -115,6 +138,7 @@ public class TripMapFragment extends SupportMapFragment
         mTripRenderer = new TripMapRenderer(mMap, requireContext(), mChevronHelper);
         mMap.setOnMarkerClickListener(this);
         mMap.getUiSettings().setZoomControlsEnabled(true);
+        MapHelpV2.applyMapStyle(mMap, requireContext());
 
         if (mPendingActivation) {
             mPendingActivation = false;
@@ -313,14 +337,11 @@ public class TripMapFragment extends SupportMapFragment
     }
 
     private void fitCameraToShape(List<Location> shape) {
-        if (shape == null || shape.isEmpty() || mMap == null) return;
-
-        LatLngBounds.Builder builder = new LatLngBounds.Builder();
-        for (Location loc : shape) {
-            builder.include(MapHelpV2.makeLatLng(loc));
-        }
+        if (mMap == null) return;
+        LatLngBounds bounds = MapHelpV2.getBounds(shape);
+        if (bounds == null) return;
         try {
-            mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 80));
+            mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80));
         } catch (Exception e) {
             Log.w(TAG, "Failed to fit camera to shape bounds", e);
         }

@@ -26,7 +26,6 @@ import com.google.android.gms.maps.UiSettings;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
-import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.VisibleRegion;
@@ -71,7 +70,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
@@ -95,7 +93,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.fragment.app.DialogFragment;
 
@@ -343,22 +340,9 @@ public class BaseMapFragment extends SupportMapFragment
         mMap.setOnMarkerClickListener(mapClickListeners);
         mMap.setOnMapClickListener(mapClickListeners);
 
-        if (inDarkMode()) {
-            mMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(getContext(), R.raw.dark_map));
-        } else {
-            // When in light mode, just remove POIs.
-            String removePOIStyle = "[{\"featureType\":\"poi\",\"elementType\":\"all\",\"stylers\":[{\"visibility\":\"off\"}]}]";
-            mMap.setMapStyle(new MapStyleOptions(removePOIStyle));
-        }
+        MapHelpV2.applyMapStyle(mMap, getContext());
 
         initMap(mLastSavedInstanceState);
-    }
-
-    private boolean inDarkMode() {
-        return AppCompatDelegate.getDefaultNightMode() == AppCompatDelegate.MODE_NIGHT_YES || (
-                AppCompatDelegate.getDefaultNightMode() != AppCompatDelegate.MODE_NIGHT_NO &&
-                        (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        );
     }
 
     private void initMap(Bundle savedInstanceState) {

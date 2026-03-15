@@ -199,7 +199,7 @@ public class TripDetailsActivity extends AppCompatActivity
     public void showMap() {
         if (mCachedResponse == null || mTripId == null) return;
 
-        TripMapFragment mapFragment = new TripMapFragment();
+        TripMapFragment mapFragment = TripMapFragment.newInstance(mTripId);
         getSupportFragmentManager().beginTransaction()
                 .replace(R.id.fragment_container, mapFragment, TripMapFragment.TAG)
                 .commit();

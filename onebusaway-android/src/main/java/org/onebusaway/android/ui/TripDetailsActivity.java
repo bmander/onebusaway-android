@@ -34,11 +34,9 @@ public class TripDetailsActivity extends AppCompatActivity
         implements TripDetailsListFragment.TripDataCallback, TripMapFragment.Callback {
 
     private static final String TAG = "TripDetailsActivity";
-    private static final String KEY_SHOWING_MAP = "showing_map";
 
     private ObaTripDetailsResponse mCachedResponse;
     private String mTripId;
-    private boolean mShowingMap;
 
     public static class Builder {
 
@@ -108,18 +106,15 @@ public class TripDetailsActivity extends AppCompatActivity
         mTripId = getIntent().getStringExtra(TripDetailsListFragment.TRIP_ID);
 
         FragmentManager fm = getSupportFragmentManager();
-        if (savedInstanceState != null) {
-            mShowingMap = savedInstanceState.getBoolean(KEY_SHOWING_MAP, false);
-            // mCachedResponse is not Parcelable, so after config change the map
-            // cannot be re-activated.  Force back to the list so the loader
-            // repopulates the response via onTripDataLoaded().
-            if (mShowingMap) {
-                mShowingMap = false;
-                fm.beginTransaction()
-                        .replace(R.id.fragment_container,
-                                newListFragment(), TripDetailsListFragment.TAG)
-                        .commitNow();
-            }
+        // After config change, mCachedResponse is lost (not Parcelable).
+        // If the map fragment was showing, replace it with the list so the
+        // loader repopulates the response via onTripDataLoaded().
+        if (savedInstanceState != null
+                && fm.findFragmentByTag(TripMapFragment.TAG) != null) {
+            fm.beginTransaction()
+                    .replace(R.id.fragment_container,
+                            newListFragment(), TripDetailsListFragment.TAG)
+                    .commitNow();
         }
 
         if (fm.findFragmentById(R.id.fragment_container) == null) {
@@ -128,12 +123,6 @@ public class TripDetailsActivity extends AppCompatActivity
                             newListFragment(), TripDetailsListFragment.TAG)
                     .commit();
         }
-    }
-
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putBoolean(KEY_SHOWING_MAP, mShowingMap);
     }
 
     @Override
@@ -195,7 +184,6 @@ public class TripDetailsActivity extends AppCompatActivity
         // and the fragment has its map ready. We post it to handle the timing.
         getSupportFragmentManager().executePendingTransactions();
         mapFragment.activateTrip(mTripId, mCachedResponse);
-        mShowingMap = true;
     }
 
     public void showList() {
@@ -203,7 +191,6 @@ public class TripDetailsActivity extends AppCompatActivity
                 .replace(R.id.fragment_container,
                         newListFragment(), TripDetailsListFragment.TAG)
                 .commit();
-        mShowingMap = false;
     }
 
     private TripDetailsListFragment newListFragment() {

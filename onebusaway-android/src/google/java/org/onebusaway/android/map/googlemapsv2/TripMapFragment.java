@@ -83,7 +83,7 @@ public class TripMapFragment extends SupportMapFragment
         List<Location> shape = VehicleTrajectoryTracker.getInstance().getShape(tripId);
         LatLngBounds bounds = MapHelpV2.getBounds(shape);
         if (bounds != null) {
-            options.camera(new CameraPosition(bounds.getCenter(), 12f, 0, 0));
+            options.camera(new CameraPosition(bounds.getCenter(), DEFAULT_INITIAL_ZOOM, 0, 0));
         }
         Bundle args = new Bundle();
         // "MapOptions" is the internal key SupportMapFragment uses to read
@@ -93,6 +93,8 @@ public class TripMapFragment extends SupportMapFragment
         fragment.setArguments(args);
         return fragment;
     }
+
+    private static final float DEFAULT_INITIAL_ZOOM = 12f;
 
     private GoogleMap mMap;
     private TripMapRenderer mTripRenderer;

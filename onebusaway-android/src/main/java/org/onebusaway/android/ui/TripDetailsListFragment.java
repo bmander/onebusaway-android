@@ -110,6 +110,11 @@ public class TripDetailsListFragment extends ListFragment {
 
     public static final String TAG = "TripDetailsListFragment";
 
+    public interface TripDataCallback {
+        void onTripDataLoaded(ObaTripDetailsResponse response);
+        void onShowMap();
+    }
+
     public static final String TRIP_ID = ".TripId";
 
     public static final String STOP_ID = ".StopId";
@@ -165,6 +170,22 @@ public class TripDetailsListFragment extends ListFragment {
 
     private final Handler mPositionTickHandler = new Handler();
     private final Runnable mPositionTick = this::updateVehiclePosition;
+
+    private TripDataCallback mTripDataCallback;
+
+    @Override
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        if (context instanceof TripDataCallback) {
+            mTripDataCallback = (TripDataCallback) context;
+        }
+    }
+
+    @Override
+    public void onDetach() {
+        super.onDetach();
+        mTripDataCallback = null;
+    }
 
     /**
      * Builds an intent used to set the trip and stop for the TripDetailsListFragment directly
@@ -306,7 +327,9 @@ public class TripDetailsListFragment extends ListFragment {
             refresh();
             return true;
         } else if (id == R.id.show_on_map) {
-            HomeActivity.start(getActivity(), mRouteId);
+            if (mTripDataCallback != null) {
+                mTripDataCallback.onShowMap();
+            }
             return true;
         }
         return false;
@@ -891,6 +914,11 @@ public class TripDetailsListFragment extends ListFragment {
         public void onLoadFinished(Loader<ObaTripDetailsResponse> loader,
                                    ObaTripDetailsResponse data) {
             setTripDetails(data);
+
+            // Notify the activity that trip data is available
+            if (mTripDataCallback != null) {
+                mTripDataCallback.onTripDataLoaded(data);
+            }
 
             // The list should now be shown.
             if (isResumed()) {

@@ -78,7 +78,8 @@ public class VehicleOverlay implements MarkerListeners  {
 
     interface Controller {
         String getFocusedStopId();
-        void onVehicleSelected(String tripId, LatLng vehiclePosition, Integer routeType);
+        void onVehicleSelected(String tripId, LatLng vehiclePosition, Integer routeType,
+                               long scheduleDeviation);
         void onVehicleDeselected();
     }
 
@@ -492,6 +493,20 @@ public class VehicleOverlay implements MarkerListeners  {
     }
 
 
+    /**
+     * Programmatically selects a vehicle by trip ID, as if the user tapped it.
+     */
+    public void selectTrip(String tripId) {
+        if (mMarkerData == null || tripId == null) return;
+        Marker marker = mMarkerData.mVehicleMarkers.get(tripId);
+        if (marker == null) return;
+        ObaTripStatus status = mMarkerData.mVehicles.get(marker);
+        if (status != null) {
+            mMarkerData.setSelectedTripId(tripId);
+            showVehicleInfoCard(status);
+        }
+    }
+
     @Override
     public boolean markerClicked(Marker marker) {
         if(mMarkerData == null) return false;
@@ -701,7 +716,9 @@ public class VehicleOverlay implements MarkerListeners  {
                                 LatLng vPos = vm != null ? vm.getPosition() : null;
                                 Integer rType = VehicleTrajectoryTracker.getInstance()
                                         .getRouteType(tripId);
-                                mController.onVehicleSelected(tripId, vPos, rType);
+                                ObaTripStatus st = vm != null ? mVehicles.get(vm) : null;
+                                long dev = st != null ? st.getScheduleDeviation() : 0;
+                                mController.onVehicleSelected(tripId, vPos, rType, dev);
                             }
                         });
                     }
@@ -860,7 +877,9 @@ public class VehicleOverlay implements MarkerListeners  {
                 Marker vehicleMarker = mVehicleMarkers.get(tripId);
                 LatLng vehiclePos = vehicleMarker != null ? vehicleMarker.getPosition() : null;
                 Integer routeType = VehicleTrajectoryTracker.getInstance().getRouteType(tripId);
-                mController.onVehicleSelected(tripId, vehiclePos, routeType);
+                ObaTripStatus status = vehicleMarker != null ? mVehicles.get(vehicleMarker) : null;
+                long deviation = status != null ? status.getScheduleDeviation() : 0;
+                mController.onVehicleSelected(tripId, vehiclePos, routeType, deviation);
             }
         }
 

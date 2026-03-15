@@ -1295,6 +1295,13 @@ public class BaseMapFragment extends SupportMapFragment
     }
 
     @Override
+    public void selectVehicle(String tripId) {
+        if (mVehicleOverlay != null && tripId != null) {
+            mVehicleOverlay.selectTrip(tripId);
+        }
+    }
+
+    @Override
     public void postInvalidate() {
         // Do nothing - calling `this.postInvalidate()` causes a StackOverflowError
     }
@@ -1308,7 +1315,8 @@ public class BaseMapFragment extends SupportMapFragment
     }
 
     @Override
-    public void onVehicleSelected(String tripId, LatLng vehiclePosition, Integer routeType) {
+    public void onVehicleSelected(String tripId, LatLng vehiclePosition, Integer routeType,
+                                  long scheduleDeviation) {
         removeRouteOverlay();
         if (setupStopOverlay()) {
             mStopOverlay.clear(false);
@@ -1317,8 +1325,19 @@ public class BaseMapFragment extends SupportMapFragment
         List<Location> shape = tracker.getShape(tripId);
         double[] cumDist = tracker.getShapeCumulativeDistances(tripId);
         ObaTripSchedule schedule = tracker.getSchedule(tripId);
+        HashMap<String, String> stopNames = buildStopNameMap();
         mTripRenderer.activate(tripId, shape, cumDist, schedule, mSavedRouteOverlayColor,
-                vehiclePosition, routeType);
+                vehiclePosition, routeType, stopNames, scheduleDeviation);
+    }
+
+    private HashMap<String, String> buildStopNameMap() {
+        HashMap<String, String> map = new HashMap<>();
+        if (mSavedRouteStops != null) {
+            for (ObaStop stop : mSavedRouteStops) {
+                map.put(stop.getId(), stop.getName());
+            }
+        }
+        return map;
     }
 
     @Override
@@ -1530,6 +1549,9 @@ public class BaseMapFragment extends SupportMapFragment
                 if (mBikeStationOverlay.markerClicked(marker)) {
                     return true;
                 }
+            }
+            if (mTripRenderer != null && mTripRenderer.handleStopMarkerClick(marker)) {
+                return true;
             }
             if (mVehicleOverlay != null) {
                 return mVehicleOverlay.markerClicked(marker);

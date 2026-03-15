@@ -82,6 +82,9 @@ public class RouteMapController implements MapModeController {
 
     private VehicleLoaderListener mVehicleLoaderListener;
 
+    /** Trip ID to auto-select on first vehicle load, or null. */
+    private String mPendingTripSelection;
+
     private long mLastUpdatedTimeVehicles;
 
     public RouteMapController(Callback callback) {
@@ -112,6 +115,7 @@ public class RouteMapController implements MapModeController {
         mZoomToRoute = args.getBoolean(MapParams.ZOOM_TO_ROUTE, false);
         mZoomIncludeClosestVehicle = args
                 .getBoolean(MapParams.ZOOM_INCLUDE_CLOSEST_VEHICLE, false);
+        mPendingTripSelection = args.getString(MapParams.TRIP_ID);
         if (!routeId.equals(mRouteId)) {
             if (mRouteId != null) {
                 clearCurrentState();
@@ -547,6 +551,11 @@ public class RouteMapController implements MapModeController {
             routes.add(mRouteId);
 
             obaMapView.updateVehicles(routes, response);
+
+            if (mPendingTripSelection != null) {
+                obaMapView.selectVehicle(mPendingTripSelection);
+                mPendingTripSelection = null;
+            }
 
             if (mZoomIncludeClosestVehicle) {
                 obaMapView.zoomIncludeClosestVehicle(routes, response);

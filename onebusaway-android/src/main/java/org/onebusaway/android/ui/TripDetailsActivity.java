@@ -21,16 +21,24 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.MenuItem;
 
+import org.onebusaway.android.R;
+import org.onebusaway.android.io.request.ObaTripDetailsResponse;
+import org.onebusaway.android.map.googlemapsv2.TripMapFragment;
 import org.onebusaway.android.util.FragmentUtils;
 import org.onebusaway.android.util.UIUtils;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
-public class TripDetailsActivity extends AppCompatActivity {
+public class TripDetailsActivity extends AppCompatActivity
+        implements TripDetailsListFragment.TripDataCallback, TripMapFragment.Callback {
 
     private static final String TAG = "TripDetailsActivity";
+    private static final String KEY_SHOWING_MAP = "showing_map";
+
+    private ObaTripDetailsResponse mCachedResponse;
+    private String mTripId;
+    private boolean mShowingMap;
 
     public static class Builder {
 
@@ -94,21 +102,47 @@ public class TripDetailsActivity extends AppCompatActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_trip_details);
         UIUtils.setupActionBar(this);
 
+        mTripId = getIntent().getStringExtra(TripDetailsListFragment.TRIP_ID);
+
         FragmentManager fm = getSupportFragmentManager();
-
-        if (findFragmentByTag() == null) {
-            TripDetailsListFragment list = new TripDetailsListFragment();
-            list.setArguments(FragmentUtils.getIntentArgs(getIntent()));
-
-            fm.beginTransaction().add(android.R.id.content, list, TripDetailsListFragment.TAG).commit();
+        if (savedInstanceState != null) {
+            mShowingMap = savedInstanceState.getBoolean(KEY_SHOWING_MAP, false);
+            // mCachedResponse is not Parcelable, so after config change the map
+            // cannot be re-activated.  Force back to the list so the loader
+            // repopulates the response via onTripDataLoaded().
+            if (mShowingMap) {
+                mShowingMap = false;
+                fm.beginTransaction()
+                        .replace(R.id.fragment_container,
+                                newListFragment(), TripDetailsListFragment.TAG)
+                        .commitNow();
+            }
         }
+
+        if (fm.findFragmentById(R.id.fragment_container) == null) {
+            fm.beginTransaction()
+                    .add(R.id.fragment_container,
+                            newListFragment(), TripDetailsListFragment.TAG)
+                    .commit();
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putBoolean(KEY_SHOWING_MAP, mShowingMap);
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
+            if (mShowingMap) {
+                showList();
+                return true;
+            }
             finish();
             return true;
         }
@@ -116,16 +150,24 @@ public class TripDetailsActivity extends AppCompatActivity {
     }
 
     @Override
+    public void onBackPressed() {
+        if (mShowingMap) {
+            showList();
+            return;
+        }
+        super.onBackPressed();
+    }
+
+    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if(requestCode == TripDetailsListFragment.REQUEST_ENABLE_LOCATION) {
-            TripDetailsListFragment tripDetListFrag = (TripDetailsListFragment) findFragmentByTag();
+            TripDetailsListFragment tripDetListFrag = (TripDetailsListFragment)
+                    getSupportFragmentManager().findFragmentByTag(TripDetailsListFragment.TAG);
             if(tripDetListFrag == null) {
-                tripDetListFrag = new TripDetailsListFragment();
-
-                // setting arguments if we could
-                tripDetListFrag.setArguments(FragmentUtils.getIntentArgs(getIntent()));
-                getSupportFragmentManager().beginTransaction().
-                        add(android.R.id.content, tripDetListFrag, TripDetailsListFragment.TAG).commit();
+                tripDetListFrag = newListFragment();
+                getSupportFragmentManager().beginTransaction()
+                        .add(R.id.fragment_container, tripDetListFrag, TripDetailsListFragment.TAG)
+                        .commit();
             }
             tripDetListFrag.onActivityResult(requestCode, resultCode, data);
         } else {
@@ -133,10 +175,53 @@ public class TripDetailsActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * @return Fragment {@link TripDetailsListFragment object}
-     */
-    private Fragment findFragmentByTag() {
-        return getSupportFragmentManager().findFragmentByTag(TripDetailsListFragment.TAG);
+    // --- TripDetailsListFragment.TripDataCallback ---
+
+    @Override
+    public void onTripDataLoaded(ObaTripDetailsResponse response) {
+        mCachedResponse = response;
+    }
+
+    @Override
+    public void onShowMap() {
+        showMap();
+    }
+
+    // --- TripMapFragment.Callback ---
+
+    @Override
+    public void onShowList() {
+        showList();
+    }
+
+    // --- Fragment swapping ---
+
+    public void showMap() {
+        if (mCachedResponse == null || mTripId == null) return;
+
+        TripMapFragment mapFragment = new TripMapFragment();
+        getSupportFragmentManager().beginTransaction()
+                .replace(R.id.fragment_container, mapFragment, TripMapFragment.TAG)
+                .commit();
+
+        // activateTrip must be called after the fragment transaction is committed
+        // and the fragment has its map ready. We post it to handle the timing.
+        getSupportFragmentManager().executePendingTransactions();
+        mapFragment.activateTrip(mTripId, mCachedResponse);
+        mShowingMap = true;
+    }
+
+    public void showList() {
+        getSupportFragmentManager().beginTransaction()
+                .replace(R.id.fragment_container,
+                        newListFragment(), TripDetailsListFragment.TAG)
+                .commit();
+        mShowingMap = false;
+    }
+
+    private TripDetailsListFragment newListFragment() {
+        TripDetailsListFragment list = new TripDetailsListFragment();
+        list.setArguments(FragmentUtils.getIntentArgs(getIntent()));
+        return list;
     }
 }

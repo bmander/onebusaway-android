@@ -327,6 +327,10 @@ public class HomeActivity extends AppCompatActivity
         context.startActivity(makeIntent(context, routeId));
     }
 
+    public static void start(Context context, String routeId, String tripId) {
+        context.startActivity(makeIntent(context, routeId, tripId));
+    }
+
     /**
      * Returns an intent that will start the MapActivity with a particular stop
      * focused with the center of the map at a particular point.
@@ -378,6 +382,12 @@ public class HomeActivity extends AppCompatActivity
         myIntent.putExtra(MapParams.ZOOM_TO_ROUTE, true);
         myIntent.putExtra(MapParams.ROUTE_ID, routeId);
         return myIntent;
+    }
+
+    public static Intent makeIntent(Context context, String routeId, String tripId) {
+        Intent intent = makeIntent(context, routeId);
+        intent.putExtra(MapParams.TRIP_ID, tripId);
+        return intent;
     }
 
     SlidingPanelController mSlidingPanelController;

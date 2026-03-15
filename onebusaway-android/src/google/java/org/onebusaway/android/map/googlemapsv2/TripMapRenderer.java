@@ -39,9 +39,12 @@ import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.GammaSpeedModel;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
+import org.onebusaway.android.util.UIUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -71,6 +74,18 @@ final class TripMapRenderer {
 
     private final ArrayList<Polyline> mTripPolylines = new ArrayList<>();
     private final ArrayList<Marker> mTripStopMarkers = new ArrayList<>();
+    private final HashMap<Marker, StopInfo> mStopInfoMap = new HashMap<>();
+
+    /** Data associated with each stop marker for click handling. */
+    private static final class StopInfo {
+        final String name;
+        final long arrivalTimeSec;
+
+        StopInfo(String name, long arrivalTimeSec) {
+            this.name = name;
+            this.arrivalTimeSec = arrivalTimeSec;
+        }
+    }
 
     private EstimateOverlayManager mEstimateOverlay;
 
@@ -83,6 +98,7 @@ final class TripMapRenderer {
     private boolean mActive;
     private String mActiveTripId;
     private int mRouteColor;
+    private long mScheduleDeviation;
 
     TripMapRenderer(GoogleMap map, Context context, ChevronPolylineHelper chevronHelper) {
         mMap = map;
@@ -94,18 +110,20 @@ final class TripMapRenderer {
 
     void activate(String tripId, List<Location> shape, double[] cumDist,
                   ObaTripSchedule schedule, int routeColor, LatLng vehiclePosition,
-                  Integer routeType) {
+                  Integer routeType, Map<String, String> stopNames,
+                  long scheduleDeviation) {
         if (mActive) {
             deactivate();
         }
         mActive = true;
         mActiveTripId = tripId;
         mRouteColor = routeColor;
+        mScheduleDeviation = scheduleDeviation;
 
         if (shape != null && mMap != null) {
             showTripPolyline(shape, routeColor);
         }
-        showTripStopCircles(schedule, shape, cumDist, routeColor);
+        showTripStopCircles(schedule, shape, cumDist, stopNames);
         List<VehicleHistoryEntry> history = VehicleTrajectoryTracker.getInstance()
                 .getHistoryReadOnly(tripId);
         showOrUpdateDataReceivedMarker(tripId, shape, cumDist, history);
@@ -148,7 +166,8 @@ final class TripMapRenderer {
     // --- Trip stop circles ---
 
     private void showTripStopCircles(ObaTripSchedule schedule,
-                                     List<Location> shape, double[] cumDist, int color) {
+                                     List<Location> shape, double[] cumDist,
+                                     Map<String, String> stopNames) {
         if (mMap == null || schedule == null || shape == null || cumDist == null) return;
         ObaTripSchedule.StopTime[] stopTimes = schedule.getStopTimes();
         if (stopTimes == null) return;
@@ -165,6 +184,9 @@ final class TripMapRenderer {
                     .flat(true)
                     .zIndex(1f));
             mTripStopMarkers.add(m);
+            String name = stopNames != null ? stopNames.get(st.getStopId()) : null;
+            if (name == null) name = st.getStopId();
+            mStopInfoMap.put(m, new StopInfo(name, st.getArrivalTime()));
         }
     }
 
@@ -189,6 +211,45 @@ final class TripMapRenderer {
             m.remove();
         }
         mTripStopMarkers.clear();
+        mStopInfoMap.clear();
+    }
+
+    /**
+     * Handles a click on a trip stop marker. Computes the ETA based on the
+     * vehicle's current position and speed, sets the info window content,
+     * and shows it. Returns true if the marker was a stop marker.
+     */
+    boolean handleStopMarkerClick(Marker marker) {
+        StopInfo info = mStopInfoMap.get(marker);
+        if (info == null) return false;
+
+        marker.setTitle(info.name);
+        marker.setSnippet(computeEtaSnippet(info.arrivalTimeSec));
+        marker.showInfoWindow();
+        return true;
+    }
+
+    private String computeEtaSnippet(long arrivalTimeSec) {
+        if (mActiveTripId == null) return null;
+
+        Long serviceDate = VehicleTrajectoryTracker.getInstance()
+                .getServiceDate(mActiveTripId);
+        if (serviceDate == null) return null;
+
+        long predictedMs = serviceDate + arrivalTimeSec * 1000 + mScheduleDeviation * 1000;
+        long now = System.currentTimeMillis();
+        long diffMs = predictedMs - now;
+        long diffMin = TimeUnit.MILLISECONDS.toMinutes(diffMs);
+
+        String clockTime = UIUtils.formatTime(mContext, predictedMs);
+
+        if (diffMs <= 0) {
+            return clockTime + " (departed)";
+        }
+        if (diffMin < 1) {
+            return clockTime + " (< 1 min)";
+        }
+        return clockTime + " (" + diffMin + " min)";
     }
 
     // --- Estimate overlays ---

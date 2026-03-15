@@ -406,21 +406,23 @@ public class TripDetailsListFragment extends ListFragment {
         ObaTripStatus status = mTripInfo.getStatus();
         ObaReferences refs = mTripInfo.getRefs();
 
-        Context context = getActivity();
+        Activity activity = getActivity();
+        if (activity == null) return;
 
         String tripId = mTripInfo.getId();
 
         ObaTrip trip = refs.getTrip(tripId);
         mRouteId = trip.getRouteId();
         ObaRoute route = refs.getRoute(mRouteId);
-        TextView routeShortName = (TextView) getView().findViewById(R.id.short_name);
+        // Header views live in the activity layout, not the fragment layout
+        TextView routeShortName = (TextView) activity.findViewById(R.id.short_name);
         routeShortName.setText(route.getShortName());
         routeShortName.setOnClickListener(v -> RouteDebugActivity.start(getActivity(), mRouteId));
 
-        TextView headsign = (TextView) getView().findViewById(R.id.long_name);
+        TextView headsign = (TextView) activity.findViewById(R.id.long_name);
         headsign.setText(trip.getHeadsign());
 
-        TextView tripShortName = (TextView) getView().findViewById(R.id.trip_short_name);
+        TextView tripShortName = (TextView) activity.findViewById(R.id.trip_short_name);
         if (!StringUtils.isBlank(trip.getShortName())) {
             tripShortName.setVisibility(View.VISIBLE);
             tripShortName.setText(trip.getShortName());
@@ -428,34 +430,34 @@ public class TripDetailsListFragment extends ListFragment {
             tripShortName.setVisibility(View.GONE);
         }
 
-        TextView agency = (TextView) getView().findViewById(R.id.agency);
+        TextView agency = (TextView) activity.findViewById(R.id.agency);
         agency.setText(refs.getAgency(route.getAgencyId()).getName());
 
-        TextView tripIdDebug = (TextView) getView().findViewById(R.id.trip_id_debug);
+        TextView tripIdDebug = (TextView) activity.findViewById(R.id.trip_id_debug);
         tripIdDebug.setText("Trip: " + tripId);
         tripIdDebug.setVisibility(View.VISIBLE);
 
-        TextView vehicleView = (TextView) getView().findViewById(R.id.vehicle);
-        TextView vehicleDeviation = (TextView) getView().findViewById(R.id.status);
-        ViewGroup realtime = (ViewGroup) getView().findViewById(
+        TextView vehicleView = (TextView) activity.findViewById(R.id.vehicle);
+        TextView vehicleDeviation = (TextView) activity.findViewById(R.id.status);
+        ViewGroup realtime = (ViewGroup) activity.findViewById(
                 R.id.eta_realtime_indicator);
         realtime.setVisibility(View.GONE);
-        ViewGroup statusLayout = (ViewGroup) getView().findViewById(
+        ViewGroup statusLayout = (ViewGroup) activity.findViewById(
                 R.id.status_layout);
-        ViewGroup occupancyView = getView().findViewById(R.id.occupancy);
+        ViewGroup occupancyView = activity.findViewById(R.id.occupancy);
 
         if (status == null) {
             // Show schedule info only
             vehicleView.setText(null);
             vehicleView.setVisibility(View.GONE);
-            vehicleDeviation.setText(context.getString(R.string.trip_details_scheduled_data));
+            vehicleDeviation.setText(activity.getString(R.string.trip_details_scheduled_data));
             return;
         }
 
         if (!TextUtils.isEmpty(status.getVehicleId())) {
             // Show vehicle info
             vehicleView
-                    .setText(context.getString(R.string.trip_details_vehicle,
+                    .setText(activity.getString(R.string.trip_details_vehicle,
                             status.getVehicleId()));
             vehicleView.setVisibility(View.VISIBLE);
             String vehicleId = status.getVehicleId();
@@ -468,7 +470,7 @@ public class TripDetailsListFragment extends ListFragment {
         // The API returns deviation/position relative to the active trip.
         // If viewing a different trip in the same block, show schedule only.
         if (!TextUtils.equals(status.getActiveTripId(), tripId)) {
-            vehicleDeviation.setText(context.getString(R.string.trip_details_scheduled_data));
+            vehicleDeviation.setText(activity.getString(R.string.trip_details_scheduled_data));
             UIUtils.setOccupancyVisibilityAndColor(occupancyView, null, OccupancyState.REALTIME);
             UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.REALTIME);
             return;
@@ -488,10 +490,10 @@ public class TripDetailsListFragment extends ListFragment {
 
             if (Status.CANCELED.equals(status.getStatus())) {
                 // Canceled trip
-                vehicleDeviation.setText(context.getString(R.string.stop_info_canceled));
+                vehicleDeviation.setText(activity.getString(R.string.stop_info_canceled));
             } else {
                 // Scheduled trip
-                vehicleDeviation.setText(context.getString(R.string.trip_details_scheduled_data));
+                vehicleDeviation.setText(activity.getString(R.string.trip_details_scheduled_data));
             }
             return;
         }
@@ -524,21 +526,21 @@ public class TripDetailsListFragment extends ListFragment {
         if (deviation >= 0) {
             if (deviation < 60) {
                 vehicleDeviation.setText(
-                        context.getString(R.string.trip_details_real_time_sec_late, seconds,
+                        activity.getString(R.string.trip_details_real_time_sec_late, seconds,
                                 lastUpdate));
             } else {
                 vehicleDeviation.setText(
-                        context.getString(R.string.trip_details_real_time_min_sec_late,
+                        activity.getString(R.string.trip_details_real_time_min_sec_late,
                                 minutes, seconds, lastUpdate));
             }
         } else {
             if (deviation > -60) {
                 vehicleDeviation.setText(
-                        context.getString(R.string.trip_details_real_time_sec_early, seconds,
+                        activity.getString(R.string.trip_details_real_time_sec_early, seconds,
                                 lastUpdate));
             } else {
                 vehicleDeviation.setText(
-                        context.getString(R.string.trip_details_real_time_min_sec_early, minutes,
+                        activity.getString(R.string.trip_details_real_time_min_sec_early, minutes,
                                 seconds, lastUpdate));
             }
         }
@@ -601,7 +603,9 @@ public class TripDetailsListFragment extends ListFragment {
     }
 
     private void setUpLocationDataButton(ObaTripStatus status) {
-        Button locationDataBtn = (Button) getView().findViewById(R.id.view_location_data);
+        Activity activity = getActivity();
+        if (activity == null) return;
+        Button locationDataBtn = (Button) activity.findViewById(R.id.view_location_data);
         String activeTripId = status.getActiveTripId();
         if (activeTripId == null) {
             locationDataBtn.setVisibility(View.GONE);

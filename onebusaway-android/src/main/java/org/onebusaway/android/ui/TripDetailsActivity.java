@@ -139,23 +139,10 @@ public class TripDetailsActivity extends AppCompatActivity
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
-            if (mShowingMap) {
-                showList();
-                return true;
-            }
             finish();
             return true;
         }
         return false;
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (mShowingMap) {
-            showList();
-            return;
-        }
-        super.onBackPressed();
     }
 
     @Override

@@ -60,11 +60,10 @@ final class TripMapRenderer {
     private static final float STOP_STROKE_WIDTH = 4f;
     private static final int STOP_STROKE_COLOR = 0xFF242424;
 
-    private static final float INFO_LABEL_Z_INDEX = 0.5f;
+    private static final float DATA_RECEIVED_Z_INDEX = 2f;
     private static final String DATA_RECEIVED_TITLE = "Most recent data";
     private static final int DATA_ICON_RADIUS_DP = 13;
     private static final int DATA_ICON_INNER_DP = 20;
-    private static final int DATA_ICON_GAP_DP = 3;
 
     // --- Fields ---
 
@@ -90,9 +89,8 @@ final class TripMapRenderer {
     private EstimateOverlayManager mEstimateOverlay;
 
     private Marker mDataReceivedIconMarker;
-    private Marker mDataReceivedLabelMarker;
     private String mLastDataReceivedLabel;
-    private float mDataReceivedLabelAnchorX;
+    private long mLastDataReceivedUpdateTime;
     private BitmapDescriptor mCachedCircleIcon;
 
     private boolean mActive;
@@ -321,6 +319,14 @@ final class TripMapRenderer {
         return mEstimateOverlay != null && mEstimateOverlay.handleClick(marker);
     }
 
+    boolean handleDataReceivedClick(Marker marker) {
+        if (marker.equals(mDataReceivedIconMarker)) {
+            marker.showInfoWindow();
+            return true;
+        }
+        return false;
+    }
+
     private void createEstimateOverlays(String tripId, LatLng vehiclePosition,
                                         Integer routeType) {
         if (tripId == null) return;
@@ -346,27 +352,26 @@ final class TripMapRenderer {
         if (tripId == null || history == null || history.isEmpty()) return;
 
         VehicleHistoryEntry latest = history.get(history.size() - 1);
+        long updateTime = latest.getLastLocationUpdateTime();
+
+        // Skip per-frame work if the history entry hasn't changed
+        if (mDataReceivedIconMarker != null && updateTime == mLastDataReceivedUpdateTime) {
+            return;
+        }
+
         Location pos = latest.getPosition();
         if (pos == null) return;
 
         LatLng latLng = MapHelpV2.makeLatLng(pos);
-        String label = formatElapsedTime(latest.getLastLocationUpdateTime());
+        String label = formatElapsedTime(updateTime);
+        mLastDataReceivedUpdateTime = updateTime;
 
-        // Compute label rotation from polyline heading
-        float labelRotation = 0f;
-        Double lastDist = latest.getBestDistanceAlongTrip();
-        if (lastDist != null && shape != null && cumDist != null) {
-            double heading = DistanceExtrapolator.headingAlongPolyline(
-                    shape, cumDist, lastDist);
-            if (!Double.isNaN(heading)) {
-                double labelAz = EstimateLabelManager.clampedLabelAzimuth(heading);
-                labelRotation = (float) (labelAz - 90.0);
-            }
-        }
-
-        // Icon marker: unrotated circle with signal icon
         if (mDataReceivedIconMarker != null) {
             mDataReceivedIconMarker.setPosition(latLng);
+            if (!label.equals(mLastDataReceivedLabel)
+                    && !mDataReceivedIconMarker.isInfoWindowShown()) {
+                mDataReceivedIconMarker.setSnippet(label);
+            }
         } else {
             if (mCachedCircleIcon == null) {
                 mCachedCircleIcon = createDataReceivedCircleIcon();
@@ -376,30 +381,13 @@ final class TripMapRenderer {
                     .icon(mCachedCircleIcon)
                     .anchor(0.5f, 0.5f)
                     .flat(true)
-                    .zIndex(INFO_LABEL_Z_INDEX + 0.1f)
+                    .title(DATA_RECEIVED_TITLE)
+                    .snippet(label)
+                    .zIndex(DATA_RECEIVED_Z_INDEX + 0.1f)
             );
         }
 
-        // Label marker: rotated bubble
-        if (mDataReceivedLabelMarker != null) {
-            mDataReceivedLabelMarker.setPosition(latLng);
-            mDataReceivedLabelMarker.setRotation(labelRotation);
-            if (!label.equals(mLastDataReceivedLabel)) {
-                mLastDataReceivedLabel = label;
-                mDataReceivedLabelMarker.setIcon(createDataReceivedLabelIcon(label));
-            }
-        } else {
-            mLastDataReceivedLabel = label;
-            BitmapDescriptor labelIcon = createDataReceivedLabelIcon(label);
-            mDataReceivedLabelMarker = mMap.addMarker(new MarkerOptions()
-                    .position(latLng)
-                    .icon(labelIcon)
-                    .anchor(mDataReceivedLabelAnchorX, 0.5f)
-                    .flat(true)
-                    .rotation(labelRotation)
-                    .zIndex(INFO_LABEL_Z_INDEX)
-            );
-        }
+        mLastDataReceivedLabel = label;
     }
 
     void removeDataReceivedMarker() {
@@ -407,11 +395,8 @@ final class TripMapRenderer {
             mDataReceivedIconMarker.remove();
             mDataReceivedIconMarker = null;
         }
-        if (mDataReceivedLabelMarker != null) {
-            mDataReceivedLabelMarker.remove();
-            mDataReceivedLabelMarker = null;
-        }
         mLastDataReceivedLabel = null;
+        mLastDataReceivedUpdateTime = 0;
     }
 
     private String formatElapsedTime(long lastUpdateTime) {
@@ -453,14 +438,4 @@ final class TripMapRenderer {
         return BitmapDescriptorFactory.fromBitmap(bmp);
     }
 
-    private BitmapDescriptor createDataReceivedLabelIcon(String timeLine) {
-        String[] lines = {DATA_RECEIVED_TITLE, timeLine};
-        float[] widthOut = new float[1];
-        BitmapDescriptor icon = EstimateLabelManager.createInfoLabelIcon(
-                mContext, lines, widthOut);
-        float d = mContext.getResources().getDisplayMetrics().density;
-        float offsetPx = (DATA_ICON_RADIUS_DP + DATA_ICON_GAP_DP) * d;
-        mDataReceivedLabelAnchorX = -offsetPx / widthOut[0];
-        return icon;
-    }
 }

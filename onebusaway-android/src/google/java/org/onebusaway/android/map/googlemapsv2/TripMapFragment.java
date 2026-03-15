@@ -422,6 +422,7 @@ public class TripMapFragment extends SupportMapFragment
     @Override
     public boolean onMarkerClick(@NonNull Marker marker) {
         if (mTripRenderer != null) {
+            if (mTripRenderer.handleDataReceivedClick(marker)) return true;
             if (mTripRenderer.handleEstimateLabelClick(marker)) return true;
             if (mTripRenderer.handleStopMarkerClick(marker)) return true;
         }

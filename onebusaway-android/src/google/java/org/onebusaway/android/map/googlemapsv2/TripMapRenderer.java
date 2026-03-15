@@ -353,25 +353,29 @@ final class TripMapRenderer {
 
         VehicleHistoryEntry latest = history.get(history.size() - 1);
         long updateTime = latest.getLastLocationUpdateTime();
+        boolean newData = updateTime != mLastDataReceivedUpdateTime;
 
-        // Skip per-frame work if the history entry hasn't changed
-        if (mDataReceivedIconMarker != null && updateTime == mLastDataReceivedUpdateTime) {
+        // Always refresh the elapsed-time snippet so it stays current
+        String label = formatElapsedTime(updateTime);
+        if (mDataReceivedIconMarker != null && !label.equals(mLastDataReceivedLabel)
+                && !mDataReceivedIconMarker.isInfoWindowShown()) {
+            mDataReceivedIconMarker.setSnippet(label);
+        }
+        mLastDataReceivedLabel = label;
+
+        // Skip position/marker creation if the history entry hasn't changed
+        if (!newData && mDataReceivedIconMarker != null) {
             return;
         }
+        mLastDataReceivedUpdateTime = updateTime;
 
         Location pos = latest.getPosition();
         if (pos == null) return;
 
         LatLng latLng = MapHelpV2.makeLatLng(pos);
-        String label = formatElapsedTime(updateTime);
-        mLastDataReceivedUpdateTime = updateTime;
 
         if (mDataReceivedIconMarker != null) {
             mDataReceivedIconMarker.setPosition(latLng);
-            if (!label.equals(mLastDataReceivedLabel)
-                    && !mDataReceivedIconMarker.isInfoWindowShown()) {
-                mDataReceivedIconMarker.setSnippet(label);
-            }
         } else {
             if (mCachedCircleIcon == null) {
                 mCachedCircleIcon = createDataReceivedCircleIcon();
@@ -386,8 +390,6 @@ final class TripMapRenderer {
                     .zIndex(DATA_RECEIVED_Z_INDEX + 0.1f)
             );
         }
-
-        mLastDataReceivedLabel = label;
     }
 
     void removeDataReceivedMarker() {

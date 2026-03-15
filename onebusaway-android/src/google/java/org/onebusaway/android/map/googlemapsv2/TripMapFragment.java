@@ -107,6 +107,7 @@ public class TripMapFragment extends SupportMapFragment
     private final Choreographer.FrameCallback mFrameCallback = this::onExtrapolationFrame;
 
     private String mTripId;
+    private String mSelectedStopId;
     private ObaTripDetailsResponse mPendingResponse;
     private int mDeviationColor;
     private boolean mPendingActivation;
@@ -201,8 +202,9 @@ public class TripMapFragment extends SupportMapFragment
 
     // --- Public API ---
 
-    public void activateTrip(String tripId, ObaTripDetailsResponse response) {
+    public void activateTrip(String tripId, String stopId, ObaTripDetailsResponse response) {
         mTripId = tripId;
+        mSelectedStopId = stopId;
         mPendingResponse = response;
         if (mMap != null && mTripRenderer != null) {
             doActivateTrip();
@@ -332,7 +334,8 @@ public class TripMapFragment extends SupportMapFragment
         if (mTripRenderer == null || mMap == null) return;
 
         mTripRenderer.activate(mTripId, shape, cumDist, schedule, routeColor,
-                vehiclePosition, routeType, stopNames, scheduleDeviation);
+                vehiclePosition, routeType, stopNames, scheduleDeviation,
+                mSelectedStopId);
 
         fitCameraToShape(shape);
         startExtrapolationTicking();

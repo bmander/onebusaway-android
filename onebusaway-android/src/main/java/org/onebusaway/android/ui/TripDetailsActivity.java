@@ -37,6 +37,7 @@ public class TripDetailsActivity extends AppCompatActivity
 
     private ObaTripDetailsResponse mCachedResponse;
     private String mTripId;
+    private String mStopId;
 
     public static class Builder {
 
@@ -104,6 +105,7 @@ public class TripDetailsActivity extends AppCompatActivity
         UIUtils.setupActionBar(this);
 
         mTripId = getIntent().getStringExtra(TripDetailsListFragment.TRIP_ID);
+        mStopId = getIntent().getStringExtra(TripDetailsListFragment.STOP_ID);
 
         FragmentManager fm = getSupportFragmentManager();
         // After config change, mCachedResponse is lost (not Parcelable).
@@ -183,7 +185,7 @@ public class TripDetailsActivity extends AppCompatActivity
         // activateTrip must be called after the fragment transaction is committed
         // and the fragment has its map ready. We post it to handle the timing.
         getSupportFragmentManager().executePendingTransactions();
-        mapFragment.activateTrip(mTripId, mCachedResponse);
+        mapFragment.activateTrip(mTripId, mStopId, mCachedResponse);
     }
 
     public void showList() {

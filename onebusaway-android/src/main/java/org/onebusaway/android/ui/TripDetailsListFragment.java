@@ -417,7 +417,7 @@ public class TripDetailsListFragment extends ListFragment {
         // Header views live in the activity layout, not the fragment layout
         TextView routeShortName = (TextView) activity.findViewById(R.id.short_name);
         routeShortName.setText(route.getShortName());
-        routeShortName.setOnClickListener(v -> RouteDebugActivity.start(getActivity(), mRouteId));
+        routeShortName.setOnClickListener(v -> RouteDebugActivity.start(v.getContext(), mRouteId));
 
         TextView headsign = (TextView) activity.findViewById(R.id.long_name);
         headsign.setText(trip.getHeadsign());
@@ -462,7 +462,7 @@ public class TripDetailsListFragment extends ListFragment {
             vehicleView.setVisibility(View.VISIBLE);
             String vehicleId = status.getVehicleId();
             vehicleView.setOnClickListener(
-                    v -> VehicleDebugActivity.start(getActivity(), tripId, vehicleId));
+                    v -> VehicleDebugActivity.start(v.getContext(), tripId, vehicleId));
         } else {
             vehicleView.setVisibility(View.GONE);
         }
@@ -636,7 +636,7 @@ public class TripDetailsListFragment extends ListFragment {
         locationDataBtn.setVisibility(View.VISIBLE);
         final String vehicleId = status.getVehicleId();
         locationDataBtn.setOnClickListener(v ->
-                VehicleLocationDataActivity.start(getActivity(), activeTripId, vehicleId, mStopId));
+                VehicleLocationDataActivity.start(v.getContext(), activeTripId, vehicleId, mStopId));
     }
 
     private Integer findIndexForStop(ObaTripSchedule.StopTime[] stopTimes, String stopId) {

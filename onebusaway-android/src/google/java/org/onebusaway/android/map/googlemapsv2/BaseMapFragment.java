@@ -1311,7 +1311,7 @@ public class BaseMapFragment extends SupportMapFragment
         ObaTripSchedule schedule = tracker.getSchedule(tripId);
         HashMap<String, String> stopNames = buildStopNameMap();
         mTripRenderer.activate(tripId, shape, cumDist, schedule, mSavedRouteOverlayColor,
-                vehiclePosition, routeType, stopNames, scheduleDeviation);
+                vehiclePosition, routeType, stopNames, scheduleDeviation, null);
     }
 
     private HashMap<String, String> buildStopNameMap() {

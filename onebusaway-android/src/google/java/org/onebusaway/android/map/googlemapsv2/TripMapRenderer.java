@@ -111,7 +111,7 @@ final class TripMapRenderer {
     void activate(String tripId, List<Location> shape, double[] cumDist,
                   ObaTripSchedule schedule, int routeColor, LatLng vehiclePosition,
                   Integer routeType, Map<String, String> stopNames,
-                  long scheduleDeviation) {
+                  long scheduleDeviation, String selectedStopId) {
         if (mActive) {
             deactivate();
         }
@@ -123,7 +123,7 @@ final class TripMapRenderer {
         if (shape != null && mMap != null) {
             showTripPolyline(shape, routeColor);
         }
-        showTripStopCircles(schedule, shape, cumDist, stopNames);
+        showTripStopCircles(schedule, shape, cumDist, stopNames, selectedStopId);
         List<VehicleHistoryEntry> history = VehicleTrajectoryTracker.getInstance()
                 .getHistoryReadOnly(tripId);
         showOrUpdateDataReceivedMarker(tripId, shape, cumDist, history);
@@ -167,22 +167,26 @@ final class TripMapRenderer {
 
     private void showTripStopCircles(ObaTripSchedule schedule,
                                      List<Location> shape, double[] cumDist,
-                                     Map<String, String> stopNames) {
+                                     Map<String, String> stopNames,
+                                     String selectedStopId) {
         if (mMap == null || schedule == null || shape == null || cumDist == null) return;
         ObaTripSchedule.StopTime[] stopTimes = schedule.getStopTimes();
         if (stopTimes == null) return;
 
         BitmapDescriptor icon = makeStopCircleIcon();
+        BitmapDescriptor selectedIcon = selectedStopId != null
+                ? makeBullseyeIcon() : null;
         for (ObaTripSchedule.StopTime st : stopTimes) {
             Location loc = DistanceExtrapolator.interpolateAlongPolyline(
                     shape, cumDist, st.getDistanceAlongTrip());
             if (loc == null) continue;
+            boolean isSelected = st.getStopId().equals(selectedStopId);
             Marker m = mMap.addMarker(new MarkerOptions()
                     .position(new LatLng(loc.getLatitude(), loc.getLongitude()))
-                    .icon(icon)
+                    .icon(isSelected ? selectedIcon : icon)
                     .anchor(0.5f, 0.5f)
                     .flat(true)
-                    .zIndex(1f));
+                    .zIndex(isSelected ? 1.5f : 1f));
             mTripStopMarkers.add(m);
             String name = stopNames != null ? stopNames.get(st.getStopId()) : null;
             if (name == null) name = st.getStopId();
@@ -203,6 +207,27 @@ final class TripMapRenderer {
         stroke.setStrokeWidth(STOP_STROKE_WIDTH);
         stroke.setColor(STOP_STROKE_COLOR);
         c.drawCircle(r, r, r - STOP_STROKE_WIDTH / 2f, stroke);
+        return BitmapDescriptorFactory.fromBitmap(bmp);
+    }
+
+    private BitmapDescriptor makeBullseyeIcon() {
+        int size = (int) TRIP_BASE_WIDTH_PX;
+        Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(bmp);
+        float r = size / 2f;
+        // Outer white circle with dark stroke (same as normal stop)
+        Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        fill.setColor(Color.WHITE);
+        c.drawCircle(r, r, r - STOP_STROKE_WIDTH / 2f, fill);
+        Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+        stroke.setStyle(Paint.Style.STROKE);
+        stroke.setStrokeWidth(STOP_STROKE_WIDTH);
+        stroke.setColor(STOP_STROKE_COLOR);
+        c.drawCircle(r, r, r - STOP_STROKE_WIDTH / 2f, stroke);
+        // Inner filled dot
+        Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
+        dot.setColor(STOP_STROKE_COLOR);
+        c.drawCircle(r, r, r * 0.4f, dot);
         return BitmapDescriptorFactory.fromBitmap(bmp);
     }
 

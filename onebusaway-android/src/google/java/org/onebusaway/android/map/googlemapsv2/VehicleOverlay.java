@@ -54,6 +54,7 @@ import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.GammaSpeedModel;
+import org.onebusaway.android.speed.TripDataManager;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.speed.VehicleState;
@@ -621,11 +622,11 @@ public class VehicleOverlay implements MarkerListeners  {
 
             // Update the data-received marker to reflect the latest AVL position
             if (mTripRenderer != null && mSelectedTripId != null) {
-                VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+                TripDataManager dm = TripDataManager.getInstance();
                 mTripRenderer.showOrUpdateDataReceivedMarker(mSelectedTripId,
-                        tracker.getShape(mSelectedTripId),
-                        tracker.getShapeCumulativeDistances(mSelectedTripId),
-                        tracker.getHistoryReadOnly(mSelectedTripId));
+                        dm.getShape(mSelectedTripId),
+                        dm.getShapeCumulativeDistances(mSelectedTripId),
+                        dm.getHistoryReadOnly(mSelectedTripId));
             }
 
             Log.d(TAG,
@@ -647,11 +648,12 @@ public class VehicleOverlay implements MarkerListeners  {
          */
         private void recordTrajectoryState(ObaTripStatus status,
                                             ObaTripsForRouteResponse response) {
-            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+            TripDataManager dm = TripDataManager.getInstance();
             ObaTrip activeTripObj = response.getTrip(status.getActiveTripId());
             String blockId = activeTripObj != null ? activeTripObj.getBlockId() : null;
-            tracker.recordState(status.getActiveTripId(),
+            dm.recordState(status.getActiveTripId(),
                     VehicleState.fromTripStatus(status), blockId);
+            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
             if (tracker.getRouteType(status.getActiveTripId()) == null) {
                 String routeId = activeTripObj != null ? activeTripObj.getRouteId() : null;
                 ObaRoute route = routeId != null ? response.getRoute(routeId) : null;
@@ -666,18 +668,18 @@ public class VehicleOverlay implements MarkerListeners  {
          */
         private void fetchScheduleAndShapeIfNeeded(ObaTripStatus status,
                                                     ObaTripsForRouteResponse response) {
-            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+            TripDataManager dm = TripDataManager.getInstance();
             String tripId = status.getActiveTripId();
             ObaTrip activeTripObj = response.getTrip(tripId);
             String shapeId = activeTripObj != null ? activeTripObj.getShapeId() : null;
             boolean needSchedule = tripId != null
-                    && !tracker.isSchedulePendingOrCached(tripId);
+                    && !dm.isSchedulePendingOrCached(tripId);
             boolean needShape = tripId != null && shapeId != null
-                    && tracker.getShape(tripId) == null;
+                    && dm.getShape(tripId) == null;
             if (!needSchedule && !needShape) return;
 
             if (needSchedule) {
-                tracker.markSchedulePending(tripId);
+                dm.markSchedulePending(tripId);
             }
             final Context ctx = Application.get().getApplicationContext();
             final boolean fetchSchedule = needSchedule;
@@ -695,7 +697,7 @@ public class VehicleOverlay implements MarkerListeners  {
                         if (detailsResponse != null) {
                             ObaTripSchedule schedule = detailsResponse.getSchedule();
                             if (schedule != null) {
-                                tracker.putSchedule(tripId, schedule);
+                                dm.putSchedule(tripId, schedule);
                             }
                         }
                     }
@@ -705,7 +707,7 @@ public class VehicleOverlay implements MarkerListeners  {
                         if (shapeResponse != null) {
                             List<Location> points = shapeResponse.getPoints();
                             if (points != null && !points.isEmpty()) {
-                                tracker.putShape(tripId, points);
+                                dm.putShape(tripId, points);
                             }
                         }
                     }
@@ -725,7 +727,7 @@ public class VehicleOverlay implements MarkerListeners  {
                 } catch (Exception e) {
                     Log.w(TAG, "Failed to fetch schedule/shape for " + tripId, e);
                     if (fetchSchedule) {
-                        tracker.clearPending(tripId);
+                        dm.clearPending(tripId);
                     }
                 }
             }).start();
@@ -775,10 +777,9 @@ public class VehicleOverlay implements MarkerListeners  {
             mVehicles.put(m, status);
             // Only update position from server if extrapolation isn't active —
             // the frame callback handles smooth movement along the polyline
-            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
             String tripId = status.getActiveTripId();
-            if (tripId == null || tracker.getShape(tripId) == null
-                    || tracker.getEstimatedSpeed(tripId) == null) {
+            if (tripId == null || TripDataManager.getInstance().getShape(tripId) == null
+                    || VehicleTrajectoryTracker.getInstance().getEstimatedSpeed(tripId) == null) {
                 Location markerLoc = MapHelpV2.makeLocation(m.getPosition());
                 if (l.distanceTo(markerLoc) < MAX_VEHICLE_ANIMATION_DISTANCE) {
                     AnimationUtil.animateMarkerTo(m, MapHelpV2.makeLatLng(l));
@@ -942,6 +943,7 @@ public class VehicleOverlay implements MarkerListeners  {
         void extrapolatePositions() {
             if (mVehicleMarkers == null || mVehicleMarkers.isEmpty()) return;
 
+            TripDataManager dm = TripDataManager.getInstance();
             VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
             long now = System.currentTimeMillis();
 
@@ -956,11 +958,11 @@ public class VehicleOverlay implements MarkerListeners  {
                 String tripId = entry.getKey();
                 Marker marker = entry.getValue();
 
-                List<Location> shape = tracker.getShape(tripId);
-                double[] cumDist = tracker.getShapeCumulativeDistances(tripId);
+                List<Location> shape = dm.getShape(tripId);
+                double[] cumDist = dm.getShapeCumulativeDistances(tripId);
                 if (shape == null || shape.isEmpty() || cumDist == null) continue;
 
-                List<VehicleHistoryEntry> history = tracker.getHistoryReadOnly(tripId);
+                List<VehicleHistoryEntry> history = dm.getHistoryReadOnly(tripId);
                 Double speed = tracker.getEstimatedSpeed(tripId);
 
                 // Capture data for estimate markers regardless of speed availability

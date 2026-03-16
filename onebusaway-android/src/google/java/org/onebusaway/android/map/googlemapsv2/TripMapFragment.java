@@ -54,6 +54,7 @@ import org.onebusaway.android.io.request.ObaShapeResponse;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.GammaSpeedModel;
+import org.onebusaway.android.speed.TripDataManager;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 
@@ -80,7 +81,7 @@ public class TripMapFragment extends SupportMapFragment
      */
     public static TripMapFragment newInstance(String tripId) {
         GoogleMapOptions options = new GoogleMapOptions();
-        List<Location> shape = VehicleTrajectoryTracker.getInstance().getShape(tripId);
+        List<Location> shape = TripDataManager.getInstance().getShape(tripId);
         LatLngBounds bounds = MapHelpV2.getBounds(shape);
         if (bounds != null) {
             options.camera(new CameraPosition(bounds.getCenter(), DEFAULT_INITIAL_ZOOM, 0, 0));
@@ -262,11 +263,11 @@ public class TripMapFragment extends SupportMapFragment
                     R.color.stop_info_scheduled_time);
         }
 
-        // Cache schedule + service date in tracker
-        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-        tracker.putSchedule(mTripId, schedule);
+        // Cache schedule + service date in data manager
+        TripDataManager dataManager = TripDataManager.getInstance();
+        dataManager.putSchedule(mTripId, schedule);
         if (status != null && status.getServiceDate() > 0) {
-            tracker.putServiceDate(mTripId, status.getServiceDate());
+            dataManager.putServiceDate(mTripId, status.getServiceDate());
         }
 
         // Build stop name map from refs
@@ -282,8 +283,8 @@ public class TripMapFragment extends SupportMapFragment
         }
 
         // Get or fetch shape
-        List<Location> shape = tracker.getShape(mTripId);
-        double[] cumDist = tracker.getShapeCumulativeDistances(mTripId);
+        List<Location> shape = dataManager.getShape(mTripId);
+        double[] cumDist = dataManager.getShapeCumulativeDistances(mTripId);
 
         if (shape != null && cumDist != null) {
             activateRenderer(shape, cumDist, schedule, routeColor,
@@ -304,13 +305,13 @@ public class TripMapFragment extends SupportMapFragment
                         if (shapeResponse != null) {
                             List<Location> points = shapeResponse.getPoints();
                             if (points != null && !points.isEmpty()) {
-                                tracker.putShape(mTripId, points);
+                                dataManager.putShape(mTripId, points);
                                 Activity activity = getActivity();
                                 if (activity != null) {
                                     activity.runOnUiThread(() -> {
                                         if (!isAdded()) return;
-                                        List<Location> s = tracker.getShape(mTripId);
-                                        double[] cd = tracker.getShapeCumulativeDistances(mTripId);
+                                        List<Location> s = dataManager.getShape(mTripId);
+                                        double[] cd = dataManager.getShapeCumulativeDistances(mTripId);
                                         if (s != null && cd != null) {
                                             activateRenderer(s, cd, schedule, rc,
                                                     vp, rt, stopNames, sd);
@@ -372,9 +373,9 @@ public class TripMapFragment extends SupportMapFragment
             return;
         }
 
-        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-        List<Location> shape = tracker.getShape(mTripId);
-        double[] cumDist = tracker.getShapeCumulativeDistances(mTripId);
+        TripDataManager dataManager = TripDataManager.getInstance();
+        List<Location> shape = dataManager.getShape(mTripId);
+        double[] cumDist = dataManager.getShapeCumulativeDistances(mTripId);
         if (shape == null || shape.isEmpty() || cumDist == null) {
             // No shape data yet; stop ticking until activateRenderer starts us
             mExtrapolationTicking = false;
@@ -382,7 +383,8 @@ public class TripMapFragment extends SupportMapFragment
         }
 
         long now = System.currentTimeMillis();
-        List<VehicleHistoryEntry> history = tracker.getHistoryReadOnly(mTripId);
+        List<VehicleHistoryEntry> history = dataManager.getHistoryReadOnly(mTripId);
+        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
         Double speed = tracker.getEstimatedSpeed(mTripId);
 
         // Extrapolate vehicle marker position

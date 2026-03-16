@@ -34,8 +34,15 @@ import com.google.android.material.tabs.TabLayout;
 
 import org.onebusaway.android.R;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
+import org.onebusaway.android.io.ObaApi;
+import org.onebusaway.android.io.elements.ObaTrip;
+import org.onebusaway.android.io.elements.ObaTripStatus;
+import org.onebusaway.android.io.request.ObaTripDetailsRequest;
+import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.speed.GammaSpeedModel;
+import org.onebusaway.android.speed.TripDataManager;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
+import org.onebusaway.android.speed.VehicleState;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.UIUtils;
 
@@ -57,14 +64,17 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     private static final String EXTRA_VEHICLE_ID = ".VehicleId";
     private static final String EXTRA_STOP_ID = ".StopId";
 
+    private static final String TAG = "VehicleLocationDataAct";
     private static final int PAD_H = 12;
     private static final int PAD_V = 6;
     private static final int TEXT_SIZE = 12;
     private static final long UI_REFRESH_PERIOD = 1_000;
+    private static final long POLL_INTERVAL_MS = 30_000;
 
     private String mTripId;
     private String mStopId;
     private final Handler mRefreshHandler = new Handler(Looper.getMainLooper());
+    private final Handler mPollHandler = new Handler(Looper.getMainLooper());
     private int mLastRowCount = -1;
 
     private View mTableContainer;
@@ -75,6 +85,14 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         public void run() {
             refreshData();
             mRefreshHandler.postDelayed(mRefresh, UI_REFRESH_PERIOD);
+        }
+    };
+
+    private final Runnable mPoll = new Runnable() {
+        @Override
+        public void run() {
+            pollTrip();
+            mPollHandler.postDelayed(mPoll, POLL_INTERVAL_MS);
         }
     };
 
@@ -145,8 +163,8 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        VehicleTrajectoryTracker.getInstance()
-                .subscribeTripPolling(getApplicationContext(), mTripId);
+        pollTrip();
+        mPollHandler.postDelayed(mPoll, POLL_INTERVAL_MS);
         refreshData();
         mRefreshHandler.postDelayed(mRefresh, UI_REFRESH_PERIOD);
     }
@@ -154,7 +172,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         mRefreshHandler.removeCallbacks(mRefresh);
-        VehicleTrajectoryTracker.getInstance().unsubscribeTripPolling(mTripId);
+        mPollHandler.removeCallbacks(mPoll);
         super.onPause();
     }
 
@@ -168,11 +186,11 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     }
 
     private void refreshData() {
-        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-        List<VehicleHistoryEntry> history = tracker.getHistory(mTripId);
+        TripDataManager dm = TripDataManager.getInstance();
+        List<VehicleHistoryEntry> history = dm.getHistory(mTripId);
 
         // Check if the vehicle is still serving this trip
-        String activeTripId = tracker.getLastActiveTripId(mTripId);
+        String activeTripId = dm.getLastActiveTripId(mTripId);
         boolean tripEnded = activeTripId != null && !mTripId.equals(activeTripId);
 
         // Update header
@@ -202,18 +220,49 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     }
 
     private void refreshGraph(boolean tripEnded) {
-        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-        List<VehicleHistoryEntry> history = tracker.getHistory(mTripId);
-        ObaTripSchedule schedule = tracker.getSchedule(mTripId);
-        Long serviceDate = tracker.getServiceDate(mTripId);
+        TripDataManager dm = TripDataManager.getInstance();
+        List<VehicleHistoryEntry> history = dm.getHistory(mTripId);
+        ObaTripSchedule schedule = dm.getSchedule(mTripId);
+        Long serviceDate = dm.getServiceDate(mTripId);
         GammaSpeedModel.GammaParams gammaParams = null;
         if (!tripEnded) {
             // getEstimatedSpeed populates gamma params as a side effect
+            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
             tracker.getEstimatedSpeed(mTripId);
             gammaParams = tracker.getLastGammaParams();
         }
         mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0,
                 gammaParams);
+    }
+
+    private void pollTrip() {
+        final String tripId = mTripId;
+        if (tripId == null) return;
+        new Thread(() -> {
+            try {
+                ObaTripDetailsResponse response =
+                        ObaTripDetailsRequest.newRequest(getApplicationContext(), tripId).call();
+                if (response != null && response.getCode() == ObaApi.OBA_OK) {
+                    ObaTripStatus status = response.getStatus();
+                    if (status != null) {
+                        TripDataManager dm = TripDataManager.getInstance();
+                        dm.putLastActiveTripId(tripId, status.getActiveTripId());
+                        if (status.getActiveTripId() != null) {
+                            VehicleState state = VehicleState.fromTripStatus(status);
+                            ObaTrip trip = response.getTrip(status.getActiveTripId());
+                            String blockId = trip != null ? trip.getBlockId() : null;
+                            dm.recordState(status.getActiveTripId(), state, blockId);
+                            if (status.getServiceDate() > 0) {
+                                dm.putServiceDate(status.getActiveTripId(),
+                                        status.getServiceDate());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                android.util.Log.w(TAG, "Failed to poll trip details for " + tripId, e);
+            }
+        }).start();
     }
 
     private void buildTable(TableLayout table, List<VehicleHistoryEntry> history) {

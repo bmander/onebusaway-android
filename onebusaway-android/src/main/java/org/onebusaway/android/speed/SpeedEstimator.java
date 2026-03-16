@@ -23,12 +23,12 @@ public interface SpeedEstimator {
     /**
      * Estimates the current speed of a vehicle.
      *
-     * @param vehicleId the vehicle identifier
-     * @param state     the current vehicle state snapshot
-     * @param tracker   the tracker holding vehicle history
+     * @param vehicleId   the vehicle identifier
+     * @param state       the current vehicle state snapshot
+     * @param dataManager the manager holding trip data (history, schedule, etc.)
      * @return estimated speed in meters per second, or null if insufficient data
      */
-    Double estimateSpeed(String vehicleId, VehicleState state, VehicleTrajectoryTracker tracker);
+    Double estimateSpeed(String vehicleId, VehicleState state, TripDataManager dataManager);
 
     /**
      * Clears all internal estimator state.

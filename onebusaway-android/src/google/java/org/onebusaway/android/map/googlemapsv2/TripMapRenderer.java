@@ -37,8 +37,8 @@ import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.GammaSpeedModel;
+import org.onebusaway.android.speed.TripDataManager;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
-import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.UIUtils;
 
 import java.util.ArrayList;
@@ -122,7 +122,7 @@ final class TripMapRenderer {
             showTripPolyline(shape, routeColor);
         }
         showTripStopCircles(schedule, shape, cumDist, stopNames, selectedStopId);
-        List<VehicleHistoryEntry> history = VehicleTrajectoryTracker.getInstance()
+        List<VehicleHistoryEntry> history = TripDataManager.getInstance()
                 .getHistoryReadOnly(tripId);
         showOrUpdateDataReceivedMarker(tripId, shape, cumDist, history);
         createEstimateOverlays(tripId, vehiclePosition, routeType);
@@ -255,7 +255,7 @@ final class TripMapRenderer {
     private String computeEtaSnippet(long arrivalTimeSec) {
         if (mActiveTripId == null) return null;
 
-        Long serviceDate = VehicleTrajectoryTracker.getInstance()
+        Long serviceDate = TripDataManager.getInstance()
                 .getServiceDate(mActiveTripId);
         if (serviceDate == null) return null;
 

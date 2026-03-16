@@ -32,20 +32,20 @@ public class GammaSpeedEstimator implements SpeedEstimator {
 
     @Override
     public Double estimateSpeed(String vehicleId, VehicleState state,
-                                VehicleTrajectoryTracker tracker) {
+                                TripDataManager dataManager) {
         mLastGammaParams = null;
         mLastScheduleSpeed = 0;
 
-        Double scheduleSpeed = scheduleEstimator.estimateSpeed(vehicleId, state, tracker);
+        Double scheduleSpeed = scheduleEstimator.estimateSpeed(vehicleId, state, dataManager);
         double vSched = scheduleSpeed != null ? scheduleSpeed : 0;
         mLastScheduleSpeed = vSched;
 
         String tripId = state.getActiveTripId();
-        if (isTripNotYetStarted(tripId, vSched, tracker)) {
+        if (isTripNotYetStarted(tripId, vSched, dataManager)) {
             return null;
         }
 
-        double vPrev = computePreviousAvlSpeed(tripId, tracker);
+        double vPrev = computePreviousAvlSpeed(tripId, dataManager);
 
         GammaSpeedModel.GammaParams params = GammaSpeedModel.fromSpeeds(vSched, vPrev);
         if (params != null) {
@@ -58,10 +58,10 @@ public class GammaSpeedEstimator implements SpeedEstimator {
     }
 
     private boolean isTripNotYetStarted(String tripId, double vSched,
-                                         VehicleTrajectoryTracker tracker) {
+                                         TripDataManager dataManager) {
         if (tripId == null || vSched <= 0) return false;
-        Long serviceDate = tracker.getServiceDate(tripId);
-        ObaTripSchedule schedule = tracker.getSchedule(tripId);
+        Long serviceDate = dataManager.getServiceDate(tripId);
+        ObaTripSchedule schedule = dataManager.getSchedule(tripId);
         ObaTripSchedule.StopTime[] stopTimes = schedule != null
                 ? schedule.getStopTimes() : null;
         if (serviceDate != null && stopTimes != null && stopTimes.length > 0) {
@@ -72,9 +72,9 @@ public class GammaSpeedEstimator implements SpeedEstimator {
     }
 
     private double computePreviousAvlSpeed(String tripId,
-                                            VehicleTrajectoryTracker tracker) {
+                                            TripDataManager dataManager) {
         if (tripId == null) return 0;
-        List<VehicleHistoryEntry> history = tracker.getHistoryReadOnly(tripId);
+        List<VehicleHistoryEntry> history = dataManager.getHistoryReadOnly(tripId);
         if (history.size() < 2) return 0;
 
         VehicleHistoryEntry newer = null;

@@ -26,6 +26,7 @@ import org.onebusaway.android.speed.GammaSpeedEstimator;
 import org.onebusaway.android.speed.GammaSpeedModel;
 import org.onebusaway.android.speed.ScheduleSpeedEstimator;
 import org.onebusaway.android.speed.SpeedEstimator;
+import org.onebusaway.android.speed.TripDataManager;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.speed.VehicleState;
@@ -47,10 +48,13 @@ import java.util.List;
 public class SpeedEstimatorTest {
 
     private VehicleTrajectoryTracker tracker;
+    private TripDataManager dm;
 
     @Before
     public void setUp() {
         tracker = VehicleTrajectoryTracker.getInstance();
+        dm = TripDataManager.getInstance();
+        dm.clearAll();
         tracker.clearAll();
     }
 
@@ -104,11 +108,11 @@ public class SpeedEstimatorTest {
         assertEquals(2000L, state.getTimestamp());
     }
 
-    // --- VehicleTrajectoryTracker tests ---
+    // --- TripDataManager tests ---
 
     @Test
     public void testTrackerEmptyHistory() {
-        List<VehicleHistoryEntry> history = tracker.getHistory("trip1");
+        List<VehicleHistoryEntry> history = dm.getHistory("trip1");
         assertEquals(0, history.size());
     }
 
@@ -117,9 +121,9 @@ public class SpeedEstimatorTest {
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 100.0, 100.0, 5000.0, 1000L);
 
-        tracker.recordState("trip1", state);
+        dm.recordState("trip1", state);
 
-        List<VehicleHistoryEntry> history = tracker.getHistory("trip1");
+        List<VehicleHistoryEntry> history = dm.getHistory("trip1");
         assertEquals(1, history.size());
         assertEquals(100.0, history.get(0).getDistanceAlongTrip());
     }
@@ -129,10 +133,10 @@ public class SpeedEstimatorTest {
         for (int i = 0; i < 50; i++) {
             VehicleState state = createState("v1", "trip1", 47.0 + i * 0.001, -122.0,
                     100.0 * i, 100.0 * i, 5000.0, 1000L + i * 30000L);
-            tracker.recordState("trip1", state);
+            dm.recordState("trip1", state);
         }
 
-        List<VehicleHistoryEntry> history = tracker.getHistory("trip1");
+        List<VehicleHistoryEntry> history = dm.getHistory("trip1");
         assertEquals(50, history.size());
     }
 
@@ -143,48 +147,48 @@ public class SpeedEstimatorTest {
         VehicleState state2 = createState("v2", "trip2", 47.5, -122.5,
                 200.0, 200.0, 6000.0, 1000L);
 
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip2", state2);
+        dm.recordState("trip1", state1);
+        dm.recordState("trip2", state2);
 
-        assertEquals(1, tracker.getHistory("trip1").size());
-        assertEquals(1, tracker.getHistory("trip2").size());
+        assertEquals(1, dm.getHistory("trip1").size());
+        assertEquals(1, dm.getHistory("trip2").size());
     }
 
     @Test
     public void testTrackerClearAll() {
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 100.0, 100.0, 5000.0, 1000L);
-        tracker.recordState("trip1", state);
-        assertEquals(1, tracker.getHistory("trip1").size());
+        dm.recordState("trip1", state);
+        assertEquals(1, dm.getHistory("trip1").size());
 
-        tracker.clearAll();
-        assertEquals(0, tracker.getHistory("trip1").size());
+        dm.clearAll();
+        assertEquals(0, dm.getHistory("trip1").size());
     }
 
     @Test
     public void testTrackerDefensiveCopy() {
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 100.0, 100.0, 5000.0, 1000L);
-        tracker.recordState("trip1", state);
+        dm.recordState("trip1", state);
 
-        List<VehicleHistoryEntry> history = tracker.getHistory("trip1");
+        List<VehicleHistoryEntry> history = dm.getHistory("trip1");
         history.clear(); // Modifying the returned list
 
         // Internal history should be unaffected
-        assertEquals(1, tracker.getHistory("trip1").size());
+        assertEquals(1, dm.getHistory("trip1").size());
     }
 
     @Test
     public void testTrackerNullKeyIgnored() {
-        tracker.recordState(null, createState("v1", "trip1", 47.0, -122.0,
+        dm.recordState(null, createState("v1", "trip1", 47.0, -122.0,
                 100.0, 100.0, 5000.0, 1000L));
         // Should not throw, just silently ignore
     }
 
     @Test
     public void testTrackerNullStateIgnored() {
-        tracker.recordState("trip1", null);
-        assertEquals(0, tracker.getHistory("trip1").size());
+        dm.recordState("trip1", null);
+        assertEquals(0, dm.getHistory("trip1").size());
     }
 
     @Test
@@ -203,7 +207,7 @@ public class SpeedEstimatorTest {
         tracker.setEstimator(new SpeedEstimator() {
             @Override
             public Double estimateSpeed(String vehicleId, VehicleState state,
-                                        VehicleTrajectoryTracker tracker) {
+                                        TripDataManager dataManager) {
                 return 42.0;
             }
         });
@@ -224,83 +228,49 @@ public class SpeedEstimatorTest {
         tracker.setEstimator(null);
     }
 
-    // --- VehicleTrajectoryTracker schedule cache tests ---
+    // --- TripDataManager schedule cache tests ---
 
     @Test
     public void testTrackerScheduleCacheEmpty() {
-        assertNull(tracker.getSchedule("trip1"));
-        assertFalse(tracker.isSchedulePendingOrCached("trip1"));
+        assertNull(dm.getSchedule("trip1"));
+        assertFalse(dm.isSchedulePendingOrCached("trip1"));
     }
 
     @Test
     public void testTrackerPutAndGetSchedule() {
         ObaTripSchedule schedule = ObaTripSchedule.EMPTY_OBJECT;
-        tracker.putSchedule("trip1", schedule);
-        assertNotNull(tracker.getSchedule("trip1"));
-        assertTrue(tracker.isSchedulePendingOrCached("trip1"));
+        dm.putSchedule("trip1", schedule);
+        assertNotNull(dm.getSchedule("trip1"));
+        assertTrue(dm.isSchedulePendingOrCached("trip1"));
     }
 
     @Test
     public void testTrackerMarkSchedulePending() {
-        assertFalse(tracker.isSchedulePendingOrCached("trip1"));
-        tracker.markSchedulePending("trip1");
-        assertTrue(tracker.isSchedulePendingOrCached("trip1"));
+        assertFalse(dm.isSchedulePendingOrCached("trip1"));
+        dm.markSchedulePending("trip1");
+        assertTrue(dm.isSchedulePendingOrCached("trip1"));
         // Not yet cached, just pending
-        assertNull(tracker.getSchedule("trip1"));
+        assertNull(dm.getSchedule("trip1"));
     }
 
     @Test
     public void testTrackerPutScheduleNullIgnored() {
-        tracker.putSchedule(null, ObaTripSchedule.EMPTY_OBJECT);
-        tracker.putSchedule("trip1", null);
-        assertNull(tracker.getSchedule("trip1"));
+        dm.putSchedule(null, ObaTripSchedule.EMPTY_OBJECT);
+        dm.putSchedule("trip1", null);
+        assertNull(dm.getSchedule("trip1"));
     }
 
     @Test
     public void testTrackerClearAllClearsScheduleCache() {
-        tracker.putSchedule("trip1", ObaTripSchedule.EMPTY_OBJECT);
-        tracker.markSchedulePending("trip2");
-        assertTrue(tracker.isSchedulePendingOrCached("trip1"));
-        assertTrue(tracker.isSchedulePendingOrCached("trip2"));
+        dm.putSchedule("trip1", ObaTripSchedule.EMPTY_OBJECT);
+        dm.markSchedulePending("trip2");
+        assertTrue(dm.isSchedulePendingOrCached("trip1"));
+        assertTrue(dm.isSchedulePendingOrCached("trip2"));
 
-        tracker.clearAll();
-        assertFalse(tracker.isSchedulePendingOrCached("trip1"));
-        assertFalse(tracker.isSchedulePendingOrCached("trip2"));
-        assertNull(tracker.getSchedule("trip1"));
-    }
-
-    // --- Subscribe/unsubscribe refcounting tests ---
-
-    @Test
-    public void testSubscribeIncrementsRefcount() {
-        assertEquals(0, tracker.getSubscriberCount("trip1"));
-
-        tracker.subscribeTripPolling(null, "trip1");
-        // null context should be ignored
-        assertEquals(0, tracker.getSubscriberCount("trip1"));
-
-        tracker.subscribeTripPolling(null, null);
-        // null tripId should be ignored
-        assertEquals(0, tracker.getSubscriberCount("trip1"));
-    }
-
-    @Test
-    public void testUnsubscribeDecrementsRefcount() {
-        // Unsubscribing a trip that was never subscribed should not throw
-        tracker.unsubscribeTripPolling("trip1");
-        assertEquals(0, tracker.getSubscriberCount("trip1"));
-
-        tracker.unsubscribeTripPolling(null);
-        // null tripId should be ignored
-    }
-
-    @Test
-    public void testClearAllResetsSubscribers() {
-        // We can't fully test subscribe with a real context in unit tests,
-        // but we can verify clearAll resets the subscriber count
-        tracker.clearAll();
-        assertEquals(0, tracker.getSubscriberCount("trip1"));
-        assertEquals(0, tracker.getSubscriberCount("trip2"));
+        dm.clearAll();
+        assertFalse(dm.isSchedulePendingOrCached("trip1"));
+        assertFalse(dm.isSchedulePendingOrCached("trip2"));
+        assertNull(dm.getSchedule("trip1"));
     }
 
     // --- Schedule-only filtering tests ---
@@ -310,8 +280,8 @@ public class SpeedEstimatorTest {
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 100.0, 95.0, 5000.0, 1000L, false);
 
-        tracker.recordState("trip1", state);
-        assertEquals(0, tracker.getHistorySize("trip1"));
+        dm.recordState("trip1", state);
+        assertEquals(0, dm.getHistorySize("trip1"));
     }
 
     @Test
@@ -319,8 +289,8 @@ public class SpeedEstimatorTest {
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 100.0, 95.0, 5000.0, 1000L, true);
 
-        tracker.recordState("trip1", state);
-        assertEquals(1, tracker.getHistorySize("trip1"));
+        dm.recordState("trip1", state);
+        assertEquals(1, dm.getHistorySize("trip1"));
     }
 
     // --- ScheduleSpeedEstimator tests ---
@@ -333,7 +303,7 @@ public class SpeedEstimatorTest {
                 100.0, 100.0, 5000.0, 1000L);
 
         // No schedule cached - should return null
-        assertNull(estimator.estimateSpeed("v1", state, tracker));
+        assertNull(estimator.estimateSpeed("v1", state, dm));
     }
 
     @Test
@@ -343,7 +313,7 @@ public class SpeedEstimatorTest {
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 200.0, null, 5000.0, 10000L);
 
-        assertNull(estimator.estimateSpeed("v1", state, tracker));
+        assertNull(estimator.estimateSpeed("v1", state, dm));
     }
 
     @Test
@@ -355,12 +325,12 @@ public class SpeedEstimatorTest {
                 new long[]{0, 120, 300},
                 new long[]{60, 180, 360}
         );
-        tracker.putSchedule("trip1", schedule);
+        dm.putSchedule("trip1", schedule);
 
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 500.0, 500.0, 5000.0, 10000L);
 
-        Double speed = estimator.estimateSpeed("v1", state, tracker);
+        Double speed = estimator.estimateSpeed("v1", state, dm);
         assertNotNull(speed);
         assertEquals(1000.0 / 60.0, speed, 0.01);
     }
@@ -374,12 +344,12 @@ public class SpeedEstimatorTest {
                 new long[]{0, 120, 300},
                 new long[]{60, 180, 360}
         );
-        tracker.putSchedule("trip1", schedule);
+        dm.putSchedule("trip1", schedule);
 
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 1500.0, 1500.0, 5000.0, 10000L);
 
-        Double speed = estimator.estimateSpeed("v1", state, tracker);
+        Double speed = estimator.estimateSpeed("v1", state, dm);
         assertNotNull(speed);
         assertEquals(2000.0 / 120.0, speed, 0.01);
     }
@@ -393,12 +363,12 @@ public class SpeedEstimatorTest {
                 new long[]{60, 120, 300},
                 new long[]{60, 180, 360}
         );
-        tracker.putSchedule("trip1", schedule);
+        dm.putSchedule("trip1", schedule);
 
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 50.0, 50.0, 5000.0, 10000L);
 
-        Double speed = estimator.estimateSpeed("v1", state, tracker);
+        Double speed = estimator.estimateSpeed("v1", state, dm);
         assertNotNull(speed);
         assertEquals(900.0 / 60.0, speed, 0.01);
     }
@@ -412,12 +382,12 @@ public class SpeedEstimatorTest {
                 new long[]{0, 120, 300},
                 new long[]{60, 180, 360}
         );
-        tracker.putSchedule("trip1", schedule);
+        dm.putSchedule("trip1", schedule);
 
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 3500.0, 3500.0, 5000.0, 10000L);
 
-        Double speed = estimator.estimateSpeed("v1", state, tracker);
+        Double speed = estimator.estimateSpeed("v1", state, dm);
         assertNotNull(speed);
         assertEquals(2000.0 / 120.0, speed, 0.01);
     }
@@ -431,12 +401,12 @@ public class SpeedEstimatorTest {
                 new long[]{0},
                 new long[]{60}
         );
-        tracker.putSchedule("trip1", schedule);
+        dm.putSchedule("trip1", schedule);
 
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 100.0, 100.0, 5000.0, 10000L);
 
-        assertNull(estimator.estimateSpeed("v1", state, tracker));
+        assertNull(estimator.estimateSpeed("v1", state, dm));
     }
 
     @Test
@@ -448,12 +418,12 @@ public class SpeedEstimatorTest {
                 new long[]{60, 60},
                 new long[]{60, 60}
         );
-        tracker.putSchedule("trip1", schedule);
+        dm.putSchedule("trip1", schedule);
 
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 500.0, 500.0, 5000.0, 10000L);
 
-        assertNull(estimator.estimateSpeed("v1", state, tracker));
+        assertNull(estimator.estimateSpeed("v1", state, dm));
     }
 
     // --- GammaSpeedModel tests ---
@@ -561,11 +531,11 @@ public class SpeedEstimatorTest {
                 new long[]{0, 200},
                 new long[]{100, 300}
         );
-        tracker.putSchedule("trip1", schedule);
+        dm.putSchedule("trip1", schedule);
 
         // Service date in the past so trip has started
         long pastServiceDate = System.currentTimeMillis() - 3600_000L;
-        tracker.putServiceDate("trip1", pastServiceDate);
+        dm.putServiceDate("trip1", pastServiceDate);
 
         // Two history entries so v_prev can be computed
         VehicleState state1 = createState("v1", "trip1", 47.0, -122.0,
@@ -573,10 +543,10 @@ public class SpeedEstimatorTest {
         VehicleState state2 = createState("v1", "trip1", 47.001, -122.0,
                 400.0, 400.0, 5000.0, 31000L);
 
-        tracker.recordState("trip1", state1);
-        tracker.recordState("trip1", state2);
+        dm.recordState("trip1", state1);
+        dm.recordState("trip1", state2);
 
-        Double speed = estimator.estimateSpeed("v1", state2, tracker);
+        Double speed = estimator.estimateSpeed("v1", state2, dm);
         assertNotNull(speed);
         assertTrue("Speed should be positive", speed > 0);
 
@@ -598,9 +568,9 @@ public class SpeedEstimatorTest {
         // No schedule cached
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 100.0, null, 5000.0, 1000L);
-        tracker.recordState("trip1", state);
+        dm.recordState("trip1", state);
 
-        Double speed = estimator.estimateSpeed("v1", state, tracker);
+        Double speed = estimator.estimateSpeed("v1", state, dm);
         // No schedule → null
         assertNull(speed);
     }
@@ -614,17 +584,17 @@ public class SpeedEstimatorTest {
                 new long[]{0, 200},
                 new long[]{300, 500}
         );
-        tracker.putSchedule("trip1", schedule);
+        dm.putSchedule("trip1", schedule);
 
         // Service date far in the future so current time is before trip start
         long futureServiceDate = System.currentTimeMillis() + 3600_000L;
-        tracker.putServiceDate("trip1", futureServiceDate);
+        dm.putServiceDate("trip1", futureServiceDate);
 
         VehicleState state = createState("v1", "trip1", 47.0, -122.0,
                 500.0, 500.0, 5000.0, System.currentTimeMillis());
-        tracker.recordState("trip1", state);
+        dm.recordState("trip1", state);
 
-        Double speed = estimator.estimateSpeed("v1", state, tracker);
+        Double speed = estimator.estimateSpeed("v1", state, dm);
         assertNull("Speed should be null before trip start", speed);
     }
 
@@ -644,7 +614,7 @@ public class SpeedEstimatorTest {
                     baseDistance + i * 300.0,
                     10000.0,
                     baseTime + i * 30000L);
-            tracker.recordState("trip1", state);
+            dm.recordState("trip1", state);
         }
 
         VehicleState latestState = createState("v1", "trip1",

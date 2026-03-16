@@ -24,12 +24,12 @@ import org.onebusaway.android.io.elements.ObaTripSchedule;
 public class ScheduleSpeedEstimator implements SpeedEstimator {
 
     @Override
-    public Double estimateSpeed(String vehicleId, VehicleState state, VehicleTrajectoryTracker tracker) {
+    public Double estimateSpeed(String vehicleId, VehicleState state, TripDataManager dataManager) {
         if (state.getScheduledDistanceAlongTrip() == null) {
             return null;
         }
 
-        ObaTripSchedule schedule = tracker.getSchedule(state.getActiveTripId());
+        ObaTripSchedule schedule = dataManager.getSchedule(state.getActiveTripId());
         if (schedule == null) {
             return null;
         }

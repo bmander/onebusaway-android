@@ -42,7 +42,7 @@ import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaShape;
 import org.onebusaway.android.io.elements.ObaStop;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
-import org.onebusaway.android.speed.VehicleTrajectoryTracker;
+import org.onebusaway.android.speed.TripDataManager;
 import org.onebusaway.android.io.request.ObaResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.DirectionsMapController;
@@ -1305,10 +1305,10 @@ public class BaseMapFragment extends SupportMapFragment
         if (setupStopOverlay()) {
             mStopOverlay.clear(false);
         }
-        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-        List<Location> shape = tracker.getShape(tripId);
-        double[] cumDist = tracker.getShapeCumulativeDistances(tripId);
-        ObaTripSchedule schedule = tracker.getSchedule(tripId);
+        TripDataManager dm = TripDataManager.getInstance();
+        List<Location> shape = dm.getShape(tripId);
+        double[] cumDist = dm.getShapeCumulativeDistances(tripId);
+        ObaTripSchedule schedule = dm.getSchedule(tripId);
         HashMap<String, String> stopNames = buildStopNameMap();
         mTripRenderer.activate(tripId, shape, cumDist, schedule, mSavedRouteOverlayColor,
                 vehiclePosition, routeType, stopNames, scheduleDeviation, null);

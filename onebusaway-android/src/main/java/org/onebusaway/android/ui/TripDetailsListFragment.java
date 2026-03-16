@@ -90,7 +90,9 @@ import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.nav.NavigationService;
 import org.onebusaway.android.speed.DistanceExtrapolator;
+import org.onebusaway.android.speed.TripDataManager;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
+import org.onebusaway.android.speed.VehicleState;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.ArrivalInfoUtils;
@@ -270,20 +272,11 @@ public class TripDetailsListFragment extends ListFragment {
     public void onPause() {
         mRefreshHandler.removeCallbacks(mRefresh);
         mPositionTickHandler.removeCallbacks(mPositionTick);
-        if (mTripId != null) {
-            VehicleTrajectoryTracker.getInstance().unsubscribeTripPolling(mTripId);
-        }
         super.onPause();
     }
 
     @Override
     public void onResume() {
-        // Subscribe to trajectory polling for this trip
-        if (mTripId != null && getActivity() != null) {
-            VehicleTrajectoryTracker.getInstance()
-                    .subscribeTripPolling(getActivity().getApplicationContext(), mTripId);
-        }
-
         // Try to show any old data just in case we're coming out of sleep
         TripDetailsLoader loader = getTripDetailsLoader();
         if (loader != null) {
@@ -344,6 +337,24 @@ public class TripDetailsListFragment extends ListFragment {
         } else {
             setEmptyText(UIUtils.getRouteErrorString(getActivity(), code));
             return;
+        }
+
+        // Push vehicle state into the trip data manager so speed estimation
+        // and the trajectory debug view can use it
+        ObaTripStatus status = data.getStatus();
+        if (status != null) {
+            TripDataManager dm = TripDataManager.getInstance();
+            dm.putLastActiveTripId(mTripId, status.getActiveTripId());
+            if (status.getActiveTripId() != null) {
+                VehicleState vs = VehicleState.fromTripStatus(status);
+                ObaTrip tripObj = data.getRefs() != null
+                        ? data.getRefs().getTrip(status.getActiveTripId()) : null;
+                String blockId = tripObj != null ? tripObj.getBlockId() : null;
+                dm.recordState(status.getActiveTripId(), vs, blockId);
+                if (status.getServiceDate() > 0) {
+                    dm.putServiceDate(status.getActiveTripId(), status.getServiceDate());
+                }
+            }
         }
 
         setUpHeader();
@@ -567,8 +578,8 @@ public class TripDetailsListFragment extends ListFragment {
         if (status == null) return;
 
         // Determine the active trip ID
-        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-        String activeTripId = tracker.getLastActiveTripId(mTripId);
+        TripDataManager dm = TripDataManager.getInstance();
+        String activeTripId = dm.getLastActiveTripId(mTripId);
         if (activeTripId == null) {
             activeTripId = status.getActiveTripId();
         }
@@ -579,8 +590,8 @@ public class TripDetailsListFragment extends ListFragment {
             return;
         }
 
-        List<VehicleHistoryEntry> history = tracker.getHistory(activeTripId);
-        Double speed = tracker.getEstimatedSpeed(activeTripId);
+        List<VehicleHistoryEntry> history = dm.getHistory(activeTripId);
+        Double speed = VehicleTrajectoryTracker.getInstance().getEstimatedSpeed(activeTripId);
         if (history == null || speed == null) {
             mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
             return;
@@ -621,16 +632,16 @@ public class TripDetailsListFragment extends ListFragment {
         }
 
         // Cache schedule and service date so the trajectory graph can use them
-        VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
+        TripDataManager dm = TripDataManager.getInstance();
         ObaTripSchedule schedule = mTripInfo.getSchedule();
         if (schedule != null) {
-            tracker.putSchedule(activeTripId, schedule);
+            dm.putSchedule(activeTripId, schedule);
         }
         if (status.getServiceDate() > 0) {
-            tracker.putServiceDate(activeTripId, status.getServiceDate());
+            dm.putServiceDate(activeTripId, status.getServiceDate());
         }
 
-        int count = tracker.getHistorySize(activeTripId);
+        int count = dm.getHistorySize(activeTripId);
         locationDataBtn.setText(getString(R.string.vehicle_view_location_data)
                 + " (" + count + ")");
         locationDataBtn.setVisibility(View.VISIBLE);

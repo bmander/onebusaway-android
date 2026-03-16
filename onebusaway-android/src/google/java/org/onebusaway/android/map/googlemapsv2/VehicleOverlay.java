@@ -555,6 +555,9 @@ public class VehicleOverlay implements MarkerListeners  {
         /** The activeTripId of the currently-selected (info-window-open) vehicle, or null. */
         private volatile String mSelectedTripId;
 
+        /** Tracks trip IDs with in-flight schedule fetches to avoid duplicate requests. */
+        private final HashSet<String> mPendingScheduleFetches = new HashSet<>();
+
         private static final int INITIAL_HASHMAP_SIZE = 5;
 
         MarkerData() {
@@ -623,10 +626,12 @@ public class VehicleOverlay implements MarkerListeners  {
             // Update the data-received marker to reflect the latest AVL position
             if (mTripRenderer != null && mSelectedTripId != null) {
                 TripDataManager dm = TripDataManager.getInstance();
-                mTripRenderer.showOrUpdateDataReceivedMarker(mSelectedTripId,
-                        dm.getShape(mSelectedTripId),
-                        dm.getShapeCumulativeDistances(mSelectedTripId),
-                        dm.getHistoryReadOnly(mSelectedTripId));
+                TripDataManager.ShapeData sd = dm.getShapeWithDistances(mSelectedTripId);
+                if (sd != null) {
+                    mTripRenderer.showOrUpdateDataReceivedMarker(mSelectedTripId,
+                            sd.points, sd.cumulativeDistances,
+                            dm.getHistoryReadOnly(mSelectedTripId));
+                }
             }
 
             Log.d(TAG,
@@ -653,12 +658,11 @@ public class VehicleOverlay implements MarkerListeners  {
             String blockId = activeTripObj != null ? activeTripObj.getBlockId() : null;
             dm.recordState(status.getActiveTripId(),
                     VehicleState.fromTripStatus(status), blockId);
-            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-            if (tracker.getRouteType(status.getActiveTripId()) == null) {
+            if (dm.getRouteType(status.getActiveTripId()) == null) {
                 String routeId = activeTripObj != null ? activeTripObj.getRouteId() : null;
                 ObaRoute route = routeId != null ? response.getRoute(routeId) : null;
                 if (route != null) {
-                    tracker.putRouteType(status.getActiveTripId(), route.getType());
+                    dm.putRouteType(status.getActiveTripId(), route.getType());
                 }
             }
         }
@@ -673,13 +677,14 @@ public class VehicleOverlay implements MarkerListeners  {
             ObaTrip activeTripObj = response.getTrip(tripId);
             String shapeId = activeTripObj != null ? activeTripObj.getShapeId() : null;
             boolean needSchedule = tripId != null
-                    && !dm.isSchedulePendingOrCached(tripId);
+                    && !dm.isScheduleCached(tripId)
+                    && !mPendingScheduleFetches.contains(tripId);
             boolean needShape = tripId != null && shapeId != null
                     && dm.getShape(tripId) == null;
             if (!needSchedule && !needShape) return;
 
             if (needSchedule) {
-                dm.markSchedulePending(tripId);
+                mPendingScheduleFetches.add(tripId);
             }
             final Context ctx = Application.get().getApplicationContext();
             final boolean fetchSchedule = needSchedule;
@@ -716,8 +721,7 @@ public class VehicleOverlay implements MarkerListeners  {
                             if (tripId.equals(mSelectedTripId) && mController != null) {
                                 Marker vm = mVehicleMarkers.get(tripId);
                                 LatLng vPos = vm != null ? vm.getPosition() : null;
-                                Integer rType = VehicleTrajectoryTracker.getInstance()
-                                        .getRouteType(tripId);
+                                Integer rType = dm.getRouteType(tripId);
                                 ObaTripStatus st = vm != null ? mVehicles.get(vm) : null;
                                 long dev = st != null ? st.getScheduleDeviation() : 0;
                                 mController.onVehicleSelected(tripId, vPos, rType, dev);
@@ -727,7 +731,7 @@ public class VehicleOverlay implements MarkerListeners  {
                 } catch (Exception e) {
                     Log.w(TAG, "Failed to fetch schedule/shape for " + tripId, e);
                     if (fetchSchedule) {
-                        dm.clearPending(tripId);
+                        mPendingScheduleFetches.remove(tripId);
                     }
                 }
             }).start();
@@ -877,7 +881,7 @@ public class VehicleOverlay implements MarkerListeners  {
             if (mController != null && tripId != null) {
                 Marker vehicleMarker = mVehicleMarkers.get(tripId);
                 LatLng vehiclePos = vehicleMarker != null ? vehicleMarker.getPosition() : null;
-                Integer routeType = VehicleTrajectoryTracker.getInstance().getRouteType(tripId);
+                Integer routeType = TripDataManager.getInstance().getRouteType(tripId);
                 ObaTripStatus status = vehicleMarker != null ? mVehicles.get(vehicleMarker) : null;
                 long deviation = status != null ? status.getScheduleDeviation() : 0;
                 mController.onVehicleSelected(tripId, vehiclePos, routeType, deviation);
@@ -958,9 +962,10 @@ public class VehicleOverlay implements MarkerListeners  {
                 String tripId = entry.getKey();
                 Marker marker = entry.getValue();
 
-                List<Location> shape = dm.getShape(tripId);
-                double[] cumDist = dm.getShapeCumulativeDistances(tripId);
-                if (shape == null || shape.isEmpty() || cumDist == null) continue;
+                TripDataManager.ShapeData sd = dm.getShapeWithDistances(tripId);
+                if (sd == null || sd.points.isEmpty()) continue;
+                List<Location> shape = sd.points;
+                double[] cumDist = sd.cumulativeDistances;
 
                 List<VehicleHistoryEntry> history = dm.getHistoryReadOnly(tripId);
                 Double speed = tracker.getEstimatedSpeed(tripId);

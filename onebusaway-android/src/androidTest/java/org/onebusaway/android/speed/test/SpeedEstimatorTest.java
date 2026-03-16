@@ -233,7 +233,7 @@ public class SpeedEstimatorTest {
     @Test
     public void testTrackerScheduleCacheEmpty() {
         assertNull(dm.getSchedule("trip1"));
-        assertFalse(dm.isSchedulePendingOrCached("trip1"));
+        assertFalse(dm.isScheduleCached("trip1"));
     }
 
     @Test
@@ -241,16 +241,7 @@ public class SpeedEstimatorTest {
         ObaTripSchedule schedule = ObaTripSchedule.EMPTY_OBJECT;
         dm.putSchedule("trip1", schedule);
         assertNotNull(dm.getSchedule("trip1"));
-        assertTrue(dm.isSchedulePendingOrCached("trip1"));
-    }
-
-    @Test
-    public void testTrackerMarkSchedulePending() {
-        assertFalse(dm.isSchedulePendingOrCached("trip1"));
-        dm.markSchedulePending("trip1");
-        assertTrue(dm.isSchedulePendingOrCached("trip1"));
-        // Not yet cached, just pending
-        assertNull(dm.getSchedule("trip1"));
+        assertTrue(dm.isScheduleCached("trip1"));
     }
 
     @Test
@@ -263,13 +254,10 @@ public class SpeedEstimatorTest {
     @Test
     public void testTrackerClearAllClearsScheduleCache() {
         dm.putSchedule("trip1", ObaTripSchedule.EMPTY_OBJECT);
-        dm.markSchedulePending("trip2");
-        assertTrue(dm.isSchedulePendingOrCached("trip1"));
-        assertTrue(dm.isSchedulePendingOrCached("trip2"));
+        assertTrue(dm.isScheduleCached("trip1"));
 
         dm.clearAll();
-        assertFalse(dm.isSchedulePendingOrCached("trip1"));
-        assertFalse(dm.isSchedulePendingOrCached("trip2"));
+        assertFalse(dm.isScheduleCached("trip1"));
         assertNull(dm.getSchedule("trip1"));
     }
 

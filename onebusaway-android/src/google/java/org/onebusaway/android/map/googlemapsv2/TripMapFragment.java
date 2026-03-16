@@ -55,6 +55,7 @@ import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.GammaSpeedModel;
 import org.onebusaway.android.speed.TripDataManager;
+import org.onebusaway.android.speed.TripDataManager.ShapeData;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 
@@ -374,13 +375,14 @@ public class TripMapFragment extends SupportMapFragment
         }
 
         TripDataManager dataManager = TripDataManager.getInstance();
-        List<Location> shape = dataManager.getShape(mTripId);
-        double[] cumDist = dataManager.getShapeCumulativeDistances(mTripId);
-        if (shape == null || shape.isEmpty() || cumDist == null) {
+        ShapeData sd = dataManager.getShapeWithDistances(mTripId);
+        if (sd == null || sd.points.isEmpty()) {
             // No shape data yet; stop ticking until activateRenderer starts us
             mExtrapolationTicking = false;
             return;
         }
+        List<Location> shape = sd.points;
+        double[] cumDist = sd.cumulativeDistances;
 
         long now = System.currentTimeMillis();
         List<VehicleHistoryEntry> history = dataManager.getHistoryReadOnly(mTripId);

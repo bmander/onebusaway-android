@@ -17,9 +17,6 @@ package org.onebusaway.android.speed;
 
 import org.onebusaway.android.io.elements.ObaRoute;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * Singleton speed-estimation facade. Delegates trip data access to
  * {@link TripDataManager} and owns only speed estimation logic
@@ -30,7 +27,6 @@ public final class VehicleTrajectoryTracker {
     private static final VehicleTrajectoryTracker INSTANCE = new VehicleTrajectoryTracker();
 
     private final TripDataManager dataManager = TripDataManager.getInstance();
-    private final Map<String, Integer> routeTypeCache = new HashMap<>();
     private final ScheduleSpeedEstimator scheduleEstimator = new ScheduleSpeedEstimator();
     private SpeedEstimator estimator = new GammaSpeedEstimator();
 
@@ -43,12 +39,13 @@ public final class VehicleTrajectoryTracker {
 
     /**
      * Returns the estimated speed in m/s for the given key and current state.
+     * Uses the route type from TripDataManager to select the appropriate estimator.
      */
     public synchronized Double getEstimatedSpeed(String key, VehicleState state) {
         if (key == null || state == null) {
             return null;
         }
-        Integer routeType = routeTypeCache.get(key);
+        Integer routeType = dataManager.getRouteType(key);
         SpeedEstimator est = (routeType != null && ObaRoute.isGradeSeparated(routeType))
                 ? scheduleEstimator : estimator;
         return est.estimateSpeed(state.getVehicleId(), state, dataManager);
@@ -85,26 +82,9 @@ public final class VehicleTrajectoryTracker {
     }
 
     /**
-     * Stores the route type for a trip ID.
-     */
-    public synchronized void putRouteType(String tripId, int type) {
-        if (tripId != null) {
-            routeTypeCache.put(tripId, type);
-        }
-    }
-
-    /**
-     * Returns the cached route type for the given trip, or null if not cached.
-     */
-    public synchronized Integer getRouteType(String tripId) {
-        return routeTypeCache.get(tripId);
-    }
-
-    /**
-     * Clears speed estimation state and route type cache.
+     * Clears speed estimation state.
      */
     public synchronized void clearAll() {
-        routeTypeCache.clear();
         estimator.clearState();
         scheduleEstimator.clearState();
     }

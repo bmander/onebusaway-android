@@ -1306,8 +1306,9 @@ public class BaseMapFragment extends SupportMapFragment
             mStopOverlay.clear(false);
         }
         TripDataManager dm = TripDataManager.getInstance();
-        List<Location> shape = dm.getShape(tripId);
-        double[] cumDist = dm.getShapeCumulativeDistances(tripId);
+        TripDataManager.ShapeData sd = dm.getShapeWithDistances(tripId);
+        List<Location> shape = sd != null ? sd.points : null;
+        double[] cumDist = sd != null ? sd.cumulativeDistances : null;
         ObaTripSchedule schedule = dm.getSchedule(tripId);
         HashMap<String, String> stopNames = buildStopNameMap();
         mTripRenderer.activate(tripId, shape, cumDist, schedule, mSavedRouteOverlayColor,

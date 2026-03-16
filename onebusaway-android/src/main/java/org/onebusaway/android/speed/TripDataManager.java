@@ -20,15 +20,13 @@ import android.location.Location;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Singleton that owns all per-trip data storage: vehicle position history,
- * route shapes, schedules, service dates, and active trip ID tracking.
- * Pure passive cache — callers push data in, readers pull it out.
+ * route shapes, schedules, service dates, route types, and active trip ID
+ * tracking. Pure passive cache — callers push data in, readers pull it out.
  * Thread-safe via synchronized methods.
  */
 public final class TripDataManager {
@@ -40,7 +38,7 @@ public final class TripDataManager {
     private final Map<String, Long> serviceDateCache = new HashMap<>();
     private final Map<String, List<Location>> shapeCache = new HashMap<>();
     private final Map<String, double[]> shapeCumDistCache = new HashMap<>();
-    private final Set<String> pendingScheduleFetches = new HashSet<>();
+    private final Map<String, Integer> routeTypeCache = new HashMap<>();
     /** Last active trip ID reported by the server for each queried trip. */
     private final Map<String, String> mLastActiveTripId = new HashMap<>();
 
@@ -117,26 +115,10 @@ public final class TripDataManager {
     }
 
     /**
-     * Returns true if a schedule fetch is already pending or the schedule is cached.
+     * Returns true if a schedule is cached for the given trip.
      */
-    public synchronized boolean isSchedulePendingOrCached(String tripId) {
-        return scheduleCache.containsKey(tripId) || pendingScheduleFetches.contains(tripId);
-    }
-
-    /**
-     * Marks a trip as having a pending schedule fetch.
-     */
-    public synchronized void markSchedulePending(String tripId) {
-        if (tripId != null) {
-            pendingScheduleFetches.add(tripId);
-        }
-    }
-
-    /**
-     * Removes a trip from pending fetches (e.g., on failure so it can be retried).
-     */
-    public synchronized void clearPending(String tripId) {
-        pendingScheduleFetches.remove(tripId);
+    public synchronized boolean isScheduleCached(String tripId) {
+        return scheduleCache.containsKey(tripId);
     }
 
     // --- Service date cache ---
@@ -158,6 +140,19 @@ public final class TripDataManager {
     }
 
     // --- Shape cache ---
+
+    /**
+     * Atomically readable shape data: polyline points and precomputed cumulative distances.
+     */
+    public static final class ShapeData {
+        public final List<Location> points;
+        public final double[] cumulativeDistances;
+
+        ShapeData(List<Location> points, double[] cumulativeDistances) {
+            this.points = points;
+            this.cumulativeDistances = cumulativeDistances;
+        }
+    }
 
     /**
      * Stores the decoded polyline points for a trip's shape, and precomputes
@@ -183,6 +178,36 @@ public final class TripDataManager {
      */
     public synchronized double[] getShapeCumulativeDistances(String tripId) {
         return shapeCumDistCache.get(tripId);
+    }
+
+    /**
+     * Returns both the shape points and cumulative distances atomically,
+     * or null if neither is cached. Prevents callers from seeing inconsistent
+     * shape/cumDist pairs across two separate calls.
+     */
+    public synchronized ShapeData getShapeWithDistances(String tripId) {
+        List<Location> points = shapeCache.get(tripId);
+        double[] cumDist = shapeCumDistCache.get(tripId);
+        if (points == null || cumDist == null) return null;
+        return new ShapeData(points, cumDist);
+    }
+
+    // --- Route type cache ---
+
+    /**
+     * Stores the route type for a trip ID.
+     */
+    public synchronized void putRouteType(String tripId, int type) {
+        if (tripId != null) {
+            routeTypeCache.put(tripId, type);
+        }
+    }
+
+    /**
+     * Returns the cached route type for the given trip, or null if not cached.
+     */
+    public synchronized Integer getRouteType(String tripId) {
+        return routeTypeCache.get(tripId);
     }
 
     // --- Active trip ID tracking ---
@@ -216,7 +241,7 @@ public final class TripDataManager {
         serviceDateCache.clear();
         shapeCache.clear();
         shapeCumDistCache.clear();
-        pendingScheduleFetches.clear();
+        routeTypeCache.clear();
         mLastActiveTripId.clear();
     }
 }

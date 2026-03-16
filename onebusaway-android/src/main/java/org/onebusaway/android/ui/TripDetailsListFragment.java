@@ -48,6 +48,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.ListView;
@@ -88,6 +89,10 @@ import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.nav.NavigationService;
+import org.onebusaway.android.speed.DistanceExtrapolator;
+import org.onebusaway.android.speed.TripDataManager;
+import org.onebusaway.android.speed.VehicleHistoryEntry;
+import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.DBUtil;
@@ -96,6 +101,7 @@ import org.onebusaway.android.util.PreferenceUtils;
 import org.onebusaway.android.util.UIUtils;
 
 import java.util.Calendar;
+import java.util.List;
 import java.util.GregorianCalendar;
 import java.util.concurrent.TimeUnit;
 
@@ -104,6 +110,11 @@ import static org.onebusaway.android.util.PermissionUtils.NOTIFICATION_PERMISSIO
 public class TripDetailsListFragment extends ListFragment {
 
     public static final String TAG = "TripDetailsListFragment";
+
+    public interface TripDataCallback {
+        void onTripDataLoaded(ObaTripDetailsResponse response);
+        void onShowMap();
+    }
 
     public static final String TRIP_ID = ".TripId";
 
@@ -124,6 +135,8 @@ public class TripDetailsListFragment extends ListFragment {
     public static final String ACTION_SERVICE_DESTROYED = "NavigationServiceDestroyed";
 
     private static final long REFRESH_PERIOD = 60 * 1000;
+
+    private static final long POSITION_TICK_MS = 1000;
 
     private static final int TRIP_DETAILS_LOADER = 0;
 
@@ -155,6 +168,25 @@ public class TripDetailsListFragment extends ListFragment {
     private Task<LocationSettingsResponse> mResult;
 
     private FirebaseAnalytics mFirebaseAnalytics;
+
+    private final Handler mPositionTickHandler = new Handler();
+    private final Runnable mPositionTick = this::updateVehiclePosition;
+
+    private TripDataCallback mTripDataCallback;
+
+    @Override
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        if (context instanceof TripDataCallback) {
+            mTripDataCallback = (TripDataCallback) context;
+        }
+    }
+
+    @Override
+    public void onDetach() {
+        super.onDetach();
+        mTripDataCallback = null;
+    }
 
     /**
      * Builds an intent used to set the trip and stop for the TripDetailsListFragment directly
@@ -238,6 +270,7 @@ public class TripDetailsListFragment extends ListFragment {
     @Override
     public void onPause() {
         mRefreshHandler.removeCallbacks(mRefresh);
+        mPositionTickHandler.removeCallbacks(mPositionTick);
         super.onPause();
     }
 
@@ -266,6 +299,8 @@ public class TripDetailsListFragment extends ListFragment {
             mRefreshHandler.postDelayed(mRefresh, newPeriod);
         }
 
+        mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
+
         super.onResume();
     }
 
@@ -284,7 +319,9 @@ public class TripDetailsListFragment extends ListFragment {
             refresh();
             return true;
         } else if (id == R.id.show_on_map) {
-            HomeActivity.start(getActivity(), mRouteId);
+            if (mTripDataCallback != null) {
+                mTripDataCallback.onShowMap();
+            }
             return true;
         }
         return false;
@@ -300,6 +337,10 @@ public class TripDetailsListFragment extends ListFragment {
             setEmptyText(UIUtils.getRouteErrorString(getActivity(), code));
             return;
         }
+
+        // Push vehicle state into the trip data manager so speed estimation
+        // and the trajectory debug view can use it
+        TripDataManager.getInstance().recordTripDetailsResponse(mTripId, data);
 
         setUpHeader();
         final ListView listView = getListView();
@@ -361,20 +402,23 @@ public class TripDetailsListFragment extends ListFragment {
         ObaTripStatus status = mTripInfo.getStatus();
         ObaReferences refs = mTripInfo.getRefs();
 
-        Context context = getActivity();
+        Activity activity = getActivity();
+        if (activity == null) return;
 
         String tripId = mTripInfo.getId();
 
         ObaTrip trip = refs.getTrip(tripId);
         mRouteId = trip.getRouteId();
         ObaRoute route = refs.getRoute(mRouteId);
-        TextView routeShortName = (TextView) getView().findViewById(R.id.short_name);
+        // Header views live in the activity layout, not the fragment layout
+        TextView routeShortName = (TextView) activity.findViewById(R.id.short_name);
         routeShortName.setText(route.getShortName());
+        routeShortName.setOnClickListener(v -> RouteDebugActivity.start(v.getContext(), mRouteId));
 
-        TextView headsign = (TextView) getView().findViewById(R.id.long_name);
+        TextView headsign = (TextView) activity.findViewById(R.id.long_name);
         headsign.setText(trip.getHeadsign());
 
-        TextView tripShortName = (TextView) getView().findViewById(R.id.trip_short_name);
+        TextView tripShortName = (TextView) activity.findViewById(R.id.trip_short_name);
         if (!StringUtils.isBlank(trip.getShortName())) {
             tripShortName.setVisibility(View.VISIBLE);
             tripShortName.setText(trip.getShortName());
@@ -382,32 +426,39 @@ public class TripDetailsListFragment extends ListFragment {
             tripShortName.setVisibility(View.GONE);
         }
 
-        TextView agency = (TextView) getView().findViewById(R.id.agency);
+        TextView agency = (TextView) activity.findViewById(R.id.agency);
         agency.setText(refs.getAgency(route.getAgencyId()).getName());
 
-        TextView vehicleView = (TextView) getView().findViewById(R.id.vehicle);
-        TextView vehicleDeviation = (TextView) getView().findViewById(R.id.status);
-        ViewGroup realtime = (ViewGroup) getView().findViewById(
+        TextView tripIdDebug = (TextView) activity.findViewById(R.id.trip_id_debug);
+        tripIdDebug.setText("Trip: " + tripId);
+        tripIdDebug.setVisibility(View.VISIBLE);
+
+        TextView vehicleView = (TextView) activity.findViewById(R.id.vehicle);
+        TextView vehicleDeviation = (TextView) activity.findViewById(R.id.status);
+        ViewGroup realtime = (ViewGroup) activity.findViewById(
                 R.id.eta_realtime_indicator);
         realtime.setVisibility(View.GONE);
-        ViewGroup statusLayout = (ViewGroup) getView().findViewById(
+        ViewGroup statusLayout = (ViewGroup) activity.findViewById(
                 R.id.status_layout);
-        ViewGroup occupancyView = getView().findViewById(R.id.occupancy);
+        ViewGroup occupancyView = activity.findViewById(R.id.occupancy);
 
         if (status == null) {
             // Show schedule info only
             vehicleView.setText(null);
             vehicleView.setVisibility(View.GONE);
-            vehicleDeviation.setText(context.getString(R.string.trip_details_scheduled_data));
+            vehicleDeviation.setText(activity.getString(R.string.trip_details_scheduled_data));
             return;
         }
 
         if (!TextUtils.isEmpty(status.getVehicleId())) {
             // Show vehicle info
             vehicleView
-                    .setText(context.getString(R.string.trip_details_vehicle,
+                    .setText(activity.getString(R.string.trip_details_vehicle,
                             status.getVehicleId()));
             vehicleView.setVisibility(View.VISIBLE);
+            String vehicleId = status.getVehicleId();
+            vehicleView.setOnClickListener(
+                    v -> VehicleDebugActivity.start(v.getContext(), tripId, vehicleId));
         } else {
             vehicleView.setVisibility(View.GONE);
         }
@@ -415,7 +466,7 @@ public class TripDetailsListFragment extends ListFragment {
         // The API returns deviation/position relative to the active trip.
         // If viewing a different trip in the same block, show schedule only.
         if (!TextUtils.equals(status.getActiveTripId(), tripId)) {
-            vehicleDeviation.setText(context.getString(R.string.trip_details_scheduled_data));
+            vehicleDeviation.setText(activity.getString(R.string.trip_details_scheduled_data));
             UIUtils.setOccupancyVisibilityAndColor(occupancyView, null, OccupancyState.REALTIME);
             UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.REALTIME);
             return;
@@ -435,10 +486,10 @@ public class TripDetailsListFragment extends ListFragment {
 
             if (Status.CANCELED.equals(status.getStatus())) {
                 // Canceled trip
-                vehicleDeviation.setText(context.getString(R.string.stop_info_canceled));
+                vehicleDeviation.setText(activity.getString(R.string.stop_info_canceled));
             } else {
                 // Scheduled trip
-                vehicleDeviation.setText(context.getString(R.string.trip_details_scheduled_data));
+                vehicleDeviation.setText(activity.getString(R.string.trip_details_scheduled_data));
             }
             return;
         }
@@ -471,21 +522,21 @@ public class TripDetailsListFragment extends ListFragment {
         if (deviation >= 0) {
             if (deviation < 60) {
                 vehicleDeviation.setText(
-                        context.getString(R.string.trip_details_real_time_sec_late, seconds,
+                        activity.getString(R.string.trip_details_real_time_sec_late, seconds,
                                 lastUpdate));
             } else {
                 vehicleDeviation.setText(
-                        context.getString(R.string.trip_details_real_time_min_sec_late,
+                        activity.getString(R.string.trip_details_real_time_min_sec_late,
                                 minutes, seconds, lastUpdate));
             }
         } else {
             if (deviation > -60) {
                 vehicleDeviation.setText(
-                        context.getString(R.string.trip_details_real_time_sec_early, seconds,
+                        activity.getString(R.string.trip_details_real_time_sec_early, seconds,
                                 lastUpdate));
             } else {
                 vehicleDeviation.setText(
-                        context.getString(R.string.trip_details_real_time_min_sec_early, minutes,
+                        activity.getString(R.string.trip_details_real_time_min_sec_early, minutes,
                                 seconds, lastUpdate));
             }
         }
@@ -499,6 +550,89 @@ public class TripDetailsListFragment extends ListFragment {
             UIUtils.setOccupancyVisibilityAndColor(occupancyView, null, OccupancyState.REALTIME);
             UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.REALTIME);
         }
+
+        setUpLocationDataButton(status);
+    }
+
+    private void updateVehiclePosition() {
+        if (mAdapter == null || mTripInfo == null) return;
+        ObaTripSchedule schedule = mTripInfo.getSchedule();
+        if (schedule == null || schedule.getStopTimes() == null) return;
+
+        ObaTripStatus status = mTripInfo.getStatus();
+        if (status == null) return;
+
+        // Determine the active trip ID
+        TripDataManager dm = TripDataManager.getInstance();
+        String activeTripId = dm.getLastActiveTripId(mTripId);
+        if (activeTripId == null) {
+            activeTripId = status.getActiveTripId();
+        }
+
+        // Only extrapolate if this is the active trip
+        if (activeTripId == null || !activeTripId.equals(mTripId)) {
+            mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
+            return;
+        }
+
+        List<VehicleHistoryEntry> history = dm.getHistory(activeTripId);
+        Double speed = VehicleTrajectoryTracker.getInstance().getEstimatedSpeed(activeTripId);
+        if (history == null || speed == null) {
+            mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
+            return;
+        }
+
+        Double extrapolatedDist = DistanceExtrapolator.extrapolateDistance(
+                history, speed, System.currentTimeMillis());
+        if (extrapolatedDist == null) {
+            mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
+            return;
+        }
+
+        Integer newNextStopIndex = DistanceExtrapolator.findNextStopIndex(
+                schedule.getStopTimes(), extrapolatedDist);
+        if (newNextStopIndex != null && !newNextStopIndex.equals(mAdapter.mNextStopIndex)) {
+            mAdapter.updateExtrapolatedPosition(newNextStopIndex);
+        }
+
+        mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
+    }
+
+    private void setUpLocationDataButton(ObaTripStatus status) {
+        Activity activity = getActivity();
+        if (activity == null) return;
+        Button locationDataBtn = (Button) activity.findViewById(R.id.view_location_data);
+        String activeTripId = status.getActiveTripId();
+        if (activeTripId == null) {
+            locationDataBtn.setVisibility(View.GONE);
+            return;
+        }
+
+        // Only show the trajectory button if viewing the currently active trip.
+        // For future trips on the same block, the trajectory data belongs to
+        // the active trip and would be misleading.
+        if (!activeTripId.equals(mTripId)) {
+            locationDataBtn.setVisibility(View.GONE);
+            return;
+        }
+
+        // Cache schedule and service date so the trajectory graph can use them
+        TripDataManager dm = TripDataManager.getInstance();
+        ObaTripSchedule schedule = mTripInfo.getSchedule();
+        if (schedule != null) {
+            dm.putSchedule(activeTripId, schedule);
+        }
+        if (status.getServiceDate() > 0) {
+            dm.putServiceDate(activeTripId, status.getServiceDate());
+        }
+
+        int count = dm.getHistorySize(activeTripId);
+        locationDataBtn.setText(getString(R.string.vehicle_view_location_data)
+                + " (" + count + ")");
+        locationDataBtn.setVisibility(View.VISIBLE);
+        final String vehicleId = status.getVehicleId();
+        locationDataBtn.setOnClickListener(v ->
+                VehicleLocationDataActivity.start(v.getContext(), activeTripId, vehicleId, mStopId));
     }
 
     private Integer findIndexForStop(ObaTripSchedule.StopTime[] stopTimes, String stopId) {
@@ -781,6 +915,11 @@ public class TripDetailsListFragment extends ListFragment {
                                    ObaTripDetailsResponse data) {
             setTripDetails(data);
 
+            // Notify the activity that trip data is available
+            if (mTripDataCallback != null) {
+                mTripDataCallback.onTripDataLoaded(data);
+            }
+
             // The list should now be shown.
             if (isResumed()) {
                 setListShown(true);
@@ -888,6 +1027,11 @@ public class TripDetailsListFragment extends ListFragment {
         @Override
         public void notifyDataSetChanged() {
             updateData();
+            super.notifyDataSetChanged();
+        }
+
+        void updateExtrapolatedPosition(Integer nextStopIndex) {
+            mNextStopIndex = nextStopIndex;
             super.notifyDataSetChanged();
         }
 

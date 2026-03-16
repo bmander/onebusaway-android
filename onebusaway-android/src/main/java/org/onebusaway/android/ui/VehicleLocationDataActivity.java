@@ -35,14 +35,11 @@ import com.google.android.material.tabs.TabLayout;
 import org.onebusaway.android.R;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.io.ObaApi;
-import org.onebusaway.android.io.elements.ObaTrip;
-import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.speed.GammaSpeedModel;
 import org.onebusaway.android.speed.TripDataManager;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
-import org.onebusaway.android.speed.VehicleState;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.UIUtils;
 
@@ -243,21 +240,8 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
                 ObaTripDetailsResponse response =
                         ObaTripDetailsRequest.newRequest(getApplicationContext(), tripId).call();
                 if (response != null && response.getCode() == ObaApi.OBA_OK) {
-                    ObaTripStatus status = response.getStatus();
-                    if (status != null) {
-                        TripDataManager dm = TripDataManager.getInstance();
-                        dm.putLastActiveTripId(tripId, status.getActiveTripId());
-                        if (status.getActiveTripId() != null) {
-                            VehicleState state = VehicleState.fromTripStatus(status);
-                            ObaTrip trip = response.getTrip(status.getActiveTripId());
-                            String blockId = trip != null ? trip.getBlockId() : null;
-                            dm.recordState(status.getActiveTripId(), state, blockId);
-                            if (status.getServiceDate() > 0) {
-                                dm.putServiceDate(status.getActiveTripId(),
-                                        status.getServiceDate());
-                            }
-                        }
-                    }
+                    TripDataManager.getInstance()
+                            .recordTripDetailsResponse(tripId, response);
                 }
             } catch (Exception e) {
                 android.util.Log.w(TAG, "Failed to poll trip details for " + tripId, e);

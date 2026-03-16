@@ -17,7 +17,10 @@ package org.onebusaway.android.speed;
 
 import android.location.Location;
 
+import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
+import org.onebusaway.android.io.elements.ObaTripStatus;
+import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 
 import java.util.HashMap;
 import java.util.List;
@@ -52,48 +55,73 @@ public final class TripDataManager {
     // --- Vehicle history ---
 
     /**
-     * Records a vehicle state snapshot into the history for the given key (activeTripId).
+     * Records a vehicle state snapshot into the history for the given active trip ID.
      * Delegates to {@link AvlRepository} for storage.
      */
-    public void recordState(String key, VehicleState state) {
-        repository.record(key, state, null);
+    public void recordState(String activeTripId, VehicleState state) {
+        repository.record(activeTripId, state, null);
     }
 
     /**
      * Records a vehicle state snapshot with block ID information.
      * Delegates to {@link AvlRepository} for storage.
      */
-    public void recordState(String key, VehicleState state, String blockId) {
-        repository.record(key, state, blockId);
+    public void recordState(String activeTripId, VehicleState state, String blockId) {
+        repository.record(activeTripId, state, blockId);
     }
 
     /**
-     * Returns a defensive copy of the history for the given key.
+     * Convenience method that extracts vehicle state, block ID, active trip ID,
+     * and service date from a trip details response and records them.
+     *
+     * @param polledTripId the trip ID that was queried
+     * @param response     the API response
      */
-    public List<VehicleHistoryEntry> getHistory(String key) {
-        return repository.getHistoryForTrip(key);
+    public void recordTripDetailsResponse(String polledTripId,
+                                           ObaTripDetailsResponse response) {
+        if (response == null) return;
+        ObaTripStatus status = response.getStatus();
+        if (status == null) return;
+        putLastActiveTripId(polledTripId, status.getActiveTripId());
+        if (status.getActiveTripId() != null) {
+            VehicleState vs = VehicleState.fromTripStatus(status);
+            ObaTrip trip = response.getTrip(status.getActiveTripId());
+            String blockId = trip != null ? trip.getBlockId() : null;
+            recordState(status.getActiveTripId(), vs, blockId);
+            if (status.getServiceDate() > 0) {
+                putServiceDate(status.getActiveTripId(), status.getServiceDate());
+            }
+        }
     }
 
     /**
-     * Returns a read-only view of the history for the given key.
+     * Returns a defensive copy of the history for the given trip.
+     * Safe to modify; use {@link #getHistoryReadOnly} on hot paths instead.
+     */
+    public List<VehicleHistoryEntry> getHistory(String activeTripId) {
+        return repository.getHistoryForTrip(activeTripId);
+    }
+
+    /**
+     * Returns a read-only view of the history for the given trip.
      * Zero-allocation; suitable for per-frame hot-path use.
      */
-    public List<VehicleHistoryEntry> getHistoryReadOnly(String key) {
-        return repository.getHistoryForTripReadOnly(key);
+    public List<VehicleHistoryEntry> getHistoryReadOnly(String activeTripId) {
+        return repository.getHistoryForTripReadOnly(activeTripId);
     }
 
     /**
-     * Returns the number of history entries for the given key, without copying.
+     * Returns the number of history entries for the given trip, without copying.
      */
-    public int getHistorySize(String key) {
-        return repository.getHistorySizeForTrip(key);
+    public int getHistorySize(String activeTripId) {
+        return repository.getHistorySizeForTrip(activeTripId);
     }
 
     /**
-     * Returns the last recorded VehicleState for the given key, or null.
+     * Returns the last recorded VehicleState for the given trip, or null.
      */
-    public VehicleState getLastState(String key) {
-        return repository.getLastState(key);
+    public VehicleState getLastState(String activeTripId) {
+        return repository.getLastState(activeTripId);
     }
 
     // --- Schedule cache ---

@@ -92,7 +92,6 @@ import org.onebusaway.android.nav.NavigationService;
 import org.onebusaway.android.speed.DistanceExtrapolator;
 import org.onebusaway.android.speed.TripDataManager;
 import org.onebusaway.android.speed.VehicleHistoryEntry;
-import org.onebusaway.android.speed.VehicleState;
 import org.onebusaway.android.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.ArrivalInfoUtils;
@@ -341,21 +340,7 @@ public class TripDetailsListFragment extends ListFragment {
 
         // Push vehicle state into the trip data manager so speed estimation
         // and the trajectory debug view can use it
-        ObaTripStatus status = data.getStatus();
-        if (status != null) {
-            TripDataManager dm = TripDataManager.getInstance();
-            dm.putLastActiveTripId(mTripId, status.getActiveTripId());
-            if (status.getActiveTripId() != null) {
-                VehicleState vs = VehicleState.fromTripStatus(status);
-                ObaTrip tripObj = data.getRefs() != null
-                        ? data.getRefs().getTrip(status.getActiveTripId()) : null;
-                String blockId = tripObj != null ? tripObj.getBlockId() : null;
-                dm.recordState(status.getActiveTripId(), vs, blockId);
-                if (status.getServiceDate() > 0) {
-                    dm.putServiceDate(status.getActiveTripId(), status.getServiceDate());
-                }
-            }
-        }
+        TripDataManager.getInstance().recordTripDetailsResponse(mTripId, data);
 
         setUpHeader();
         final ListView listView = getListView();

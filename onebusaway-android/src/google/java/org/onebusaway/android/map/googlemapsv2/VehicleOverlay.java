@@ -705,6 +705,7 @@ public class VehicleOverlay implements MarkerListeners  {
                                 dm.putSchedule(tripId, schedule);
                             }
                         }
+                        mPendingScheduleFetches.remove(tripId);
                     }
                     if (fetchShape) {
                         ObaShapeResponse shapeResponse =

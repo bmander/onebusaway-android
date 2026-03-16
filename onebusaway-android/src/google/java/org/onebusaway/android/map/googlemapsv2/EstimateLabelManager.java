@@ -34,7 +34,7 @@ import java.util.List;
 
 /**
  * Owns the slow/fast estimate label markers, icon creation, and click-to-expand.
- * Labels interpolate directly on the polyline — no dependency on {@link org.onebusaway.android.speed.RouteSpine}.
+ * Labels interpolate directly on the polyline.
  */
 public final class EstimateLabelManager {
 

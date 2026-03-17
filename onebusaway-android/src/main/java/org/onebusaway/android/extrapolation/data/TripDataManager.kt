@@ -154,7 +154,7 @@ object TripDataManager {
     /**
      * Atomically readable shape data: polyline points and precomputed cumulative distances.
      */
-    data class ShapeData(val points: List<Location>, val cumulativeDistances: DoubleArray)
+    data class ShapeData(@JvmField val points: List<Location>, @JvmField val cumulativeDistances: DoubleArray)
 
     /**
      * Stores the decoded polyline points for a trip's shape, and precomputes

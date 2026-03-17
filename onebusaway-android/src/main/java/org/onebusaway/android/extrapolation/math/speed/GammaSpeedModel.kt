@@ -40,7 +40,7 @@ object GammaSpeedModel {
     private const val CDF_EPSILON = 1e-10
 
     /** Parameters for a Gamma distribution: shape (alpha) and scale (theta). */
-    data class GammaParams(val alpha: Double, val scale: Double)
+    data class GammaParams(@JvmField val alpha: Double, @JvmField val scale: Double)
 
     /**
      * Computes Gamma distribution parameters from schedule and previous observed speeds.

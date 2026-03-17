@@ -20,12 +20,13 @@ import kotlin.math.pow
 
 /**
  * Five-parameter power-law blend gamma distribution (H12) for vehicle speed modeling.
- * All public methods use m/s. The model was calibrated in mph internally;
- * the conversion is encapsulated in [fromSpeeds].
+ * All public inputs and outputs are in m/s. Internally, the model computes
+ * in the unit system it was calibrated in (mph) so that C, vEff, and scale
+ * share units, then converts the resulting scale to m/s.
  */
 object GammaSpeedModel {
 
-    // Fitted parameters (calibrated in mph space)
+    // Fitted parameters (calibrated in mph)
     private const val START_B0 = 0.1793
     private const val END_B0 = 0.0604
     private const val KINK = 26.95 // mph
@@ -51,26 +52,24 @@ object GammaSpeedModel {
         if (vPrev <= 0) vPrev = schedSpeedMps
         if (schedSpeedMps <= 0) return null
 
-        // Model was calibrated in mph; convert for parameter computation
-        val vSchedMph = schedSpeedMps * MPS_TO_MPH
-        val vPrevMph = vPrev * MPS_TO_MPH
-
-        val vEff = vSchedMph.pow(1.0 - D) * vPrevMph.pow(D)
+        // Compute in mph so C, vEff, and scale share units
+        val vEff = (schedSpeedMps * MPS_TO_MPH).pow(1.0 - D) *
+            (vPrev * MPS_TO_MPH).pow(D)
 
         val b0 = beta0(vEff)
         val alpha = b0 * C * vEff
-        val scaleMps = C / b0 / MPS_TO_MPH
+        val scale = C / b0 / MPS_TO_MPH // convert scale to m/s
 
-        if (alpha <= 0 || scaleMps <= 0) return null
+        if (alpha <= 0 || scale <= 0) return null
 
-        return GammaParams(alpha, scaleMps)
+        return GammaParams(alpha, scale)
     }
 
-    /** Piecewise linear ramp from START_B0 to END_B0, flat after KINK (in mph). */
-    private fun beta0(vEffMph: Double): Double = when {
-        vEffMph >= KINK -> END_B0
-        vEffMph <= 0 -> START_B0
-        else -> START_B0 + (END_B0 - START_B0) * (vEffMph / KINK)
+    /** Piecewise linear ramp from START_B0 to END_B0, flat after KINK. */
+    private fun beta0(vEff: Double): Double = when {
+        vEff >= KINK -> END_B0
+        vEff <= 0 -> START_B0
+        else -> START_B0 + (END_B0 - START_B0) * (vEff / KINK)
     }
 
     /**

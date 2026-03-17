@@ -17,6 +17,8 @@ package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.VehicleState
+import org.onebusaway.android.extrapolation.math.PointEstimate
+import org.onebusaway.android.extrapolation.math.SpeedDistribution
 
 /**
  * Estimates speed using the trip schedule: finds the two stops bracketing the vehicle's
@@ -27,7 +29,7 @@ class ScheduleSpeedEstimator : SpeedEstimator {
     override fun estimateSpeed(
         state: VehicleState,
         dataManager: TripDataManager
-    ): Double? {
+    ): SpeedDistribution? {
         val currentDist = state.scheduledDistanceAlongTrip ?: return null
         val schedule = dataManager.getSchedule(state.activeTripId) ?: return null
         val stopTimes = schedule.stopTimes
@@ -62,6 +64,6 @@ class ScheduleSpeedEstimator : SpeedEstimator {
 
         if (distDelta <= 0 || timeDelta <= 0) return null
 
-        return distDelta / timeDelta
+        return PointEstimate(distDelta / timeDelta)
     }
 }

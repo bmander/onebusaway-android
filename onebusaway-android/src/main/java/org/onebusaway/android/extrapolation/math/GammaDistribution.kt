@@ -24,22 +24,22 @@ import kotlin.math.sqrt
  * Gamma distribution parameterized by shape ([alpha]) and [scale].
  * Provides PDF, CDF, quantile (inverse CDF), and mean.
  */
-class GammaDistribution(@JvmField val alpha: Double, @JvmField val scale: Double) {
+class GammaDistribution(@JvmField val alpha: Double, @JvmField val scale: Double) : SpeedDistribution {
 
-    val mean: Double get() = alpha * scale
+    override val mean: Double get() = alpha * scale
 
-    fun pdf(x: Double): Double {
+    override fun pdf(x: Double): Double {
         if (x <= 0) return 0.0
         val lnPdf = (alpha - 1) * ln(x) - x / scale - alpha * ln(scale) - lnGamma(alpha)
         return exp(lnPdf)
     }
 
-    fun cdf(x: Double): Double {
+    override fun cdf(x: Double): Double {
         if (x <= 0) return 0.0
         return regularizedGammaP(alpha, x / scale)
     }
 
-    fun quantile(p: Double): Double {
+    override fun quantile(p: Double): Double {
         if (p <= 0) return 0.0
         if (p >= 1) return Double.MAX_VALUE
 

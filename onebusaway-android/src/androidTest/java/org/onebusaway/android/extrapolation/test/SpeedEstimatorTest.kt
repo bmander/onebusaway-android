@@ -28,6 +28,8 @@ import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.VehicleHistoryEntry
 import org.onebusaway.android.extrapolation.data.VehicleState
+import org.onebusaway.android.extrapolation.math.GammaDistribution
+import org.onebusaway.android.extrapolation.math.PointEstimate
 import org.onebusaway.android.extrapolation.math.speed.GammaSpeedEstimator
 import org.onebusaway.android.extrapolation.math.speed.GammaSpeedModel
 import org.onebusaway.android.extrapolation.math.speed.ScheduleSpeedEstimator
@@ -216,7 +218,7 @@ class SpeedEstimatorTest {
             override fun estimateSpeed(
                 state: VehicleState,
                 dataManager: TripDataManager
-            ): Double = 42.0
+            ) = PointEstimate(42.0)
         })
 
         val state = createState(
@@ -331,9 +333,9 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 500.0, 500.0, 5000.0, 10000L
         )
 
-        val speed = estimator.estimateSpeed(state, dm)
-        assertNotNull(speed)
-        assertEquals(1000.0 / 60.0, speed!!, 0.01)
+        val dist = estimator.estimateSpeed(state, dm)
+        assertNotNull(dist)
+        assertEquals(1000.0 / 60.0, dist!!.mean, 0.01)
     }
 
     @Test
@@ -351,9 +353,9 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 1500.0, 1500.0, 5000.0, 10000L
         )
 
-        val speed = estimator.estimateSpeed(state, dm)
-        assertNotNull(speed)
-        assertEquals(2000.0 / 120.0, speed!!, 0.01)
+        val dist = estimator.estimateSpeed(state, dm)
+        assertNotNull(dist)
+        assertEquals(2000.0 / 120.0, dist!!.mean, 0.01)
     }
 
     @Test
@@ -371,9 +373,9 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 50.0, 50.0, 5000.0, 10000L
         )
 
-        val speed = estimator.estimateSpeed(state, dm)
-        assertNotNull(speed)
-        assertEquals(900.0 / 60.0, speed!!, 0.01)
+        val dist = estimator.estimateSpeed(state, dm)
+        assertNotNull(dist)
+        assertEquals(900.0 / 60.0, dist!!.mean, 0.01)
     }
 
     @Test
@@ -391,9 +393,9 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 3500.0, 3500.0, 5000.0, 10000L
         )
 
-        val speed = estimator.estimateSpeed(state, dm)
-        assertNotNull(speed)
-        assertEquals(2000.0 / 120.0, speed!!, 0.01)
+        val dist = estimator.estimateSpeed(state, dm)
+        assertNotNull(dist)
+        assertEquals(2000.0 / 120.0, dist!!.mean, 0.01)
     }
 
     @Test
@@ -525,17 +527,13 @@ class SpeedEstimatorTest {
         dm.recordState("trip1", state1)
         dm.recordState("trip1", state2)
 
-        val speed = estimator.estimateSpeed(state2, dm)
-        assertNotNull(speed)
-        assertTrue("Speed should be positive", speed!! > 0)
-
-        val dist = estimator.getLastGammaDistribution()
+        val dist = estimator.estimateSpeed(state2, dm)
         assertNotNull(dist)
-        assertTrue("Alpha should be positive", dist!!.alpha > 0)
-        assertTrue("Scale should be positive", dist.scale > 0)
-
-        val expectedMedian = dist.quantile(0.5)
-        assertEquals(expectedMedian, speed, 0.001)
+        assertTrue(dist is GammaDistribution)
+        val gamma = dist as GammaDistribution
+        assertTrue("Alpha should be positive", gamma.alpha > 0)
+        assertTrue("Scale should be positive", gamma.scale > 0)
+        assertTrue("Median should be positive", gamma.median() > 0)
     }
 
     @Test
@@ -547,8 +545,7 @@ class SpeedEstimatorTest {
         )
         dm.recordState("trip1", state)
 
-        val speed = estimator.estimateSpeed(state, dm)
-        assertNull(speed)
+        assertNull(estimator.estimateSpeed(state, dm))
     }
 
     @Test
@@ -572,8 +569,7 @@ class SpeedEstimatorTest {
         )
         dm.recordState("trip1", state)
 
-        val speed = estimator.estimateSpeed(state, dm)
-        assertNull("Speed should be null before trip start", speed)
+        assertNull("Should be null before trip start", estimator.estimateSpeed(state, dm))
     }
 
     // --- Integration test ---

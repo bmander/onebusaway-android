@@ -17,7 +17,7 @@ package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.VehicleState
-import org.onebusaway.android.extrapolation.math.GammaDistribution
+import org.onebusaway.android.extrapolation.math.SpeedDistribution
 import org.onebusaway.android.io.elements.ObaRoute
 
 /**
@@ -33,13 +33,14 @@ object VehicleTrajectoryTracker {
     private val dataManager = TripDataManager
     private val scheduleEstimator = ScheduleSpeedEstimator()
     private var estimator: SpeedEstimator = GammaSpeedEstimator()
+    private var lastDistribution: SpeedDistribution? = null
 
     /**
-     * Returns the estimated speed in m/s for the given key and current state.
+     * Returns the estimated speed distribution for the given key and current state.
      * Uses the route type from TripDataManager to select the appropriate estimator.
      */
     @Synchronized
-    fun getEstimatedSpeed(key: String?, state: VehicleState?): Double? {
+    fun getEstimatedDistribution(key: String?, state: VehicleState?): SpeedDistribution? {
         if (key == null || state == null) return null
         val routeType = dataManager.getRouteType(key)
         val est = if (routeType != null && ObaRoute.isGradeSeparated(routeType)) {
@@ -47,8 +48,17 @@ object VehicleTrajectoryTracker {
         } else {
             estimator
         }
-        return est.estimateSpeed(state, dataManager)
+        val dist = est.estimateSpeed(state, dataManager)
+        lastDistribution = dist
+        return dist
     }
+
+    /**
+     * Returns the estimated speed in m/s for the given key and current state.
+     */
+    @Synchronized
+    fun getEstimatedSpeed(key: String?, state: VehicleState?): Double? =
+        getEstimatedDistribution(key, state)?.median()
 
     /**
      * Returns the estimated speed in m/s for the given key, using the last cached VehicleState.
@@ -58,16 +68,10 @@ object VehicleTrajectoryTracker {
         getEstimatedSpeed(key, dataManager.getLastState(key))
 
     /**
-     * Returns the schedule-derived speed from the last speed estimate.
+     * Returns the distribution from the last speed estimate.
      */
     @Synchronized
-    fun getLastScheduleSpeed(): Double = estimator.getLastScheduleSpeed()
-
-    /**
-     * Returns the GammaDistribution from the last speed estimate.
-     */
-    @Synchronized
-    fun getLastGammaDistribution(): GammaDistribution? = estimator.getLastGammaDistribution()
+    fun getLastDistribution(): SpeedDistribution? = lastDistribution
 
     /**
      * Sets the active speed estimator.
@@ -80,11 +84,10 @@ object VehicleTrajectoryTracker {
     }
 
     /**
-     * Clears speed estimation state.
+     * Clears estimation state.
      */
     @Synchronized
     fun clearAll() {
-        estimator.clearState()
-        scheduleEstimator.clearState()
+        lastDistribution = null
     }
 }

@@ -17,7 +17,7 @@ package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.VehicleState
-import org.onebusaway.android.extrapolation.math.GammaDistribution
+import org.onebusaway.android.extrapolation.math.SpeedDistribution
 
 /**
  * Interface for estimating the speed of a transit vehicle.
@@ -25,27 +25,11 @@ import org.onebusaway.android.extrapolation.math.GammaDistribution
 interface SpeedEstimator {
 
     /**
-     * Estimates the current speed of a vehicle.
+     * Estimates the speed distribution for a vehicle.
      *
      * @param state       the current vehicle state snapshot
      * @param dataManager the manager holding trip data (history, schedule, etc.)
-     * @return estimated speed in meters per second, or null if insufficient data
+     * @return a speed distribution (m/s), or null if insufficient data
      */
-    fun estimateSpeed(state: VehicleState, dataManager: TripDataManager): Double?
-
-    /**
-     * Clears all internal estimator state.
-     */
-    fun clearState() {}
-
-    /**
-     * Returns the schedule-derived speed from the last estimateSpeed call.
-     * @return schedule speed in m/s, or 0 if not available
-     */
-    fun getLastScheduleSpeed(): Double = 0.0
-
-    /**
-     * Returns the GammaDistribution from the last estimateSpeed call, or null if not available.
-     */
-    fun getLastGammaDistribution(): GammaDistribution? = null
+    fun estimateSpeed(state: VehicleState, dataManager: TripDataManager): SpeedDistribution?
 }

@@ -29,6 +29,7 @@ import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.VehicleHistoryEntry
 import org.onebusaway.android.extrapolation.data.VehicleState
 import org.onebusaway.android.extrapolation.math.speed.GammaSpeedEstimator
+import org.onebusaway.android.extrapolation.math.GammaDistribution
 import org.onebusaway.android.extrapolation.math.speed.GammaSpeedModel
 import org.onebusaway.android.extrapolation.math.speed.ScheduleSpeedEstimator
 import org.onebusaway.android.extrapolation.math.speed.SpeedEstimator
@@ -454,8 +455,8 @@ class SpeedEstimatorTest {
         assertNotNull(params)
 
         for (p in doubleArrayOf(0.10, 0.25, 0.50, 0.75, 0.90)) {
-            val q = GammaSpeedModel.quantile(p, params!!)
-            val cdfVal = GammaSpeedModel.cdf(q, params)
+            val q = GammaDistribution.quantile(p, params!!.alpha, params.scale)
+            val cdfVal = GammaDistribution.cdf(q, params.alpha, params.scale)
             assertEquals("CDF(quantile($p)) should equal $p", p, cdfVal, 0.01)
         }
     }
@@ -485,7 +486,7 @@ class SpeedEstimatorTest {
         val params = GammaSpeedModel.fromSpeeds(6.71, 6.71)
         assertNotNull(params)
 
-        val meanMps = GammaSpeedModel.mean(params!!)
+        val meanMps = params!!.alpha * params.scale
         assertTrue("Mean speed should be positive", meanMps > 0)
         // Mean should be near 6.71 m/s
         assertEquals(6.71, meanMps, 1.5)
@@ -497,10 +498,10 @@ class SpeedEstimatorTest {
         val params = GammaSpeedModel.fromSpeeds(6.71, 6.71)
         assertNotNull(params)
 
-        assertEquals(0.0, GammaSpeedModel.pdf(0.0, params!!), 0.001)
+        assertEquals(0.0, GammaDistribution.pdf(0.0, params!!.alpha, params.scale), 0.001)
         assertTrue(
             "PDF should be positive at mean",
-            GammaSpeedModel.pdf(6.71, params) > 0
+            GammaDistribution.pdf(6.71, params.alpha, params.scale) > 0
         )
     }
 
@@ -510,10 +511,10 @@ class SpeedEstimatorTest {
         val params = GammaSpeedModel.fromSpeeds(6.71, 6.71)
         assertNotNull(params)
 
-        assertEquals(0.0, GammaSpeedModel.cdf(0.0, params!!), 0.001)
-        assertEquals(0.0, GammaSpeedModel.cdf(-1.0, params), 0.001)
+        assertEquals(0.0, GammaDistribution.cdf(0.0, params!!.alpha, params.scale), 0.001)
+        assertEquals(0.0, GammaDistribution.cdf(-1.0, params.alpha, params.scale), 0.001)
         // 45 m/s ≈ 100 mph
-        assertTrue(GammaSpeedModel.cdf(45.0, params) > 0.99)
+        assertTrue(GammaDistribution.cdf(45.0, params.alpha, params.scale) > 0.99)
     }
 
     // --- GammaSpeedEstimator tests ---
@@ -553,7 +554,7 @@ class SpeedEstimatorTest {
         assertTrue("Alpha should be positive", params!!.alpha > 0)
         assertTrue("Scale should be positive", params.scale > 0)
 
-        val expectedMedian = GammaSpeedModel.median(params)
+        val expectedMedian = GammaDistribution.quantile(0.5, params.alpha, params.scale)
         assertEquals(expectedMedian, speed, 0.001)
     }
 

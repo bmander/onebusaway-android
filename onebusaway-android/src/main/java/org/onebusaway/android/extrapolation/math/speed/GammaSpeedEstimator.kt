@@ -18,6 +18,7 @@ package org.onebusaway.android.extrapolation.math.speed
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.VehicleHistoryEntry
 import org.onebusaway.android.extrapolation.data.VehicleState
+import org.onebusaway.android.extrapolation.math.GammaDistribution
 
 /**
  * Speed estimator using the H12 gamma distribution model.
@@ -50,7 +51,7 @@ class GammaSpeedEstimator : SpeedEstimator {
         val params = GammaSpeedModel.fromSpeeds(vSched, vPrev)
         if (params != null) {
             lastGammaParams = params
-            return GammaSpeedModel.median(params)
+            return GammaDistribution.quantile(0.5, params.alpha, params.scale)
         }
 
         // Fall back to schedule speed

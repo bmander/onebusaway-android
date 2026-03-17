@@ -68,36 +68,4 @@ object GammaSpeedModel {
         else -> START_B0 + (END_B0 - START_B0) * (vEff / KINK)
     }
 
-    /**
-     * Returns the mean speed in m/s.
-     */
-    @JvmStatic
-    fun mean(params: GammaParams): Double = params.alpha * params.scale
-
-    /**
-     * Returns the median (50th percentile) speed in m/s.
-     */
-    @JvmStatic
-    fun median(params: GammaParams): Double = quantile(0.50, params)
-
-    /**
-     * Gamma PDF evaluated at [speedMps].
-     */
-    @JvmStatic
-    fun pdf(speedMps: Double, params: GammaParams): Double =
-        GammaDistribution.pdf(speedMps, params.alpha, params.scale)
-
-    /**
-     * Gamma CDF evaluated at [speedMps].
-     */
-    @JvmStatic
-    fun cdf(speedMps: Double, params: GammaParams): Double =
-        GammaDistribution.cdf(speedMps, params.alpha, params.scale)
-
-    /**
-     * Returns the speed in m/s at the given quantile.
-     */
-    @JvmStatic
-    fun quantile(p: Double, params: GammaParams): Double =
-        GammaDistribution.quantile(p, params.alpha, params.scale)
 }

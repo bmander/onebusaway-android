@@ -434,26 +434,25 @@ class SpeedEstimatorTest {
     }
 
     // --- GammaSpeedModel tests ---
+    // (Detailed GammaSpeedModel tests are in the JVM unit test suite;
+    //  these are smoke tests that verify it works on device.)
 
     @Test
     fun testGammaSpeedModel_fromSpeeds_workedExample() {
-        val vSchedMps = 20.0 / GammaSpeedModel.MPS_TO_MPH
-        val vPrevMps = 10.0 / GammaSpeedModel.MPS_TO_MPH
-
-        val params = GammaSpeedModel.fromSpeeds(vSchedMps, vPrevMps)
+        // 20 mph ≈ 8.94 m/s, 10 mph ≈ 4.47 m/s
+        val params = GammaSpeedModel.fromSpeeds(8.94, 4.47)
         assertNotNull(params)
-
         assertEquals(1.93, params!!.alpha, 0.15)
-        assertEquals(10.58, params.scale, 1.0)
+        // scale is now in m/s (~4.73)
+        assertEquals(4.73, params.scale, 0.5)
     }
 
     @Test
     fun testGammaSpeedModel_cdf_quantile_roundTrip() {
-        val vSchedMps = 15.0 / GammaSpeedModel.MPS_TO_MPH
-        val params = GammaSpeedModel.fromSpeeds(vSchedMps, vSchedMps)
+        // 15 mph ≈ 6.71 m/s
+        val params = GammaSpeedModel.fromSpeeds(6.71, 6.71)
         assertNotNull(params)
 
-        // CDF at quantile(p) should return p
         for (p in doubleArrayOf(0.10, 0.25, 0.50, 0.75, 0.90)) {
             val q = GammaSpeedModel.quantile(p, params!!)
             val cdfVal = GammaSpeedModel.cdf(q, params)
@@ -463,12 +462,11 @@ class SpeedEstimatorTest {
 
     @Test
     fun testGammaSpeedModel_prevSpeedFallback() {
-        val vSchedMps = 20.0 / GammaSpeedModel.MPS_TO_MPH
-
-        val params = GammaSpeedModel.fromSpeeds(vSchedMps, 0.0)
+        // 20 mph ≈ 8.94 m/s
+        val params = GammaSpeedModel.fromSpeeds(8.94, 0.0)
         assertNotNull(params)
 
-        val paramsEqual = GammaSpeedModel.fromSpeeds(vSchedMps, vSchedMps)
+        val paramsEqual = GammaSpeedModel.fromSpeeds(8.94, 8.94)
         assertNotNull(paramsEqual)
 
         assertEquals(paramsEqual!!.alpha, params!!.alpha, 0.001)
@@ -482,39 +480,40 @@ class SpeedEstimatorTest {
     }
 
     @Test
-    fun testGammaSpeedModel_meanSpeedMps() {
-        val vSchedMps = 15.0 / GammaSpeedModel.MPS_TO_MPH
-        val params = GammaSpeedModel.fromSpeeds(vSchedMps, vSchedMps)
+    fun testGammaSpeedModel_mean() {
+        // 15 mph ≈ 6.71 m/s
+        val params = GammaSpeedModel.fromSpeeds(6.71, 6.71)
         assertNotNull(params)
 
-        val meanMps = GammaSpeedModel.meanSpeedMps(params!!)
+        val meanMps = GammaSpeedModel.mean(params!!)
         assertTrue("Mean speed should be positive", meanMps > 0)
-        val meanMph = meanMps * GammaSpeedModel.MPS_TO_MPH
-        assertEquals(15.0, meanMph, 3.0)
+        // Mean should be near 6.71 m/s
+        assertEquals(6.71, meanMps, 1.5)
     }
 
     @Test
     fun testGammaSpeedModel_pdf_positiveInRange() {
-        val vSchedMps = 15.0 / GammaSpeedModel.MPS_TO_MPH
-        val params = GammaSpeedModel.fromSpeeds(vSchedMps, vSchedMps)
+        // 15 mph ≈ 6.71 m/s
+        val params = GammaSpeedModel.fromSpeeds(6.71, 6.71)
         assertNotNull(params)
 
         assertEquals(0.0, GammaSpeedModel.pdf(0.0, params!!), 0.001)
         assertTrue(
             "PDF should be positive at mean",
-            GammaSpeedModel.pdf(15.0, params) > 0
+            GammaSpeedModel.pdf(6.71, params) > 0
         )
     }
 
     @Test
     fun testGammaSpeedModel_cdf_boundaries() {
-        val vSchedMps = 15.0 / GammaSpeedModel.MPS_TO_MPH
-        val params = GammaSpeedModel.fromSpeeds(vSchedMps, vSchedMps)
+        // 15 mph ≈ 6.71 m/s
+        val params = GammaSpeedModel.fromSpeeds(6.71, 6.71)
         assertNotNull(params)
 
         assertEquals(0.0, GammaSpeedModel.cdf(0.0, params!!), 0.001)
         assertEquals(0.0, GammaSpeedModel.cdf(-1.0, params), 0.001)
-        assertTrue(GammaSpeedModel.cdf(100.0, params) > 0.99)
+        // 45 m/s ≈ 100 mph
+        assertTrue(GammaSpeedModel.cdf(45.0, params) > 0.99)
     }
 
     // --- GammaSpeedEstimator tests ---
@@ -554,7 +553,7 @@ class SpeedEstimatorTest {
         assertTrue("Alpha should be positive", params!!.alpha > 0)
         assertTrue("Scale should be positive", params.scale > 0)
 
-        val expectedMedian = GammaSpeedModel.medianSpeedMps(params)
+        val expectedMedian = GammaSpeedModel.median(params)
         assertEquals(expectedMedian, speed, 0.001)
     }
 

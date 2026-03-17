@@ -21,64 +21,70 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.onebusaway.android.extrapolation.math.speed.GammaSpeedModel.GammaParams
-import org.onebusaway.android.extrapolation.math.speed.GammaSpeedModel.MPS_TO_MPH
 
 class GammaSpeedModelTest {
+
+    // m/s test speeds (named for readability)
+    private val mps5 = 2.235   // ~5 mph
+    private val mps10 = 4.470  // ~10 mph
+    private val mps15 = 6.706  // ~15 mph
+    private val mps20 = 8.941  // ~20 mph
+    private val mps30 = 13.411 // ~30 mph
+    private val mps40 = 17.882 // ~40 mph
+    private val mps60 = 26.822 // ~60 mph
 
     // --- fromSpeeds ---
 
     @Test
     fun `fromSpeeds returns null when schedSpeed is zero`() {
-        assertNull(GammaSpeedModel.fromSpeeds(0.0, 5.0))
+        assertNull(GammaSpeedModel.fromSpeeds(0.0, mps5))
     }
 
     @Test
     fun `fromSpeeds returns null when schedSpeed is negative`() {
-        assertNull(GammaSpeedModel.fromSpeeds(-1.0, 5.0))
+        assertNull(GammaSpeedModel.fromSpeeds(-1.0, mps5))
     }
 
     @Test
     fun `fromSpeeds falls back to schedSpeed when prevSpeed is zero`() {
-        val vSched = 20.0 / MPS_TO_MPH
-        val withZero = GammaSpeedModel.fromSpeeds(vSched, 0.0)!!
-        val withEqual = GammaSpeedModel.fromSpeeds(vSched, vSched)!!
+        val withZero = GammaSpeedModel.fromSpeeds(mps20, 0.0)!!
+        val withEqual = GammaSpeedModel.fromSpeeds(mps20, mps20)!!
         assertEquals(withEqual.alpha, withZero.alpha, 1e-9)
         assertEquals(withEqual.scale, withZero.scale, 1e-9)
     }
 
     @Test
     fun `fromSpeeds falls back to schedSpeed when prevSpeed is negative`() {
-        val vSched = 20.0 / MPS_TO_MPH
-        val withNeg = GammaSpeedModel.fromSpeeds(vSched, -5.0)!!
-        val withEqual = GammaSpeedModel.fromSpeeds(vSched, vSched)!!
+        val withNeg = GammaSpeedModel.fromSpeeds(mps20, -5.0)!!
+        val withEqual = GammaSpeedModel.fromSpeeds(mps20, mps20)!!
         assertEquals(withEqual.alpha, withNeg.alpha, 1e-9)
         assertEquals(withEqual.scale, withNeg.scale, 1e-9)
     }
 
     @Test
     fun `fromSpeeds produces positive alpha and scale`() {
-        for (schedMph in listOf(5.0, 15.0, 30.0, 60.0)) {
-            for (prevMph in listOf(5.0, 15.0, 30.0, 60.0)) {
-                val params = GammaSpeedModel.fromSpeeds(schedMph / MPS_TO_MPH, prevMph / MPS_TO_MPH)
-                assertNotNull("null for sched=$schedMph prev=$prevMph", params)
-                assertTrue("alpha <= 0 for sched=$schedMph prev=$prevMph", params!!.alpha > 0)
-                assertTrue("scale <= 0 for sched=$schedMph prev=$prevMph", params.scale > 0)
+        for (sched in listOf(mps5, mps15, mps30, mps60)) {
+            for (prev in listOf(mps5, mps15, mps30, mps60)) {
+                val params = GammaSpeedModel.fromSpeeds(sched, prev)
+                assertNotNull("null for sched=$sched prev=$prev", params)
+                assertTrue("alpha <= 0", params!!.alpha > 0)
+                assertTrue("scale <= 0", params.scale > 0)
             }
         }
     }
 
     @Test
     fun `fromSpeeds worked example at 20 and 10 mph`() {
-        val params = GammaSpeedModel.fromSpeeds(20.0 / MPS_TO_MPH, 10.0 / MPS_TO_MPH)!!
-        // v_eff = 20^(1-0.1699) * 10^0.1699 ≈ 17.5 mph
-        // beta0 in linear ramp region, alpha ≈ 1.93, scale ≈ 10.58
+        val params = GammaSpeedModel.fromSpeeds(mps20, mps10)!!
+        // alpha depends on vEff in mph space; should be ~1.93
         assertEquals(1.93, params.alpha, 0.15)
-        assertEquals(10.58, params.scale, 1.0)
+        // scale is now in m/s (~4.73)
+        assertEquals(4.73, params.scale, 0.5)
     }
 
     @Test
     fun `fromSpeeds at very low speed`() {
-        val params = GammaSpeedModel.fromSpeeds(1.0 / MPS_TO_MPH, 1.0 / MPS_TO_MPH)
+        val params = GammaSpeedModel.fromSpeeds(0.447, 0.447) // ~1 mph
         assertNotNull(params)
         assertTrue(params!!.alpha > 0)
         assertTrue(params.scale > 0)
@@ -86,8 +92,7 @@ class GammaSpeedModelTest {
 
     @Test
     fun `fromSpeeds at highway speed`() {
-        // 60 mph is well above the kink (26.95 mph), so beta0 = END_B0
-        val params = GammaSpeedModel.fromSpeeds(60.0 / MPS_TO_MPH, 60.0 / MPS_TO_MPH)
+        val params = GammaSpeedModel.fromSpeeds(mps60, mps60)
         assertNotNull(params)
         assertTrue(params!!.alpha > 0)
         assertTrue(params.scale > 0)
@@ -96,27 +101,25 @@ class GammaSpeedModelTest {
     // --- mean / median ---
 
     @Test
-    fun `mean speed is alpha times scale divided by conversion`() {
+    fun `mean speed is alpha times scale`() {
         val params = GammaParams(alpha = 3.0, scale = 5.0)
-        val expected = 3.0 * 5.0 / MPS_TO_MPH
-        assertEquals(expected, GammaSpeedModel.meanSpeedMps(params), 1e-9)
+        assertEquals(15.0, GammaSpeedModel.mean(params), 1e-9)
     }
 
     @Test
     fun `mean speed is close to input when schedSpeed equals prevSpeed`() {
-        for (inputMph in listOf(10.0, 20.0, 40.0)) {
-            val inputMps = inputMph / MPS_TO_MPH
+        for (inputMps in listOf(mps10, mps20, mps40)) {
             val params = GammaSpeedModel.fromSpeeds(inputMps, inputMps)!!
-            val meanMph = GammaSpeedModel.meanSpeedMps(params) * MPS_TO_MPH
-            assertEquals("mean should be near $inputMph mph", inputMph, meanMph, inputMph * 0.2)
+            val mean = GammaSpeedModel.mean(params)
+            assertEquals("mean should be near $inputMps m/s", inputMps, mean, inputMps * 0.2)
         }
     }
 
     @Test
     fun `median is less than mean for right-skewed gamma`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
-        val mean = GammaSpeedModel.meanSpeedMps(params)
-        val median = GammaSpeedModel.medianSpeedMps(params)
+        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        val mean = GammaSpeedModel.mean(params)
+        val median = GammaSpeedModel.median(params)
         assertTrue("median ($median) should be < mean ($mean)", median < mean)
     }
 
@@ -124,28 +127,28 @@ class GammaSpeedModelTest {
 
     @Test
     fun `pdf is zero at zero and negative`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
+        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
         assertEquals(0.0, GammaSpeedModel.pdf(0.0, params), 1e-12)
         assertEquals(0.0, GammaSpeedModel.pdf(-5.0, params), 1e-12)
     }
 
     @Test
     fun `pdf is positive for reasonable speeds`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
-        for (speedMph in listOf(5.0, 10.0, 15.0, 20.0, 30.0)) {
-            assertTrue("pdf should be > 0 at $speedMph mph",
-                GammaSpeedModel.pdf(speedMph, params) > 0)
+        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        for (speed in listOf(mps5, mps10, mps15, mps20)) {
+            assertTrue("pdf should be > 0 at $speed m/s",
+                GammaSpeedModel.pdf(speed, params) > 0)
         }
     }
 
     @Test
     fun `pdf integrates to approximately 1`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
-        // Trapezoidal rule from 0.01 to 200 mph
-        val dx = 0.01
+        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        // Trapezoidal rule from 0.01 to 90 m/s (~200 mph)
+        val dx = 0.005
         var sum = 0.0
         var x = dx
-        while (x <= 200.0) {
+        while (x <= 90.0) {
             sum += GammaSpeedModel.pdf(x, params) * dx
             x += dx
         }
@@ -156,63 +159,63 @@ class GammaSpeedModelTest {
 
     @Test
     fun `cdf is zero at zero and negative`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
+        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
         assertEquals(0.0, GammaSpeedModel.cdf(0.0, params), 1e-12)
         assertEquals(0.0, GammaSpeedModel.cdf(-1.0, params), 1e-12)
     }
 
     @Test
     fun `cdf approaches 1 for large values`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
-        assertTrue(GammaSpeedModel.cdf(100.0, params) > 0.99)
-        assertTrue(GammaSpeedModel.cdf(200.0, params) > 0.999)
+        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        assertTrue(GammaSpeedModel.cdf(45.0, params) > 0.99)  // ~100 mph
+        assertTrue(GammaSpeedModel.cdf(90.0, params) > 0.999) // ~200 mph
     }
 
     @Test
     fun `cdf increases from low to high speeds`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
-        val low = GammaSpeedModel.cdf(5.0, params)
-        val mid = GammaSpeedModel.cdf(15.0, params)
-        val high = GammaSpeedModel.cdf(40.0, params)
-        assertTrue("cdf(5) < cdf(15)", low < mid)
-        assertTrue("cdf(15) < cdf(40)", mid < high)
+        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        val low = GammaSpeedModel.cdf(mps5, params)
+        val mid = GammaSpeedModel.cdf(mps15, params)
+        val high = GammaSpeedModel.cdf(mps40, params)
+        assertTrue("cdf(5mph) < cdf(15mph)", low < mid)
+        assertTrue("cdf(15mph) < cdf(40mph)", mid < high)
     }
 
     @Test
     fun `cdf at median is approximately 0_5`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
-        val medianMph = GammaSpeedModel.medianSpeedMps(params) * MPS_TO_MPH
-        assertEquals(0.5, GammaSpeedModel.cdf(medianMph, params), 0.01)
+        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        val median = GammaSpeedModel.median(params)
+        assertEquals(0.5, GammaSpeedModel.cdf(median, params), 0.01)
     }
 
     // --- quantile ---
 
     @Test
     fun `quantile at 0 returns 0`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
+        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
         assertEquals(0.0, GammaSpeedModel.quantile(0.0, params), 1e-12)
     }
 
     @Test
     fun `quantile at 1 returns MAX_VALUE`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
+        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
         assertEquals(Double.MAX_VALUE, GammaSpeedModel.quantile(1.0, params), 0.0)
     }
 
     @Test
     fun `quantile is monotonically increasing`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
+        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
         var prev = 0.0
         for (p in listOf(0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99)) {
             val q = GammaSpeedModel.quantile(p, params)
-            assertTrue("quantile($p) = $q should be > quantile at previous p = $prev", q > prev)
+            assertTrue("quantile($p) = $q should be > $prev", q > prev)
             prev = q
         }
     }
 
     @Test
     fun `cdf of quantile round-trips for multiple percentiles`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
+        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
         for (p in doubleArrayOf(0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95)) {
             val q = GammaSpeedModel.quantile(p, params)
             val roundTrip = GammaSpeedModel.cdf(q, params)
@@ -222,29 +225,17 @@ class GammaSpeedModelTest {
 
     @Test
     fun `cdf of quantile round-trips across different speed regimes`() {
-        for (schedMph in listOf(5.0, 15.0, 40.0)) {
-            for (prevMph in listOf(5.0, 15.0, 40.0)) {
-                val params = GammaSpeedModel.fromSpeeds(
-                    schedMph / MPS_TO_MPH, prevMph / MPS_TO_MPH
-                )!!
+        for (sched in listOf(mps5, mps15, mps40)) {
+            for (prev in listOf(mps5, mps15, mps40)) {
+                val params = GammaSpeedModel.fromSpeeds(sched, prev)!!
                 val q50 = GammaSpeedModel.quantile(0.5, params)
                 val cdf50 = GammaSpeedModel.cdf(q50, params)
                 assertEquals(
-                    "round-trip failed for sched=$schedMph prev=$prevMph",
+                    "round-trip failed for sched=$sched prev=$prev",
                     0.5, cdf50, 0.01
                 )
             }
         }
-    }
-
-    // --- quantileMps ---
-
-    @Test
-    fun `quantileMps converts from mph to mps`() {
-        val params = GammaSpeedModel.fromSpeeds(15.0 / MPS_TO_MPH, 15.0 / MPS_TO_MPH)!!
-        val qMph = GammaSpeedModel.quantile(0.5, params)
-        val qMps = GammaSpeedModel.quantileMps(0.5, params)
-        assertEquals(qMph / MPS_TO_MPH, qMps, 1e-9)
     }
 
     // --- GammaParams ---

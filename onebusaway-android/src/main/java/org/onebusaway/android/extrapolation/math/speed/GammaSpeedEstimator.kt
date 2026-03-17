@@ -50,7 +50,7 @@ class GammaSpeedEstimator : SpeedEstimator {
         val params = GammaSpeedModel.fromSpeeds(vSched, vPrev)
         if (params != null) {
             lastGammaParams = params
-            return GammaSpeedModel.medianSpeedMps(params)
+            return GammaSpeedModel.median(params)
         }
 
         // Fall back to schedule speed

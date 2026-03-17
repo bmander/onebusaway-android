@@ -18,7 +18,6 @@ package org.onebusaway.android.extrapolation.math.speed
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.VehicleState
 import org.onebusaway.android.extrapolation.math.PointEstimate
-import org.onebusaway.android.extrapolation.math.SpeedDistribution
 
 /**
  * Estimates speed using the trip schedule: finds the two stops bracketing the vehicle's
@@ -30,12 +29,35 @@ class ScheduleSpeedEstimator : SpeedEstimator {
         state: VehicleState,
         timestampMs: Long,
         dataManager: TripDataManager
-    ): SpeedDistribution? {
-        val currentDist = state.scheduledDistanceAlongTrip ?: return null
-        val tripId = state.activeTripId ?: return null
-        val schedule = dataManager.getSchedule(tripId) ?: return null
+    ): SpeedEstimateResult {
+        // Validate timestamp is not before the state
+        if (timestampMs < state.timestamp) {
+            return SpeedEstimateResult.Failure(
+                SpeedEstimateError.TimestampOutOfBounds("Timestamp is before vehicle state")
+            )
+        }
+
+        val currentDist = state.scheduledDistanceAlongTrip
+            ?: return SpeedEstimateResult.Failure(
+                SpeedEstimateError.InsufficientData("No scheduled distance along trip")
+            )
+
+        val tripId = state.activeTripId
+            ?: return SpeedEstimateResult.Failure(
+                SpeedEstimateError.InsufficientData("No active trip ID")
+            )
+
+        val schedule = dataManager.getSchedule(tripId)
+            ?: return SpeedEstimateResult.Failure(
+                SpeedEstimateError.InsufficientData("No schedule available for trip")
+            )
+
         val stopTimes = schedule.stopTimes
-        if (stopTimes == null || stopTimes.size < 2) return null
+        if (stopTimes == null || stopTimes.size < 2) {
+            return SpeedEstimateResult.Failure(
+                SpeedEstimateError.InsufficientData("Insufficient stop times in schedule")
+            )
+        }
 
         // Find the two stops bracketing the current position
         var beforeIdx = -1
@@ -64,8 +86,12 @@ class ScheduleSpeedEstimator : SpeedEstimator {
         val timeDelta = stopTimes[afterIdx].arrivalTime -
             stopTimes[beforeIdx].departureTime
 
-        if (distDelta <= 0 || timeDelta <= 0) return null
+        if (distDelta <= 0 || timeDelta <= 0) {
+            return SpeedEstimateResult.Failure(
+                SpeedEstimateError.InsufficientData("Invalid distance or time delta between stops")
+            )
+        }
 
-        return PointEstimate(distDelta / timeDelta)
+        return SpeedEstimateResult.Success(PointEstimate(distDelta / timeDelta))
     }
 }

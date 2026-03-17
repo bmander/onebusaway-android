@@ -48,7 +48,11 @@ object VehicleTrajectoryTracker {
         } else {
             estimator
         }
-        val dist = est.estimateSpeed(state, timestampMs, dataManager)
+        val result = est.estimateSpeed(state, timestampMs, dataManager)
+        val dist = when (result) {
+            is SpeedEstimateResult.Success -> result.distribution
+            is SpeedEstimateResult.Failure -> null
+        }
         lastDistribution = dist
         return dist
     }

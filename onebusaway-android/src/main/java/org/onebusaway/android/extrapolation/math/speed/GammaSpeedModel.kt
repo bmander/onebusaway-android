@@ -15,15 +15,13 @@
  */
 package org.onebusaway.android.extrapolation.math.speed
 
-import kotlin.math.abs
-import kotlin.math.exp
-import kotlin.math.ln
+import org.onebusaway.android.extrapolation.math.GammaDistribution
 import kotlin.math.pow
-import kotlin.math.sqrt
 
 /**
  * Five-parameter power-law blend gamma distribution (H12) for vehicle speed modeling.
- * Pure-math utility, no Android dependencies.
+ * Maps schedule + observed speeds to a Gamma distribution, then delegates
+ * PDF/CDF/quantile math to [GammaDistribution].
  */
 object GammaSpeedModel {
 
@@ -35,9 +33,6 @@ object GammaSpeedModel {
     private const val D = 0.1699
 
     const val MPS_TO_MPH = 2.23694
-
-    private const val CDF_MAX_ITERATIONS = 200
-    private const val CDF_EPSILON = 1e-10
 
     /** Parameters for a Gamma distribution: shape (alpha) and scale (theta). */
     data class GammaParams(@JvmField val alpha: Double, @JvmField val scale: Double)
@@ -89,136 +84,29 @@ object GammaSpeedModel {
     fun medianSpeedMps(params: GammaParams): Double = quantileMps(0.50, params)
 
     /**
-     * Gamma PDF: f(x; alpha, scale) = x^(alpha-1) * exp(-x/scale) / (scale^alpha * Gamma(alpha))
-     *
-     * @param speedMph speed in mph
-     * @param params   gamma parameters
-     * @return PDF value
+     * Gamma PDF evaluated at [speedMph].
      */
     @JvmStatic
-    fun pdf(speedMph: Double, params: GammaParams): Double {
-        if (speedMph <= 0) return 0.0
-        val a = params.alpha
-        val s = params.scale
-        val lnPdf = (a - 1) * ln(speedMph) - speedMph / s - a * ln(s) - lnGamma(a)
-        return exp(lnPdf)
-    }
+    fun pdf(speedMph: Double, params: GammaParams): Double =
+        GammaDistribution.pdf(speedMph, params.alpha, params.scale)
 
     /**
-     * Regularized lower incomplete gamma function P(a, x) = CDF of Gamma(a, 1) at x/scale.
-     *
-     * @param speedMph speed in mph
-     * @param params   gamma parameters
-     * @return CDF value in [0, 1]
+     * Gamma CDF evaluated at [speedMph].
      */
     @JvmStatic
-    fun cdf(speedMph: Double, params: GammaParams): Double {
-        if (speedMph <= 0) return 0.0
-        val x = speedMph / params.scale
-        return regularizedGammaP(params.alpha, x)
-    }
+    fun cdf(speedMph: Double, params: GammaParams): Double =
+        GammaDistribution.cdf(speedMph, params.alpha, params.scale)
 
     /**
      * Returns the speed at the given quantile in m/s.
-     *
-     * @param p      probability in (0, 1)
-     * @param params gamma parameters
-     * @return speed in m/s at the given quantile
      */
     @JvmStatic
     fun quantileMps(p: Double, params: GammaParams): Double = quantile(p, params) / MPS_TO_MPH
 
     /**
-     * Inverse CDF via bisection.
-     *
-     * @param p      probability in (0, 1)
-     * @param params gamma parameters
-     * @return speed in mph at the given quantile
+     * Returns the speed at the given quantile in mph.
      */
     @JvmStatic
-    fun quantile(p: Double, params: GammaParams): Double {
-        if (p <= 0) return 0.0
-        if (p >= 1) return Double.MAX_VALUE
-
-        val mean = params.alpha * params.scale
-        var hi = mean + 10 * sqrt(params.alpha) * params.scale
-        var lo = 0.0
-
-        while (cdf(hi, params) < p) {
-            hi *= 2
-        }
-
-        repeat(40) {
-            val mid = (lo + hi) / 2
-            if (cdf(mid, params) < p) lo = mid else hi = mid
-        }
-        return (lo + hi) / 2
-    }
-
-    /**
-     * Regularized lower incomplete gamma function P(a, x).
-     * Series for x < a+1, continued fraction otherwise.
-     */
-    private fun regularizedGammaP(a: Double, x: Double): Double {
-        if (x <= 0) return 0.0
-
-        return if (x < a + 1) {
-            // Series expansion
-            var sum = 1.0 / a
-            var term = 1.0 / a
-            for (n in 1..CDF_MAX_ITERATIONS) {
-                term *= x / (a + n)
-                sum += term
-                if (abs(term) < CDF_EPSILON * abs(sum)) break
-            }
-            sum * exp(-x + a * ln(x) - lnGamma(a))
-        } else {
-            // Continued fraction (Legendre)
-            var c = 1.0
-            var d = 1.0 / (x - a + 1)
-            var f = d
-
-            for (n in 1..CDF_MAX_ITERATIONS) {
-                val an = -n * (n - a)
-                val bn = x - a + 1 + 2 * n
-
-                d = bn + an * d
-                if (abs(d) < 1e-30) d = 1e-30
-                d = 1.0 / d
-
-                c = bn + an / c
-                if (abs(c) < 1e-30) c = 1e-30
-
-                val delta = c * d
-                f *= delta
-
-                if (abs(delta - 1.0) < CDF_EPSILON) break
-            }
-
-            // P(a,x) = 1 - Q(a,x), where Q uses the continued fraction
-            1.0 - exp(-x + a * ln(x) - lnGamma(a)) * f
-        }
-    }
-
-    private val LN_GAMMA_COEF = doubleArrayOf(
-        76.18009172947146,
-        -86.50532032941677,
-        24.01409824083091,
-        -1.231739572450155,
-        0.1208650973866179e-2,
-        -0.5395239384953e-5
-    )
-
-    /** Lanczos approximation for ln(Gamma(x)), valid for x > 0. */
-    private fun lnGamma(x: Double): Double {
-        var y = x
-        var tmp = x + 5.5
-        tmp -= (x + 0.5) * ln(tmp)
-        var ser = 1.000000000190015
-        for (c in LN_GAMMA_COEF) {
-            y += 1.0
-            ser += c / y
-        }
-        return -tmp + ln(2.5066282746310005 * ser / x)
-    }
+    fun quantile(p: Double, params: GammaParams): Double =
+        GammaDistribution.quantile(p, params.alpha, params.scale)
 }

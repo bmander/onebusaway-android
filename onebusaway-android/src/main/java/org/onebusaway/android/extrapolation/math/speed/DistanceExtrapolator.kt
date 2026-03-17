@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:JvmName("DistanceExtrapolator")
+
 package org.onebusaway.android.extrapolation.math.speed
 
 import android.location.Location
@@ -24,268 +26,251 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
+/** Max age of the newest AVL entry before we consider extrapolation unreliable. */
+private const val MAX_EXTRAPOLATION_AGE_MS = 5L * 60 * 1000
+
 /**
- * Shared extrapolation logic for estimating vehicle distance along a trip.
+ * Returns the newest history entry with a valid distance and timestamp, or null.
  */
-object DistanceExtrapolator {
-
-    /** Max age of the newest AVL entry before we consider extrapolation unreliable. */
-    private const val MAX_EXTRAPOLATION_AGE_MS = 5L * 60 * 1000
-
-    /** Matches OBA server's SphericalGeometryLibrary.RADIUS_OF_EARTH_IN_KM * 1000. */
-    const val EARTH_RADIUS_METERS = 6371010.0
-
-    /**
-     * Returns the newest history entry with a valid distance and timestamp, or null.
-     */
-    @JvmStatic
-    fun findNewestValidEntry(history: List<VehicleHistoryEntry>?): VehicleHistoryEntry? {
-        if (history == null) return null
-        for (i in history.indices.reversed()) {
-            val e = history[i]
-            if (e.bestDistanceAlongTrip != null && e.lastLocationUpdateTime > 0) {
-                return e
-            }
-        }
-        return null
-    }
-
-    /**
-     * Extrapolates the current distance along the trip based on the newest valid history entry
-     * and estimated speed. Returns null if extrapolation is not possible.
-     *
-     * @param history       vehicle history entries for the trip
-     * @param speedMps      estimated speed in meters per second
-     * @param currentTimeMs current time in milliseconds
-     * @return extrapolated distance in meters, or null
-     */
-    @JvmStatic
-    fun extrapolateDistance(
-        history: List<VehicleHistoryEntry>?,
-        speedMps: Double,
-        currentTimeMs: Long
-    ): Double? {
-        if (speedMps <= 0) return null
-        val newest = findNewestValidEntry(history) ?: return null
-        val lastTime = newest.lastLocationUpdateTime
-        if (currentTimeMs - lastTime > MAX_EXTRAPOLATION_AGE_MS) return null
-        val lastDist = newest.bestDistanceAlongTrip ?: return null
-        return lastDist + speedMps * (currentTimeMs - lastTime) / 1000.0
-    }
-
-    /**
-     * Finds the index of the next stop the vehicle has not yet reached, based on
-     * distance along the trip.
-     *
-     * @param stopTimes        array of stop times with distance info
-     * @param distanceAlongTrip current distance along the trip in meters
-     * @return index of the next stop, or stopTimes.size if past the last stop,
-     *         or null if stopTimes is null/empty
-     */
-    @JvmStatic
-    fun findNextStopIndex(
-        stopTimes: Array<ObaTripSchedule.StopTime>?,
-        distanceAlongTrip: Double
-    ): Int? {
-        if (stopTimes == null || stopTimes.isEmpty()) return null
-        for (i in stopTimes.indices) {
-            if (stopTimes[i].distanceAlongTrip > distanceAlongTrip) return i
-        }
-        return stopTimes.size
-    }
-
-    /**
-     * Builds a cumulative distance array for a polyline. Entry i holds the total
-     * distance from the first point to point i. Entry 0 is always 0.
-     *
-     * Uses the same Haversine formula and Earth radius as the OBA server
-     * (SphericalGeometryLibrary) so that distance values are consistent with
-     * the server's distanceAlongTrip values.
-     *
-     * @param polylinePoints decoded polyline points
-     * @return cumulative distance array (same length as polylinePoints), or null
-     */
-    @JvmStatic
-    fun buildCumulativeDistances(polylinePoints: List<Location>?): DoubleArray? {
-        if (polylinePoints == null || polylinePoints.isEmpty()) return null
-        val cumDist = DoubleArray(polylinePoints.size)
-        cumDist[0] = 0.0
-        for (i in 1 until polylinePoints.size) {
-            val prev = polylinePoints[i - 1]
-            val cur = polylinePoints[i]
-            cumDist[i] = cumDist[i - 1] + LocationUtils.haversineDistance(
-                prev.latitude, prev.longitude, cur.latitude, cur.longitude
-            )
-        }
-        return cumDist
-    }
-
-    /**
-     * Interpolates a position along a polyline at a given distance from the start.
-     * Uses a precomputed cumulative distance array for O(log n) binary search.
-     *
-     * @param polylinePoints decoded polyline points (lat/lng)
-     * @param cumDist        precomputed cumulative distances from [buildCumulativeDistances]
-     * @param distanceMeters target distance along the polyline in meters
-     * @return interpolated Location, or null if the polyline is empty
-     */
-    @JvmStatic
-    fun interpolateAlongPolyline(
-        polylinePoints: List<Location>?,
-        cumDist: DoubleArray?,
-        distanceMeters: Double
-    ): Location? {
-        val result = LocationUtils.makeLocation(0.0, 0.0)
-        return if (interpolateAlongPolyline(polylinePoints, cumDist, distanceMeters, result)) {
-            result
-        } else {
-            null
+fun findNewestValidEntry(history: List<VehicleHistoryEntry>?): VehicleHistoryEntry? {
+    if (history == null) return null
+    for (i in history.indices.reversed()) {
+        val e = history[i]
+        if (e.bestDistanceAlongTrip != null && e.lastLocationUpdateTime > 0) {
+            return e
         }
     }
+    return null
+}
 
-    /**
-     * Interpolates a position along a polyline, writing into a reusable Location
-     * to avoid allocation on the hot path. Returns true if successful.
-     *
-     * @param polylinePoints decoded polyline points (lat/lng)
-     * @param cumDist        precomputed cumulative distances from [buildCumulativeDistances]
-     * @param distanceMeters target distance along the polyline in meters
-     * @param out            reusable Location to write the result into
-     * @return true if interpolation succeeded, false if inputs were invalid
-     */
-    @JvmStatic
-    fun interpolateAlongPolyline(
-        polylinePoints: List<Location>?,
-        cumDist: DoubleArray?,
-        distanceMeters: Double,
-        out: Location?
-    ): Boolean {
-        if (polylinePoints == null || polylinePoints.isEmpty() || cumDist == null || out == null) {
-            return false
-        }
-        if (distanceMeters <= 0) {
-            val first = polylinePoints[0]
-            out.latitude = first.latitude
-            out.longitude = first.longitude
-            return true
-        }
+/**
+ * Extrapolates the current distance along the trip based on the newest valid history entry
+ * and estimated speed. Returns null if extrapolation is not possible.
+ *
+ * @param history       vehicle history entries for the trip
+ * @param speedMps      estimated speed in meters per second
+ * @param currentTimeMs current time in milliseconds
+ * @return extrapolated distance in meters, or null
+ */
+fun extrapolateDistance(
+    history: List<VehicleHistoryEntry>?,
+    speedMps: Double,
+    currentTimeMs: Long
+): Double? {
+    if (speedMps <= 0) return null
+    val newest = findNewestValidEntry(history) ?: return null
+    val lastTime = newest.lastLocationUpdateTime
+    if (currentTimeMs - lastTime > MAX_EXTRAPOLATION_AGE_MS) return null
+    val lastDist = newest.bestDistanceAlongTrip ?: return null
+    return lastDist + speedMps * (currentTimeMs - lastTime) / 1000.0
+}
 
-        val idx = Arrays.binarySearch(cumDist, distanceMeters)
-        if (idx >= 0) {
-            val exact = polylinePoints[idx]
-            out.latitude = exact.latitude
-            out.longitude = exact.longitude
-            return true
-        }
-        // binarySearch returns -(insertion point) - 1
-        val insertionPoint = -idx - 1
-        if (insertionPoint >= polylinePoints.size) {
-            val last = polylinePoints[polylinePoints.size - 1]
-            out.latitude = last.latitude
-            out.longitude = last.longitude
-            return true
-        }
+/**
+ * Finds the index of the next stop the vehicle has not yet reached, based on
+ * distance along the trip.
+ *
+ * @param stopTimes        array of stop times with distance info
+ * @param distanceAlongTrip current distance along the trip in meters
+ * @return index of the next stop, or stopTimes.size if past the last stop,
+ *         or null if stopTimes is null/empty
+ */
+fun findNextStopIndex(
+    stopTimes: Array<ObaTripSchedule.StopTime>?,
+    distanceAlongTrip: Double
+): Int? {
+    if (stopTimes == null || stopTimes.isEmpty()) return null
+    for (i in stopTimes.indices) {
+        if (stopTimes[i].distanceAlongTrip > distanceAlongTrip) return i
+    }
+    return stopTimes.size
+}
 
-        val segStart = insertionPoint - 1
-        if (segStart < 0) {
-            val first = polylinePoints[0]
-            out.latitude = first.latitude
-            out.longitude = first.longitude
-            return true
-        }
+/**
+ * Builds a cumulative distance array for a polyline. Entry i holds the total
+ * distance from the first point to point i. Entry 0 is always 0.
+ *
+ * Uses the same Haversine formula and Earth radius as the OBA server
+ * (SphericalGeometryLibrary) so that distance values are consistent with
+ * the server's distanceAlongTrip values.
+ *
+ * @param polylinePoints decoded polyline points
+ * @return cumulative distance array (same length as polylinePoints), or null
+ */
+fun buildCumulativeDistances(polylinePoints: List<Location>?): DoubleArray? {
+    if (polylinePoints == null || polylinePoints.isEmpty()) return null
+    val cumDist = DoubleArray(polylinePoints.size)
+    cumDist[0] = 0.0
+    for (i in 1 until polylinePoints.size) {
+        val prev = polylinePoints[i - 1]
+        val cur = polylinePoints[i]
+        cumDist[i] = cumDist[i - 1] + LocationUtils.haversineDistance(
+            prev.latitude, prev.longitude, cur.latitude, cur.longitude
+        )
+    }
+    return cumDist
+}
 
-        val segLen = cumDist[insertionPoint] - cumDist[segStart]
-        if (segLen <= 0) {
-            val p = polylinePoints[segStart]
-            out.latitude = p.latitude
-            out.longitude = p.longitude
-            return true
-        }
+/**
+ * Interpolates a position along a polyline at a given distance from the start.
+ * Uses a precomputed cumulative distance array for O(log n) binary search.
+ *
+ * @param polylinePoints decoded polyline points (lat/lng)
+ * @param cumDist        precomputed cumulative distances from [buildCumulativeDistances]
+ * @param distanceMeters target distance along the polyline in meters
+ * @return interpolated Location, or null if the polyline is empty
+ */
+fun interpolateAlongPolyline(
+    polylinePoints: List<Location>?,
+    cumDist: DoubleArray?,
+    distanceMeters: Double
+): Location? {
+    val result = LocationUtils.makeLocation(0.0, 0.0)
+    return if (interpolateAlongPolyline(polylinePoints, cumDist, distanceMeters, result)) {
+        result
+    } else {
+        null
+    }
+}
 
-        val fraction = (distanceMeters - cumDist[segStart]) / segLen
-        val p0 = polylinePoints[segStart]
-        val p1 = polylinePoints[insertionPoint]
-        out.latitude = p0.latitude + fraction * (p1.latitude - p0.latitude)
-        out.longitude = p0.longitude + fraction * (p1.longitude - p0.longitude)
+/**
+ * Interpolates a position along a polyline, writing into a reusable Location
+ * to avoid allocation on the hot path. Returns true if successful.
+ *
+ * @param polylinePoints decoded polyline points (lat/lng)
+ * @param cumDist        precomputed cumulative distances from [buildCumulativeDistances]
+ * @param distanceMeters target distance along the polyline in meters
+ * @param out            reusable Location to write the result into
+ * @return true if interpolation succeeded, false if inputs were invalid
+ */
+fun interpolateAlongPolyline(
+    polylinePoints: List<Location>?,
+    cumDist: DoubleArray?,
+    distanceMeters: Double,
+    out: Location?
+): Boolean {
+    if (polylinePoints == null || polylinePoints.isEmpty() || cumDist == null || out == null) {
+        return false
+    }
+    if (distanceMeters <= 0) {
+        val first = polylinePoints[0]
+        out.latitude = first.latitude
+        out.longitude = first.longitude
         return true
     }
 
-    /**
-     * Finds the range of polyline vertex indices whose cumulative distances fall
-     * strictly between startDist and endDist. Uses binary search for O(log n).
-     *
-     * @param cumDist   sorted cumulative distance array
-     * @param startDist start distance in meters
-     * @param endDist   end distance in meters
-     * @return int array {startIndex, endIndex} for use with a for loop (exclusive end),
-     *         or null if no vertices fall in range
-     */
-    @JvmStatic
-    fun findVertexRange(cumDist: DoubleArray?, startDist: Double, endDist: Double): IntArray? {
-        if (cumDist == null || cumDist.isEmpty() || startDist >= endDist) return null
-
-        // Find first index where cumDist[i] > startDist
-        val rawStart = Arrays.binarySearch(cumDist, startDist)
-        val from = if (rawStart >= 0) rawStart + 1 else -rawStart - 1
-
-        // Find first index where cumDist[i] >= endDist
-        val rawEnd = Arrays.binarySearch(cumDist, endDist)
-        val to = if (rawEnd >= 0) rawEnd else -rawEnd - 1
-
-        return if (from < to) intArrayOf(from, to) else null
+    val idx = Arrays.binarySearch(cumDist, distanceMeters)
+    if (idx >= 0) {
+        val exact = polylinePoints[idx]
+        out.latitude = exact.latitude
+        out.longitude = exact.longitude
+        return true
+    }
+    // binarySearch returns -(insertion point) - 1
+    val insertionPoint = -idx - 1
+    if (insertionPoint >= polylinePoints.size) {
+        val last = polylinePoints[polylinePoints.size - 1]
+        out.latitude = last.latitude
+        out.longitude = last.longitude
+        return true
     }
 
-    /**
-     * Returns the bearing (in degrees clockwise from north) of the polyline segment
-     * at the given distance along the polyline. Returns NaN if inputs are invalid.
-     *
-     * @param polylinePoints decoded polyline points (lat/lng)
-     * @param cumDist        precomputed cumulative distances
-     * @param distanceMeters target distance along the polyline in meters
-     * @return bearing in degrees [0, 360), or NaN
-     */
-    @JvmStatic
-    fun headingAlongPolyline(
-        polylinePoints: List<Location>?,
-        cumDist: DoubleArray?,
-        distanceMeters: Double
-    ): Double {
-        if (polylinePoints == null || polylinePoints.size < 2 || cumDist == null) {
-            return Double.NaN
-        }
-
-        // Clamp to valid range
-        if (distanceMeters <= 0) {
-            return bearing(polylinePoints[0], polylinePoints[1])
-        }
-
-        val idx = Arrays.binarySearch(cumDist, distanceMeters)
-        val insertionPoint = if (idx >= 0) idx + 1 else -idx - 1
-
-        if (insertionPoint >= polylinePoints.size) {
-            val n = polylinePoints.size
-            return bearing(polylinePoints[n - 2], polylinePoints[n - 1])
-        }
-
-        val segStart = insertionPoint - 1
-        if (segStart < 0) {
-            return bearing(polylinePoints[0], polylinePoints[1])
-        }
-
-        return bearing(polylinePoints[segStart], polylinePoints[insertionPoint])
+    val segStart = insertionPoint - 1
+    if (segStart < 0) {
+        val first = polylinePoints[0]
+        out.latitude = first.latitude
+        out.longitude = first.longitude
+        return true
     }
 
-    /**
-     * Computes the initial bearing from point A to point B in degrees [0, 360).
-     */
-    private fun bearing(a: Location, b: Location): Double {
-        val lat1 = Math.toRadians(a.latitude)
-        val lat2 = Math.toRadians(b.latitude)
-        val dLon = Math.toRadians(b.longitude - a.longitude)
-
-        val y = sin(dLon) * cos(lat2)
-        val x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
-        val brng = Math.toDegrees(atan2(y, x))
-        return (brng + 360) % 360
+    val segLen = cumDist[insertionPoint] - cumDist[segStart]
+    if (segLen <= 0) {
+        val p = polylinePoints[segStart]
+        out.latitude = p.latitude
+        out.longitude = p.longitude
+        return true
     }
+
+    val fraction = (distanceMeters - cumDist[segStart]) / segLen
+    val p0 = polylinePoints[segStart]
+    val p1 = polylinePoints[insertionPoint]
+    out.latitude = p0.latitude + fraction * (p1.latitude - p0.latitude)
+    out.longitude = p0.longitude + fraction * (p1.longitude - p0.longitude)
+    return true
+}
+
+/**
+ * Finds the range of polyline vertex indices whose cumulative distances fall
+ * strictly between startDist and endDist. Uses binary search for O(log n).
+ *
+ * @param cumDist   sorted cumulative distance array
+ * @param startDist start distance in meters
+ * @param endDist   end distance in meters
+ * @return int array {startIndex, endIndex} for use with a for loop (exclusive end),
+ *         or null if no vertices fall in range
+ */
+fun findVertexRange(cumDist: DoubleArray?, startDist: Double, endDist: Double): IntArray? {
+    if (cumDist == null || cumDist.isEmpty() || startDist >= endDist) return null
+
+    // Find first index where cumDist[i] > startDist
+    val rawStart = Arrays.binarySearch(cumDist, startDist)
+    val from = if (rawStart >= 0) rawStart + 1 else -rawStart - 1
+
+    // Find first index where cumDist[i] >= endDist
+    val rawEnd = Arrays.binarySearch(cumDist, endDist)
+    val to = if (rawEnd >= 0) rawEnd else -rawEnd - 1
+
+    return if (from < to) intArrayOf(from, to) else null
+}
+
+/**
+ * Returns the bearing (in degrees clockwise from north) of the polyline segment
+ * at the given distance along the polyline. Returns NaN if inputs are invalid.
+ *
+ * @param polylinePoints decoded polyline points (lat/lng)
+ * @param cumDist        precomputed cumulative distances
+ * @param distanceMeters target distance along the polyline in meters
+ * @return bearing in degrees [0, 360), or NaN
+ */
+fun headingAlongPolyline(
+    polylinePoints: List<Location>?,
+    cumDist: DoubleArray?,
+    distanceMeters: Double
+): Double {
+    if (polylinePoints == null || polylinePoints.size < 2 || cumDist == null) {
+        return Double.NaN
+    }
+
+    // Clamp to valid range
+    if (distanceMeters <= 0) {
+        return bearing(polylinePoints[0], polylinePoints[1])
+    }
+
+    val idx = Arrays.binarySearch(cumDist, distanceMeters)
+    val insertionPoint = if (idx >= 0) idx + 1 else -idx - 1
+
+    if (insertionPoint >= polylinePoints.size) {
+        val n = polylinePoints.size
+        return bearing(polylinePoints[n - 2], polylinePoints[n - 1])
+    }
+
+    val segStart = insertionPoint - 1
+    if (segStart < 0) {
+        return bearing(polylinePoints[0], polylinePoints[1])
+    }
+
+    return bearing(polylinePoints[segStart], polylinePoints[insertionPoint])
+}
+
+/**
+ * Computes the initial bearing from point A to point B in degrees [0, 360).
+ */
+private fun bearing(a: Location, b: Location): Double {
+    val lat1 = Math.toRadians(a.latitude)
+    val lat2 = Math.toRadians(b.latitude)
+    val dLon = Math.toRadians(b.longitude - a.longitude)
+
+    val y = sin(dLon) * cos(lat2)
+    val x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
+    val brng = Math.toDegrees(atan2(y, x))
+    return (brng + 360) % 360
 }

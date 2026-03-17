@@ -16,7 +16,7 @@
 package org.onebusaway.android.extrapolation.data
 
 import android.location.Location
-import org.onebusaway.android.extrapolation.math.speed.DistanceExtrapolator
+import org.onebusaway.android.extrapolation.math.speed.buildCumulativeDistances
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 
@@ -164,7 +164,7 @@ object TripDataManager {
     fun putShape(tripId: String?, points: List<Location>?) {
         if (tripId != null && points != null && points.isNotEmpty()) {
             shapeCache[tripId] = points
-            shapeCumDistCache[tripId] = DistanceExtrapolator.buildCumulativeDistances(points)!!
+            shapeCumDistCache[tripId] = buildCumulativeDistances(points)!!
         }
     }
 

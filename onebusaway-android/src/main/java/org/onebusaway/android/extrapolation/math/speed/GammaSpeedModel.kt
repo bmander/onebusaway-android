@@ -20,19 +20,17 @@ import kotlin.math.pow
 
 /**
  * Five-parameter power-law blend gamma distribution (H12) for vehicle speed modeling.
- * All public inputs and outputs are in m/s. Internally, the model computes
- * in the unit system it was calibrated in (mph) so that C, vEff, and scale
- * share units, then converts the resulting scale to m/s.
+ * All public inputs, outputs, and fitted parameters are expressed in m/s.
  */
 object GammaSpeedModel {
 
-    // Fitted parameters (calibrated in mph)
-    private const val START_B0 = 0.1793
-    private const val END_B0 = 0.0604
-    private const val KINK = 26.95 // mph
+    // Fitted parameters expressed in m/s.
+    // START_B0 and END_B0 were converted from 1/mph to 1/(m/s).
+    private const val START_B0 = 0.401083342
+    private const val END_B0 = 0.135111176
+    private const val KINK = 12.04770802971917 // m/s
     private const val C = 1.0793
     private const val D = 0.1699
-    private const val MPS_TO_MPH = 2.23694
 
     /**
      * Parameters for a Gamma distribution: shape ([alpha]) and [scale] in m/s.
@@ -52,13 +50,11 @@ object GammaSpeedModel {
         if (vPrev <= 0) vPrev = schedSpeedMps
         if (schedSpeedMps <= 0) return null
 
-        // Compute in mph so C, vEff, and scale share units
-        val vEff = (schedSpeedMps * MPS_TO_MPH).pow(1.0 - D) *
-            (vPrev * MPS_TO_MPH).pow(D)
+        val vEff = schedSpeedMps.pow(1.0 - D) * vPrev.pow(D)
 
         val b0 = beta0(vEff)
         val alpha = b0 * C * vEff
-        val scale = C / b0 / MPS_TO_MPH // convert scale to m/s
+        val scale = C / b0
 
         if (alpha <= 0 || scale <= 0) return null
 

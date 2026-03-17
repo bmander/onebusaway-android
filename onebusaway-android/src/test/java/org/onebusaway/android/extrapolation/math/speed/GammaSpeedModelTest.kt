@@ -76,7 +76,7 @@ class GammaSpeedModelTest {
     @Test
     fun `fromSpeeds worked example at 20 and 10 mph`() {
         val params = GammaSpeedModel.fromSpeeds(mps20, mps10)!!
-        // alpha depends on vEff in mph space; should be ~1.93
+        // alpha for this worked example should be ~1.93
         assertEquals(1.93, params.alpha, 0.15)
         // scale is now in m/s (~4.73)
         assertEquals(4.73, params.scale, 0.5)

@@ -23,7 +23,6 @@ import java.util.Arrays
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 /**
  * Shared extrapolation logic for estimating vehicle distance along a trip.
@@ -114,45 +113,11 @@ object DistanceExtrapolator {
         for (i in 1 until polylinePoints.size) {
             val prev = polylinePoints[i - 1]
             val cur = polylinePoints[i]
-            cumDist[i] = cumDist[i - 1] + haversineDistance(
+            cumDist[i] = cumDist[i - 1] + LocationUtils.haversineDistance(
                 prev.latitude, prev.longitude, cur.latitude, cur.longitude
             )
         }
         return cumDist
-    }
-
-    /**
-     * Haversine great-circle distance matching the OBA server's
-     * SphericalGeometryLibrary.distance() exactly — same formula, same
-     * Earth radius (6371.01 km).
-     *
-     * @return distance in meters
-     */
-    internal fun haversineDistance(
-        lat1: Double, lon1: Double,
-        lat2: Double, lon2: Double
-    ): Double {
-        val rLat1 = Math.toRadians(lat1)
-        val rLon1 = Math.toRadians(lon1)
-        val rLat2 = Math.toRadians(lat2)
-        val rLon2 = Math.toRadians(lon2)
-
-        val deltaLon = rLon2 - rLon1
-        val cosLat2 = cos(rLat2)
-        val sinDeltaLon = sin(deltaLon)
-        val cosLat1 = cos(rLat1)
-        val sinLat2 = sin(rLat2)
-        val sinLat1 = sin(rLat1)
-        val cosDeltaLon = cos(deltaLon)
-
-        val y = sqrt(
-            (cosLat2 * sinDeltaLon) * (cosLat2 * sinDeltaLon)
-                + (cosLat1 * sinLat2 - sinLat1 * cosLat2 * cosDeltaLon)
-                * (cosLat1 * sinLat2 - sinLat1 * cosLat2 * cosDeltaLon)
-        )
-        val x = sinLat1 * sinLat2 + cosLat1 * cosLat2 * cosDeltaLon
-
-        return EARTH_RADIUS_METERS * atan2(y, x)
     }
 
     /**

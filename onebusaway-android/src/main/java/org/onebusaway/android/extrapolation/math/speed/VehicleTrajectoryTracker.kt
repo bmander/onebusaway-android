@@ -17,6 +17,7 @@ package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.VehicleState
+import org.onebusaway.android.extrapolation.math.GammaDistribution
 import org.onebusaway.android.io.elements.ObaRoute
 
 /**
@@ -63,10 +64,10 @@ object VehicleTrajectoryTracker {
     fun getLastScheduleSpeed(): Double = estimator.getLastScheduleSpeed()
 
     /**
-     * Returns the GammaParams from the last speed estimate.
+     * Returns the GammaDistribution from the last speed estimate.
      */
     @Synchronized
-    fun getLastGammaParams(): GammaSpeedModel.GammaParams? = estimator.getLastGammaParams()
+    fun getLastGammaDistribution(): GammaDistribution? = estimator.getLastGammaDistribution()
 
     /**
      * Sets the active speed estimator.

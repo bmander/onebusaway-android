@@ -17,6 +17,7 @@ package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.VehicleState
+import org.onebusaway.android.extrapolation.math.GammaDistribution
 
 /**
  * Interface for estimating the speed of a transit vehicle.
@@ -45,7 +46,7 @@ interface SpeedEstimator {
     fun getLastScheduleSpeed(): Double = 0.0
 
     /**
-     * Returns the GammaParams from the last estimateSpeed call, or null if not available.
+     * Returns the GammaDistribution from the last estimateSpeed call, or null if not available.
      */
-    fun getLastGammaParams(): GammaSpeedModel.GammaParams? = null
+    fun getLastGammaDistribution(): GammaDistribution? = null
 }

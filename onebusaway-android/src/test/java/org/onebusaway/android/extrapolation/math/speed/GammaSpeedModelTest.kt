@@ -21,7 +21,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.onebusaway.android.extrapolation.math.GammaDistribution
-import org.onebusaway.android.extrapolation.math.speed.GammaSpeedModel.GammaParams
 
 class GammaSpeedModelTest {
 
@@ -66,91 +65,85 @@ class GammaSpeedModelTest {
     fun `fromSpeeds produces positive alpha and scale`() {
         for (sched in listOf(mps5, mps15, mps30, mps60)) {
             for (prev in listOf(mps5, mps15, mps30, mps60)) {
-                val params = GammaSpeedModel.fromSpeeds(sched, prev)
-                assertNotNull("null for sched=$sched prev=$prev", params)
-                assertTrue("alpha <= 0", params!!.alpha > 0)
-                assertTrue("scale <= 0", params.scale > 0)
+                val dist = GammaSpeedModel.fromSpeeds(sched, prev)
+                assertNotNull("null for sched=$sched prev=$prev", dist)
+                assertTrue("alpha <= 0", dist!!.alpha > 0)
+                assertTrue("scale <= 0", dist.scale > 0)
             }
         }
     }
 
     @Test
     fun `fromSpeeds worked example at 20 and 10 mph`() {
-        val params = GammaSpeedModel.fromSpeeds(mps20, mps10)!!
-        // alpha for this worked example should be ~1.93
-        assertEquals(1.93, params.alpha, 0.15)
-        // scale is now in m/s (~4.73)
-        assertEquals(4.73, params.scale, 0.5)
+        val dist = GammaSpeedModel.fromSpeeds(mps20, mps10)!!
+        assertEquals(1.93, dist.alpha, 0.15)
+        assertEquals(4.73, dist.scale, 0.5)
     }
 
     @Test
     fun `fromSpeeds at very low speed`() {
-        val params = GammaSpeedModel.fromSpeeds(0.447, 0.447) // ~1 mph
-        assertNotNull(params)
-        assertTrue(params!!.alpha > 0)
-        assertTrue(params.scale > 0)
+        val dist = GammaSpeedModel.fromSpeeds(0.447, 0.447) // ~1 mph
+        assertNotNull(dist)
+        assertTrue(dist!!.alpha > 0)
+        assertTrue(dist.scale > 0)
     }
 
     @Test
     fun `fromSpeeds at highway speed`() {
-        val params = GammaSpeedModel.fromSpeeds(mps60, mps60)
-        assertNotNull(params)
-        assertTrue(params!!.alpha > 0)
-        assertTrue(params.scale > 0)
+        val dist = GammaSpeedModel.fromSpeeds(mps60, mps60)
+        assertNotNull(dist)
+        assertTrue(dist!!.alpha > 0)
+        assertTrue(dist.scale > 0)
     }
 
     // --- mean / median ---
 
     @Test
     fun `mean speed is alpha times scale`() {
-        val params = GammaParams(alpha = 3.0, scale = 5.0)
-        assertEquals(15.0, params.alpha * params.scale, 1e-9)
+        val dist = GammaDistribution(alpha = 3.0, scale = 5.0)
+        assertEquals(15.0, dist.mean, 1e-9)
     }
 
     @Test
     fun `mean speed is close to input when schedSpeed equals prevSpeed`() {
         for (inputMps in listOf(mps10, mps20, mps40)) {
-            val params = GammaSpeedModel.fromSpeeds(inputMps, inputMps)!!
-            val mean = params.alpha * params.scale
-            assertEquals("mean should be near $inputMps m/s", inputMps, mean, inputMps * 0.2)
+            val dist = GammaSpeedModel.fromSpeeds(inputMps, inputMps)!!
+            assertEquals("mean should be near $inputMps m/s", inputMps, dist.mean, inputMps * 0.2)
         }
     }
 
     @Test
     fun `median is less than mean for right-skewed gamma`() {
-        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
-        val mean = params.alpha * params.scale
-        val median = GammaDistribution.quantile(0.5, params.alpha, params.scale)
-        assertTrue("median ($median) should be < mean ($mean)", median < mean)
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        val median = dist.quantile(0.5)
+        assertTrue("median ($median) should be < mean (${dist.mean})", median < dist.mean)
     }
 
     // --- pdf ---
 
     @Test
     fun `pdf is zero at zero and negative`() {
-        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
-        assertEquals(0.0, GammaDistribution.pdf(0.0, params.alpha, params.scale), 1e-12)
-        assertEquals(0.0, GammaDistribution.pdf(-5.0, params.alpha, params.scale), 1e-12)
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        assertEquals(0.0, dist.pdf(0.0), 1e-12)
+        assertEquals(0.0, dist.pdf(-5.0), 1e-12)
     }
 
     @Test
     fun `pdf is positive for reasonable speeds`() {
-        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
         for (speed in listOf(mps5, mps10, mps15, mps20)) {
-            assertTrue("pdf should be > 0 at $speed m/s",
-                GammaDistribution.pdf(speed, params.alpha, params.scale) > 0)
+            assertTrue("pdf should be > 0 at $speed m/s", dist.pdf(speed) > 0)
         }
     }
 
     @Test
     fun `pdf integrates to approximately 1`() {
-        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
-        // Trapezoidal rule from 0.01 to 90 m/s (~200 mph)
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
         val dx = 0.005
         var sum = 0.0
         var x = dx
         while (x <= 90.0) {
-            sum += GammaDistribution.pdf(x, params.alpha, params.scale) * dx
+            sum += dist.pdf(x) * dx
             x += dx
         }
         assertEquals("pdf should integrate to ~1", 1.0, sum, 0.01)
@@ -160,55 +153,52 @@ class GammaSpeedModelTest {
 
     @Test
     fun `cdf is zero at zero and negative`() {
-        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
-        assertEquals(0.0, GammaDistribution.cdf(0.0, params.alpha, params.scale), 1e-12)
-        assertEquals(0.0, GammaDistribution.cdf(-1.0, params.alpha, params.scale), 1e-12)
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        assertEquals(0.0, dist.cdf(0.0), 1e-12)
+        assertEquals(0.0, dist.cdf(-1.0), 1e-12)
     }
 
     @Test
     fun `cdf approaches 1 for large values`() {
-        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
-        assertTrue(GammaDistribution.cdf(45.0, params.alpha, params.scale) > 0.99)
-        assertTrue(GammaDistribution.cdf(90.0, params.alpha, params.scale) > 0.999)
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        assertTrue(dist.cdf(45.0) > 0.99)
+        assertTrue(dist.cdf(90.0) > 0.999)
     }
 
     @Test
     fun `cdf increases from low to high speeds`() {
-        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
-        val low = GammaDistribution.cdf(mps5, params.alpha, params.scale)
-        val mid = GammaDistribution.cdf(mps15, params.alpha, params.scale)
-        val high = GammaDistribution.cdf(mps40, params.alpha, params.scale)
-        assertTrue("cdf(5mph) < cdf(15mph)", low < mid)
-        assertTrue("cdf(15mph) < cdf(40mph)", mid < high)
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        assertTrue("cdf(5mph) < cdf(15mph)", dist.cdf(mps5) < dist.cdf(mps15))
+        assertTrue("cdf(15mph) < cdf(40mph)", dist.cdf(mps15) < dist.cdf(mps40))
     }
 
     @Test
     fun `cdf at median is approximately 0_5`() {
-        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
-        val median = GammaDistribution.quantile(0.5, params.alpha, params.scale)
-        assertEquals(0.5, GammaDistribution.cdf(median, params.alpha, params.scale), 0.01)
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        val median = dist.quantile(0.5)
+        assertEquals(0.5, dist.cdf(median), 0.01)
     }
 
     // --- quantile ---
 
     @Test
     fun `quantile at 0 returns 0`() {
-        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
-        assertEquals(0.0, GammaDistribution.quantile(0.0, params.alpha, params.scale), 1e-12)
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        assertEquals(0.0, dist.quantile(0.0), 1e-12)
     }
 
     @Test
     fun `quantile at 1 returns MAX_VALUE`() {
-        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
-        assertEquals(Double.MAX_VALUE, GammaDistribution.quantile(1.0, params.alpha, params.scale), 0.0)
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        assertEquals(Double.MAX_VALUE, dist.quantile(1.0), 0.0)
     }
 
     @Test
     fun `quantile is monotonically increasing`() {
-        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
         var prev = 0.0
         for (p in listOf(0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99)) {
-            val q = GammaDistribution.quantile(p, params.alpha, params.scale)
+            val q = dist.quantile(p)
             assertTrue("quantile($p) = $q should be > $prev", q > prev)
             prev = q
         }
@@ -216,11 +206,10 @@ class GammaSpeedModelTest {
 
     @Test
     fun `cdf of quantile round-trips for multiple percentiles`() {
-        val params = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15)!!
         for (p in doubleArrayOf(0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95)) {
-            val q = GammaDistribution.quantile(p, params.alpha, params.scale)
-            val roundTrip = GammaDistribution.cdf(q, params.alpha, params.scale)
-            assertEquals("CDF(quantile($p)) should ≈ $p", p, roundTrip, 0.01)
+            val q = dist.quantile(p)
+            assertEquals("CDF(quantile($p)) should ≈ $p", p, dist.cdf(q), 0.01)
         }
     }
 
@@ -228,31 +217,22 @@ class GammaSpeedModelTest {
     fun `cdf of quantile round-trips across different speed regimes`() {
         for (sched in listOf(mps5, mps15, mps40)) {
             for (prev in listOf(mps5, mps15, mps40)) {
-                val params = GammaSpeedModel.fromSpeeds(sched, prev)!!
-                val q50 = GammaDistribution.quantile(0.5, params.alpha, params.scale)
-                val cdf50 = GammaDistribution.cdf(q50, params.alpha, params.scale)
+                val dist = GammaSpeedModel.fromSpeeds(sched, prev)!!
+                val q50 = dist.quantile(0.5)
                 assertEquals(
                     "round-trip failed for sched=$sched prev=$prev",
-                    0.5, cdf50, 0.01
+                    0.5, dist.cdf(q50), 0.01
                 )
             }
         }
     }
 
-    // --- GammaParams ---
+    // --- GammaDistribution ---
 
     @Test
-    fun `GammaParams equality`() {
-        val a = GammaParams(1.5, 3.0)
-        val b = GammaParams(1.5, 3.0)
-        assertEquals(a, b)
-        assertEquals(a.hashCode(), b.hashCode())
-    }
-
-    @Test
-    fun `GammaParams fields accessible`() {
-        val p = GammaParams(2.0, 7.5)
-        assertEquals(2.0, p.alpha, 0.0)
-        assertEquals(7.5, p.scale, 0.0)
+    fun `GammaDistribution fields accessible`() {
+        val d = GammaDistribution(2.0, 7.5)
+        assertEquals(2.0, d.alpha, 0.0)
+        assertEquals(7.5, d.scale, 0.0)
     }
 }

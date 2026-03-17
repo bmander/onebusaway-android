@@ -33,19 +33,14 @@ object GammaSpeedModel {
     private const val D = 0.1699
 
     /**
-     * Parameters for a Gamma distribution: shape ([alpha]) and [scale] in m/s.
-     */
-    data class GammaParams(@JvmField val alpha: Double, @JvmField val scale: Double)
-
-    /**
-     * Computes Gamma distribution parameters from schedule and previous observed speeds.
+     * Computes a gamma speed distribution from schedule and previous observed speeds.
      *
      * @param schedSpeedMps scheduled speed in m/s
      * @param prevSpeedMps  previous observed speed in m/s
-     * @return GammaParams (scale in m/s), or null if inputs are invalid
+     * @return GammaDistribution (in m/s), or null if inputs are invalid
      */
     @JvmStatic
-    fun fromSpeeds(schedSpeedMps: Double, prevSpeedMps: Double): GammaParams? {
+    fun fromSpeeds(schedSpeedMps: Double, prevSpeedMps: Double): GammaDistribution? {
         var vPrev = prevSpeedMps
         if (vPrev <= 0) vPrev = schedSpeedMps
         if (schedSpeedMps <= 0) return null
@@ -58,7 +53,7 @@ object GammaSpeedModel {
 
         if (alpha <= 0 || scale <= 0) return null
 
-        return GammaParams(alpha, scale)
+        return GammaDistribution(alpha, scale)
     }
 
     /** Piecewise linear ramp from START_B0 to END_B0, flat after KINK. */

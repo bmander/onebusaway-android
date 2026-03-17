@@ -28,7 +28,7 @@ import org.onebusaway.android.extrapolation.math.GammaDistribution
 class GammaSpeedEstimator : SpeedEstimator {
 
     private val scheduleEstimator = ScheduleSpeedEstimator()
-    private var lastGammaParams: GammaSpeedModel.GammaParams? = null
+    private var lastGammaDistribution: GammaDistribution? = null
     private var lastScheduleSpeed: Double = 0.0
 
     override fun estimateSpeed(
@@ -36,7 +36,7 @@ class GammaSpeedEstimator : SpeedEstimator {
         state: VehicleState,
         dataManager: TripDataManager
     ): Double? {
-        lastGammaParams = null
+        lastGammaDistribution = null
         lastScheduleSpeed = 0.0
 
         val scheduleSpeed = scheduleEstimator.estimateSpeed(vehicleId, state, dataManager)
@@ -48,10 +48,10 @@ class GammaSpeedEstimator : SpeedEstimator {
 
         val vPrev = computePreviousAvlSpeed(tripId, dataManager)
 
-        val params = GammaSpeedModel.fromSpeeds(vSched, vPrev)
-        if (params != null) {
-            lastGammaParams = params
-            return GammaDistribution.quantile(0.5, params.alpha, params.scale)
+        val dist = GammaSpeedModel.fromSpeeds(vSched, vPrev)
+        if (dist != null) {
+            lastGammaDistribution = dist
+            return dist.quantile(0.5)
         }
 
         // Fall back to schedule speed
@@ -102,12 +102,12 @@ class GammaSpeedEstimator : SpeedEstimator {
         return maxOf(0.0, dd / (dtMs / 1000.0))
     }
 
-    override fun getLastGammaParams(): GammaSpeedModel.GammaParams? = lastGammaParams
+    override fun getLastGammaDistribution(): GammaDistribution? = lastGammaDistribution
 
     override fun getLastScheduleSpeed(): Double = lastScheduleSpeed
 
     override fun clearState() {
-        lastGammaParams = null
+        lastGammaDistribution = null
         lastScheduleSpeed = 0.0
     }
 }

@@ -28,10 +28,12 @@ class ScheduleSpeedEstimator : SpeedEstimator {
 
     override fun estimateSpeed(
         state: VehicleState,
+        timestampMs: Long,
         dataManager: TripDataManager
     ): SpeedDistribution? {
         val currentDist = state.scheduledDistanceAlongTrip ?: return null
-        val schedule = dataManager.getSchedule(state.activeTripId) ?: return null
+        val tripId = state.activeTripId ?: return null
+        val schedule = dataManager.getSchedule(tripId) ?: return null
         val stopTimes = schedule.stopTimes
         if (stopTimes == null || stopTimes.size < 2) return null
 

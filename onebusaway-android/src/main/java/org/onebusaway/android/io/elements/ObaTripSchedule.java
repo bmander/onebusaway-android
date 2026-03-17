@@ -146,4 +146,16 @@ public final class ObaTripSchedule {
     public String getNextTripId() {
         return nextTripId;
     }
+
+    /**
+     * Returns the scheduled start time of the trip in seconds since the service start date.
+     *
+     * @return the trip start time in seconds, or null if no stop times exist
+     */
+    public Long getStartTime() {
+        if (stopTimes == null || stopTimes.length == 0) {
+            return null;
+        }
+        return stopTimes[0].getDepartureTime();
+    }
 }

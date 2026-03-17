@@ -17,7 +17,6 @@ package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.VehicleState
-import org.onebusaway.android.extrapolation.math.PointEstimate
 import org.onebusaway.android.extrapolation.math.SpeedDistribution
 
 /**
@@ -37,63 +36,48 @@ class GammaSpeedEstimator : SpeedEstimator {
 
     override fun estimateSpeed(
         state: VehicleState,
+        timestampMs: Long,
         dataManager: TripDataManager
     ): SpeedDistribution? {
-        val scheduleDist = scheduleEstimator.estimateSpeed(state, dataManager)
-        val vSched = scheduleDist?.mean ?: 0.0
+        val tripId = state.activeTripId ?: return null
 
-        val tripId = state.activeTripId
-        if (isTripNotYetStarted(tripId, vSched, dataManager)) return null
+        val scheduleDist = scheduleEstimator.estimateSpeed(state, timestampMs, dataManager)
+        val scheduleSpeed = scheduleDist?.mean ?: return null
+
+        if (isTripNotYetStarted(tripId, timestampMs, dataManager) == true) return null
 
         val vPrev = computePreviousAvlSpeed(tripId, dataManager)
+            ?: return scheduleDist
 
-        return GammaSpeedModel.fromSpeeds(vSched, vPrev)
+        return GammaSpeedModel.fromSpeeds(scheduleSpeed, vPrev)
             ?: scheduleDist
     }
 
     private fun isTripNotYetStarted(
-        tripId: String?,
-        vSched: Double,
+        tripId: String,
+        timeMs: Long,
         dataManager: TripDataManager
-    ): Boolean {
-        if (tripId == null || vSched <= 0) return false
-        val serviceDate = dataManager.getServiceDate(tripId) ?: return false
-        val schedule = dataManager.getSchedule(tripId) ?: return false
-        val stopTimes = schedule.stopTimes
-        if (stopTimes == null || stopTimes.isEmpty()) return false
-        val tripStartMs = serviceDate + stopTimes[0].departureTime * 1000L
-        return System.currentTimeMillis() < tripStartMs
-    }
+    ): Boolean? =
+        dataManager.getServiceDate(tripId)?.let { serviceDate ->
+            dataManager.getSchedule(tripId)?.startTime?.let { startTime ->
+                timeMs < serviceDate + startTime * 1000
+            }
+        }
 
     private fun computePreviousAvlSpeed(
         tripId: String?,
         dataManager: TripDataManager
-    ): Double {
-        if (tripId == null) return 0.0
-        val history = dataManager.getHistoryReadOnly(tripId)
-        if (history.size < 2) return 0.0
-
-        var newer: AvlDistanceSample? = null
-        var older: AvlDistanceSample? = null
-        for (i in history.indices.reversed()) {
-            val e = history[i]
-            val distanceAlongTrip = e.bestDistanceAlongTrip
-            if (distanceAlongTrip != null && e.lastLocationUpdateTime > 0) {
-                val sample = AvlDistanceSample(distanceAlongTrip, e.lastLocationUpdateTime)
-                if (newer == null) {
-                    newer = sample
-                } else {
-                    older = sample
-                    break
-                }
-            }
+    ): Double? = tripId?.let { dataManager.getHistoryReadOnly(it) }
+        ?.asReversed()
+        ?.mapNotNull { e ->
+            e.bestDistanceAlongTrip?.takeIf { e.lastLocationUpdateTime > 0 }
+                ?.let { dist -> AvlDistanceSample(dist, e.lastLocationUpdateTime) }
         }
-        if (older == null || newer == null) return 0.0
-
-        val dtMs = newer.lastLocationUpdateTime - older.lastLocationUpdateTime
-        if (dtMs <= 0) return 0.0
-
-        val dd = newer.distanceAlongTrip - older.distanceAlongTrip
-        return maxOf(0.0, dd / (dtMs / 1000.0))
-    }
+        ?.take(2)
+        ?.takeIf { it.size >= 2 }
+        ?.let { (newer, older) ->
+            val dtMs = newer.lastLocationUpdateTime - older.lastLocationUpdateTime
+            val dd = newer.distanceAlongTrip - older.distanceAlongTrip
+            (dd / (dtMs / 1000.0)).takeIf { dtMs > 0 && it >= 0 }
+        }
 }

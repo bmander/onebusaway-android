@@ -122,7 +122,7 @@ object TripDataManager {
      * Returns the cached schedule for the given trip, or null if not cached.
      */
     @Synchronized
-    fun getSchedule(tripId: String?): ObaTripSchedule? = tripId?.let { scheduleCache[it] }
+    fun getSchedule(tripId: String): ObaTripSchedule? = tripId.let { scheduleCache[it] }
 
     /**
      * Returns true if a schedule is cached for the given trip.

@@ -40,7 +40,7 @@ object VehicleTrajectoryTracker {
      * Uses the route type from TripDataManager to select the appropriate estimator.
      */
     @Synchronized
-    fun getEstimatedDistribution(key: String?, state: VehicleState?): SpeedDistribution? {
+    fun getEstimatedDistribution(key: String?, state: VehicleState?, timestampMs: Long): SpeedDistribution? {
         if (key == null || state == null) return null
         val routeType = dataManager.getRouteType(key)
         val est = if (routeType != null && ObaRoute.isGradeSeparated(routeType)) {
@@ -48,7 +48,7 @@ object VehicleTrajectoryTracker {
         } else {
             estimator
         }
-        val dist = est.estimateSpeed(state, dataManager)
+        val dist = est.estimateSpeed(state, timestampMs, dataManager)
         lastDistribution = dist
         return dist
     }
@@ -57,15 +57,8 @@ object VehicleTrajectoryTracker {
      * Returns the estimated speed in m/s for the given key and current state.
      */
     @Synchronized
-    fun getEstimatedSpeed(key: String?, state: VehicleState?): Double? =
-        getEstimatedDistribution(key, state)?.median()
-
-    /**
-     * Returns the estimated speed in m/s for the given key, using the last cached VehicleState.
-     */
-    @Synchronized
-    fun getEstimatedSpeed(key: String?): Double? =
-        getEstimatedSpeed(key, dataManager.getLastState(key))
+    fun getEstimatedSpeed(key: String?, state: VehicleState?, timestampMs: Long): Double? =
+        getEstimatedDistribution(key, state, timestampMs)?.median()
 
     /**
      * Returns the distribution from the last speed estimate.

@@ -16,7 +16,6 @@
 package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.data.VehicleHistoryEntry
 import org.onebusaway.android.extrapolation.data.VehicleState
 import org.onebusaway.android.extrapolation.math.GammaDistribution
 
@@ -32,14 +31,13 @@ class GammaSpeedEstimator : SpeedEstimator {
     private var lastScheduleSpeed: Double = 0.0
 
     override fun estimateSpeed(
-        vehicleId: String?,
         state: VehicleState,
         dataManager: TripDataManager
     ): Double? {
         lastGammaDistribution = null
         lastScheduleSpeed = 0.0
 
-        val scheduleSpeed = scheduleEstimator.estimateSpeed(vehicleId, state, dataManager)
+        val scheduleSpeed = scheduleEstimator.estimateSpeed(state, dataManager)
         val vSched = scheduleSpeed ?: 0.0
         lastScheduleSpeed = vSched
 

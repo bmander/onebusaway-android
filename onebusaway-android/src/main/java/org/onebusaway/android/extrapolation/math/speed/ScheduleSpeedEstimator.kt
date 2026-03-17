@@ -25,7 +25,6 @@ import org.onebusaway.android.extrapolation.data.VehicleState
 class ScheduleSpeedEstimator : SpeedEstimator {
 
     override fun estimateSpeed(
-        vehicleId: String?,
         state: VehicleState,
         dataManager: TripDataManager
     ): Double? {

@@ -27,12 +27,11 @@ interface SpeedEstimator {
     /**
      * Estimates the current speed of a vehicle.
      *
-     * @param vehicleId   the vehicle identifier
      * @param state       the current vehicle state snapshot
      * @param dataManager the manager holding trip data (history, schedule, etc.)
      * @return estimated speed in meters per second, or null if insufficient data
      */
-    fun estimateSpeed(vehicleId: String?, state: VehicleState, dataManager: TripDataManager): Double?
+    fun estimateSpeed(state: VehicleState, dataManager: TripDataManager): Double?
 
     /**
      * Clears all internal estimator state.

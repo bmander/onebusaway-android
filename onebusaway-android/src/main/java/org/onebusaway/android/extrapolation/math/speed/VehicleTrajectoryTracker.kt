@@ -47,7 +47,7 @@ object VehicleTrajectoryTracker {
         } else {
             estimator
         }
-        return est.estimateSpeed(state.vehicleId, state, dataManager)
+        return est.estimateSpeed(state, dataManager)
     }
 
     /**

@@ -214,7 +214,6 @@ class SpeedEstimatorTest {
         // Set a custom estimator that always returns 42.0
         tracker.setEstimator(object : SpeedEstimator {
             override fun estimateSpeed(
-                vehicleId: String?,
                 state: VehicleState,
                 dataManager: TripDataManager
             ): Double = 42.0
@@ -303,7 +302,7 @@ class SpeedEstimatorTest {
         )
 
         // No schedule cached - should return null
-        assertNull(estimator.estimateSpeed("v1", state, dm))
+        assertNull(estimator.estimateSpeed(state, dm))
     }
 
     @Test
@@ -314,7 +313,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 200.0, null, 5000.0, 10000L
         )
 
-        assertNull(estimator.estimateSpeed("v1", state, dm))
+        assertNull(estimator.estimateSpeed(state, dm))
     }
 
     @Test
@@ -332,7 +331,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 500.0, 500.0, 5000.0, 10000L
         )
 
-        val speed = estimator.estimateSpeed("v1", state, dm)
+        val speed = estimator.estimateSpeed(state, dm)
         assertNotNull(speed)
         assertEquals(1000.0 / 60.0, speed!!, 0.01)
     }
@@ -352,7 +351,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 1500.0, 1500.0, 5000.0, 10000L
         )
 
-        val speed = estimator.estimateSpeed("v1", state, dm)
+        val speed = estimator.estimateSpeed(state, dm)
         assertNotNull(speed)
         assertEquals(2000.0 / 120.0, speed!!, 0.01)
     }
@@ -372,7 +371,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 50.0, 50.0, 5000.0, 10000L
         )
 
-        val speed = estimator.estimateSpeed("v1", state, dm)
+        val speed = estimator.estimateSpeed(state, dm)
         assertNotNull(speed)
         assertEquals(900.0 / 60.0, speed!!, 0.01)
     }
@@ -392,7 +391,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 3500.0, 3500.0, 5000.0, 10000L
         )
 
-        val speed = estimator.estimateSpeed("v1", state, dm)
+        val speed = estimator.estimateSpeed(state, dm)
         assertNotNull(speed)
         assertEquals(2000.0 / 120.0, speed!!, 0.01)
     }
@@ -412,7 +411,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, 10000L
         )
 
-        assertNull(estimator.estimateSpeed("v1", state, dm))
+        assertNull(estimator.estimateSpeed(state, dm))
     }
 
     @Test
@@ -430,7 +429,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 500.0, 500.0, 5000.0, 10000L
         )
 
-        assertNull(estimator.estimateSpeed("v1", state, dm))
+        assertNull(estimator.estimateSpeed(state, dm))
     }
 
     // --- GammaSpeedModel tests ---
@@ -526,7 +525,7 @@ class SpeedEstimatorTest {
         dm.recordState("trip1", state1)
         dm.recordState("trip1", state2)
 
-        val speed = estimator.estimateSpeed("v1", state2, dm)
+        val speed = estimator.estimateSpeed(state2, dm)
         assertNotNull(speed)
         assertTrue("Speed should be positive", speed!! > 0)
 
@@ -548,7 +547,7 @@ class SpeedEstimatorTest {
         )
         dm.recordState("trip1", state)
 
-        val speed = estimator.estimateSpeed("v1", state, dm)
+        val speed = estimator.estimateSpeed(state, dm)
         assertNull(speed)
     }
 
@@ -573,7 +572,7 @@ class SpeedEstimatorTest {
         )
         dm.recordState("trip1", state)
 
-        val speed = estimator.estimateSpeed("v1", state, dm)
+        val speed = estimator.estimateSpeed(state, dm)
         assertNull("Speed should be null before trip start", speed)
     }
 

@@ -75,32 +75,20 @@ class GammaSpeedEstimator : SpeedEstimator {
     private fun computePreviousAvlSpeed(
         tripId: String?,
         dataManager: TripDataManager
-    ): Double {
-        if (tripId == null) return 0.0
-        val history = dataManager.getHistoryReadOnly(tripId)
-        if (history.size < 2) return 0.0
-
-        var newer: VehicleHistoryEntry? = null
-        var older: VehicleHistoryEntry? = null
-        for (i in history.indices.reversed()) {
-            val e = history[i]
-            if (e.bestDistanceAlongTrip != null && e.lastLocationUpdateTime > 0) {
-                if (newer == null) {
-                    newer = e
-                } else {
-                    older = e
-                    break
-                }
-            }
+    ): Double = tripId?.let { dataManager.getHistoryReadOnly(it) }
+        ?.asReversed()
+        ?.mapNotNull { e ->
+            e.bestDistanceAlongTrip?.takeIf { e.lastLocationUpdateTime > 0 }
+                ?.let { dist -> e.lastLocationUpdateTime to dist }
         }
-        if (older == null || newer == null) return 0.0
-
-        val dtMs = newer.lastLocationUpdateTime - older.lastLocationUpdateTime
-        if (dtMs <= 0) return 0.0
-
-        val dd = newer.bestDistanceAlongTrip!! - older.bestDistanceAlongTrip!!
-        return maxOf(0.0, dd / (dtMs / 1000.0))
-    }
+        ?.take(2)
+        ?.takeIf { it.size >= 2 }
+        ?.let { (newer, older) ->
+            val dtMs = newer.first - older.first
+            val dd = newer.second - older.second
+            (dd / (dtMs / 1000.0)).takeIf { dtMs > 0 && it >= 0 }
+        }
+        ?: 0.0
 
     override fun getLastGammaDistribution(): GammaDistribution? = lastGammaDistribution
 

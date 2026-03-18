@@ -42,8 +42,8 @@ object GammaSpeedModel {
      * @return GammaDistribution (in m/s), or null if inputs are invalid
      */
     @JvmStatic
-    fun fromSpeeds(schedSpeedMps: Double, prevSpeedMps: Double, dt: Double): ZeroInflatedGammaDistribution? {
-        var vPrev = prevSpeedMps
+    fun fromSpeeds(schedSpeedMps: Double, prevSpeedMps: Double?, dt: Double): ZeroInflatedGammaDistribution? {
+        var vPrev = prevSpeedMps ?: 0.0
         if (vPrev <= 0) vPrev = schedSpeedMps
         if (schedSpeedMps <= 0) return null
 

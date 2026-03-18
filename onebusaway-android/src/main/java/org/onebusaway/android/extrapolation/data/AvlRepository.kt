@@ -91,16 +91,6 @@ object AvlRepository {
     /** Returns the last cached ObaTripStatus for the given trip, or null. */
     fun getLastState(tripId: String): ObaTripStatus? = lock.read { lastStateCache[tripId] }
 
-    // --- Vehicle-level queries ---
-
-    /** Returns all history entries across all trips for the given vehicle, sorted by lastLocationUpdateTime. */
-    fun getHistoryForVehicle(vehicleId: String): List<ObaTripStatus> =
-            lock.read { vehicleToTrips[vehicleId]?.let(::mergeHistories).orEmpty() }
-
-    /** Returns the set of trip IDs that have recorded data for the given vehicle. */
-    fun getTripsForVehicle(vehicleId: String): Set<String> =
-            lock.read { vehicleToTrips[vehicleId]?.toSet() ?: emptySet() }
-
     // --- Lifecycle ---
 
     /** Clears all stored data and indices. */
@@ -111,10 +101,4 @@ object AvlRepository {
                 vehicleToTrips.clear()
             }
 
-    /**
-     * Merges history lists from multiple trips into a single list sorted by lastLocationUpdateTime.
-     * Must be called under the read lock.
-     */
-    private fun mergeHistories(tripIds: Set<String>): List<ObaTripStatus> =
-            tripIds.flatMap { tripHistory[it] ?: emptyList() }.sortedBy { it.lastLocationUpdateTime }
 }

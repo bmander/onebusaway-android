@@ -95,7 +95,7 @@ class GammaSpeedEstimator : SpeedEstimator {
             ?.let { (newer, older) ->
                 val dtMs = newer.lastLocationUpdateTime - older.lastLocationUpdateTime
                 val dd = newer.distanceAlongTrip - older.distanceAlongTrip
-                (dd / (dtMs / 1000.0)).takeIf { dtMs > 0 && it >= 0 }
+                if (dtMs > 0) maxOf(0.0, dd / (dtMs / 1000.0)) else null
             }
     }
 }

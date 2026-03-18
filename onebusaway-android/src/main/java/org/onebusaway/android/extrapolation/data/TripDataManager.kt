@@ -164,8 +164,7 @@ object TripDataManager {
      * cached.
      */
     @Synchronized
-    fun getShapeWithDistances(tripId: String?): ShapeData? {
-        if (tripId == null) return null
+    fun getShapeWithDistances(tripId: String): ShapeData? {
         val points = shapeCache[tripId] ?: return null
         val cumDist = shapeCumDistCache[tripId] ?: return null
         return ShapeData(points, cumDist)

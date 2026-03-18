@@ -52,8 +52,6 @@ import org.onebusaway.android.io.request.ObaShapeResponse;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
-import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTrackerKt;
-import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.extrapolation.math.SpeedDistribution;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
@@ -943,67 +941,55 @@ public class VehicleOverlay implements MarkerListeners  {
          * along their route polylines. Called every frame via Choreographer.
          */
         void extrapolatePositions() {
-            if (mVehicleMarkers == null || mVehicleMarkers.isEmpty()) return;
+            if (mVehicleMarkers == null || mVehicleMarkers.isEmpty())
+                return;
 
-            TripDataManager dm = TripDataManager.getInstance();
             VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
             long now = System.currentTimeMillis();
 
-            // Capture selected-trip data for estimate markers
-            SpeedDistribution selectedDistribution = null;
-            List<Location> selectedShape = null;
-            double[] selectedCumDist = null;
-            List<ObaTripStatus> selectedHistory = null;
-            int selectedColor = 0;
-
             for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
-                String tripId = entry.getKey();
-                Marker marker = entry.getValue();
-
-                TripDataManager.ShapeData sd = dm.getShapeWithDistances(tripId);
-                if (sd == null || sd.points.isEmpty()) continue;
-                List<Location> shape = sd.points;
-                double[] cumDist = sd.cumulativeDistances;
-
-                List<ObaTripStatus> history = dm.getHistory(tripId);
-                Double speed = tracker.getEstimatedSpeed(tripId);
-
-                // Capture data for estimate markers regardless of speed availability
-                if (tripId.equals(mSelectedTripId)) {
-                    selectedDistribution = tracker.getLastDistribution();
-                    selectedShape = shape;
-                    selectedCumDist = cumDist;
-                    selectedHistory = history;
-                    ObaTripStatus status = mVehicles.get(marker);
-                    if (status != null) {
-                        int colorRes = getDeviationColorResource(
-                                isLocationRealtime(status), status);
-                        selectedColor = ContextCompat.getColor(mActivity, colorRes);
-                    }
+                if (tracker.extrapolatePosition(entry.getKey(), now, mReusableLocation)) {
+                    entry.getValue().setPosition(new LatLng(
+                            mReusableLocation.getLatitude(), mReusableLocation.getLongitude()));
                 }
-
-                if (history == null || history.isEmpty() || speed == null) continue;
-
-                Double extrapolatedDist = VehicleTrajectoryTrackerKt.extrapolateDistance(
-                        history, speed, now);
-                if (extrapolatedDist == null) continue;
-
-                if (!LocationUtils.interpolateAlongPolyline(
-                        shape, cumDist, extrapolatedDist, mReusableLocation)) {
-                    continue;
-                }
-
-                marker.setPosition(new LatLng(
-                        mReusableLocation.getLatitude(), mReusableLocation.getLongitude()));
             }
 
-            // Update estimate overlays for the selected vehicle
-            if (mTripRenderer != null) {
-                mTripRenderer.showOrUpdateDataReceivedMarker(mSelectedTripId,
-                        selectedShape, selectedCumDist, selectedHistory);
-                mTripRenderer.updateEstimateOverlays(selectedDistribution, selectedShape,
-                        selectedCumDist, selectedHistory, now, selectedColor);
+            updateSelectedTripOverlays(tracker, now);
+        }
+
+        /**
+         * Updates the estimate overlays and data-received marker for the currently
+         * selected trip. Looks up shape, history, and deviation color independently
+         * from the per-marker extrapolation loop.
+         */
+        private void updateSelectedTripOverlays(VehicleTrajectoryTracker tracker, long now) {
+            if (mTripRenderer == null || mSelectedTripId == null) return;
+
+            TripDataManager dm = TripDataManager.getInstance();
+            TripDataManager.ShapeData sd = dm.getShapeWithDistances(mSelectedTripId);
+            List<ObaTripStatus> history = dm.getHistory(mSelectedTripId);
+
+            int selectedColor = 0;
+            Marker selectedMarker = mVehicleMarkers != null
+                    ? mVehicleMarkers.get(mSelectedTripId) : null;
+            if (selectedMarker != null) {
+                ObaTripStatus status = mVehicles.get(selectedMarker);
+                if (status != null) {
+                    int colorRes = getDeviationColorResource(
+                            isLocationRealtime(status), status);
+                    selectedColor = ContextCompat.getColor(mActivity, colorRes);
+                }
             }
+
+            List<Location> shape = sd != null ? sd.points : null;
+            double[] cumDist = sd != null ? sd.cumulativeDistances : null;
+
+            mTripRenderer.showOrUpdateDataReceivedMarker(mSelectedTripId,
+                    shape, cumDist, history);
+            SpeedDistribution distribution = mSelectedTripId != null
+                    ? tracker.getEstimatedDistribution(mSelectedTripId, now) : null;
+            mTripRenderer.updateEstimateOverlays(distribution, shape,
+                    cumDist, history, now, selectedColor);
         }
 
 

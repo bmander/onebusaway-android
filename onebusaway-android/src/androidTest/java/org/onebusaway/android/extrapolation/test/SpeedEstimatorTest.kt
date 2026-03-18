@@ -161,16 +161,6 @@ class SpeedEstimatorTest {
     }
 
     @Test
-    fun testTrackerGetEstimatedSpeedNullKey() {
-        assertNull(tracker.getEstimatedSpeed(null, null, 100_000L))
-    }
-
-    @Test
-    fun testTrackerGetEstimatedSpeedNullStatus() {
-        assertNull(tracker.getEstimatedSpeed("trip1", null, 100_000L))
-    }
-
-    @Test
     fun testTrackerSetEstimator() {
         // Set a custom estimator that always returns 42.0
         tracker.setEstimator(object : SpeedEstimator {
@@ -185,7 +175,8 @@ class SpeedEstimatorTest {
         val status = createStatus(
             "v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, timestamp
         )
-        val speed = tracker.getEstimatedSpeed("trip1", status, timestamp)
+        dm.recordStatus(status)
+        val speed = tracker.getEstimatedSpeed("trip1", timestamp)
         assertNotNull(speed)
         assertEquals(42.0, speed!!, 0.01)
 
@@ -638,7 +629,8 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.012, -122.0, 1200.0, 1200.0, 10000.0, latestTimestamp
         )
 
-        val speed = tracker.getEstimatedSpeed("trip1", latestStatus, latestTimestamp)
+        dm.recordStatus(latestStatus)
+        val speed = tracker.getEstimatedSpeed("trip1", latestTimestamp)
         assertNotNull(speed)
         assertTrue("Speed should be positive", speed!! > 0)
     }

@@ -30,13 +30,13 @@ object AvlRepository {
     private val lock = ReentrantReadWriteLock()
 
     /** Primary store: tripId → ordered list of history entries. */
-    private val tripHistory = HashMap<String, MutableList<VehicleHistoryEntry>>()
+    private val tripHistory = mutableMapOf<String, MutableList<VehicleHistoryEntry>>()
 
     /** Secondary index: vehicleId → set of tripIds that have data for this vehicle. */
-    private val vehicleToTrips = HashMap<String, MutableSet<String>>()
+    private val vehicleToTrips = mutableMapOf<String, MutableSet<String>>()
 
     /** Last recorded VehicleState per tripId. */
-    private val lastStateCache = HashMap<String, VehicleState>()
+    private val lastStateCache = mutableMapOf<String, VehicleState>()
 
     /**
      * Records a vehicle state snapshot for a trip.
@@ -59,9 +59,8 @@ object AvlRepository {
             val history = tripHistory.getOrPut(tripId) { mutableListOf() }
 
             // Skip if lastLocationUpdateTime hasn't advanced
-            if (history.isNotEmpty()) {
-                val last = history[history.size - 1]
-                if (locUpdateTime <= last.lastLocationUpdateTime) return
+            if (history.isNotEmpty() && locUpdateTime <= history.last().lastLocationUpdateTime) {
+                return
             }
 
             // Use the server-extrapolated position, which is derived from the same
@@ -100,15 +99,16 @@ object AvlRepository {
      * Returns a defensive copy of the history for the given trip.
      */
     fun getHistoryForTrip(tripId: String): List<VehicleHistoryEntry> = lock.read {
-        tripHistory[tripId]?.toList() ?: emptyList()
+        tripHistory[tripId]?.toList().orEmpty()
     }
 
     /**
-     * Returns a read-only snapshot of the history for the given trip.
-     * Suitable for read-only hot-path use (e.g., per-frame extrapolation).
+     * Returns an unmodifiable view of the history for the given trip.
+     * Zero-allocation; suitable for read-only hot-path use (e.g., per-frame extrapolation).
+     * Caller must not hold a reference beyond the lock scope.
      */
     fun getHistoryForTripReadOnly(tripId: String): List<VehicleHistoryEntry> = lock.read {
-        tripHistory[tripId]?.toList() ?: emptyList()
+        tripHistory[tripId].orEmpty()
     }
 
     /**
@@ -132,9 +132,7 @@ object AvlRepository {
      * sorted by timestamp.
      */
     fun getHistoryForVehicle(vehicleId: String): List<VehicleHistoryEntry> = lock.read {
-        val tripIds = vehicleToTrips[vehicleId]
-        if (tripIds.isNullOrEmpty()) emptyList()
-        else mergeHistories(tripIds)
+        vehicleToTrips[vehicleId]?.let(::mergeHistories).orEmpty()
     }
 
     /**

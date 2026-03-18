@@ -1,0 +1,12 @@
+{
+  "name": "OneBusAway Android",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "postCreateCommand": "./gradlew assembleObaGoogleDebug --no-daemon 2>/dev/null || true",
+  "postStartCommand": "nohup socat TCP-LISTEN:5037,fork,reuseaddr TCP:host.docker.internal:5037 > /dev/null 2>&1 &",
+  "mounts": [
+    "source=oba-gradle-cache,target=/home/vscode/.gradle,type=volume"
+  ]
+}

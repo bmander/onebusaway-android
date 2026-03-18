@@ -43,16 +43,15 @@ object TripDataManager {
     // --- Vehicle history ---
 
     /**
-     * Records a vehicle state snapshot into the history for the given active trip ID.
+     * Records a vehicle state snapshot into the history.
      * Delegates to [AvlRepository] for storage.
      */
-    @JvmOverloads
-    fun recordState(activeTripId: String?, state: VehicleState?, blockId: String? = null) {
-        repository.record(activeTripId, state, blockId)
+    fun recordState(state: VehicleState?) {
+        repository.record(state)
     }
 
     /**
-     * Convenience method that extracts vehicle state, block ID, active trip ID,
+     * Convenience method that extracts vehicle state, active trip ID,
      * and service date from a trip details response and records them.
      *
      * @param polledTripId the trip ID that was queried
@@ -64,8 +63,7 @@ object TripDataManager {
         putLastActiveTripId(polledTripId, status.activeTripId)
         status.activeTripId?.let { activeTripId ->
             val vs = VehicleState.fromTripStatus(status)
-            val blockId = response.getTrip(activeTripId)?.blockId
-            recordState(activeTripId, vs, blockId)
+            recordState(vs)
             if (status.serviceDate > 0) {
                 putServiceDate(activeTripId, status.serviceDate)
             }

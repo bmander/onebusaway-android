@@ -36,9 +36,7 @@ data class VehicleHistoryEntry(
      */
     val lastLocationUpdateTime: Long = 0,
     val timestamp: Long,
-    val vehicleId: String? = null,
-    val tripId: String? = null,
-    val blockId: String? = null
+    val vehicleId: String? = null
 ) {
     /**
      * The best available distance: prefers lastKnownDistanceAlongTrip (raw),

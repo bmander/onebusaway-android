@@ -21,7 +21,7 @@ import kotlin.concurrent.write
 
 /**
  * Centralized AVL (Automatic Vehicle Location) data store.
- * Owns all vehicle history entries and supports queries by trip, vehicle, and block.
+ * Owns all vehicle history entries and supports queries by trip and vehicle.
  * Thread-safe via a read-write lock: reads run concurrently, writes are exclusive.
  */
 object AvlRepository {
@@ -35,9 +35,6 @@ object AvlRepository {
     /** Secondary index: vehicleId → set of tripIds that have data for this vehicle. */
     private val vehicleToTrips = HashMap<String, MutableSet<String>>()
 
-    /** Secondary index: blockId → set of tripIds that have data for this block. */
-    private val blockToTrips = HashMap<String, MutableSet<String>>()
-
     /** Last recorded VehicleState per tripId. */
     private val lastStateCache = HashMap<String, VehicleState>()
 
@@ -46,12 +43,11 @@ object AvlRepository {
      * Deduplicates by lastLocationUpdateTime — only records when a genuinely new AVL
      * report has arrived, filtering out server re-extrapolations.
      *
-     * @param tripId  the active trip ID (key for primary store)
-     * @param state   the vehicle state snapshot
-     * @param blockId the block ID, or null if unavailable
+     * @param state the vehicle state snapshot (must have a non-null activeTripId)
      */
-    fun record(tripId: String?, state: VehicleState?, blockId: String?) {
-        if (tripId == null || state == null) return
+    fun record(state: VehicleState?) {
+        if (state == null) return
+        val tripId = state.activeTripId ?: return
 
         // Only record entries backed by real-time AVL data.
         if (!state.isPredicted) return
@@ -80,9 +76,7 @@ object AvlRepository {
                     lastKnownDistanceAlongTrip = state.lastKnownDistanceAlongTrip,
                     lastLocationUpdateTime = locUpdateTime,
                     timestamp = state.timestamp,
-                    vehicleId = vehicleId,
-                    tripId = tripId,
-                    blockId = blockId
+                    vehicleId = vehicleId
                 )
             )
 
@@ -93,12 +87,9 @@ object AvlRepository {
 
             lastStateCache[tripId] = state
 
-            // Update secondary indices
+            // Update secondary index
             if (vehicleId != null) {
                 vehicleToTrips.getOrPut(vehicleId) { mutableSetOf() }.add(tripId)
-            }
-            if (blockId != null) {
-                blockToTrips.getOrPut(blockId) { mutableSetOf() }.add(tripId)
             }
         }
     }
@@ -153,25 +144,6 @@ object AvlRepository {
         vehicleToTrips[vehicleId]?.toSet() ?: emptySet()
     }
 
-    // --- Block-level queries ---
-
-    /**
-     * Returns all history entries across all trips for the given block,
-     * sorted by timestamp.
-     */
-    fun getHistoryForBlock(blockId: String): List<VehicleHistoryEntry> = lock.read {
-        val tripIds = blockToTrips[blockId]
-        if (tripIds.isNullOrEmpty()) emptyList()
-        else mergeHistories(tripIds)
-    }
-
-    /**
-     * Returns the set of trip IDs that have recorded data for the given block.
-     */
-    fun getTripsForBlock(blockId: String): Set<String> = lock.read {
-        blockToTrips[blockId]?.toSet() ?: emptySet()
-    }
-
     // --- Lifecycle ---
 
     /**
@@ -181,7 +153,6 @@ object AvlRepository {
         tripHistory.clear()
         lastStateCache.clear()
         vehicleToTrips.clear()
-        blockToTrips.clear()
     }
 
     /**

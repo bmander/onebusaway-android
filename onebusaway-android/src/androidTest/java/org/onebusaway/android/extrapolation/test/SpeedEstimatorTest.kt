@@ -127,7 +127,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, 1000L
         )
 
-        dm.recordState("trip1", state)
+        dm.recordState(state)
 
         val history = dm.getHistory("trip1")
         assertEquals(1, history.size)
@@ -141,7 +141,7 @@ class SpeedEstimatorTest {
                 "v1", "trip1", 47.0 + i * 0.001, -122.0,
                 100.0 * i, 100.0 * i, 5000.0, 1000L + i * 30000L
             )
-            dm.recordState("trip1", state)
+            dm.recordState(state)
         }
 
         val history = dm.getHistory("trip1")
@@ -157,8 +157,8 @@ class SpeedEstimatorTest {
             "v2", "trip2", 47.5, -122.5, 200.0, 200.0, 6000.0, 1000L
         )
 
-        dm.recordState("trip1", state1)
-        dm.recordState("trip2", state2)
+        dm.recordState(state1)
+        dm.recordState(state2)
 
         assertEquals(1, dm.getHistory("trip1").size)
         assertEquals(1, dm.getHistory("trip2").size)
@@ -169,7 +169,7 @@ class SpeedEstimatorTest {
         val state = createState(
             "v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, 1000L
         )
-        dm.recordState("trip1", state)
+        dm.recordState(state)
         assertEquals(1, dm.getHistory("trip1").size)
 
         dm.clearAll()
@@ -181,7 +181,7 @@ class SpeedEstimatorTest {
         val state = createState(
             "v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, 1000L
         )
-        dm.recordState("trip1", state)
+        dm.recordState(state)
 
         val history = dm.getHistory("trip1")
         history.toMutableList().clear() // Modifying a copy
@@ -191,16 +191,20 @@ class SpeedEstimatorTest {
     }
 
     @Test
-    fun testTrackerNullKeyIgnored() {
-        dm.recordState(
-            null, createState("v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, 1000L)
+    fun testTrackerNullActiveTripIdIgnored() {
+        // Create a state with null activeTripId
+        val pos = createLocation(47.0, -122.0)
+        val stateWithNullTrip = VehicleState.create(
+            "v1", null, pos, pos, 100.0, 100.0, 5000.0,
+            1000L, 1000L, 0L, true, 1000L
         )
+        dm.recordState(stateWithNullTrip)
         // Should not throw, just silently ignore
     }
 
     @Test
     fun testTrackerNullStateIgnored() {
-        dm.recordState("trip1", null)
+        dm.recordState(null)
         assertEquals(0, dm.getHistory("trip1").size)
     }
 
@@ -284,7 +288,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 100.0, 95.0, 5000.0, 1000L, false
         )
 
-        dm.recordState("trip1", state)
+        dm.recordState(state)
         assertEquals(0, dm.getHistorySize("trip1"))
     }
 
@@ -294,7 +298,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 100.0, 95.0, 5000.0, 1000L, true
         )
 
-        dm.recordState("trip1", state)
+        dm.recordState(state)
         assertEquals(1, dm.getHistorySize("trip1"))
     }
 
@@ -567,8 +571,8 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.001, -122.0, 400.0, 400.0, 5000.0, queryTime
         )
 
-        dm.recordState("trip1", state1)
-        dm.recordState("trip1", state2)
+        dm.recordState(state1)
+        dm.recordState(state2)
 
         val result = estimator.estimateSpeed(state2, queryTime, dm)
         assertTrue(result is SpeedEstimateResult.Success)
@@ -588,7 +592,7 @@ class SpeedEstimatorTest {
         val state = createState(
             "v1", "trip1", 47.0, -122.0, 100.0, null, 5000.0, timestamp
         )
-        dm.recordState("trip1", state)
+        dm.recordState(state)
 
         val result = estimator.estimateSpeed(state, timestamp, dm)
         assertTrue(result is SpeedEstimateResult.Failure)
@@ -623,7 +627,7 @@ class SpeedEstimatorTest {
                 10000.0,
                 baseTime + i * 30_000L
             )
-            dm.recordState("trip1", state)
+            dm.recordState(state)
         }
 
         val latestTimestamp = baseTime + 120_000L

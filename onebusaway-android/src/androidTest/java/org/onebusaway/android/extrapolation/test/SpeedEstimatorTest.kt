@@ -390,9 +390,7 @@ class SpeedEstimatorTest {
         )
 
         val result = estimator.estimateSpeed(state, timestamp, dm)
-        assertTrue(result is SpeedEstimateResult.Success)
-        val dist = (result as SpeedEstimateResult.Success).distribution
-        assertEquals(900.0 / 60.0, dist.mean, 0.01)
+        assertTrue(result is SpeedEstimateResult.Failure)
     }
 
     @Test
@@ -412,9 +410,7 @@ class SpeedEstimatorTest {
         )
 
         val result = estimator.estimateSpeed(state, timestamp, dm)
-        assertTrue(result is SpeedEstimateResult.Success)
-        val dist = (result as SpeedEstimateResult.Success).distribution
-        assertEquals(2000.0 / 120.0, dist.mean, 0.01)
+        assertTrue(result is SpeedEstimateResult.Failure)
     }
 
     @Test

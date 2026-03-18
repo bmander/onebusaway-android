@@ -59,32 +59,18 @@ class ScheduleSpeedEstimator : SpeedEstimator {
             )
         }
 
-        // Find the two stops bracketing the current position
-        var beforeIdx = -1
-        var afterIdx = -1
-
-        for (i in stopTimes.indices) {
-            if (stopTimes[i].distanceAlongTrip <= currentDist) {
-                beforeIdx = i
-            } else {
-                afterIdx = i
-                break
-            }
+        val segmentStart = try {
+            schedule.findSegmentStartIndex(currentDist)
+        } catch (e: IndexOutOfBoundsException) {
+            return SpeedEstimateResult.Failure(
+                SpeedEstimateError.InsufficientData("Distance out of schedule bounds: ${e.message}")
+            )
         }
 
-        // Edge cases: before first stop or after last stop
-        if (beforeIdx == -1) {
-            beforeIdx = 0
-            afterIdx = 1
-        } else if (afterIdx == -1) {
-            beforeIdx = stopTimes.size - 2
-            afterIdx = stopTimes.size - 1
-        }
-
-        val distDelta = stopTimes[afterIdx].distanceAlongTrip -
-            stopTimes[beforeIdx].distanceAlongTrip
-        val timeDelta = stopTimes[afterIdx].arrivalTime -
-            stopTimes[beforeIdx].departureTime
+        val distDelta = stopTimes[segmentStart + 1].distanceAlongTrip -
+            stopTimes[segmentStart].distanceAlongTrip
+        val timeDelta = stopTimes[segmentStart + 1].arrivalTime -
+            stopTimes[segmentStart].departureTime
 
         if (distDelta <= 0 || timeDelta <= 0) {
             return SpeedEstimateResult.Failure(

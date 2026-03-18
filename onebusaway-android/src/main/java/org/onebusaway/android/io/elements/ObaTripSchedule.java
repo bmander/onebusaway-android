@@ -158,4 +158,37 @@ public final class ObaTripSchedule {
         }
         return stopTimes[0].getDepartureTime();
     }
+
+    /**
+     * Finds the index of the first stop in the segment that brackets the given distance.
+     * The segment spans from stopTimes[result] to stopTimes[result + 1].
+     *
+     * @param distanceAlongTrip the distance along the trip in meters
+     * @return the index of the first stop in the segment
+     * @throws IndexOutOfBoundsException if distanceAlongTrip is before the first stop,
+     *         after the last stop, or if there are fewer than 2 stops
+     */
+    public int findSegmentStartIndex(double distanceAlongTrip) {
+        if (stopTimes == null || stopTimes.length < 2) {
+            throw new IndexOutOfBoundsException("Fewer than 2 stop times");
+        }
+
+        if (distanceAlongTrip < stopTimes[0].distanceAlongTrip) {
+            throw new IndexOutOfBoundsException("Distance is before first stop");
+        }
+
+        if (distanceAlongTrip > stopTimes[stopTimes.length - 1].distanceAlongTrip) {
+            throw new IndexOutOfBoundsException("Distance is after last stop");
+        }
+
+        for (int i = 0; i < stopTimes.length - 1; i++) {
+            if (stopTimes[i].distanceAlongTrip <= distanceAlongTrip &&
+                    distanceAlongTrip < stopTimes[i + 1].distanceAlongTrip) {
+                return i;
+            }
+        }
+
+        // At exactly the last stop's distance
+        return stopTimes.length - 2;
+    }
 }

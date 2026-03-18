@@ -80,8 +80,10 @@ class GammaSpeedEstimator : SpeedEstimator {
         val vPrev = computePreviousAvlSpeed(tripId, queryTime, dataManager)
             ?: return scheduleResult
 
+        val dtSeconds = (queryTime - state.timestamp) / 1000.0
+
         return SpeedEstimateResult.Success(
-            GammaSpeedModel.fromSpeeds(scheduleSpeed, vPrev) ?: scheduleDist
+            GammaSpeedModel.fromSpeeds(scheduleSpeed, vPrev, dtSeconds) ?: scheduleDist
         )
     }
 

@@ -15,8 +15,8 @@
  */
 package org.onebusaway.android.extrapolation.math.speed
 
-import org.onebusaway.android.extrapolation.math.GammaDistribution
-import kotlin.math.pow
+import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
+import kotlin.math.exp
 
 /**
  * Five-parameter power-law blend gamma distribution (H12) for vehicle speed modeling.
@@ -26,34 +26,44 @@ object GammaSpeedModel {
 
     // Fitted parameters expressed in m/s.
     // START_B0 and END_B0 were converted from 1/mph to 1/(m/s).
-    private const val START_B0 = 0.401083342
-    private const val END_B0 = 0.135111176
-    private const val KINK = 12.04770802971917 // m/s
-    private const val C = 1.0793
-    private const val D = 0.1699
+    private const val START_B0 = 0.9455 // s/m
+    private const val END_B0 = 0.3102 // s/m
+    private const val KINK = 6.087 // m/s
+    private const val D = 0.9127 // unitless
+    private const val A = 0.1732 // unitless
+    private const val LAMBDA = 0.00462 // 1/s
 
     /**
      * Computes a gamma speed distribution from schedule and previous observed speeds.
      *
      * @param schedSpeedMps scheduled speed in m/s
      * @param prevSpeedMps  previous observed speed in m/s
+     * @param dt            time since last observation in seconds
      * @return GammaDistribution (in m/s), or null if inputs are invalid
      */
     @JvmStatic
-    fun fromSpeeds(schedSpeedMps: Double, prevSpeedMps: Double): GammaDistribution? {
+    fun fromSpeeds(schedSpeedMps: Double, prevSpeedMps: Double, dt: Double): ZeroInflatedGammaDistribution? {
         var vPrev = prevSpeedMps
         if (vPrev <= 0) vPrev = schedSpeedMps
         if (schedSpeedMps <= 0) return null
 
-        val vEff = schedSpeedMps.pow(1.0 - D) * vPrev.pow(D)
+        // Effective speed is a blend of schedule and previous speed
+        val vEff = schedSpeedMps*D + (1-D) * vPrev
 
+        // Shape parameter is an empirical function of effective speed
+        // More spread at lower speeds, tighter at higher speeds
         val b0 = beta0(vEff)
-        val alpha = b0 * C * vEff
-        val scale = C / b0
+
+        // Scale is 1/b0 to make E[X] = alpha*scale = vEff
+        val alpha = b0 * vEff
+        val scale = 1.0 / b0
 
         if (alpha <= 0 || scale <= 0) return null
 
-        return GammaDistribution(alpha, scale)
+        // Probability mass at zero speed decays exponentially with time since last observation
+        val p0 = A * exp(-LAMBDA * dt)
+
+        return ZeroInflatedGammaDistribution(p0, alpha, scale)
     }
 
     /** Piecewise linear ramp from START_B0 to END_B0, flat after KINK. */

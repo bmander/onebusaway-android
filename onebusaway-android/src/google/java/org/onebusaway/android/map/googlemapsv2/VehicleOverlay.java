@@ -52,7 +52,7 @@ import org.onebusaway.android.io.request.ObaShapeResponse;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
-import org.onebusaway.android.extrapolation.math.SpeedDistribution;
+import org.onebusaway.android.extrapolation.math.ProbDistribution;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.ui.TripDetailsActivity;
@@ -986,7 +986,7 @@ public class VehicleOverlay implements MarkerListeners  {
 
             mTripRenderer.showOrUpdateDataReceivedMarker(mSelectedTripId,
                     shape, cumDist, history);
-            SpeedDistribution distribution = mSelectedTripId != null
+            ProbDistribution distribution = mSelectedTripId != null
                     ? tracker.getEstimatedDistribution(mSelectedTripId, now) : null;
             mTripRenderer.updateEstimateOverlays(distribution, shape,
                     cumDist, history, now, selectedColor);

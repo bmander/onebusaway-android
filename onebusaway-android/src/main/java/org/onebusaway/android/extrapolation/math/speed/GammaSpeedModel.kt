@@ -17,7 +17,7 @@ package org.onebusaway.android.extrapolation.math.speed
 
 import kotlin.math.exp
 import org.onebusaway.android.extrapolation.math.DiracDistribution
-import org.onebusaway.android.extrapolation.math.SpeedDistribution
+import org.onebusaway.android.extrapolation.math.ProbDistribution
 import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
 
 // Fitted parameters expressed in m/s; fit on a single day of King County Metro
@@ -36,14 +36,14 @@ private const val LAMBDA = 0.00462 // 1/s
  * @param schedSpeedMps scheduled speed in m/s
  * @param prevSpeedMps previous observed speed in m/s (null or non-positive falls back to schedule)
  * @param dt time since last observation in seconds
- * @return a SpeedDistribution (in m/s)
+ * @return a ProbDistribution (in m/s)
  * @throws IllegalArgumentException if schedSpeedMps is non-positive
  */
-fun gammaSpeedDistribution(
+fun gammaProbDistribution(
         schedSpeedMps: Double,
         prevSpeedMps: Double?,
         dt: Double
-): SpeedDistribution {
+): ProbDistribution {
     var vPrev = prevSpeedMps ?: 0.0
     if (vPrev <= 0) vPrev = schedSpeedMps
     require(schedSpeedMps > 0) { "schedSpeedMps must be positive" }

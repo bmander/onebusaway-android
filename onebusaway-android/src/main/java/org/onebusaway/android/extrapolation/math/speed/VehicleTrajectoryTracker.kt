@@ -17,7 +17,7 @@ package org.onebusaway.android.extrapolation.math.speed
 
 import android.location.Location
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.math.SpeedDistribution
+import org.onebusaway.android.extrapolation.math.ProbDistribution
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
@@ -34,14 +34,14 @@ object VehicleTrajectoryTracker {
     private val dataManager = TripDataManager
     private val scheduleEstimator = ScheduleSpeedEstimator(dataManager)
     private var estimator: SpeedEstimator = GammaSpeedEstimator(dataManager)
-    private var lastDistribution: SpeedDistribution? = null
+    private var lastDistribution: ProbDistribution? = null
 
     /**
      * Returns the estimated speed distribution for the given trip. Uses the route type from
      * TripDataManager to select the appropriate estimator.
      */
     @Synchronized
-    fun getEstimatedDistribution(tripId: String, queryTime: Long): SpeedDistribution? {
+    fun getEstimatedDistribution(tripId: String, queryTime: Long): ProbDistribution? {
         val routeType = dataManager.getRouteType(tripId)
         val est =
                 if (routeType != null && ObaRoute.isGradeSeparated(routeType)) {
@@ -70,7 +70,7 @@ object VehicleTrajectoryTracker {
             getEstimatedSpeed(tripId, System.currentTimeMillis())
 
     /** Returns the distribution from the last speed estimate. */
-    @Synchronized fun getLastDistribution(): SpeedDistribution? = lastDistribution
+    @Synchronized fun getLastDistribution(): ProbDistribution? = lastDistribution
 
     /** Sets the active speed estimator. */
     @Synchronized

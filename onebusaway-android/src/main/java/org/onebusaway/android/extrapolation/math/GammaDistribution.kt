@@ -25,7 +25,7 @@ import kotlin.math.sqrt
  * (inverse CDF), and mean.
  */
 class GammaDistribution(@JvmField val alpha: Double, @JvmField val scale: Double) :
-        SpeedDistribution {
+        ProbDistribution {
 
     override val mean: Double
         get() = alpha * scale

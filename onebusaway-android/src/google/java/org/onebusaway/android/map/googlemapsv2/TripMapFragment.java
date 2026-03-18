@@ -52,7 +52,7 @@ import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.request.ObaShapeRequest;
 import org.onebusaway.android.io.request.ObaShapeResponse;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
-import org.onebusaway.android.extrapolation.math.SpeedDistribution;
+import org.onebusaway.android.extrapolation.math.ProbDistribution;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.extrapolation.data.TripDataManager.ShapeData;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
@@ -405,7 +405,7 @@ public class TripMapFragment extends SupportMapFragment
         ShapeData sd = dm.getShapeWithDistances(mTripId);
         if (sd == null) return;
         List<ObaTripStatus> history = dm.getHistory(mTripId);
-        SpeedDistribution distribution = tracker.getEstimatedDistribution(mTripId, now);
+        ProbDistribution distribution = tracker.getEstimatedDistribution(mTripId, now);
         mTripRenderer.updateEstimateOverlays(distribution, sd.points, sd.cumulativeDistances,
                 history, now, mDeviationColor);
         mTripRenderer.showOrUpdateDataReceivedMarker(mTripId, sd.points, sd.cumulativeDistances,

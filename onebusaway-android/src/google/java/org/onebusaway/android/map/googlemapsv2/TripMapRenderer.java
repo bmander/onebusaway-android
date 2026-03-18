@@ -36,7 +36,7 @@ import org.onebusaway.android.R;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.util.LocationUtils;
-import org.onebusaway.android.extrapolation.math.SpeedDistribution;
+import org.onebusaway.android.extrapolation.math.ProbDistribution;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.elements.ObaTripStatusExtensionsKt;
@@ -278,7 +278,7 @@ final class TripMapRenderer {
 
     // --- Estimate overlays ---
 
-    void updateEstimateOverlays(SpeedDistribution distribution,
+    void updateEstimateOverlays(ProbDistribution distribution,
                                 List<Location> shape, double[] cumDist,
                                 List<ObaTripStatus> history, long now,
                                 int baseColor) {

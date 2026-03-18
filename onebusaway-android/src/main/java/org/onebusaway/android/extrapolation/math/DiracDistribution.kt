@@ -16,7 +16,7 @@
 package org.onebusaway.android.extrapolation.math
 
 /** A degenerate (Dirac delta) distribution concentrated at a single [value]. */
-class DiracDistribution(@JvmField val value: Double) : SpeedDistribution {
+class DiracDistribution(@JvmField val value: Double) : ProbDistribution {
     override val mean: Double
         get() = value
     override fun pdf(x: Double): Double = 0.0

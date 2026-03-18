@@ -1,0 +1,10 @@
+{
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "java.import.gradle.enabled": true,
+    "java.import.gradle.wrapper.enabled": true,
+    "java.jdt.ls.vmargs": "-DANDROID_HOME=/Users/bmander/Library/Android/sdk -DANDROID_SDK_ROOT=/Users/bmander/Library/Android/sdk",
+    "terminal.integrated.env.osx": {
+        "ANDROID_HOME": "/Users/bmander/Library/Android/sdk",
+        "ANDROID_SDK_ROOT": "/Users/bmander/Library/Android/sdk"
+    }
+}

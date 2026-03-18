@@ -166,8 +166,7 @@ class SpeedEstimatorTest {
         tracker.setEstimator(object : SpeedEstimator {
             override fun estimateSpeed(
                 tripId: String,
-                queryTime: Long,
-                dataManager: TripDataManager
+                queryTime: Long
             ) = SpeedEstimateResult.Success(DiracDistribution(42.0))
         })
 

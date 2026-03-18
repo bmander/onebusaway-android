@@ -22,79 +22,70 @@ import org.onebusaway.android.extrapolation.math.DiracDistribution
  * Estimates speed using the trip schedule: finds the two stops bracketing the vehicle's current
  * scheduled position and computes segment speed from the timetable.
  */
-class ScheduleSpeedEstimator : SpeedEstimator {
+class ScheduleSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstimator {
 
-        override fun estimateSpeed(
-                tripId: String,
-                queryTime: Long,
-                dataManager: TripDataManager
-        ): SpeedEstimateResult {
-                val status =
-                        dataManager.getLastState(tripId)
-                                ?: return SpeedEstimateResult.Failure(
-                                        SpeedEstimateError.InsufficientData("No state for trip")
-                                )
-
-                // Validate timestamp is not before the status was recorded
-                if (queryTime < status.lastLocationUpdateTime) {
-                        return SpeedEstimateResult.Failure(
-                                SpeedEstimateError.TimestampOutOfBounds(
-                                        "Timestamp is before vehicle state"
-                                )
+    override fun estimateSpeed(tripId: String, queryTime: Long): SpeedEstimateResult {
+        val status =
+                dataManager.getLastState(tripId)
+                        ?: return SpeedEstimateResult.Failure(
+                                SpeedEstimateError.InsufficientData("No state for trip")
                         )
-                }
 
-                val currentDist =
-                        status.scheduledDistanceAlongTrip
-                                ?: return SpeedEstimateResult.Failure(
-                                        SpeedEstimateError.InsufficientData(
-                                                "No scheduled distance along trip"
-                                        )
-                                )
-
-                val schedule =
-                        dataManager.getSchedule(tripId)
-                                ?: return SpeedEstimateResult.Failure(
-                                        SpeedEstimateError.InsufficientData(
-                                                "No schedule available for trip"
-                                        )
-                                )
-
-                val stopTimes = schedule.stopTimes
-                if (stopTimes == null || stopTimes.size < 2) {
-                        return SpeedEstimateResult.Failure(
-                                SpeedEstimateError.InsufficientData(
-                                        "Insufficient stop times in schedule"
-                                )
-                        )
-                }
-
-                val segmentStart =
-                        try {
-                                schedule.findSegmentStartIndex(currentDist)
-                        } catch (e: IndexOutOfBoundsException) {
-                                return SpeedEstimateResult.Failure(
-                                        SpeedEstimateError.InsufficientData(
-                                                "Distance out of schedule bounds: ${e.message}"
-                                        )
-                                )
-                        }
-
-                val distDelta =
-                        stopTimes[segmentStart + 1].distanceAlongTrip -
-                                stopTimes[segmentStart].distanceAlongTrip
-                val timeDelta =
-                        stopTimes[segmentStart + 1].arrivalTime -
-                                stopTimes[segmentStart].departureTime
-
-                if (distDelta <= 0 || timeDelta <= 0) {
-                        return SpeedEstimateResult.Failure(
-                                SpeedEstimateError.InsufficientData(
-                                        "Invalid distance or time delta between stops"
-                                )
-                        )
-                }
-
-                return SpeedEstimateResult.Success(DiracDistribution(distDelta / timeDelta))
+        // Validate queryTime is not before the status was recorded
+        if (queryTime < status.lastLocationUpdateTime) {
+            return SpeedEstimateResult.Failure(
+                    SpeedEstimateError.TimestampOutOfBounds("Query time is before vehicle state")
+            )
         }
+
+        val currentDist =
+                status.scheduledDistanceAlongTrip
+                        ?: return SpeedEstimateResult.Failure(
+                                SpeedEstimateError.InsufficientData(
+                                        "No scheduled distance along trip"
+                                )
+                        )
+
+        val schedule =
+                dataManager.getSchedule(tripId)
+                        ?: return SpeedEstimateResult.Failure(
+                                SpeedEstimateError.InsufficientData(
+                                        "No schedule available for trip"
+                                )
+                        )
+
+        val stopTimes = schedule.stopTimes
+        if (stopTimes == null || stopTimes.size < 2) {
+            return SpeedEstimateResult.Failure(
+                    SpeedEstimateError.InsufficientData("Insufficient stop times in schedule")
+            )
+        }
+
+        val segmentStart =
+                try {
+                    schedule.findSegmentStartIndex(currentDist)
+                } catch (e: IndexOutOfBoundsException) {
+                    return SpeedEstimateResult.Failure(
+                            SpeedEstimateError.InsufficientData(
+                                    "Distance out of schedule bounds: ${e.message}"
+                            )
+                    )
+                }
+
+        val distDelta =
+                stopTimes[segmentStart + 1].distanceAlongTrip -
+                        stopTimes[segmentStart].distanceAlongTrip
+        val timeDelta =
+                stopTimes[segmentStart + 1].arrivalTime - stopTimes[segmentStart].departureTime
+
+        if (distDelta <= 0 || timeDelta <= 0) {
+            return SpeedEstimateResult.Failure(
+                    SpeedEstimateError.InsufficientData(
+                            "Invalid distance or time delta between stops"
+                    )
+            )
+        }
+
+        return SpeedEstimateResult.Success(DiracDistribution(distDelta / timeDelta))
+    }
 }

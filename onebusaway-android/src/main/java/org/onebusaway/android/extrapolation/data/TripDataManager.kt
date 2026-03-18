@@ -17,6 +17,8 @@ package org.onebusaway.android.extrapolation.data
 
 import android.location.Location
 import org.onebusaway.android.io.elements.ObaTripSchedule
+import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.util.LocationUtils
 
@@ -41,14 +43,15 @@ object TripDataManager {
     // --- Vehicle history ---
 
     /**
-     * Records a vehicle state snapshot into the history. Delegates to [AvlRepository] for storage.
+     * Records a trip status snapshot into the history. Delegates to [AvlRepository] for storage.
      */
-    fun recordState(state: VehicleState?) {
-        repository.record(state)
+    fun recordStatus(status: ObaTripStatus?) {
+        if (status == null) return
+        repository.record(status)
     }
 
     /**
-     * Convenience method that extracts vehicle state, active trip ID, and service date from a trip
+     * Convenience method that extracts trip status, active trip ID, and service date from a trip
      * details response and records them.
      *
      * @param polledTripId the trip ID that was queried
@@ -59,8 +62,7 @@ object TripDataManager {
         val status = response.status ?: return
         putLastActiveTripId(polledTripId, status.activeTripId)
         status.activeTripId?.let { activeTripId ->
-            val vs = VehicleState.fromTripStatus(status)
-            recordState(vs)
+            recordStatus(status)
             if (status.serviceDate > 0) {
                 putServiceDate(activeTripId, status.serviceDate)
             }
@@ -68,7 +70,7 @@ object TripDataManager {
     }
 
     /** Returns a read-only view of the history for the given trip. */
-    fun getHistory(activeTripId: String?): List<VehicleState> {
+    fun getHistory(activeTripId: String?): List<ObaTripStatus> {
         if (activeTripId == null) return emptyList()
         return repository.getHistoryForTrip(activeTripId)
     }
@@ -79,8 +81,8 @@ object TripDataManager {
         return repository.getHistorySizeForTrip(activeTripId)
     }
 
-    /** Returns the last recorded VehicleState for the given trip, or null. */
-    fun getLastState(activeTripId: String?): VehicleState? {
+    /** Returns the last recorded ObaTripStatus for the given trip, or null. */
+    fun getLastState(activeTripId: String?): ObaTripStatus? {
         if (activeTripId == null) return null
         return repository.getLastState(activeTripId)
     }
@@ -89,7 +91,7 @@ object TripDataManager {
      * Returns a sequence of history entries with valid AVL fixes, newest first. Lazily evaluated
      * for efficient access to just the most recent N fixes.
      */
-    fun mostRecentAvlFixes(tripId: String): Sequence<VehicleState> =
+    fun mostRecentAvlFixes(tripId: String): Sequence<ObaTripStatus> =
             repository.getHistoryForTrip(tripId).asReversed().asSequence().filter {
                 it.bestDistanceAlongTrip != null && it.lastLocationUpdateTime > 0
             }

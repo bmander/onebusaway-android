@@ -16,9 +16,10 @@
 package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.data.VehicleState
 import org.onebusaway.android.extrapolation.math.SpeedDistribution
 import org.onebusaway.android.io.elements.ObaRoute
+import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 
 /**
  * Singleton speed-estimation facade. Delegates trip data access to [TripDataManager] and owns only
@@ -40,11 +41,11 @@ object VehicleTrajectoryTracker {
     @Synchronized
     fun getEstimatedDistribution(
             key: String?,
-            state: VehicleState?,
+            status: ObaTripStatus?,
             timestampMs: Long
     ): SpeedDistribution? {
-        if (key == null || state == null) return null
-        val tripId = state.activeTripId ?: return null
+        if (key == null || status == null) return null
+        val tripId = status.activeTripId ?: return null
         val routeType = dataManager.getRouteType(key)
         val est =
                 if (routeType != null && ObaRoute.isGradeSeparated(routeType)) {
@@ -64,17 +65,17 @@ object VehicleTrajectoryTracker {
 
     /** Returns the estimated speed in m/s for the given key and current state. */
     @Synchronized
-    fun getEstimatedSpeed(key: String?, state: VehicleState?, timestampMs: Long): Double? =
-            getEstimatedDistribution(key, state, timestampMs)?.median()
+    fun getEstimatedSpeed(key: String?, status: ObaTripStatus?, timestampMs: Long): Double? =
+            getEstimatedDistribution(key, status, timestampMs)?.median()
 
     /**
-     * Convenience overload that looks up the last recorded VehicleState from TripDataManager and
+     * Convenience overload that looks up the last recorded ObaTripStatus from TripDataManager and
      * uses the current system time.
      */
     @Synchronized
     fun getEstimatedSpeed(key: String?): Double? {
-        val state = dataManager.getLastState(key)
-        return getEstimatedSpeed(key, state, System.currentTimeMillis())
+        val status = dataManager.getLastState(key)
+        return getEstimatedSpeed(key, status, System.currentTimeMillis())
     }
 
     /** Returns the distribution from the last speed estimate. */
@@ -108,7 +109,7 @@ private const val MAX_EXTRAPOLATION_AGE_MS = 5L * 60 * 1000
  * @return extrapolated distance in meters, or null
  */
 fun extrapolateDistance(
-        history: List<VehicleState>?,
+        history: List<ObaTripStatus>?,
         speedMps: Double,
         currentTimeMs: Long
 ): Double? {

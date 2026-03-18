@@ -16,7 +16,8 @@
 package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.data.VehicleState
+import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 
 /**
  * Speed estimator using the H12 gamma distribution model. Combines schedule speed with the most
@@ -83,7 +84,7 @@ class GammaSpeedEstimator : SpeedEstimator {
         /**
          * Computes speed from two AVL fixes (distance / time). Returns null if fewer than 2 fixes.
          */
-        private fun computeAvlSpeed(fixes: List<VehicleState>): Double? {
+        private fun computeAvlSpeed(fixes: List<ObaTripStatus>): Double? {
                 if (fixes.size < 2) return null
                 val (newer, older) = fixes
                 val newerDist = newer.bestDistanceAlongTrip ?: return null

@@ -29,14 +29,14 @@ class ScheduleSpeedEstimator : SpeedEstimator {
                 queryTime: Long,
                 dataManager: TripDataManager
         ): SpeedEstimateResult {
-                val state =
+                val status =
                         dataManager.getLastState(tripId)
                                 ?: return SpeedEstimateResult.Failure(
                                         SpeedEstimateError.InsufficientData("No state for trip")
                                 )
 
-                // Validate timestamp is not before the state
-                if (queryTime < state.timestamp) {
+                // Validate timestamp is not before the status was recorded
+                if (queryTime < status.lastLocationUpdateTime) {
                         return SpeedEstimateResult.Failure(
                                 SpeedEstimateError.TimestampOutOfBounds(
                                         "Timestamp is before vehicle state"
@@ -45,7 +45,7 @@ class ScheduleSpeedEstimator : SpeedEstimator {
                 }
 
                 val currentDist =
-                        state.scheduledDistanceAlongTrip
+                        status.scheduledDistanceAlongTrip
                                 ?: return SpeedEstimateResult.Failure(
                                         SpeedEstimateError.InsufficientData(
                                                 "No scheduled distance along trip"

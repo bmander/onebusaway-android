@@ -30,6 +30,7 @@ import org.onebusaway.android.extrapolation.data.VehicleHistoryEntry
 import org.onebusaway.android.extrapolation.data.VehicleState
 import org.onebusaway.android.extrapolation.math.GammaDistribution
 import org.onebusaway.android.extrapolation.math.PointEstimate
+import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
 import org.onebusaway.android.extrapolation.math.speed.GammaSpeedEstimator
 import org.onebusaway.android.extrapolation.math.speed.GammaSpeedModel
 import org.onebusaway.android.extrapolation.math.speed.ScheduleSpeedEstimator
@@ -486,15 +487,15 @@ class SpeedEstimatorTest {
     @Test
     fun testGammaSpeedModel_fromSpeeds_workedExample() {
         // 20 mph ≈ 8.94 m/s, 10 mph ≈ 4.47 m/s
-        val dist = GammaSpeedModel.fromSpeeds(8.94, 4.47)
+        val dist = GammaSpeedModel.fromSpeeds(8.94, 4.47, 2000.0)
         assertNotNull(dist)
-        assertEquals(1.93, dist!!.alpha, 0.15)
-        assertEquals(4.73, dist.scale, 0.5)
+        assertEquals(2.65, dist!!.alpha, 0.15)
+        assertEquals(3.22, dist.scale, 0.5)
     }
 
     @Test
     fun testGammaSpeedModel_cdf_quantile_roundTrip() {
-        val dist = GammaSpeedModel.fromSpeeds(6.71, 6.71)
+        val dist = GammaSpeedModel.fromSpeeds(6.71, 6.71, 2000.0)
         assertNotNull(dist)
 
         for (p in doubleArrayOf(0.10, 0.25, 0.50, 0.75, 0.90)) {
@@ -505,9 +506,9 @@ class SpeedEstimatorTest {
 
     @Test
     fun testGammaSpeedModel_prevSpeedFallback() {
-        val dist = GammaSpeedModel.fromSpeeds(8.94, 0.0)
+        val dist = GammaSpeedModel.fromSpeeds(8.94, 0.0, 2000.0)
         assertNotNull(dist)
-        val distEqual = GammaSpeedModel.fromSpeeds(8.94, 8.94)
+        val distEqual = GammaSpeedModel.fromSpeeds(8.94, 8.94, 2000.0)
         assertNotNull(distEqual)
         assertEquals(distEqual!!.alpha, dist!!.alpha, 0.001)
         assertEquals(distEqual.scale, dist.scale, 0.001)
@@ -515,13 +516,13 @@ class SpeedEstimatorTest {
 
     @Test
     fun testGammaSpeedModel_schedSpeedZero_returnsNull() {
-        assertNull(GammaSpeedModel.fromSpeeds(0.0, 5.0))
-        assertNull(GammaSpeedModel.fromSpeeds(-1.0, 5.0))
+        assertNull(GammaSpeedModel.fromSpeeds(0.0, 5.0, 2000.0))
+        assertNull(GammaSpeedModel.fromSpeeds(-1.0, 5.0, 2000.0))
     }
 
     @Test
     fun testGammaSpeedModel_mean() {
-        val dist = GammaSpeedModel.fromSpeeds(6.71, 6.71)
+        val dist = GammaSpeedModel.fromSpeeds(6.71, 6.71, 2000.0)
         assertNotNull(dist)
         assertTrue("Mean speed should be positive", dist!!.mean > 0)
         assertEquals(6.71, dist.mean, 1.5)
@@ -529,7 +530,7 @@ class SpeedEstimatorTest {
 
     @Test
     fun testGammaSpeedModel_pdf_positiveInRange() {
-        val dist = GammaSpeedModel.fromSpeeds(6.71, 6.71)
+        val dist = GammaSpeedModel.fromSpeeds(6.71, 6.71, 2000.0)
         assertNotNull(dist)
         assertEquals(0.0, dist!!.pdf(0.0), 0.001)
         assertTrue("PDF should be positive at mean", dist.pdf(6.71) > 0)
@@ -537,7 +538,7 @@ class SpeedEstimatorTest {
 
     @Test
     fun testGammaSpeedModel_cdf_boundaries() {
-        val dist = GammaSpeedModel.fromSpeeds(6.71, 6.71)
+        val dist = GammaSpeedModel.fromSpeeds(6.71, 6.71, 2000.0)
         assertNotNull(dist)
         assertEquals(0.0, dist!!.cdf(0.0), 0.001)
         assertEquals(0.0, dist.cdf(-1.0), 0.001)
@@ -576,11 +577,11 @@ class SpeedEstimatorTest {
         val result = estimator.estimateSpeed(state2, queryTime, dm)
         assertTrue(result is SpeedEstimateResult.Success)
         val dist = (result as SpeedEstimateResult.Success).distribution
-        assertTrue(dist is GammaDistribution)
-        val gamma = dist as GammaDistribution
-        assertTrue("Alpha should be positive", gamma.alpha > 0)
-        assertTrue("Scale should be positive", gamma.scale > 0)
-        assertTrue("Median should be positive", gamma.median() > 0)
+        assertTrue(dist is ZeroInflatedGammaDistribution)
+        val zig = dist as ZeroInflatedGammaDistribution
+        assertTrue("Alpha should be positive", zig.alpha > 0)
+        assertTrue("Scale should be positive", zig.scale > 0)
+        assertTrue("Median should be positive", zig.median() > 0)
     }
 
     @Test
@@ -597,32 +598,6 @@ class SpeedEstimatorTest {
         assertTrue(result is SpeedEstimateResult.Failure)
     }
 
-    @Test
-    fun testGammaSpeedEstimator_beforeTripStartReturnsFailure() {
-        val estimator = GammaSpeedEstimator()
-
-        // departureTimes[0]=300s, so trip starts at serviceDate + 300_000ms
-        val schedule = createSchedule(
-            doubleArrayOf(0.0, 1000.0),
-            longArrayOf(0, 200),
-            longArrayOf(300, 500)
-        )
-        dm.putSchedule("trip1", schedule)
-
-        // Trip starts at 500_000 + 300_000 = 800_000ms; queryTime 600_000 is before that
-        val serviceDate = 500_000L
-        val queryTime = 600_000L
-        dm.putServiceDate("trip1", serviceDate)
-
-        val state = createState(
-            "v1", "trip1", 47.0, -122.0,
-            500.0, 500.0, 5000.0, queryTime
-        )
-        dm.recordState("trip1", state)
-
-        val result = estimator.estimateSpeed(state, queryTime, dm)
-        assertTrue("Should fail before trip start", result is SpeedEstimateResult.Failure)
-    }
 
     // --- Integration test ---
 

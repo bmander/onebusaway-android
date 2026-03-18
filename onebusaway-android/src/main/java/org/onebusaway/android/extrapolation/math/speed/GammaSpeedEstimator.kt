@@ -60,16 +60,6 @@ class GammaSpeedEstimator : SpeedEstimator {
         val scheduleDist = (scheduleResult as SpeedEstimateResult.Success).distribution
         val scheduleSpeed = scheduleDist.mean
 
-        // Check if time is after the start of the trip
-        val serviceDate = dataManager.getServiceDate(tripId) ?: return SpeedEstimateResult.Failure(
-            SpeedEstimateError.InsufficientData("No service date for trip")
-        )
-        val startTime = dataManager.getSchedule(tripId)?.startTime ?: return SpeedEstimateResult.Failure(
-            SpeedEstimateError.InsufficientData("No schedule for trip")
-        )
-        if (queryTime < serviceDate + startTime * 1000) return SpeedEstimateResult.Failure(
-            SpeedEstimateError.InsufficientData("Time is before trip start")
-        )
         if (queryTime < state.timestamp) return SpeedEstimateResult.Failure(
             SpeedEstimateError.TimestampOutOfBounds("Query time is before vehicle state")
         )

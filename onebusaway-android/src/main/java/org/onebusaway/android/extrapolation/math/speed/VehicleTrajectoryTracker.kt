@@ -65,6 +65,16 @@ object VehicleTrajectoryTracker {
         getEstimatedDistribution(key, state, timestampMs)?.median()
 
     /**
+     * Convenience overload that looks up the last recorded VehicleState from
+     * TripDataManager and uses the current system time.
+     */
+    @Synchronized
+    fun getEstimatedSpeed(key: String?): Double? {
+        val state = dataManager.getLastState(key)
+        return getEstimatedSpeed(key, state, System.currentTimeMillis())
+    }
+
+    /**
      * Returns the distribution from the last speed estimate.
      */
     @Synchronized

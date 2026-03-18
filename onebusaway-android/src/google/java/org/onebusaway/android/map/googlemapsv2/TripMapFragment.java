@@ -377,48 +377,62 @@ public class TripMapFragment extends SupportMapFragment
         TripDataManager dataManager = TripDataManager.getInstance();
         ShapeData sd = dataManager.getShapeWithDistances(mTripId);
         if (sd == null || sd.points.isEmpty()) {
-            // No shape data yet; stop ticking until activateRenderer starts us
             mExtrapolationTicking = false;
             return;
         }
-        List<Location> shape = sd.points;
-        double[] cumDist = sd.cumulativeDistances;
+
+        List<ObaTripStatus> history = dataManager.getHistory(mTripId);
+        if (history == null || history.isEmpty()) {
+            Choreographer.getInstance().postFrameCallback(mFrameCallback);
+            return;
+        }
 
         long now = System.currentTimeMillis();
-        List<ObaTripStatus> history = dataManager.getHistory(mTripId);
         VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-        Double speed = tracker.getEstimatedSpeed(mTripId);
 
-        // Extrapolate vehicle marker position
-        if (history != null && !history.isEmpty() && speed != null) {
-            Double extrapolatedDist = VehicleTrajectoryTrackerKt.extrapolateDistance(
-                    history, speed, now);
-            if (extrapolatedDist != null) {
-                if (LocationUtils.interpolateAlongPolyline(
-                        shape, cumDist, extrapolatedDist, mReusableLocation)) {
-                    LatLng pos = MapHelpV2.makeLatLng(mReusableLocation);
-                    if (mVehicleMarker == null) {
-                        mVehicleMarker = mMap.addMarker(new MarkerOptions()
-                                .position(pos)
-                                .anchor(0.5f, 0.5f)
-                                .flat(true)
-                                .zIndex(2f));
-                    } else {
-                        mVehicleMarker.setPosition(pos);
-                    }
-                }
-            }
-        }
-
-        // Update estimate overlays and data-received marker
-        if (mTripRenderer != null) {
-            SpeedDistribution distribution = tracker.getLastDistribution();
-            mTripRenderer.updateEstimateOverlays(distribution, shape, cumDist, history,
-                    now, mDeviationColor);
-            mTripRenderer.showOrUpdateDataReceivedMarker(mTripId, shape, cumDist, history);
-        }
+        extrapolateVehicleMarker(history, tracker, sd, now);
+        updateOverlays(history, tracker, sd, now);
 
         Choreographer.getInstance().postFrameCallback(mFrameCallback);
+    }
+
+    private void extrapolateVehicleMarker(List<ObaTripStatus> history,
+                                          VehicleTrajectoryTracker tracker,
+                                          ShapeData sd, long now) {
+        Double speed = tracker.getEstimatedSpeed(mTripId);
+        if (speed == null) return;
+
+        Double extrapolatedDist = VehicleTrajectoryTrackerKt.extrapolateDistance(
+                history, speed, now);
+        if (extrapolatedDist == null) return;
+
+        if (!LocationUtils.interpolateAlongPolyline(
+                sd.points, sd.cumulativeDistances, extrapolatedDist, mReusableLocation)) return;
+
+        if (mVehicleMarker == null) {
+            mVehicleMarker = mMap.addMarker(new MarkerOptions()
+                    .position(MapHelpV2.makeLatLng(mReusableLocation))
+                    .anchor(0.5f, 0.5f)
+                    .flat(true)
+                    .zIndex(2f));
+        } else {
+            LatLng pos = MapHelpV2.makeLatLng(mReusableLocation);
+            LatLng cur = mVehicleMarker.getPosition();
+            if (cur == null || cur.latitude != pos.latitude || cur.longitude != pos.longitude) {
+                mVehicleMarker.setPosition(pos);
+            }
+        }
+    }
+
+    private void updateOverlays(List<ObaTripStatus> history,
+                                VehicleTrajectoryTracker tracker,
+                                ShapeData sd, long now) {
+        if (mTripRenderer == null) return;
+        SpeedDistribution distribution = tracker.getLastDistribution();
+        mTripRenderer.updateEstimateOverlays(distribution, sd.points, sd.cumulativeDistances,
+                history, now, mDeviationColor);
+        mTripRenderer.showOrUpdateDataReceivedMarker(mTripId, sd.points, sd.cumulativeDistances,
+                history);
     }
 
     // --- Marker click handling ---

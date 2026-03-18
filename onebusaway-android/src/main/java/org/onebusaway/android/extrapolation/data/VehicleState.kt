@@ -34,6 +34,18 @@ data class VehicleState(
         val isPredicted: Boolean,
         val timestamp: Long
 ) {
+    /**
+     * The best available distance: prefers lastKnownDistanceAlongTrip (raw), falls back to
+     * distanceAlongTrip (extrapolated).
+     */
+    val bestDistanceAlongTrip: Double?
+        get() =
+                if (lastKnownDistanceAlongTrip != null && lastKnownDistanceAlongTrip != 0.0) {
+                    lastKnownDistanceAlongTrip
+                } else {
+                    distanceAlongTrip
+                }
+
     companion object {
         /** Creates a VehicleState with explicit values. Useful for testing. */
         @JvmStatic

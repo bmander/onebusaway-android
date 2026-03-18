@@ -68,7 +68,7 @@ object TripDataManager {
     }
 
     /** Returns a read-only view of the history for the given trip. */
-    fun getHistory(activeTripId: String?): List<VehicleHistoryEntry> {
+    fun getHistory(activeTripId: String?): List<VehicleState> {
         if (activeTripId == null) return emptyList()
         return repository.getHistoryForTrip(activeTripId)
     }
@@ -89,7 +89,7 @@ object TripDataManager {
      * Returns a sequence of history entries with valid AVL fixes, newest first. Lazily evaluated
      * for efficient access to just the most recent N fixes.
      */
-    fun mostRecentAvlFixes(tripId: String): Sequence<VehicleHistoryEntry> =
+    fun mostRecentAvlFixes(tripId: String): Sequence<VehicleState> =
             repository.getHistoryForTrip(tripId).asReversed().asSequence().filter {
                 it.bestDistanceAlongTrip != null && it.lastLocationUpdateTime > 0
             }

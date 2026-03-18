@@ -26,7 +26,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.data.VehicleHistoryEntry
 import org.onebusaway.android.extrapolation.data.VehicleState
 import org.onebusaway.android.extrapolation.math.GammaDistribution
 import org.onebusaway.android.extrapolation.math.DiracDistribution
@@ -53,41 +52,6 @@ class SpeedEstimatorTest {
     fun setUp() {
         dm.clearAll()
         tracker.clearAll()
-    }
-
-    // --- VehicleHistoryEntry tests ---
-
-    @Test
-    fun testHistoryEntryFields() {
-        val loc = createLocation(47.6062, -122.3321)
-        val entry = VehicleHistoryEntry(
-            position = loc, distanceAlongTrip = 500.0, timestamp = 12345L
-        )
-
-        assertNotNull(entry.position)
-        assertEquals(47.6062, entry.position!!.latitude, 0.0001)
-        assertEquals(-122.3321, entry.position!!.longitude, 0.0001)
-        assertEquals(500.0, entry.distanceAlongTrip)
-        assertEquals(12345L, entry.timestamp)
-    }
-
-    @Test
-    fun testHistoryEntryNullPosition() {
-        val entry = VehicleHistoryEntry(
-            position = null, distanceAlongTrip = 100.0, timestamp = 1000L
-        )
-        assertNull(entry.position)
-        assertEquals(100.0, entry.distanceAlongTrip)
-    }
-
-    @Test
-    fun testHistoryEntryNullDistance() {
-        val loc = createLocation(47.0, -122.0)
-        val entry = VehicleHistoryEntry(
-            position = loc, distanceAlongTrip = null, timestamp = 1000L
-        )
-        assertNull(entry.distanceAlongTrip)
-        assertNotNull(entry.position)
     }
 
     // --- VehicleState tests ---

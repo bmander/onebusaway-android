@@ -29,8 +29,8 @@ object AvlRepository {
     private const val MAX_ENTRIES_PER_TRIP = 100
     private val lock = ReentrantReadWriteLock()
 
-    /** Primary store: tripId → ordered list of history entries. */
-    private val tripHistory = mutableMapOf<String, MutableList<VehicleHistoryEntry>>()
+    /** Primary store: tripId → ordered list of vehicle states. */
+    private val tripHistory = mutableMapOf<String, MutableList<VehicleState>>()
 
     /** Secondary index: vehicleId → set of tripIds that have data for this vehicle. */
     private val vehicleToTrips = mutableMapOf<String, MutableSet<String>>()
@@ -62,21 +62,7 @@ object AvlRepository {
                 return
             }
 
-            // Use the server-extrapolated position, which is derived from the same
-            // schedule model as distanceAlongTrip.
-            val position = state.position ?: state.lastKnownLocation
-            val vehicleId = state.vehicleId
-
-            history.add(
-                    VehicleHistoryEntry(
-                            position = position,
-                            distanceAlongTrip = state.distanceAlongTrip,
-                            lastKnownDistanceAlongTrip = state.lastKnownDistanceAlongTrip,
-                            lastLocationUpdateTime = locUpdateTime,
-                            timestamp = state.timestamp,
-                            vehicleId = vehicleId
-                    )
-            )
+            history.add(state)
 
             // Cap history size
             if (history.size > MAX_ENTRIES_PER_TRIP) {
@@ -86,6 +72,7 @@ object AvlRepository {
             lastStateCache[tripId] = state
 
             // Update secondary index
+            val vehicleId = state.vehicleId
             if (vehicleId != null) {
                 vehicleToTrips.getOrPut(vehicleId) { mutableSetOf() }.add(tripId)
             }
@@ -95,7 +82,7 @@ object AvlRepository {
     // --- Trip-level queries ---
 
     /** Returns a read-only view of the history for the given trip. */
-    fun getHistoryForTrip(tripId: String): List<VehicleHistoryEntry> =
+    fun getHistoryForTrip(tripId: String): List<VehicleState> =
             lock.read { tripHistory[tripId].orEmpty() }
 
     /** Returns the number of history entries for the given trip, without copying. */
@@ -107,7 +94,7 @@ object AvlRepository {
     // --- Vehicle-level queries ---
 
     /** Returns all history entries across all trips for the given vehicle, sorted by timestamp. */
-    fun getHistoryForVehicle(vehicleId: String): List<VehicleHistoryEntry> =
+    fun getHistoryForVehicle(vehicleId: String): List<VehicleState> =
             lock.read { vehicleToTrips[vehicleId]?.let(::mergeHistories).orEmpty() }
 
     /** Returns the set of trip IDs that have recorded data for the given vehicle. */
@@ -128,6 +115,6 @@ object AvlRepository {
      * Merges history lists from multiple trips into a single list sorted by timestamp. Must be
      * called under the read lock.
      */
-    private fun mergeHistories(tripIds: Set<String>): List<VehicleHistoryEntry> =
+    private fun mergeHistories(tripIds: Set<String>): List<VehicleState> =
             tripIds.flatMap { tripHistory[it] ?: emptyList() }.sortedBy { it.timestamp }
 }

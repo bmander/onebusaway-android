@@ -16,7 +16,6 @@
 package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.data.VehicleHistoryEntry
 import org.onebusaway.android.extrapolation.data.VehicleState
 import org.onebusaway.android.extrapolation.math.SpeedDistribution
 import org.onebusaway.android.io.elements.ObaRoute
@@ -109,12 +108,14 @@ private const val MAX_EXTRAPOLATION_AGE_MS = 5L * 60 * 1000
  * @return extrapolated distance in meters, or null
  */
 fun extrapolateDistance(
-        history: List<VehicleHistoryEntry>?,
+        history: List<VehicleState>?,
         speedMps: Double,
         currentTimeMs: Long
 ): Double? {
     if (speedMps <= 0 || history == null) return null
-    val newest = VehicleHistoryEntry.findNewestValid(history) ?: return null
+    val newest = history.findLast {
+        it.bestDistanceAlongTrip != null && it.lastLocationUpdateTime > 0
+    } ?: return null
     val lastTime = newest.lastLocationUpdateTime
     if (currentTimeMs - lastTime > MAX_EXTRAPOLATION_AGE_MS) return null
     val lastDist = newest.bestDistanceAlongTrip ?: return null

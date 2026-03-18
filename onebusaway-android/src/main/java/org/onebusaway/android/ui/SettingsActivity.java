@@ -642,6 +642,7 @@ public class SettingsActivity extends AppCompatActivity
         private Preference mCustomOtpApiUrlPref;
         private Preference mPushFirebaseData;
         private Preference mResetDonationTimestamps;
+        private Preference mDataViewsPref;
         private FirebaseAnalytics mFirebaseAnalytics;
 
         @Override
@@ -672,6 +673,12 @@ public class SettingsActivity extends AppCompatActivity
                     getString(R.string.preference_key_reset_donation_timestamps));
             if (mResetDonationTimestamps != null) {
                 mResetDonationTimestamps.setOnPreferenceClickListener(this);
+            }
+
+            mDataViewsPref = findPreference(
+                    getString(R.string.preference_key_data_views));
+            if (mDataViewsPref != null) {
+                mDataViewsPref.setOnPreferenceClickListener(this);
             }
 
             if (BuildConfig.USE_FIXED_REGION) {
@@ -708,6 +715,8 @@ public class SettingsActivity extends AppCompatActivity
             } else if (pref.equals(mResetDonationTimestamps)) {
                 Application.getDonationsManager().setDonationRequestReminderDate(null);
                 Application.getDonationsManager().setDonationRequestDismissedDate(null);
+            } else if (pref.equals(mDataViewsPref)) {
+                DataViewActivity.start(requireActivity());
             }
             return true;
         }

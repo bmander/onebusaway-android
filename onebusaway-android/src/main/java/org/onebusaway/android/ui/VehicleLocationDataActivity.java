@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Locale;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 
 /**
  * Debug activity that displays all collected location data for a vehicle's trip
@@ -71,6 +72,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     private static final double MPS_TO_MPH = 2.23694;
 
     private String mTripId;
+    private String mVehicleId;
     private String mStopId;
     private final Handler mRefreshHandler = new Handler(Looper.getMainLooper());
     private final Handler mPollHandler = new Handler(Looper.getMainLooper());
@@ -110,27 +112,31 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        UIUtils.setupActionBar(this);
         setContentView(R.layout.activity_vehicle_location_data);
 
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        UIUtils.setupActionBar(this);
+
         mTripId = getIntent().getStringExtra(EXTRA_TRIP_ID);
+        mVehicleId = getIntent().getStringExtra(EXTRA_VEHICLE_ID);
         mStopId = getIntent().getStringExtra(EXTRA_STOP_ID);
-        String vehicleId = getIntent().getStringExtra(EXTRA_VEHICLE_ID);
 
         if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle("Trip Trajectory");
-            if (vehicleId != null) {
-                getSupportActionBar().setSubtitle("Vehicle: " + vehicleId);
-            }
+            getSupportActionBar().setTitle("Trip Data");
         }
 
         mTableContainer = findViewById(R.id.location_data_table_container);
         mGraphView = findViewById(R.id.location_data_graph);
         mGraphView.setHighlightedStopId(mStopId);
 
+        // Default to graph visible, table hidden
+        mTableContainer.setVisibility(View.GONE);
+        mGraphView.setVisibility(View.VISIBLE);
+
         TabLayout tabs = findViewById(R.id.location_data_tabs);
-        tabs.addTab(tabs.newTab().setText("Table"));
         tabs.addTab(tabs.newTab().setText("Graph"));
+        tabs.addTab(tabs.newTab().setText("Table"));
         tabs.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
@@ -138,10 +144,10 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
                 mGraphView.setVisibility(View.GONE);
                 switch (tab.getPosition()) {
                     case 0:
-                        mTableContainer.setVisibility(View.VISIBLE);
+                        mGraphView.setVisibility(View.VISIBLE);
                         break;
                     case 1:
-                        mGraphView.setVisibility(View.VISIBLE);
+                        mTableContainer.setVisibility(View.VISIBLE);
                         break;
                 }
                 refreshData();
@@ -195,14 +201,16 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         // Update header
         int currentCount = history.size();
         TextView header = findViewById(R.id.location_data_header);
-        if (tripEnded) {
-            header.setText(String.format(Locale.US,
-                    "Trip: %s  |  Samples: %d  |  Vehicle no longer serving trip",
-                    mTripId, currentCount));
-        } else {
-            header.setText(String.format(Locale.US, "Trip: %s  |  Samples: %d",
-                    mTripId, currentCount));
+        StringBuilder headerText = new StringBuilder();
+        headerText.append("Trip: ").append(mTripId);
+        if (mVehicleId != null) {
+            headerText.append("\nVehicle: ").append(mVehicleId);
         }
+        headerText.append("\nSamples: ").append(currentCount);
+        if (tripEnded) {
+            headerText.append("  |  Vehicle no longer serving trip");
+        }
+        header.setText(headerText.toString());
 
         // Refresh table only if row count changed
         if (currentCount != mLastRowCount) {
@@ -214,13 +222,12 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
 
         // Refresh graph only when visible
         if (mGraphView.getVisibility() == View.VISIBLE) {
-            refreshGraph(tripEnded);
+            refreshGraph(history, tripEnded);
         }
     }
 
-    private void refreshGraph(boolean tripEnded) {
+    private void refreshGraph(List<ObaTripStatus> history, boolean tripEnded) {
         TripDataManager dm = TripDataManager.getInstance();
-        List<ObaTripStatus> history = dm.getHistory(mTripId);
         ObaTripSchedule schedule = dm.getSchedule(mTripId);
         Long serviceDate = dm.getServiceDate(mTripId);
         ProbDistribution distribution = null;

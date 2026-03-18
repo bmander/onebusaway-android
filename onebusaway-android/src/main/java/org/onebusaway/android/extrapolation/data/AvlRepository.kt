@@ -74,6 +74,9 @@ object AvlRepository {
     fun getLastState(tripId: String): ObaTripStatus? =
             lock.read { tripHistory[tripId]?.lastOrNull() }
 
+    /** Returns the set of all trip IDs that have recorded history. */
+    fun getTrackedTripIds(): Set<String> = lock.read { tripHistory.keys.toSet() }
+
     // --- Lifecycle ---
 
     /** Clears all stored data. */

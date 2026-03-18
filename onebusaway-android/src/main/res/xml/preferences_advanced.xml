@@ -48,5 +48,9 @@
             android:key="@string/preference_key_reset_donation_timestamps"
             android:title="@string/preferences_reset_donation_timestamps_title"
             android:summary="@string/preferences_reset_donation_timestamps_summary" />
+        <Preference
+            android:key="@string/preference_key_data_views"
+            android:title="@string/data_views_title"
+            android:summary="@string/data_views_summary" />
     </PreferenceCategory>
 </PreferenceScreen>

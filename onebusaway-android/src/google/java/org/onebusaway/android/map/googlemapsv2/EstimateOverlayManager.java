@@ -35,31 +35,28 @@ public final class EstimateOverlayManager {
 
     private final EstimateLabelManager mLabels;
     private final PdfOverlayRenderer mPdfOverlay;
-    private final double mLabelLowQuantile;
     private final double mLabelHighQuantile;
     private final double mPdfLowQuantile;
     private final double mPdfHighQuantile;
 
     private final int mSegmentCount;
     private SpeedDistribution mCachedDistribution;
-    private double mCachedLabelSpeedLowMps;
     private double mCachedLabelSpeedHighMps;
     private final double[] mCachedPdfEdgeSpeedsMps;
     private final double[] mCachedPdfMidPdfValues;
 
     public EstimateOverlayManager(GoogleMap map, Context context) {
-        this(map, context, 0.10, 0.90, 0.01, 0.99, 9);
+        this(map, context, 0.90, 0.01, 0.99, 9);
     }
 
     /**
-     * @param labelLowQuantile  quantile for the slow estimate label (e.g. 0.10)
      * @param labelHighQuantile quantile for the fast estimate label (e.g. 0.90)
      * @param pdfLowQuantile    quantile for the PDF overlay start (e.g. 0.01)
      * @param pdfHighQuantile   quantile for the PDF overlay end (e.g. 0.99)
      * @param segmentCount      number of opacity segments in the PDF overlay
      */
     public EstimateOverlayManager(GoogleMap map, Context context,
-                                  double labelLowQuantile, double labelHighQuantile,
+                                  double labelHighQuantile,
                                   double pdfLowQuantile, double pdfHighQuantile,
                                   int segmentCount) {
         mLabels = new EstimateLabelManager(map, context);
@@ -68,7 +65,6 @@ public final class EstimateOverlayManager {
         mSegmentCount = segmentCount;
         mCachedPdfEdgeSpeedsMps = new double[segmentCount + 1];
         mCachedPdfMidPdfValues = new double[segmentCount];
-        mLabelLowQuantile = labelLowQuantile;
         mLabelHighQuantile = labelHighQuantile;
         mPdfLowQuantile = pdfLowQuantile;
         mPdfHighQuantile = pdfHighQuantile;
@@ -102,7 +98,6 @@ public final class EstimateOverlayManager {
                        double lastDist, double dtSec, int baseColor) {
         if (!distribution.equals(mCachedDistribution)) {
             mCachedDistribution = distribution;
-            mCachedLabelSpeedLowMps = distribution.quantile(mLabelLowQuantile);
             mCachedLabelSpeedHighMps = distribution.quantile(mLabelHighQuantile);
 
             for (int i = 0; i <= mSegmentCount; i++) {
@@ -118,7 +113,6 @@ public final class EstimateOverlayManager {
         }
 
         mLabels.update(
-                lastDist + mCachedLabelSpeedLowMps * dtSec,
                 lastDist + mCachedLabelSpeedHighMps * dtSec,
                 shape, cumDist);
         mPdfOverlay.update(mCachedPdfEdgeSpeedsMps, mCachedPdfMidPdfValues,

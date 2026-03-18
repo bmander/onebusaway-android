@@ -41,22 +41,16 @@ public final class EstimateLabelManager {
     static final float INFO_LABEL_Z_INDEX = 0.5f; // VEHICLE_MARKER_Z_INDEX (1) - 0.5f
     private static final int INFO_LABEL_SP = 10;
     private static final int INFO_LABEL_POINTER_WIDTH_DP = 10;
-    private static final String SLOW_ESTIMATE_LABEL = "Slow estimate";
     private static final String FAST_ESTIMATE_LABEL = "Fast estimate";
-    private static final String SLOW_ESTIMATE_EXPANDED = "Slow estimate\n10th percentile speed";
     private static final String FAST_ESTIMATE_EXPANDED = "Fast estimate\n90th percentile speed";
     private static final double LABEL_DEADZONE_DEG = 20.0;
 
     private final GoogleMap mMap;
     private final Context mContext;
 
-    private Marker mSlowEstimateMarker;
     private Marker mFastEstimateMarker;
-    private BitmapDescriptor mSlowEstimateIcon;
     private BitmapDescriptor mFastEstimateIcon;
-    private BitmapDescriptor mSlowEstimateExpandedIcon;
     private BitmapDescriptor mFastEstimateExpandedIcon;
-    private boolean mSlowEstimateExpanded;
     private boolean mFastEstimateExpanded;
 
     private final Location mReusableLoc = new Location("label");
@@ -68,56 +62,43 @@ public final class EstimateLabelManager {
 
     /** Creates the label markers at the given initial position. */
     public void create(LatLng initialPosition) {
-        mSlowEstimateIcon = createInfoLabelIcon(SLOW_ESTIMATE_LABEL, null);
         mFastEstimateIcon = createInfoLabelIcon(FAST_ESTIMATE_LABEL, null);
-        mSlowEstimateExpandedIcon = createInfoLabelExpandedIcon(SLOW_ESTIMATE_EXPANDED);
         mFastEstimateExpandedIcon = createInfoLabelExpandedIcon(FAST_ESTIMATE_EXPANDED);
-        mSlowEstimateExpanded = false;
         mFastEstimateExpanded = false;
 
-        mSlowEstimateMarker = addFlatInfoLabelMarker(initialPosition, mSlowEstimateIcon);
         mFastEstimateMarker = addFlatInfoLabelMarker(initialPosition, mFastEstimateIcon);
     }
 
     /** Removes the label markers and clears state. */
     public void destroy() {
-        if (mSlowEstimateMarker != null) {
-            mSlowEstimateMarker.remove();
-            mSlowEstimateMarker = null;
-        }
         if (mFastEstimateMarker != null) {
             mFastEstimateMarker.remove();
             mFastEstimateMarker = null;
         }
-        mSlowEstimateIcon = null;
         mFastEstimateIcon = null;
-        mSlowEstimateExpandedIcon = null;
         mFastEstimateExpandedIcon = null;
     }
 
     /** Hides the markers without removing them. */
     public void hide() {
-        if (mSlowEstimateMarker != null) mSlowEstimateMarker.setVisible(false);
         if (mFastEstimateMarker != null) mFastEstimateMarker.setVisible(false);
     }
 
     public boolean isActive() {
-        return mSlowEstimateMarker != null;
+        return mFastEstimateMarker != null;
     }
 
     /**
-     * Per-frame update: positions labels at the given distances along the polyline.
+     * Per-frame update: positions label at the given distance along the polyline.
      *
-     * @param dist10  slow estimate distance (10th percentile)
      * @param dist90  fast estimate distance (90th percentile)
      * @param shape   decoded polyline points
      * @param cumDist precomputed cumulative distances
      */
-    public void update(double dist10, double dist90,
+    public void update(double dist90,
                        List<Location> shape, double[] cumDist) {
-        if (mSlowEstimateMarker == null || mFastEstimateMarker == null) return;
+        if (mFastEstimateMarker == null) return;
 
-        updateInfoLabelPosition(mSlowEstimateMarker, dist10, shape, cumDist);
         updateInfoLabelPosition(mFastEstimateMarker, dist90, shape, cumDist);
     }
 
@@ -126,12 +107,6 @@ public final class EstimateLabelManager {
      * and expanded label. Returns true if the marker was an info label.
      */
     public boolean handleClick(Marker marker) {
-        if (marker.equals(mSlowEstimateMarker)) {
-            mSlowEstimateExpanded = !mSlowEstimateExpanded;
-            mSlowEstimateMarker.setIcon(mSlowEstimateExpanded
-                    ? mSlowEstimateExpandedIcon : mSlowEstimateIcon);
-            return true;
-        }
         if (marker.equals(mFastEstimateMarker)) {
             mFastEstimateExpanded = !mFastEstimateExpanded;
             mFastEstimateMarker.setIcon(mFastEstimateExpanded

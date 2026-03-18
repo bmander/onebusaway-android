@@ -16,7 +16,6 @@
 package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.data.VehicleState
 import org.onebusaway.android.extrapolation.math.PointEstimate
 
 /**
@@ -26,10 +25,16 @@ import org.onebusaway.android.extrapolation.math.PointEstimate
 class ScheduleSpeedEstimator : SpeedEstimator {
 
         override fun estimateSpeed(
-                state: VehicleState,
+                tripId: String,
                 queryTime: Long,
                 dataManager: TripDataManager
         ): SpeedEstimateResult {
+                val state =
+                        dataManager.getLastState(tripId)
+                                ?: return SpeedEstimateResult.Failure(
+                                        SpeedEstimateError.InsufficientData("No state for trip")
+                                )
+
                 // Validate timestamp is not before the state
                 if (queryTime < state.timestamp) {
                         return SpeedEstimateResult.Failure(
@@ -45,12 +50,6 @@ class ScheduleSpeedEstimator : SpeedEstimator {
                                         SpeedEstimateError.InsufficientData(
                                                 "No scheduled distance along trip"
                                         )
-                                )
-
-                val tripId =
-                        state.activeTripId
-                                ?: return SpeedEstimateResult.Failure(
-                                        SpeedEstimateError.InsufficientData("No active trip ID")
                                 )
 
                 val schedule =

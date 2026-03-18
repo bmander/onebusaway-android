@@ -16,7 +16,6 @@
 package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.data.VehicleState
 
 /** Interface for estimating the speed of a transit vehicle. */
 interface SpeedEstimator {
@@ -24,13 +23,13 @@ interface SpeedEstimator {
     /**
      * Estimates the speed distribution for a vehicle.
      *
-     * @param state the current vehicle state snapshot
+     * @param tripId the active trip ID
      * @param queryTime the timestamp (ms since epoch) at which to estimate speed
      * @param dataManager the manager holding trip data (history, schedule, etc.)
      * @return a [SpeedEstimateResult] containing either a speed distribution (m/s) or an error
      */
     fun estimateSpeed(
-            state: VehicleState,
+            tripId: String,
             queryTime: Long,
             dataManager: TripDataManager
     ): SpeedEstimateResult

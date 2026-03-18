@@ -67,22 +67,10 @@ object TripDataManager {
         }
     }
 
-    /**
-     * Returns a defensive copy of the history for the given trip. Safe to modify; use
-     * [getHistoryReadOnly] on hot paths instead.
-     */
+    /** Returns a read-only view of the history for the given trip. */
     fun getHistory(activeTripId: String?): List<VehicleHistoryEntry> {
         if (activeTripId == null) return emptyList()
         return repository.getHistoryForTrip(activeTripId)
-    }
-
-    /**
-     * Returns a read-only view of the history for the given trip. Zero-allocation; suitable for
-     * per-frame hot-path use.
-     */
-    fun getHistoryReadOnly(activeTripId: String?): List<VehicleHistoryEntry> {
-        if (activeTripId == null) return emptyList()
-        return repository.getHistoryForTripReadOnly(activeTripId)
     }
 
     /** Returns the number of history entries for the given trip, without copying. */
@@ -96,6 +84,15 @@ object TripDataManager {
         if (activeTripId == null) return null
         return repository.getLastState(activeTripId)
     }
+
+    /**
+     * Returns a sequence of history entries with valid AVL fixes, newest first. Lazily evaluated
+     * for efficient access to just the most recent N fixes.
+     */
+    fun mostRecentAvlFixes(tripId: String): Sequence<VehicleHistoryEntry> =
+            repository.getHistoryForTrip(tripId).asReversed().asSequence().filter {
+                it.bestDistanceAlongTrip != null && it.lastLocationUpdateTime > 0
+            }
 
     // --- Schedule cache ---
 

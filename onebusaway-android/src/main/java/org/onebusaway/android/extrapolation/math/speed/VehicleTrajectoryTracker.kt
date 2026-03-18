@@ -45,6 +45,7 @@ object VehicleTrajectoryTracker {
             timestampMs: Long
     ): SpeedDistribution? {
         if (key == null || state == null) return null
+        val tripId = state.activeTripId ?: return null
         val routeType = dataManager.getRouteType(key)
         val est =
                 if (routeType != null && ObaRoute.isGradeSeparated(routeType)) {
@@ -52,7 +53,7 @@ object VehicleTrajectoryTracker {
                 } else {
                     estimator
                 }
-        val result = est.estimateSpeed(state, timestampMs, dataManager)
+        val result = est.estimateSpeed(tripId, timestampMs, dataManager)
         val dist =
                 when (result) {
                     is SpeedEstimateResult.Success -> result.distribution
@@ -112,7 +113,7 @@ fun extrapolateDistance(
         speedMps: Double,
         currentTimeMs: Long
 ): Double? {
-    if (speedMps <= 0) return null
+    if (speedMps <= 0 || history == null) return null
     val newest = VehicleHistoryEntry.findNewestValid(history) ?: return null
     val lastTime = newest.lastLocationUpdateTime
     if (currentTimeMs - lastTime > MAX_EXTRAPOLATION_AGE_MS) return null

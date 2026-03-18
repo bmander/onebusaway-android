@@ -94,16 +94,8 @@ object AvlRepository {
 
     // --- Trip-level queries ---
 
-    /** Returns a defensive copy of the history for the given trip. */
+    /** Returns a read-only view of the history for the given trip. */
     fun getHistoryForTrip(tripId: String): List<VehicleHistoryEntry> =
-            lock.read { tripHistory[tripId]?.toList().orEmpty() }
-
-    /**
-     * Returns an unmodifiable view of the history for the given trip. Zero-allocation; suitable for
-     * read-only hot-path use (e.g., per-frame extrapolation). Caller must not hold a reference
-     * beyond the lock scope.
-     */
-    fun getHistoryForTripReadOnly(tripId: String): List<VehicleHistoryEntry> =
             lock.read { tripHistory[tripId].orEmpty() }
 
     /** Returns the number of history entries for the given trip, without copying. */

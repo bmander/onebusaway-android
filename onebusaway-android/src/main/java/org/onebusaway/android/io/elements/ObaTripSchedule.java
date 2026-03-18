@@ -148,6 +148,26 @@ public final class ObaTripSchedule {
     }
 
     /**
+     * Finds the index of the next stop the vehicle has not yet reached, based on
+     * distance along the trip.
+     *
+     * @param distanceAlongTrip current distance along the trip in meters
+     * @return index of the next stop, or stopTimes.length if past the last stop,
+     *         or null if stopTimes is null or empty
+     */
+    public Integer findNextStopIndex(double distanceAlongTrip) {
+        if (stopTimes == null || stopTimes.length == 0) {
+            return null;
+        }
+        for (int i = 0; i < stopTimes.length; i++) {
+            if (stopTimes[i].distanceAlongTrip > distanceAlongTrip) {
+                return i;
+            }
+        }
+        return stopTimes.length;
+    }
+
+    /**
      * Returns the scheduled start time of the trip in seconds since the service start date.
      *
      * @return the trip start time in seconds, or null if no stop times exist

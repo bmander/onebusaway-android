@@ -50,4 +50,21 @@ data class VehicleHistoryEntry(
         } else {
             distanceAlongTrip
         }
+
+    companion object {
+        /**
+         * Returns the newest history entry with a valid distance and timestamp, or null.
+         */
+        @JvmStatic
+        fun findNewestValid(history: List<VehicleHistoryEntry>?): VehicleHistoryEntry? {
+            if (history == null) return null
+            for (i in history.indices.reversed()) {
+                val e = history[i]
+                if (e.bestDistanceAlongTrip != null && e.lastLocationUpdateTime > 0) {
+                    return e
+                }
+            }
+            return null
+        }
+    }
 }

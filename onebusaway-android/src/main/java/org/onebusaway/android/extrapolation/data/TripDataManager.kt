@@ -16,8 +16,8 @@
 package org.onebusaway.android.extrapolation.data
 
 import android.location.Location
-import org.onebusaway.android.extrapolation.math.speed.buildCumulativeDistances
 import org.onebusaway.android.io.elements.ObaTripSchedule
+import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 
 /**
@@ -247,5 +247,32 @@ object TripDataManager {
         shapeCumDistCache.clear()
         routeTypeCache.clear()
         lastActiveTripId.clear()
+    }
+
+    // --- Private helpers ---
+
+    /**
+     * Builds a cumulative distance array for a polyline. Entry i holds the total
+     * distance from the first point to point i. Entry 0 is always 0.
+     *
+     * Uses the same Haversine formula and Earth radius as the OBA server
+     * (SphericalGeometryLibrary) so that distance values are consistent with
+     * the server's distanceAlongTrip values.
+     *
+     * @param polylinePoints decoded polyline points
+     * @return cumulative distance array (same length as polylinePoints), or null
+     */
+    private fun buildCumulativeDistances(polylinePoints: List<Location>?): DoubleArray? {
+        if (polylinePoints == null || polylinePoints.isEmpty()) return null
+        val cumDist = DoubleArray(polylinePoints.size)
+        cumDist[0] = 0.0
+        for (i in 1 until polylinePoints.size) {
+            val prev = polylinePoints[i - 1]
+            val cur = polylinePoints[i]
+            cumDist[i] = cumDist[i - 1] + LocationUtils.haversineDistance(
+                prev.latitude, prev.longitude, cur.latitude, cur.longitude
+            )
+        }
+        return cumDist
     }
 }

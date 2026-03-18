@@ -16,6 +16,7 @@
 package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.extrapolation.data.VehicleHistoryEntry
 import org.onebusaway.android.extrapolation.data.VehicleState
 import org.onebusaway.android.extrapolation.math.SpeedDistribution
 import org.onebusaway.android.io.elements.ObaRoute
@@ -97,4 +98,29 @@ object VehicleTrajectoryTracker {
     fun clearAll() {
         lastDistribution = null
     }
+}
+
+/** Max age of the newest AVL entry before we consider extrapolation unreliable. */
+private const val MAX_EXTRAPOLATION_AGE_MS = 5L * 60 * 1000
+
+/**
+ * Extrapolates the current distance along the trip based on the newest valid
+ * history entry and estimated speed. Returns null if extrapolation is not possible.
+ *
+ * @param history       vehicle history entries for the trip
+ * @param speedMps      estimated speed in meters per second
+ * @param currentTimeMs current time in milliseconds
+ * @return extrapolated distance in meters, or null
+ */
+fun extrapolateDistance(
+    history: List<VehicleHistoryEntry>?,
+    speedMps: Double,
+    currentTimeMs: Long
+): Double? {
+    if (speedMps <= 0) return null
+    val newest = VehicleHistoryEntry.findNewestValid(history) ?: return null
+    val lastTime = newest.lastLocationUpdateTime
+    if (currentTimeMs - lastTime > MAX_EXTRAPOLATION_AGE_MS) return null
+    val lastDist = newest.bestDistanceAlongTrip ?: return null
+    return lastDist + speedMps * (currentTimeMs - lastTime) / 1000.0
 }

@@ -379,8 +379,8 @@ final class TripMapRenderer {
         }
         mLastDataReceivedUpdateTime = updateTime;
 
-        Location pos = latest.getLastKnownLocation();
-        if (pos == null) pos = latest.getPosition();
+        Location pos = latest.getPosition();
+        if (pos == null) pos = latest.getLastKnownLocation();
         if (pos == null) return;
 
         LatLng latLng = MapHelpV2.makeLatLng(pos);

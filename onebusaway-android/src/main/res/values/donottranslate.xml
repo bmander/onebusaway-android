@@ -270,4 +270,5 @@
 
     <string name="not_request_battery_optimizations_key">request_battery_optimizations_key</string>
     <string name="preference_key_reset_donation_timestamps">preference_key_reset_donation_timestamps</string>
+    <string name="preference_key_data_views">preference_key_data_views</string>
 </resources>

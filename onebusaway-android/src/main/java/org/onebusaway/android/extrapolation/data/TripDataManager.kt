@@ -87,6 +87,9 @@ object TripDataManager {
         return repository.getLastState(activeTripId)
     }
 
+    /** Returns the set of all trip IDs that have recorded AVL history. */
+    fun getTrackedTripIds(): Set<String> = repository.getTrackedTripIds()
+
     /**
      * Returns a sequence of history entries with valid AVL fixes, newest first. Lazily evaluated
      * for efficient access to just the most recent N fixes.

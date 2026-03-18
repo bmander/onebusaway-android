@@ -839,8 +839,13 @@
     <string name="trip_details_current_bus_position">Bus is currently at</string>
     <string name="trip_details_dest_stop">Destination stop</string>
 
+    <!-- Data views -->
+    <string name="data_views_title">Data views</string>
+    <string name="data_views_summary">View collected vehicle location data</string>
+    <string name="data_views_empty">No vehicle location data collected yet.\nOpen a trip to start collecting data.</string>
+
     <!-- Vehicles on Map -->
-    <string name="vehicle_view_location_data">View trip trajectory</string>
+    <string name="vehicle_view_location_data">Show trip data</string>
     <string name="vehicle_last_updated_sec">Data updated %1$d sec ago</string>
     <string name="vehicle_last_updated_min_and_sec">Data updated %1$d min %2$d sec ago</string>
     <string name="vehicle_last_updated_scheduled">Position calculated from schedule</string>

@@ -25,5 +25,9 @@
               android:title="@string/stop_info_option_showonmap"
               android:icon="@drawable/ic_action_location_map"
               onebusaway:showAsAction="ifRoom"/>
+        <item android:id="@+id/view_location_data"
+              android:title="@string/vehicle_view_location_data"
+              android:visible="false"
+              onebusaway:showAsAction="never"/>
     </group>
 </menu>

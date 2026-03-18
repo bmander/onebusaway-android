@@ -48,7 +48,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
-import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.ListView;
@@ -172,6 +171,9 @@ public class TripDetailsListFragment extends ListFragment {
     private final Runnable mPositionTick = this::updateVehiclePosition;
 
     private TripDataCallback mTripDataCallback;
+
+    private boolean mHasLocationData = false;
+    private String mActiveVehicleId;
 
     @Override
     public void onAttach(Context context) {
@@ -312,6 +314,15 @@ public class TripDetailsListFragment extends ListFragment {
     }
 
     @Override
+    public void onPrepareOptionsMenu(Menu menu) {
+        MenuItem locationDataItem = menu.findItem(R.id.view_location_data);
+        if (locationDataItem != null) {
+            locationDataItem.setVisible(mHasLocationData);
+        }
+        super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         final int id = item.getItemId();
         if (id == R.id.refresh) {
@@ -320,6 +331,12 @@ public class TripDetailsListFragment extends ListFragment {
         } else if (id == R.id.show_on_map) {
             if (mTripDataCallback != null) {
                 mTripDataCallback.onShowMap();
+            }
+            return true;
+        } else if (id == R.id.view_location_data) {
+            Activity activity = getActivity();
+            if (activity != null) {
+                VehicleLocationDataActivity.start(activity, mTripId, mActiveVehicleId, mStopId);
             }
             return true;
         }
@@ -546,7 +563,7 @@ public class TripDetailsListFragment extends ListFragment {
             UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.REALTIME);
         }
 
-        setUpLocationDataButton(status);
+        updateLocationDataMenuState(status);
     }
 
     private void updateVehiclePosition() {
@@ -592,14 +609,17 @@ public class TripDetailsListFragment extends ListFragment {
         mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
     }
 
-    private void setUpLocationDataButton(ObaTripStatus status) {
-        Activity activity = getActivity();
-        if (activity == null) return;
-        Button locationDataBtn = (Button) activity.findViewById(R.id.view_location_data);
-        if (locationDataBtn == null) return;
+    private void updateLocationDataMenuState(ObaTripStatus status) {
         String activeTripId = status.getActiveTripId();
         if (activeTripId == null || !activeTripId.equals(mTripId)) {
-            locationDataBtn.setVisibility(View.GONE);
+            if (mHasLocationData) {
+                mHasLocationData = false;
+                mActiveVehicleId = null;
+                Activity activity = getActivity();
+                if (activity != null) {
+                    activity.invalidateOptionsMenu();
+                }
+            }
             return;
         }
 
@@ -613,14 +633,16 @@ public class TripDetailsListFragment extends ListFragment {
             dm.putServiceDate(activeTripId, status.getServiceDate());
         }
 
-        int count = dm.getHistorySize(activeTripId);
-        locationDataBtn.setText(getString(R.string.vehicle_view_location_data)
-                + " (" + count + ")");
-        locationDataBtn.setVisibility(View.VISIBLE);
-
-        String vehicleId = status.getVehicleId();
-        locationDataBtn.setOnClickListener(v ->
-                VehicleLocationDataActivity.start(activity, activeTripId, vehicleId, mStopId));
+        boolean newHasData = dm.getHistorySize(activeTripId) > 0;
+        String newVehicleId = status.getVehicleId();
+        if (newHasData != mHasLocationData || !TextUtils.equals(newVehicleId, mActiveVehicleId)) {
+            mHasLocationData = newHasData;
+            mActiveVehicleId = newVehicleId;
+            Activity activity = getActivity();
+            if (activity != null) {
+                activity.invalidateOptionsMenu();
+            }
+        }
     }
 
     private Integer findIndexForStop(ObaTripSchedule.StopTime[] stopTimes, String stopId) {

@@ -25,13 +25,13 @@ interface SpeedEstimator {
      * Estimates the speed distribution for a vehicle.
      *
      * @param state the current vehicle state snapshot
-     * @param timestampMs the timestamp (ms since epoch) at which to estimate speed
+     * @param queryTime the timestamp (ms since epoch) at which to estimate speed
      * @param dataManager the manager holding trip data (history, schedule, etc.)
      * @return a [SpeedEstimateResult] containing either a speed distribution (m/s) or an error
      */
     fun estimateSpeed(
             state: VehicleState,
-            timestampMs: Long,
+            queryTime: Long,
             dataManager: TripDataManager
     ): SpeedEstimateResult
 }

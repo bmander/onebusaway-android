@@ -25,80 +25,87 @@ import org.onebusaway.android.extrapolation.data.VehicleState
  */
 class GammaSpeedEstimator : SpeedEstimator {
 
-    companion object {
-        /** Maximum time horizon (ms) for which gamma speed estimates are considered valid. */
-        const val MAX_HORIZON_MS = 15 * 60 * 1000L // 15 minutes
-    }
-
-    private data class AvlDistanceSample(
-            val distanceAlongTrip: Double,
-            val lastLocationUpdateTime: Long
-    )
-
-    private val scheduleEstimator = ScheduleSpeedEstimator()
-
-    override fun estimateSpeed(
-            state: VehicleState,
-            queryTime: Long,
-            dataManager: TripDataManager
-    ): SpeedEstimateResult {
-        val tripId =
-                state.activeTripId
-                        ?: return SpeedEstimateResult.Failure(
-                                SpeedEstimateError.InsufficientData("No active trip ID")
-                        )
-
-        val scheduleResult = scheduleEstimator.estimateSpeed(state, queryTime, dataManager)
-
-        // Propagate timestamp errors from schedule estimator
-        if (scheduleResult is SpeedEstimateResult.Failure) {
-            return scheduleResult
+        companion object {
+                /**
+                 * Maximum time horizon (ms) for which gamma speed estimates are considered valid.
+                 */
+                const val MAX_HORIZON_MS = 15 * 60 * 1000L // 15 minutes
         }
 
-        val scheduleDist = (scheduleResult as SpeedEstimateResult.Success).distribution
-        val scheduleSpeed = scheduleDist.mean
-
-        if (queryTime < state.timestamp)
-                return SpeedEstimateResult.Failure(
-                        SpeedEstimateError.TimestampOutOfBounds(
-                                "Query time is before vehicle state"
-                        )
-                )
-        if (queryTime - state.timestamp > MAX_HORIZON_MS)
-                return SpeedEstimateResult.Failure(
-                        SpeedEstimateError.TimestampOutOfBounds("Query time exceeds max horizon")
-                )
-
-        val vPrev = computePreviousAvlSpeed(tripId, queryTime, dataManager)
-
-        val dtSeconds = (queryTime - state.timestamp) / 1000.0
-
-        return SpeedEstimateResult.Success(
-                GammaSpeedModel.fromSpeeds(scheduleSpeed, vPrev, dtSeconds) ?: scheduleDist
+        private data class AvlDistanceSample(
+                val distanceAlongTrip: Double,
+                val lastLocationUpdateTime: Long
         )
-    }
 
-    private fun computePreviousAvlSpeed(
-            tripId: String,
-            queryTime: Long,
-            dataManager: TripDataManager
-    ): Double? {
+        private val scheduleEstimator = ScheduleSpeedEstimator()
 
-        // Compute speed from two most recent AVL samples
-        return dataManager
-                .getHistoryReadOnly(tripId)
-                .asReversed()
-                .mapNotNull { e ->
-                    e.bestDistanceAlongTrip?.takeIf { e.lastLocationUpdateTime > 0 }?.let { dist ->
-                        AvlDistanceSample(dist, e.lastLocationUpdateTime)
-                    }
+        override fun estimateSpeed(
+                state: VehicleState,
+                queryTime: Long,
+                dataManager: TripDataManager
+        ): SpeedEstimateResult {
+                val tripId =
+                        state.activeTripId
+                                ?: return SpeedEstimateResult.Failure(
+                                        SpeedEstimateError.InsufficientData("No active trip ID")
+                                )
+
+                val scheduleResult = scheduleEstimator.estimateSpeed(state, queryTime, dataManager)
+
+                // Propagate timestamp errors from schedule estimator
+                if (scheduleResult is SpeedEstimateResult.Failure) {
+                        return scheduleResult
                 }
-                .take(2)
-                .takeIf { it.size >= 2 }
-                ?.let { (newer, older) ->
-                    val dtMs = newer.lastLocationUpdateTime - older.lastLocationUpdateTime
-                    val dd = newer.distanceAlongTrip - older.distanceAlongTrip
-                    if (dtMs > 0) maxOf(0.0, dd / (dtMs / 1000.0)) else null
-                }
-    }
+
+                val scheduleSpeed =
+                        (scheduleResult as SpeedEstimateResult.Success).distribution.mean
+
+                if (queryTime < state.timestamp)
+                        return SpeedEstimateResult.Failure(
+                                SpeedEstimateError.TimestampOutOfBounds(
+                                        "Query time is before vehicle state"
+                                )
+                        )
+                if (queryTime - state.timestamp > MAX_HORIZON_MS)
+                        return SpeedEstimateResult.Failure(
+                                SpeedEstimateError.TimestampOutOfBounds(
+                                        "Query time exceeds max horizon"
+                                )
+                        )
+
+                val vPrev = computePreviousAvlSpeed(tripId, queryTime, dataManager)
+
+                val dtSeconds = (queryTime - state.timestamp) / 1000.0
+
+                return SpeedEstimateResult.Success(
+                        GammaSpeedModel.fromSpeeds(scheduleSpeed, vPrev, dtSeconds)
+                )
+        }
+
+        private fun computePreviousAvlSpeed(
+                tripId: String,
+                queryTime: Long,
+                dataManager: TripDataManager
+        ): Double? {
+
+                // Compute speed from two most recent AVL samples
+                return dataManager
+                        .getHistoryReadOnly(tripId)
+                        .asReversed()
+                        .mapNotNull { e ->
+                                e.bestDistanceAlongTrip
+                                        ?.takeIf { e.lastLocationUpdateTime > 0 }
+                                        ?.let { dist ->
+                                                AvlDistanceSample(dist, e.lastLocationUpdateTime)
+                                        }
+                        }
+                        .take(2)
+                        .takeIf { it.size >= 2 }
+                        ?.let { (newer, older) ->
+                                val dtMs =
+                                        newer.lastLocationUpdateTime - older.lastLocationUpdateTime
+                                val dd = newer.distanceAlongTrip - older.distanceAlongTrip
+                                if (dtMs > 0) maxOf(0.0, dd / (dtMs / 1000.0)) else null
+                        }
+        }
 }

@@ -39,17 +39,18 @@ object GammaSpeedModel {
      * @param schedSpeedMps scheduled speed in m/s
      * @param prevSpeedMps previous observed speed in m/s
      * @param dt time since last observation in seconds
-     * @return GammaDistribution (in m/s), or null if inputs are invalid
+     * @return ZeroInflatedGammaDistribution (in m/s)
+     * @throws IllegalArgumentException if schedSpeedMps is non-positive
      */
     @JvmStatic
     fun fromSpeeds(
             schedSpeedMps: Double,
             prevSpeedMps: Double?,
             dt: Double
-    ): ZeroInflatedGammaDistribution? {
+    ): ZeroInflatedGammaDistribution {
         var vPrev = prevSpeedMps ?: 0.0
         if (vPrev <= 0) vPrev = schedSpeedMps
-        if (schedSpeedMps <= 0) return null
+        require(schedSpeedMps > 0) { "schedSpeedMps must be positive" }
 
         // Effective speed is a blend of schedule and previous speed
         val vEff = schedSpeedMps * D + (1 - D) * vPrev
@@ -62,7 +63,7 @@ object GammaSpeedModel {
         val alpha = b0 * vEff
         val scale = 1.0 / b0
 
-        if (alpha <= 0 || scale <= 0) return null
+        require(alpha > 0 && scale > 0) { "Computed alpha and scale must be positive" }
 
         // Probability mass at zero speed decays exponentially with time since last observation
         val p0 = A * exp(-LAMBDA * dt)

@@ -32,8 +32,8 @@ object VehicleTrajectoryTracker {
     @JvmStatic fun getInstance() = this
 
     private val dataManager = TripDataManager
-    private val scheduleEstimator = ScheduleSpeedEstimator()
-    private var estimator: SpeedEstimator = GammaSpeedEstimator()
+    private val scheduleEstimator = ScheduleSpeedEstimator(dataManager)
+    private var estimator: SpeedEstimator = GammaSpeedEstimator(dataManager)
     private var lastDistribution: SpeedDistribution? = null
 
     /**
@@ -49,7 +49,7 @@ object VehicleTrajectoryTracker {
                 } else {
                     estimator
                 }
-        val result = est.estimateSpeed(tripId, queryTime, dataManager)
+        val result = est.estimateSpeed(tripId, queryTime)
         val dist =
                 when (result) {
                     is SpeedEstimateResult.Success -> result.distribution

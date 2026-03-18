@@ -18,19 +18,19 @@ package org.onebusaway.android.extrapolation.math
 /**
  * Zero-inflated Gamma distribution with point mass [p0] at zero.
  *
- * With probability [p0], the value is exactly zero.
- * With probability (1 - [p0]), the value follows a Gamma distribution
- * parameterized by [alpha] (shape) and [scale].
+ * With probability [p0], the value is exactly zero. With probability (1 - [p0]), the value follows
+ * a Gamma distribution parameterized by [alpha] (shape) and [scale].
  */
 class ZeroInflatedGammaDistribution(
-    @JvmField val p0: Double,
-    @JvmField val alpha: Double,
-    @JvmField val scale: Double
+        @JvmField val p0: Double,
+        @JvmField val alpha: Double,
+        @JvmField val scale: Double
 ) : SpeedDistribution {
 
     private val gamma = GammaDistribution(alpha, scale)
 
-    override val mean: Double get() = (1 - p0) * gamma.mean
+    override val mean: Double
+        get() = (1 - p0) * gamma.mean
 
     override fun pdf(x: Double): Double {
         // The PDF at x=0 is technically a Dirac delta with weight p0.

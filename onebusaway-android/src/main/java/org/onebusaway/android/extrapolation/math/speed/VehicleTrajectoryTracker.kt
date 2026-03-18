@@ -22,14 +22,12 @@ import org.onebusaway.android.extrapolation.math.SpeedDistribution
 import org.onebusaway.android.io.elements.ObaRoute
 
 /**
- * Singleton speed-estimation facade. Delegates trip data access to
- * [TripDataManager] and owns only speed estimation logic
- * (gamma model, schedule speed, route type routing).
+ * Singleton speed-estimation facade. Delegates trip data access to [TripDataManager] and owns only
+ * speed estimation logic (gamma model, schedule speed, route type routing).
  */
 object VehicleTrajectoryTracker {
 
-    @JvmStatic
-    fun getInstance() = this
+    @JvmStatic fun getInstance() = this
 
     private val dataManager = TripDataManager
     private val scheduleEstimator = ScheduleSpeedEstimator()
@@ -37,37 +35,41 @@ object VehicleTrajectoryTracker {
     private var lastDistribution: SpeedDistribution? = null
 
     /**
-     * Returns the estimated speed distribution for the given key and current state.
-     * Uses the route type from TripDataManager to select the appropriate estimator.
+     * Returns the estimated speed distribution for the given key and current state. Uses the route
+     * type from TripDataManager to select the appropriate estimator.
      */
     @Synchronized
-    fun getEstimatedDistribution(key: String?, state: VehicleState?, timestampMs: Long): SpeedDistribution? {
+    fun getEstimatedDistribution(
+            key: String?,
+            state: VehicleState?,
+            timestampMs: Long
+    ): SpeedDistribution? {
         if (key == null || state == null) return null
         val routeType = dataManager.getRouteType(key)
-        val est = if (routeType != null && ObaRoute.isGradeSeparated(routeType)) {
-            scheduleEstimator
-        } else {
-            estimator
-        }
+        val est =
+                if (routeType != null && ObaRoute.isGradeSeparated(routeType)) {
+                    scheduleEstimator
+                } else {
+                    estimator
+                }
         val result = est.estimateSpeed(state, timestampMs, dataManager)
-        val dist = when (result) {
-            is SpeedEstimateResult.Success -> result.distribution
-            is SpeedEstimateResult.Failure -> null
-        }
+        val dist =
+                when (result) {
+                    is SpeedEstimateResult.Success -> result.distribution
+                    is SpeedEstimateResult.Failure -> null
+                }
         lastDistribution = dist
         return dist
     }
 
-    /**
-     * Returns the estimated speed in m/s for the given key and current state.
-     */
+    /** Returns the estimated speed in m/s for the given key and current state. */
     @Synchronized
     fun getEstimatedSpeed(key: String?, state: VehicleState?, timestampMs: Long): Double? =
-        getEstimatedDistribution(key, state, timestampMs)?.median()
+            getEstimatedDistribution(key, state, timestampMs)?.median()
 
     /**
-     * Convenience overload that looks up the last recorded VehicleState from
-     * TripDataManager and uses the current system time.
+     * Convenience overload that looks up the last recorded VehicleState from TripDataManager and
+     * uses the current system time.
      */
     @Synchronized
     fun getEstimatedSpeed(key: String?): Double? {
@@ -75,15 +77,10 @@ object VehicleTrajectoryTracker {
         return getEstimatedSpeed(key, state, System.currentTimeMillis())
     }
 
-    /**
-     * Returns the distribution from the last speed estimate.
-     */
-    @Synchronized
-    fun getLastDistribution(): SpeedDistribution? = lastDistribution
+    /** Returns the distribution from the last speed estimate. */
+    @Synchronized fun getLastDistribution(): SpeedDistribution? = lastDistribution
 
-    /**
-     * Sets the active speed estimator.
-     */
+    /** Sets the active speed estimator. */
     @Synchronized
     fun setEstimator(estimator: SpeedEstimator?) {
         if (estimator != null) {
@@ -91,9 +88,7 @@ object VehicleTrajectoryTracker {
         }
     }
 
-    /**
-     * Clears estimation state.
-     */
+    /** Clears estimation state. */
     @Synchronized
     fun clearAll() {
         lastDistribution = null
@@ -104,18 +99,18 @@ object VehicleTrajectoryTracker {
 private const val MAX_EXTRAPOLATION_AGE_MS = 5L * 60 * 1000
 
 /**
- * Extrapolates the current distance along the trip based on the newest valid
- * history entry and estimated speed. Returns null if extrapolation is not possible.
+ * Extrapolates the current distance along the trip based on the newest valid history entry and
+ * estimated speed. Returns null if extrapolation is not possible.
  *
- * @param history       vehicle history entries for the trip
- * @param speedMps      estimated speed in meters per second
+ * @param history vehicle history entries for the trip
+ * @param speedMps estimated speed in meters per second
  * @param currentTimeMs current time in milliseconds
  * @return extrapolated distance in meters, or null
  */
 fun extrapolateDistance(
-    history: List<VehicleHistoryEntry>?,
-    speedMps: Double,
-    currentTimeMs: Long
+        history: List<VehicleHistoryEntry>?,
+        speedMps: Double,
+        currentTimeMs: Long
 ): Double? {
     if (speedMps <= 0) return null
     val newest = VehicleHistoryEntry.findNewestValid(history) ?: return null

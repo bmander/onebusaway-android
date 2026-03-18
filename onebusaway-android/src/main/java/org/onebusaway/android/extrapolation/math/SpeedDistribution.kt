@@ -15,9 +15,7 @@
  */
 package org.onebusaway.android.extrapolation.math
 
-/**
- * A probability distribution over speed (m/s).
- */
+/** A probability distribution over speed (m/s). */
 interface SpeedDistribution {
     val mean: Double
     fun median(): Double = quantile(0.5)

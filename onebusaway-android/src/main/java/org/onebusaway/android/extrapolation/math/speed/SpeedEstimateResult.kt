@@ -18,35 +18,27 @@ package org.onebusaway.android.extrapolation.math.speed
 import org.onebusaway.android.extrapolation.math.SpeedDistribution
 
 /**
- * Result of a speed estimation attempt. Either a successful distribution
- * or an error describing why estimation failed.
+ * Result of a speed estimation attempt. Either a successful distribution or an error describing why
+ * estimation failed.
  */
 sealed class SpeedEstimateResult {
 
-    /**
-     * Successful speed estimation.
-     */
+    /** Successful speed estimation. */
     data class Success(val distribution: SpeedDistribution) : SpeedEstimateResult()
 
-    /**
-     * Speed estimation failed.
-     */
+    /** Speed estimation failed. */
     data class Failure(val error: SpeedEstimateError) : SpeedEstimateResult()
 }
 
-/**
- * Reasons why speed estimation can fail.
- */
+/** Reasons why speed estimation can fail. */
 sealed class SpeedEstimateError {
 
-    /**
-     * The requested timestamp is outside the valid time bounds for estimation.
-     */
+    /** The requested timestamp is outside the valid time bounds for estimation. */
     data class TimestampOutOfBounds(val reason: String) : SpeedEstimateError()
 
     /**
-     * Insufficient data to estimate speed (e.g., no active trip, no schedule,
-     * trip not started, not enough AVL history).
+     * Insufficient data to estimate speed (e.g., no active trip, no schedule, trip not started, not
+     * enough AVL history).
      */
     data class InsufficientData(val reason: String) : SpeedEstimateError()
 }

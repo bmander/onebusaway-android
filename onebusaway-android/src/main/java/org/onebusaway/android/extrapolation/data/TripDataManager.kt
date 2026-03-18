@@ -17,19 +17,17 @@ package org.onebusaway.android.extrapolation.data
 
 import android.location.Location
 import org.onebusaway.android.io.elements.ObaTripSchedule
-import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
+import org.onebusaway.android.util.LocationUtils
 
 /**
- * Singleton that owns all per-trip data storage: vehicle position history,
- * route shapes, schedules, service dates, route types, and active trip ID
- * tracking. Pure passive cache — callers push data in, readers pull it out.
- * Thread-safe via synchronized methods.
+ * Singleton that owns all per-trip data storage: vehicle position history, route shapes, schedules,
+ * service dates, route types, and active trip ID tracking. Pure passive cache — callers push data
+ * in, readers pull it out. Thread-safe via synchronized methods.
  */
 object TripDataManager {
 
-    @JvmStatic
-    fun getInstance() = this
+    @JvmStatic fun getInstance() = this
 
     private val repository = AvlRepository
     private val scheduleCache = HashMap<String, ObaTripSchedule>()
@@ -43,19 +41,18 @@ object TripDataManager {
     // --- Vehicle history ---
 
     /**
-     * Records a vehicle state snapshot into the history.
-     * Delegates to [AvlRepository] for storage.
+     * Records a vehicle state snapshot into the history. Delegates to [AvlRepository] for storage.
      */
     fun recordState(state: VehicleState?) {
         repository.record(state)
     }
 
     /**
-     * Convenience method that extracts vehicle state, active trip ID,
-     * and service date from a trip details response and records them.
+     * Convenience method that extracts vehicle state, active trip ID, and service date from a trip
+     * details response and records them.
      *
      * @param polledTripId the trip ID that was queried
-     * @param response     the API response
+     * @param response the API response
      */
     fun recordTripDetailsResponse(polledTripId: String?, response: ObaTripDetailsResponse?) {
         if (response == null) return
@@ -71,8 +68,8 @@ object TripDataManager {
     }
 
     /**
-     * Returns a defensive copy of the history for the given trip.
-     * Safe to modify; use [getHistoryReadOnly] on hot paths instead.
+     * Returns a defensive copy of the history for the given trip. Safe to modify; use
+     * [getHistoryReadOnly] on hot paths instead.
      */
     fun getHistory(activeTripId: String?): List<VehicleHistoryEntry> {
         if (activeTripId == null) return emptyList()
@@ -80,25 +77,21 @@ object TripDataManager {
     }
 
     /**
-     * Returns a read-only view of the history for the given trip.
-     * Zero-allocation; suitable for per-frame hot-path use.
+     * Returns a read-only view of the history for the given trip. Zero-allocation; suitable for
+     * per-frame hot-path use.
      */
     fun getHistoryReadOnly(activeTripId: String?): List<VehicleHistoryEntry> {
         if (activeTripId == null) return emptyList()
         return repository.getHistoryForTripReadOnly(activeTripId)
     }
 
-    /**
-     * Returns the number of history entries for the given trip, without copying.
-     */
+    /** Returns the number of history entries for the given trip, without copying. */
     fun getHistorySize(activeTripId: String?): Int {
         if (activeTripId == null) return 0
         return repository.getHistorySizeForTrip(activeTripId)
     }
 
-    /**
-     * Returns the last recorded VehicleState for the given trip, or null.
-     */
+    /** Returns the last recorded VehicleState for the given trip, or null. */
     fun getLastState(activeTripId: String?): VehicleState? {
         if (activeTripId == null) return null
         return repository.getLastState(activeTripId)
@@ -106,9 +99,7 @@ object TripDataManager {
 
     // --- Schedule cache ---
 
-    /**
-     * Stores a trip schedule in the cache.
-     */
+    /** Stores a trip schedule in the cache. */
     @Synchronized
     fun putSchedule(tripId: String?, schedule: ObaTripSchedule?) {
         if (tripId != null && schedule != null) {
@@ -116,24 +107,18 @@ object TripDataManager {
         }
     }
 
-    /**
-     * Returns the cached schedule for the given trip, or null if not cached.
-     */
+    /** Returns the cached schedule for the given trip, or null if not cached. */
     @Synchronized
     fun getSchedule(tripId: String): ObaTripSchedule? = tripId.let { scheduleCache[it] }
 
-    /**
-     * Returns true if a schedule is cached for the given trip.
-     */
+    /** Returns true if a schedule is cached for the given trip. */
     @Synchronized
     fun isScheduleCached(tripId: String?): Boolean =
-        tripId != null && scheduleCache.containsKey(tripId)
+            tripId != null && scheduleCache.containsKey(tripId)
 
     // --- Service date cache ---
 
-    /**
-     * Stores the service date for a trip.
-     */
+    /** Stores the service date for a trip. */
     @Synchronized
     fun putServiceDate(tripId: String?, serviceDate: Long) {
         if (tripId != null && serviceDate > 0) {
@@ -141,48 +126,43 @@ object TripDataManager {
         }
     }
 
-    /**
-     * Returns the cached service date for the given trip, or null if not cached.
-     */
-    @Synchronized
-    fun getServiceDate(tripId: String?): Long? = tripId?.let { serviceDateCache[it] }
+    /** Returns the cached service date for the given trip, or null if not cached. */
+    @Synchronized fun getServiceDate(tripId: String?): Long? = tripId?.let { serviceDateCache[it] }
 
     // --- Shape cache ---
 
-    /**
-     * Atomically readable shape data: polyline points and precomputed cumulative distances.
-     */
-    data class ShapeData(@JvmField val points: List<Location>, @JvmField val cumulativeDistances: DoubleArray)
+    /** Atomically readable shape data: polyline points and precomputed cumulative distances. */
+    data class ShapeData(
+            @JvmField val points: List<Location>,
+            @JvmField val cumulativeDistances: DoubleArray
+    )
 
     /**
-     * Stores the decoded polyline points for a trip's shape, and precomputes
-     * cumulative distances for fast interpolation.
+     * Stores the decoded polyline points for a trip's shape, and precomputes cumulative distances
+     * for fast interpolation.
      */
     @Synchronized
     fun putShape(tripId: String?, points: List<Location>?) {
         if (tripId != null && points != null && points.isNotEmpty()) {
             shapeCache[tripId] = points
-            shapeCumDistCache[tripId] = buildCumulativeDistances(points)!!
+            shapeCumDistCache[tripId] = buildCumulativeDistances(points)
         }
     }
 
-    /**
-     * Returns the cached shape polyline points for the given trip, or null if not cached.
-     */
-    @Synchronized
-    fun getShape(tripId: String?): List<Location>? = tripId?.let { shapeCache[it] }
+    /** Returns the cached shape polyline points for the given trip, or null if not cached. */
+    @Synchronized fun getShape(tripId: String?): List<Location>? = tripId?.let { shapeCache[it] }
 
     /**
-     * Returns the precomputed cumulative distance array for the trip's shape,
-     * or null if not cached.
+     * Returns the precomputed cumulative distance array for the trip's shape, or null if not
+     * cached.
      */
     @Synchronized
     fun getShapeCumulativeDistances(tripId: String?): DoubleArray? =
-        tripId?.let { shapeCumDistCache[it] }
+            tripId?.let { shapeCumDistCache[it] }
 
     /**
-     * Returns both the shape points and cumulative distances atomically,
-     * or null if neither is cached.
+     * Returns both the shape points and cumulative distances atomically, or null if neither is
+     * cached.
      */
     @Synchronized
     fun getShapeWithDistances(tripId: String?): ShapeData? {
@@ -194,9 +174,7 @@ object TripDataManager {
 
     // --- Route type cache ---
 
-    /**
-     * Stores the route type for a trip ID.
-     */
+    /** Stores the route type for a trip ID. */
     @Synchronized
     fun putRouteType(tripId: String?, type: Int) {
         if (tripId != null) {
@@ -204,18 +182,12 @@ object TripDataManager {
         }
     }
 
-    /**
-     * Returns the cached route type for the given trip, or null if not cached.
-     */
-    @Synchronized
-    fun getRouteType(tripId: String?): Int? = tripId?.let { routeTypeCache[it] }
+    /** Returns the cached route type for the given trip, or null if not cached. */
+    @Synchronized fun getRouteType(tripId: String?): Int? = tripId?.let { routeTypeCache[it] }
 
     // --- Active trip ID tracking ---
 
-    /**
-     * Stores the last active trip ID reported by the server for the given
-     * queried trip ID.
-     */
+    /** Stores the last active trip ID reported by the server for the given queried trip ID. */
     @Synchronized
     fun putLastActiveTripId(polledTripId: String?, activeTripId: String?) {
         if (polledTripId != null) {
@@ -224,18 +196,16 @@ object TripDataManager {
     }
 
     /**
-     * Returns the last active trip ID the server reported for a queried trip,
-     * or null if no response has been processed yet.
+     * Returns the last active trip ID the server reported for a queried trip, or null if no
+     * response has been processed yet.
      */
     @Synchronized
     fun getLastActiveTripId(polledTripId: String?): String? =
-        polledTripId?.let { lastActiveTripId[it] }
+            polledTripId?.let { lastActiveTripId[it] }
 
     // --- Clear ---
 
-    /**
-     * Clears all data caches.
-     */
+    /** Clears all data caches. */
     @Synchronized
     fun clearAll() {
         repository.clearAll()
@@ -250,27 +220,25 @@ object TripDataManager {
     // --- Private helpers ---
 
     /**
-     * Builds a cumulative distance array for a polyline. Entry i holds the total
-     * distance from the first point to point i. Entry 0 is always 0.
+     * Builds a cumulative distance array for a polyline. Entry i holds the total distance from the
+     * first point to point i. Entry 0 is always 0.
      *
-     * Uses the same Haversine formula and Earth radius as the OBA server
-     * (SphericalGeometryLibrary) so that distance values are consistent with
-     * the server's distanceAlongTrip values.
+     * Uses the same Haversine formula and Earth radius as the OBA server (SphericalGeometryLibrary)
+     * so that distance values are consistent with the server's distanceAlongTrip values.
      *
      * @param polylinePoints decoded polyline points
      * @return cumulative distance array (same length as polylinePoints), or null
      */
-    private fun buildCumulativeDistances(polylinePoints: List<Location>?): DoubleArray? {
-        if (polylinePoints == null || polylinePoints.isEmpty()) return null
-        val cumDist = DoubleArray(polylinePoints.size)
-        cumDist[0] = 0.0
-        for (i in 1 until polylinePoints.size) {
-            val prev = polylinePoints[i - 1]
-            val cur = polylinePoints[i]
-            cumDist[i] = cumDist[i - 1] + LocationUtils.haversineDistance(
-                prev.latitude, prev.longitude, cur.latitude, cur.longitude
-            )
-        }
-        return cumDist
-    }
+    private fun buildCumulativeDistances(polylinePoints: List<Location>) =
+            polylinePoints
+                    .zipWithNext { prev, cur ->
+                        LocationUtils.haversineDistance(
+                                prev.latitude,
+                                prev.longitude,
+                                cur.latitude,
+                                cur.longitude
+                        )
+                    }
+                    .runningFold(0.0) { acc, dist -> acc + dist }
+                    .toDoubleArray()
 }

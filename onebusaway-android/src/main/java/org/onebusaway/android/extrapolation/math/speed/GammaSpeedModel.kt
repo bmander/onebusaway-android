@@ -15,12 +15,12 @@
  */
 package org.onebusaway.android.extrapolation.math.speed
 
-import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
 import kotlin.math.exp
+import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
 
 /**
- * Five-parameter power-law blend gamma distribution (H12) for vehicle speed modeling.
- * All public inputs, outputs, and fitted parameters are expressed in m/s.
+ * Five-parameter power-law blend gamma distribution (H12) for vehicle speed modeling. All public
+ * inputs, outputs, and fitted parameters are expressed in m/s.
  */
 object GammaSpeedModel {
 
@@ -37,18 +37,22 @@ object GammaSpeedModel {
      * Computes a gamma speed distribution from schedule and previous observed speeds.
      *
      * @param schedSpeedMps scheduled speed in m/s
-     * @param prevSpeedMps  previous observed speed in m/s
-     * @param dt            time since last observation in seconds
+     * @param prevSpeedMps previous observed speed in m/s
+     * @param dt time since last observation in seconds
      * @return GammaDistribution (in m/s), or null if inputs are invalid
      */
     @JvmStatic
-    fun fromSpeeds(schedSpeedMps: Double, prevSpeedMps: Double?, dt: Double): ZeroInflatedGammaDistribution? {
+    fun fromSpeeds(
+            schedSpeedMps: Double,
+            prevSpeedMps: Double?,
+            dt: Double
+    ): ZeroInflatedGammaDistribution? {
         var vPrev = prevSpeedMps ?: 0.0
         if (vPrev <= 0) vPrev = schedSpeedMps
         if (schedSpeedMps <= 0) return null
 
         // Effective speed is a blend of schedule and previous speed
-        val vEff = schedSpeedMps*D + (1-D) * vPrev
+        val vEff = schedSpeedMps * D + (1 - D) * vPrev
 
         // Shape parameter is an empirical function of effective speed
         // More spread at lower speeds, tighter at higher speeds
@@ -67,10 +71,10 @@ object GammaSpeedModel {
     }
 
     /** Piecewise linear ramp from START_B0 to END_B0, flat after KINK. */
-    private fun beta0(vEff: Double): Double = when {
-        vEff >= KINK -> END_B0
-        vEff <= 0 -> START_B0
-        else -> START_B0 + (END_B0 - START_B0) * (vEff / KINK)
-    }
-
+    private fun beta0(vEff: Double): Double =
+            when {
+                vEff >= KINK -> END_B0
+                vEff <= 0 -> START_B0
+                else -> START_B0 + (END_B0 - START_B0) * (vEff / KINK)
+            }
 }

@@ -17,42 +17,39 @@ package org.onebusaway.android.extrapolation.data
 
 import android.location.Location
 
-/**
- * A single history record for a vehicle on a trip.
- */
+/** A single history record for a vehicle on a trip. */
 data class VehicleHistoryEntry(
-    val position: Location?,
-    /** The server-extrapolated distance along trip, in meters. */
-    val distanceAlongTrip: Double?,
-    /**
-     * The raw distance along trip from the vehicle's AVL system (not extrapolated).
-     * Can be null if the API doesn't provide it.
-     */
-    val lastKnownDistanceAlongTrip: Double? = null,
-    /**
-     * The time of the last location update from the vehicle's AVL system.
-     * Used to deduplicate entries — if this hasn't changed, the server just
-     * re-extrapolated from the same underlying AVL report.
-     */
-    val lastLocationUpdateTime: Long = 0,
-    val timestamp: Long,
-    val vehicleId: String? = null
+        val position: Location?,
+        /** The server-extrapolated distance along trip, in meters. */
+        val distanceAlongTrip: Double?,
+        /**
+         * The raw distance along trip from the vehicle's AVL system (not extrapolated). Can be null
+         * if the API doesn't provide it.
+         */
+        val lastKnownDistanceAlongTrip: Double? = null,
+        /**
+         * The time of the last location update from the vehicle's AVL system. Used to deduplicate
+         * entries — if this hasn't changed, the server just re-extrapolated from the same
+         * underlying AVL report.
+         */
+        val lastLocationUpdateTime: Long = 0,
+        val timestamp: Long,
+        val vehicleId: String? = null
 ) {
     /**
-     * The best available distance: prefers lastKnownDistanceAlongTrip (raw),
-     * falls back to distanceAlongTrip (extrapolated).
+     * The best available distance: prefers lastKnownDistanceAlongTrip (raw), falls back to
+     * distanceAlongTrip (extrapolated).
      */
     val bestDistanceAlongTrip: Double?
-        get() = if (lastKnownDistanceAlongTrip != null && lastKnownDistanceAlongTrip != 0.0) {
-            lastKnownDistanceAlongTrip
-        } else {
-            distanceAlongTrip
-        }
+        get() =
+                if (lastKnownDistanceAlongTrip != null && lastKnownDistanceAlongTrip != 0.0) {
+                    lastKnownDistanceAlongTrip
+                } else {
+                    distanceAlongTrip
+                }
 
     companion object {
-        /**
-         * Returns the newest history entry with a valid distance and timestamp, or null.
-         */
+        /** Returns the newest history entry with a valid distance and timestamp, or null. */
         @JvmStatic
         fun findNewestValid(history: List<VehicleHistoryEntry>?): VehicleHistoryEntry? {
             if (history == null) return null

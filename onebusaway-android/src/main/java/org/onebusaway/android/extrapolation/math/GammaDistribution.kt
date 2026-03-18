@@ -21,12 +21,14 @@ import kotlin.math.ln
 import kotlin.math.sqrt
 
 /**
- * Gamma distribution parameterized by shape ([alpha]) and [scale].
- * Provides PDF, CDF, quantile (inverse CDF), and mean.
+ * Gamma distribution parameterized by shape ([alpha]) and [scale]. Provides PDF, CDF, quantile
+ * (inverse CDF), and mean.
  */
-class GammaDistribution(@JvmField val alpha: Double, @JvmField val scale: Double) : SpeedDistribution {
+class GammaDistribution(@JvmField val alpha: Double, @JvmField val scale: Double) :
+        SpeedDistribution {
 
-    override val mean: Double get() = alpha * scale
+    override val mean: Double
+        get() = alpha * scale
 
     override fun pdf(x: Double): Double {
         if (x <= 0) return 0.0
@@ -99,14 +101,15 @@ class GammaDistribution(@JvmField val alpha: Double, @JvmField val scale: Double
             }
         }
 
-        private val LN_GAMMA_COEF = doubleArrayOf(
-            76.18009172947146,
-            -86.50532032941677,
-            24.01409824083091,
-            -1.231739572450155,
-            0.1208650973866179e-2,
-            -0.5395239384953e-5
-        )
+        private val LN_GAMMA_COEF =
+                doubleArrayOf(
+                        76.18009172947146,
+                        -86.50532032941677,
+                        24.01409824083091,
+                        -1.231739572450155,
+                        0.1208650973866179e-2,
+                        -0.5395239384953e-5
+                )
 
         /** Lanczos approximation for ln(Gamma(x)), valid for x > 0. */
         @JvmStatic

@@ -20,61 +20,74 @@ import org.onebusaway.android.extrapolation.data.VehicleState
 import org.onebusaway.android.extrapolation.math.PointEstimate
 
 /**
- * Estimates speed using the trip schedule: finds the two stops bracketing the vehicle's
- * current scheduled position and computes segment speed from the timetable.
+ * Estimates speed using the trip schedule: finds the two stops bracketing the vehicle's current
+ * scheduled position and computes segment speed from the timetable.
  */
 class ScheduleSpeedEstimator : SpeedEstimator {
 
     override fun estimateSpeed(
-        state: VehicleState,
-        timestampMs: Long,
-        dataManager: TripDataManager
+            state: VehicleState,
+            timestampMs: Long,
+            dataManager: TripDataManager
     ): SpeedEstimateResult {
         // Validate timestamp is not before the state
         if (timestampMs < state.timestamp) {
             return SpeedEstimateResult.Failure(
-                SpeedEstimateError.TimestampOutOfBounds("Timestamp is before vehicle state")
+                    SpeedEstimateError.TimestampOutOfBounds("Timestamp is before vehicle state")
             )
         }
 
-        val currentDist = state.scheduledDistanceAlongTrip
-            ?: return SpeedEstimateResult.Failure(
-                SpeedEstimateError.InsufficientData("No scheduled distance along trip")
-            )
+        val currentDist =
+                state.scheduledDistanceAlongTrip
+                        ?: return SpeedEstimateResult.Failure(
+                                SpeedEstimateError.InsufficientData(
+                                        "No scheduled distance along trip"
+                                )
+                        )
 
-        val tripId = state.activeTripId
-            ?: return SpeedEstimateResult.Failure(
-                SpeedEstimateError.InsufficientData("No active trip ID")
-            )
+        val tripId =
+                state.activeTripId
+                        ?: return SpeedEstimateResult.Failure(
+                                SpeedEstimateError.InsufficientData("No active trip ID")
+                        )
 
-        val schedule = dataManager.getSchedule(tripId)
-            ?: return SpeedEstimateResult.Failure(
-                SpeedEstimateError.InsufficientData("No schedule available for trip")
-            )
+        val schedule =
+                dataManager.getSchedule(tripId)
+                        ?: return SpeedEstimateResult.Failure(
+                                SpeedEstimateError.InsufficientData(
+                                        "No schedule available for trip"
+                                )
+                        )
 
         val stopTimes = schedule.stopTimes
         if (stopTimes == null || stopTimes.size < 2) {
             return SpeedEstimateResult.Failure(
-                SpeedEstimateError.InsufficientData("Insufficient stop times in schedule")
+                    SpeedEstimateError.InsufficientData("Insufficient stop times in schedule")
             )
         }
 
-        val segmentStart = try {
-            schedule.findSegmentStartIndex(currentDist)
-        } catch (e: IndexOutOfBoundsException) {
-            return SpeedEstimateResult.Failure(
-                SpeedEstimateError.InsufficientData("Distance out of schedule bounds: ${e.message}")
-            )
-        }
+        val segmentStart =
+                try {
+                    schedule.findSegmentStartIndex(currentDist)
+                } catch (e: IndexOutOfBoundsException) {
+                    return SpeedEstimateResult.Failure(
+                            SpeedEstimateError.InsufficientData(
+                                    "Distance out of schedule bounds: ${e.message}"
+                            )
+                    )
+                }
 
-        val distDelta = stopTimes[segmentStart + 1].distanceAlongTrip -
-            stopTimes[segmentStart].distanceAlongTrip
-        val timeDelta = stopTimes[segmentStart + 1].arrivalTime -
-            stopTimes[segmentStart].departureTime
+        val distDelta =
+                stopTimes[segmentStart + 1].distanceAlongTrip -
+                        stopTimes[segmentStart].distanceAlongTrip
+        val timeDelta =
+                stopTimes[segmentStart + 1].arrivalTime - stopTimes[segmentStart].departureTime
 
         if (distDelta <= 0 || timeDelta <= 0) {
             return SpeedEstimateResult.Failure(
-                SpeedEstimateError.InsufficientData("Invalid distance or time delta between stops")
+                    SpeedEstimateError.InsufficientData(
+                            "Invalid distance or time delta between stops"
+                    )
             )
         }
 

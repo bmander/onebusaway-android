@@ -20,9 +20,9 @@ import kotlin.concurrent.read
 import kotlin.concurrent.write
 
 /**
- * Centralized AVL (Automatic Vehicle Location) data store.
- * Owns all vehicle history entries and supports queries by trip and vehicle.
- * Thread-safe via a read-write lock: reads run concurrently, writes are exclusive.
+ * Centralized AVL (Automatic Vehicle Location) data store. Owns all vehicle history entries and
+ * supports queries by trip and vehicle. Thread-safe via a read-write lock: reads run concurrently,
+ * writes are exclusive.
  */
 object AvlRepository {
 
@@ -39,9 +39,8 @@ object AvlRepository {
     private val lastStateCache = mutableMapOf<String, VehicleState>()
 
     /**
-     * Records a vehicle state snapshot for a trip.
-     * Deduplicates by lastLocationUpdateTime — only records when a genuinely new AVL
-     * report has arrived, filtering out server re-extrapolations.
+     * Records a vehicle state snapshot for a trip. Deduplicates by lastLocationUpdateTime — only
+     * records when a genuinely new AVL report has arrived, filtering out server re-extrapolations.
      *
      * @param state the vehicle state snapshot (must have a non-null activeTripId)
      */
@@ -69,14 +68,14 @@ object AvlRepository {
             val vehicleId = state.vehicleId
 
             history.add(
-                VehicleHistoryEntry(
-                    position = position,
-                    distanceAlongTrip = state.distanceAlongTrip,
-                    lastKnownDistanceAlongTrip = state.lastKnownDistanceAlongTrip,
-                    lastLocationUpdateTime = locUpdateTime,
-                    timestamp = state.timestamp,
-                    vehicleId = vehicleId
-                )
+                    VehicleHistoryEntry(
+                            position = position,
+                            distanceAlongTrip = state.distanceAlongTrip,
+                            lastKnownDistanceAlongTrip = state.lastKnownDistanceAlongTrip,
+                            lastLocationUpdateTime = locUpdateTime,
+                            timestamp = state.timestamp,
+                            vehicleId = vehicleId
+                    )
             )
 
             // Cap history size
@@ -95,69 +94,48 @@ object AvlRepository {
 
     // --- Trip-level queries ---
 
-    /**
-     * Returns a defensive copy of the history for the given trip.
-     */
-    fun getHistoryForTrip(tripId: String): List<VehicleHistoryEntry> = lock.read {
-        tripHistory[tripId]?.toList().orEmpty()
-    }
+    /** Returns a defensive copy of the history for the given trip. */
+    fun getHistoryForTrip(tripId: String): List<VehicleHistoryEntry> =
+            lock.read { tripHistory[tripId]?.toList().orEmpty() }
 
     /**
-     * Returns an unmodifiable view of the history for the given trip.
-     * Zero-allocation; suitable for read-only hot-path use (e.g., per-frame extrapolation).
-     * Caller must not hold a reference beyond the lock scope.
+     * Returns an unmodifiable view of the history for the given trip. Zero-allocation; suitable for
+     * read-only hot-path use (e.g., per-frame extrapolation). Caller must not hold a reference
+     * beyond the lock scope.
      */
-    fun getHistoryForTripReadOnly(tripId: String): List<VehicleHistoryEntry> = lock.read {
-        tripHistory[tripId].orEmpty()
-    }
+    fun getHistoryForTripReadOnly(tripId: String): List<VehicleHistoryEntry> =
+            lock.read { tripHistory[tripId].orEmpty() }
 
-    /**
-     * Returns the number of history entries for the given trip, without copying.
-     */
-    fun getHistorySizeForTrip(tripId: String): Int = lock.read {
-        tripHistory[tripId]?.size ?: 0
-    }
+    /** Returns the number of history entries for the given trip, without copying. */
+    fun getHistorySizeForTrip(tripId: String): Int = lock.read { tripHistory[tripId]?.size ?: 0 }
 
-    /**
-     * Returns the last cached VehicleState for the given trip, or null.
-     */
-    fun getLastState(tripId: String): VehicleState? = lock.read {
-        lastStateCache[tripId]
-    }
+    /** Returns the last cached VehicleState for the given trip, or null. */
+    fun getLastState(tripId: String): VehicleState? = lock.read { lastStateCache[tripId] }
 
     // --- Vehicle-level queries ---
 
-    /**
-     * Returns all history entries across all trips for the given vehicle,
-     * sorted by timestamp.
-     */
-    fun getHistoryForVehicle(vehicleId: String): List<VehicleHistoryEntry> = lock.read {
-        vehicleToTrips[vehicleId]?.let(::mergeHistories).orEmpty()
-    }
+    /** Returns all history entries across all trips for the given vehicle, sorted by timestamp. */
+    fun getHistoryForVehicle(vehicleId: String): List<VehicleHistoryEntry> =
+            lock.read { vehicleToTrips[vehicleId]?.let(::mergeHistories).orEmpty() }
 
-    /**
-     * Returns the set of trip IDs that have recorded data for the given vehicle.
-     */
-    fun getTripsForVehicle(vehicleId: String): Set<String> = lock.read {
-        vehicleToTrips[vehicleId]?.toSet() ?: emptySet()
-    }
+    /** Returns the set of trip IDs that have recorded data for the given vehicle. */
+    fun getTripsForVehicle(vehicleId: String): Set<String> =
+            lock.read { vehicleToTrips[vehicleId]?.toSet() ?: emptySet() }
 
     // --- Lifecycle ---
 
-    /**
-     * Clears all stored data and indices.
-     */
-    fun clearAll() = lock.write {
-        tripHistory.clear()
-        lastStateCache.clear()
-        vehicleToTrips.clear()
-    }
+    /** Clears all stored data and indices. */
+    fun clearAll() =
+            lock.write {
+                tripHistory.clear()
+                lastStateCache.clear()
+                vehicleToTrips.clear()
+            }
 
     /**
-     * Merges history lists from multiple trips into a single list sorted by timestamp.
-     * Must be called under the read lock.
+     * Merges history lists from multiple trips into a single list sorted by timestamp. Must be
+     * called under the read lock.
      */
     private fun mergeHistories(tripIds: Set<String>): List<VehicleHistoryEntry> =
-        tripIds.flatMap { tripHistory[it] ?: emptyList() }
-            .sortedBy { it.timestamp }
+            tripIds.flatMap { tripHistory[it] ?: emptyList() }.sortedBy { it.timestamp }
 }

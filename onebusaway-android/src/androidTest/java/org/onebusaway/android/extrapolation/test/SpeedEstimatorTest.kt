@@ -280,6 +280,51 @@ class SpeedEstimatorTest {
         assertNull(dm.getSchedule("trip1"))
     }
 
+    // --- Shape cumulative distance tests ---
+
+    @Test
+    fun testBuildCumulativeDistancesSinglePoint() {
+        val points = listOf(createLocation(47.0, -122.0))
+        dm.putShape("trip1", points)
+        val cumDist = dm.getShapeCumulativeDistances("trip1")!!
+        assertEquals(1, cumDist.size)
+        assertEquals(0.0, cumDist[0], 0.001)
+    }
+
+    @Test
+    fun testBuildCumulativeDistancesTwoPoints() {
+        val points = listOf(
+            createLocation(47.0, -122.0),
+            createLocation(47.001, -122.0)  // ~111 meters north
+        )
+        dm.putShape("trip1", points)
+        val cumDist = dm.getShapeCumulativeDistances("trip1")!!
+        assertEquals(2, cumDist.size)
+        assertEquals(0.0, cumDist[0], 0.001)
+        assertTrue("Second point should have positive distance", cumDist[1] > 100)
+        assertTrue("Second point should be ~111m", cumDist[1] < 120)
+    }
+
+    @Test
+    fun testBuildCumulativeDistancesMultiplePoints() {
+        val points = listOf(
+            createLocation(47.0, -122.0),
+            createLocation(47.001, -122.0),  // ~111m
+            createLocation(47.002, -122.0),  // ~222m total
+            createLocation(47.003, -122.0)   // ~333m total
+        )
+        dm.putShape("trip1", points)
+        val cumDist = dm.getShapeCumulativeDistances("trip1")!!
+        assertEquals(4, cumDist.size)
+        assertEquals(0.0, cumDist[0], 0.001)
+        // Each segment is ~111m, so cumulative should be monotonically increasing
+        assertTrue(cumDist[1] > cumDist[0])
+        assertTrue(cumDist[2] > cumDist[1])
+        assertTrue(cumDist[3] > cumDist[2])
+        // Total should be ~333m
+        assertTrue("Total distance should be ~333m", cumDist[3] > 320 && cumDist[3] < 350)
+    }
+
     // --- Schedule-only filtering tests ---
 
     @Test

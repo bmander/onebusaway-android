@@ -19,6 +19,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.onebusaway.android.extrapolation.math.GammaDistribution
+import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
 
 class GammaSpeedModelTest {
 
@@ -45,16 +46,16 @@ class GammaSpeedModelTest {
 
     @Test
     fun `fromSpeeds falls back to schedSpeed when prevSpeed is zero`() {
-        val withZero = GammaSpeedModel.fromSpeeds(mps20, 0.0, 60.0)
-        val withEqual = GammaSpeedModel.fromSpeeds(mps20, mps20, 60.0)
+        val withZero = GammaSpeedModel.fromSpeeds(mps20, 0.0, 60.0) as ZeroInflatedGammaDistribution
+        val withEqual = GammaSpeedModel.fromSpeeds(mps20, mps20, 60.0) as ZeroInflatedGammaDistribution
         assertEquals(withEqual.alpha, withZero.alpha, 1e-9)
         assertEquals(withEqual.scale, withZero.scale, 1e-9)
     }
 
     @Test
     fun `fromSpeeds falls back to schedSpeed when prevSpeed is negative`() {
-        val withNeg = GammaSpeedModel.fromSpeeds(mps20, -5.0, 60.0)
-        val withEqual = GammaSpeedModel.fromSpeeds(mps20, mps20, 60.0)
+        val withNeg = GammaSpeedModel.fromSpeeds(mps20, -5.0, 60.0) as ZeroInflatedGammaDistribution
+        val withEqual = GammaSpeedModel.fromSpeeds(mps20, mps20, 60.0) as ZeroInflatedGammaDistribution
         assertEquals(withEqual.alpha, withNeg.alpha, 1e-9)
         assertEquals(withEqual.scale, withNeg.scale, 1e-9)
     }
@@ -63,7 +64,7 @@ class GammaSpeedModelTest {
     fun `fromSpeeds produces positive alpha and scale`() {
         for (sched in listOf(mps5, mps15, mps30, mps60)) {
             for (prev in listOf(mps5, mps15, mps30, mps60)) {
-                val dist = GammaSpeedModel.fromSpeeds(sched, prev, 60.0)
+                val dist = GammaSpeedModel.fromSpeeds(sched, prev, 60.0) as ZeroInflatedGammaDistribution
                 assertTrue("alpha <= 0", dist.alpha > 0)
                 assertTrue("scale <= 0", dist.scale > 0)
             }
@@ -77,21 +78,21 @@ class GammaSpeedModelTest {
         // b0 = END_B0 = 0.3102
         // alpha = b0 * vEff = 0.3102 * 8.55 ≈ 2.65
         // scale = 1/b0 = 3.22
-        val dist = GammaSpeedModel.fromSpeeds(mps20, mps10, 60.0)
+        val dist = GammaSpeedModel.fromSpeeds(mps20, mps10, 60.0) as ZeroInflatedGammaDistribution
         assertEquals(2.65, dist.alpha, 0.1)
         assertEquals(3.22, dist.scale, 0.1)
     }
 
     @Test
     fun `fromSpeeds at very low speed`() {
-        val dist = GammaSpeedModel.fromSpeeds(0.447, 0.447, 60.0) // ~1 mph
+        val dist = GammaSpeedModel.fromSpeeds(0.447, 0.447, 60.0) as ZeroInflatedGammaDistribution
         assertTrue(dist.alpha > 0)
         assertTrue(dist.scale > 0)
     }
 
     @Test
     fun `fromSpeeds at highway speed`() {
-        val dist = GammaSpeedModel.fromSpeeds(mps60, mps60, 60.0)
+        val dist = GammaSpeedModel.fromSpeeds(mps60, mps60, 60.0) as ZeroInflatedGammaDistribution
         assertTrue(dist.alpha > 0)
         assertTrue(dist.scale > 0)
     }
@@ -138,7 +139,7 @@ class GammaSpeedModelTest {
 
     @Test
     fun `pdf continuous part integrates to approximately (1 - p0)`() {
-        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15, 60.0)
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15, 60.0) as ZeroInflatedGammaDistribution
         val dx = 0.005
         var sum = 0.0
         var x = dx
@@ -154,7 +155,7 @@ class GammaSpeedModelTest {
 
     @Test
     fun `cdf at zero equals p0 and is zero for negative`() {
-        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15, 60.0)
+        val dist = GammaSpeedModel.fromSpeeds(mps15, mps15, 60.0) as ZeroInflatedGammaDistribution
         assertEquals(dist.p0, dist.cdf(0.0), 1e-12)
         assertEquals(0.0, dist.cdf(-1.0), 1e-12)
     }

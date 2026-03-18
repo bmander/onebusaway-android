@@ -16,15 +16,18 @@
 package org.onebusaway.android.extrapolation.math.speed
 
 import kotlin.math.exp
+import org.onebusaway.android.extrapolation.math.DiracDistribution
+import org.onebusaway.android.extrapolation.math.SpeedDistribution
 import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
 
 /**
- * Five-parameter power-law blend gamma distribution (H12) for vehicle speed modeling. All public
- * inputs, outputs, and fitted parameters are expressed in m/s.
+ * Implements the gamma speed model: a zero-inflated gamma distribution whose parameters are a
+ * function of schedule speed, previous observed speed, and time since last observation.
  */
 object GammaSpeedModel {
 
-    // Fitted parameters expressed in m/s.
+    // Fitted parameters expressed in m/s; fit on a single day of King County Metro
+    // data from early March 2026. TODO: get more data.
     // START_B0 and END_B0 were converted from 1/mph to 1/(m/s).
     private const val START_B0 = 0.9455 // s/m
     private const val END_B0 = 0.3102 // s/m
@@ -47,7 +50,7 @@ object GammaSpeedModel {
             schedSpeedMps: Double,
             prevSpeedMps: Double?,
             dt: Double
-    ): ZeroInflatedGammaDistribution {
+    ): SpeedDistribution {
         var vPrev = prevSpeedMps ?: 0.0
         if (vPrev <= 0) vPrev = schedSpeedMps
         require(schedSpeedMps > 0) { "schedSpeedMps must be positive" }
@@ -55,15 +58,19 @@ object GammaSpeedModel {
         // Effective speed is a blend of schedule and previous speed
         val vEff = schedSpeedMps * D + (1 - D) * vPrev
 
+        // If vEff is 0 because both the schedule and previous speeds are 0, return a degenerate
+        // distribution at 0
+        if (vEff <= 0) return DiracDistribution(0.0)
+
         // Shape parameter is an empirical function of effective speed
         // More spread at lower speeds, tighter at higher speeds
         val b0 = beta0(vEff)
 
+        require(b0 > 0) { "Computed b0 must be positive" }
+
         // Scale is 1/b0 to make E[X] = alpha*scale = vEff
         val alpha = b0 * vEff
         val scale = 1.0 / b0
-
-        require(alpha > 0 && scale > 0) { "Computed alpha and scale must be positive" }
 
         // Probability mass at zero speed decays exponentially with time since last observation
         val p0 = A * exp(-LAMBDA * dt)

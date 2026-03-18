@@ -15,16 +15,16 @@
  */
 package org.onebusaway.android.extrapolation.math
 
-/** A degenerate distribution concentrated at a single [speed] (m/s). */
-class PointEstimate(@JvmField val speed: Double) : SpeedDistribution {
+/** A degenerate (Dirac delta) distribution concentrated at a single [value]. */
+class DiracDistribution(@JvmField val value: Double) : SpeedDistribution {
     override val mean: Double
-        get() = speed
+        get() = value
     override fun pdf(x: Double): Double = 0.0
-    override fun cdf(x: Double): Double = if (x >= speed) 1.0 else 0.0
+    override fun cdf(x: Double): Double = if (x >= value) 1.0 else 0.0
     override fun quantile(p: Double): Double =
             when {
                 p <= 0.0 -> 0.0
                 p >= 1.0 -> Double.MAX_VALUE
-                else -> speed
+                else -> value
             }
 }

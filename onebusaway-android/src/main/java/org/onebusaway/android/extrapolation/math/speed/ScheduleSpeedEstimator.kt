@@ -16,7 +16,7 @@
 package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.math.PointEstimate
+import org.onebusaway.android.extrapolation.math.DiracDistribution
 
 /**
  * Estimates speed using the trip schedule: finds the two stops bracketing the vehicle's current
@@ -95,6 +95,6 @@ class ScheduleSpeedEstimator : SpeedEstimator {
                         )
                 }
 
-                return SpeedEstimateResult.Success(PointEstimate(distDelta / timeDelta))
+                return SpeedEstimateResult.Success(DiracDistribution(distDelta / timeDelta))
         }
 }

@@ -52,8 +52,6 @@ import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.request.ObaShapeRequest;
 import org.onebusaway.android.io.request.ObaShapeResponse;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
-import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTrackerKt;
-import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.extrapolation.math.SpeedDistribution;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.extrapolation.data.TripDataManager.ShapeData;
@@ -374,40 +372,17 @@ public class TripMapFragment extends SupportMapFragment
             return;
         }
 
-        TripDataManager dataManager = TripDataManager.getInstance();
-        ShapeData sd = dataManager.getShapeWithDistances(mTripId);
-        if (sd == null || sd.points.isEmpty()) {
-            mExtrapolationTicking = false;
-            return;
-        }
-
-        List<ObaTripStatus> history = dataManager.getHistory(mTripId);
-        if (history == null || history.isEmpty()) {
-            Choreographer.getInstance().postFrameCallback(mFrameCallback);
-            return;
-        }
-
         long now = System.currentTimeMillis();
         VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
 
-        extrapolateVehicleMarker(history, tracker, sd, now);
-        updateOverlays(history, tracker, sd, now);
+        extrapolateVehicleMarker(tracker, now);
+        updateOverlays(tracker, now);
 
         Choreographer.getInstance().postFrameCallback(mFrameCallback);
     }
 
-    private void extrapolateVehicleMarker(List<ObaTripStatus> history,
-                                          VehicleTrajectoryTracker tracker,
-                                          ShapeData sd, long now) {
-        Double speed = tracker.getEstimatedSpeed(mTripId);
-        if (speed == null) return;
-
-        Double extrapolatedDist = VehicleTrajectoryTrackerKt.extrapolateDistance(
-                history, speed, now);
-        if (extrapolatedDist == null) return;
-
-        if (!LocationUtils.interpolateAlongPolyline(
-                sd.points, sd.cumulativeDistances, extrapolatedDist, mReusableLocation)) return;
+    private void extrapolateVehicleMarker(VehicleTrajectoryTracker tracker, long now) {
+        if (!tracker.extrapolatePosition(mTripId, now, mReusableLocation)) return;
 
         if (mVehicleMarker == null) {
             mVehicleMarker = mMap.addMarker(new MarkerOptions()
@@ -424,11 +399,13 @@ public class TripMapFragment extends SupportMapFragment
         }
     }
 
-    private void updateOverlays(List<ObaTripStatus> history,
-                                VehicleTrajectoryTracker tracker,
-                                ShapeData sd, long now) {
+    private void updateOverlays(VehicleTrajectoryTracker tracker, long now) {
         if (mTripRenderer == null) return;
-        SpeedDistribution distribution = tracker.getLastDistribution();
+        TripDataManager dm = TripDataManager.getInstance();
+        ShapeData sd = dm.getShapeWithDistances(mTripId);
+        if (sd == null) return;
+        List<ObaTripStatus> history = dm.getHistory(mTripId);
+        SpeedDistribution distribution = tracker.getEstimatedDistribution(mTripId, now);
         mTripRenderer.updateEstimateOverlays(distribution, sd.points, sd.cumulativeDistances,
                 history, now, mDeviationColor);
         mTripRenderer.showOrUpdateDataReceivedMarker(mTripId, sd.points, sd.cumulativeDistances,

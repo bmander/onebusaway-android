@@ -33,16 +33,18 @@ open class ZeroInflatedDistribution(
     override fun pdf(x: Double): Double = if (x <= 0) 0.0 else (1 - p0) * base.pdf(x)
 
     // CDF includes the point mass at zero
-    override fun cdf(x: Double): Double = when {
-        x < 0 -> 0.0
-        x == 0.0 -> p0
-        else -> p0 + (1 - p0) * base.cdf(x)
-    }
+    override fun cdf(x: Double): Double =
+            when {
+                x < 0 -> 0.0
+                x == 0.0 -> p0
+                else -> p0 + (1 - p0) * base.cdf(x)
+            }
 
-    override fun quantile(p: Double): Double = when {
-        p <= 0 -> 0.0
-        p >= 1 -> Double.MAX_VALUE
-        p <= p0 -> 0.0  // point mass at zero
-        else -> base.quantile((p - p0) / (1 - p0))
-    }
+    override fun quantile(p: Double): Double =
+            when {
+                p <= 0 -> 0.0
+                p >= 1 -> Double.MAX_VALUE
+                p <= p0 -> 0.0 // point mass at zero
+                else -> base.quantile((p - p0) / (1 - p0))
+            }
 }

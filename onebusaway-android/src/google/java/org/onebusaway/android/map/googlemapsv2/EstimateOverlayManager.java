@@ -22,7 +22,7 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 
-import org.onebusaway.android.extrapolation.math.SpeedDistribution;
+import org.onebusaway.android.extrapolation.math.ProbDistribution;
 
 import java.util.List;
 
@@ -40,7 +40,7 @@ public final class EstimateOverlayManager {
     private final double mPdfHighQuantile;
 
     private final int mSegmentCount;
-    private SpeedDistribution mCachedDistribution;
+    private ProbDistribution mCachedDistribution;
     private double mCachedLabelSpeedHighMps;
     private final double[] mCachedPdfEdgeSpeedsMps;
     private final double[] mCachedPdfMidPdfValues;
@@ -93,7 +93,7 @@ public final class EstimateOverlayManager {
     /**
      * Per-frame update for all estimate overlays.
      */
-    public void update(SpeedDistribution distribution,
+    public void update(ProbDistribution distribution,
                        List<Location> shape, double[] cumDist,
                        double lastDist, double dtSec, int baseColor) {
         if (!distribution.equals(mCachedDistribution)) {

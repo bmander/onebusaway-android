@@ -39,7 +39,7 @@ import org.onebusaway.android.io.elements.ObaTripStatusExtensionsKt;
 import org.onebusaway.android.io.ObaApi;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
-import org.onebusaway.android.extrapolation.math.SpeedDistribution;
+import org.onebusaway.android.extrapolation.math.ProbDistribution;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.UIUtils;
@@ -223,7 +223,7 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         List<ObaTripStatus> history = dm.getHistory(mTripId);
         ObaTripSchedule schedule = dm.getSchedule(mTripId);
         Long serviceDate = dm.getServiceDate(mTripId);
-        SpeedDistribution distribution = null;
+        ProbDistribution distribution = null;
         if (!tripEnded) {
             // getEstimatedSpeed populates distribution as a side effect
             VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();

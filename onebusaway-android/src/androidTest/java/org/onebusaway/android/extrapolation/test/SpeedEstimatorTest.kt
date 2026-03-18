@@ -29,7 +29,7 @@ import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.DiracDistribution
 import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
 import org.onebusaway.android.extrapolation.math.speed.GammaSpeedEstimator
-import org.onebusaway.android.extrapolation.math.speed.gammaSpeedDistribution
+import org.onebusaway.android.extrapolation.math.speed.gammaProbDistribution
 import org.onebusaway.android.extrapolation.math.speed.ScheduleSpeedEstimator
 import org.onebusaway.android.extrapolation.math.speed.SpeedEstimateError
 import org.onebusaway.android.extrapolation.math.speed.SpeedEstimateResult
@@ -483,14 +483,14 @@ class SpeedEstimatorTest {
     @Test
     fun testGammaSpeedModel_fromSpeeds_workedExample() {
         // 20 mph ≈ 8.94 m/s, 10 mph ≈ 4.47 m/s
-        val dist = gammaSpeedDistribution(8.94, 4.47, 2000.0) as ZeroInflatedGammaDistribution
+        val dist = gammaProbDistribution(8.94, 4.47, 2000.0) as ZeroInflatedGammaDistribution
         assertEquals(2.65, dist.alpha, 0.15)
         assertEquals(3.22, dist.scale, 0.5)
     }
 
     @Test
     fun testGammaSpeedModel_cdf_quantile_roundTrip() {
-        val dist = gammaSpeedDistribution(6.71, 6.71, 2000.0)
+        val dist = gammaProbDistribution(6.71, 6.71, 2000.0)
 
         for (p in doubleArrayOf(0.10, 0.25, 0.50, 0.75, 0.90)) {
             val q = dist.quantile(p)
@@ -500,39 +500,39 @@ class SpeedEstimatorTest {
 
     @Test
     fun testGammaSpeedModel_prevSpeedFallback() {
-        val dist = gammaSpeedDistribution(8.94, 0.0, 2000.0) as ZeroInflatedGammaDistribution
-        val distEqual = gammaSpeedDistribution(8.94, 8.94, 2000.0) as ZeroInflatedGammaDistribution
+        val dist = gammaProbDistribution(8.94, 0.0, 2000.0) as ZeroInflatedGammaDistribution
+        val distEqual = gammaProbDistribution(8.94, 8.94, 2000.0) as ZeroInflatedGammaDistribution
         assertEquals(distEqual.alpha, dist.alpha, 0.001)
         assertEquals(distEqual.scale, dist.scale, 0.001)
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun testGammaSpeedModel_schedSpeedZero_throws() {
-        gammaSpeedDistribution(0.0, 5.0, 2000.0)
+        gammaProbDistribution(0.0, 5.0, 2000.0)
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun testGammaSpeedModel_schedSpeedNegative_throws() {
-        gammaSpeedDistribution(-1.0, 5.0, 2000.0)
+        gammaProbDistribution(-1.0, 5.0, 2000.0)
     }
 
     @Test
     fun testGammaSpeedModel_mean() {
-        val dist = gammaSpeedDistribution(6.71, 6.71, 2000.0)
+        val dist = gammaProbDistribution(6.71, 6.71, 2000.0)
         assertTrue("Mean speed should be positive", dist.mean > 0)
         assertEquals(6.71, dist.mean, 1.5)
     }
 
     @Test
     fun testGammaSpeedModel_pdf_positiveInRange() {
-        val dist = gammaSpeedDistribution(6.71, 6.71, 2000.0)
+        val dist = gammaProbDistribution(6.71, 6.71, 2000.0)
         assertEquals(0.0, dist.pdf(0.0), 0.001)
         assertTrue("PDF should be positive at mean", dist.pdf(6.71) > 0)
     }
 
     @Test
     fun testGammaSpeedModel_cdf_boundaries() {
-        val dist = gammaSpeedDistribution(6.71, 6.71, 2000.0) as ZeroInflatedGammaDistribution
+        val dist = gammaProbDistribution(6.71, 6.71, 2000.0) as ZeroInflatedGammaDistribution
         assertEquals(dist.p0, dist.cdf(0.0), 0.001)
         assertEquals(0.0, dist.cdf(-1.0), 0.001)
         assertTrue(dist.cdf(45.0) > 0.99)

@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.extrapolation.math.speed
 
-import org.onebusaway.android.extrapolation.math.SpeedDistribution
+import org.onebusaway.android.extrapolation.math.ProbDistribution
 
 /**
  * Result of a speed estimation attempt. Either a successful distribution or an error describing why
@@ -24,7 +24,7 @@ import org.onebusaway.android.extrapolation.math.SpeedDistribution
 sealed class SpeedEstimateResult {
 
     /** Successful speed estimation. */
-    data class Success(val distribution: SpeedDistribution) : SpeedEstimateResult()
+    data class Success(val distribution: ProbDistribution) : SpeedEstimateResult()
 
     /** Speed estimation failed. */
     data class Failure(val error: SpeedEstimateError) : SpeedEstimateResult()

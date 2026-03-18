@@ -33,7 +33,7 @@ import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.elements.ObaTripStatusExtensionsKt;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTrackerKt;
-import org.onebusaway.android.extrapolation.math.SpeedDistribution;
+import org.onebusaway.android.extrapolation.math.ProbDistribution;
 import org.onebusaway.android.util.PreferenceUtils;
 
 import java.text.SimpleDateFormat;
@@ -55,7 +55,7 @@ public class TrajectoryGraphView extends View {
     private long mServiceDate;
     private long mCurrentTime = System.currentTimeMillis();
     private double mEstimatedSpeedMps;
-    private SpeedDistribution mDistribution;
+    private ProbDistribution mDistribution;
     private double mCachedCiLoMps;
     private double mCachedCiHiMps;
     private String mHighlightedStopId;
@@ -326,7 +326,7 @@ public class TrajectoryGraphView extends View {
 
     public void setData(List<ObaTripStatus> history, ObaTripSchedule schedule,
                         long serviceDate,
-                        SpeedDistribution distribution) {
+                        ProbDistribution distribution) {
         mHistory = history != null ? new ArrayList<>(history) : new ArrayList<>();
         mSchedule = schedule;
         mServiceDate = serviceDate;

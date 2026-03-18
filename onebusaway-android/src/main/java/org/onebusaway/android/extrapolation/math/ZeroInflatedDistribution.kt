@@ -23,8 +23,8 @@ package org.onebusaway.android.extrapolation.math
  */
 open class ZeroInflatedDistribution(
         @JvmField val p0: Double,
-        protected val base: SpeedDistribution
-) : SpeedDistribution {
+        protected val base: ProbDistribution
+) : ProbDistribution {
 
     override val mean: Double
         get() = (1 - p0) * base.mean

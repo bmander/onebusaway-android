@@ -22,33 +22,25 @@ import org.onebusaway.android.io.elements.ObaTripStatus
 
 /**
  * Centralized AVL (Automatic Vehicle Location) data store. Owns all vehicle history entries and
- * supports queries by trip and vehicle. Thread-safe via a read-write lock: reads run concurrently,
- * writes are exclusive.
+ * supports queries by trip. Thread-safe via a read-write lock: reads run concurrently, writes are
+ * exclusive.
  */
 object AvlRepository {
 
     private const val MAX_ENTRIES_PER_TRIP = 100
     private val lock = ReentrantReadWriteLock()
 
-    /** Primary store: tripId → ordered list of trip statuses. */
+    /** Primary store: tripId -> ordered list of trip statuses. */
     private val tripHistory = mutableMapOf<String, MutableList<ObaTripStatus>>()
 
-    /** Secondary index: vehicleId → set of tripIds that have data for this vehicle. */
-    private val vehicleToTrips = mutableMapOf<String, MutableSet<String>>()
-
-    /** Last recorded ObaTripStatus per tripId. */
-    private val lastStateCache = mutableMapOf<String, ObaTripStatus>()
-
     /**
-     * Records a trip status snapshot for a trip. Deduplicates by lastLocationUpdateTime — only
+     * Records a trip status snapshot for a trip. Deduplicates by lastLocationUpdateTime -- only
      * records when a genuinely new AVL report has arrived, filtering out server re-extrapolations.
      *
      * @param status the trip status snapshot (must have a non-null activeTripId)
      */
     fun record(status: ObaTripStatus) {
         val tripId = status.activeTripId ?: return
-
-        // Only record entries backed by real-time AVL data.
         if (!status.isPredicted) return
 
         val locUpdateTime = status.lastLocationUpdateTime
@@ -57,48 +49,33 @@ object AvlRepository {
         lock.write {
             val history = tripHistory.getOrPut(tripId) { mutableListOf() }
 
-            // Skip if lastLocationUpdateTime hasn't advanced
             if (history.isNotEmpty() && locUpdateTime <= history.last().lastLocationUpdateTime) {
-                return
+                return@write
             }
 
             history.add(status)
 
-            // Cap history size
             if (history.size > MAX_ENTRIES_PER_TRIP) {
                 history.subList(0, history.size - MAX_ENTRIES_PER_TRIP).clear()
-            }
-
-            lastStateCache[tripId] = status
-
-            // Update secondary index
-            val vehicleId = status.vehicleId
-            if (vehicleId != null) {
-                vehicleToTrips.getOrPut(vehicleId) { mutableSetOf() }.add(tripId)
             }
         }
     }
 
     // --- Trip-level queries ---
 
-    /** Returns a read-only view of the history for the given trip. */
+    /** Returns a snapshot of the history for the given trip. */
     fun getHistoryForTrip(tripId: String): List<ObaTripStatus> =
-            lock.read { tripHistory[tripId].orEmpty() }
+            lock.read { tripHistory[tripId]?.toList().orEmpty() }
 
     /** Returns the number of history entries for the given trip, without copying. */
     fun getHistorySizeForTrip(tripId: String): Int = lock.read { tripHistory[tripId]?.size ?: 0 }
 
-    /** Returns the last cached ObaTripStatus for the given trip, or null. */
-    fun getLastState(tripId: String): ObaTripStatus? = lock.read { lastStateCache[tripId] }
+    /** Returns the last recorded ObaTripStatus for the given trip, or null. */
+    fun getLastState(tripId: String): ObaTripStatus? =
+            lock.read { tripHistory[tripId]?.lastOrNull() }
 
     // --- Lifecycle ---
 
-    /** Clears all stored data and indices. */
-    fun clearAll() =
-            lock.write {
-                tripHistory.clear()
-                lastStateCache.clear()
-                vehicleToTrips.clear()
-            }
-
+    /** Clears all stored data. */
+    fun clearAll() = lock.write { tripHistory.clear() }
 }

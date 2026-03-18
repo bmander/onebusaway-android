@@ -61,7 +61,7 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
                 }
 
         return SpeedEstimateResult.Success(
-                GammaSpeedModel.fromSpeeds(scheduleSpeed, prevSpeed, dtSeconds)
+                gammaSpeedDistribution(scheduleSpeed, prevSpeed, dtSeconds)
         )
     }
 

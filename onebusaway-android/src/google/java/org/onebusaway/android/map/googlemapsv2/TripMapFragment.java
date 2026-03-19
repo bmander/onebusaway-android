@@ -98,7 +98,6 @@ public class TripMapFragment extends SupportMapFragment
 
     private GoogleMap mMap;
     private TripMapRenderer mTripRenderer;
-    private ChevronPolylineHelper mChevronHelper;
 
     private Marker mVehicleMarker;
     private final Location mReusableLocation = new Location("extrapolated");
@@ -126,7 +125,6 @@ public class TripMapFragment extends SupportMapFragment
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
-        mChevronHelper = new ChevronPolylineHelper();
     }
 
     @Override
@@ -138,7 +136,7 @@ public class TripMapFragment extends SupportMapFragment
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {
         mMap = googleMap;
-        mTripRenderer = new TripMapRenderer(mMap, requireContext(), mChevronHelper);
+        mTripRenderer = new TripMapRenderer(mMap, requireContext());
         mMap.setOnMarkerClickListener(this);
         mMap.getUiSettings().setZoomControlsEnabled(true);
         MapHelpV2.applyMapStyle(mMap, requireContext());

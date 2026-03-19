@@ -31,6 +31,7 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 
 import org.onebusaway.android.R;
 import org.onebusaway.android.io.elements.ObaRoute;
@@ -70,7 +71,7 @@ final class TripMapRenderer {
 
     private final GoogleMap mMap;
     private final Context mContext;
-    private final ChevronPolylineHelper mChevronHelper;
+    private final StampedPolylineFactory mStampFactory;
 
     private final ArrayList<Polyline> mTripPolylines = new ArrayList<>();
     private final ArrayList<Marker> mTripStopMarkers = new ArrayList<>();
@@ -99,10 +100,11 @@ final class TripMapRenderer {
     private int mRouteColor;
     private long mScheduleDeviation;
 
-    TripMapRenderer(GoogleMap map, Context context, ChevronPolylineHelper chevronHelper) {
+    TripMapRenderer(GoogleMap map, Context context) {
         mMap = map;
         mContext = context;
-        mChevronHelper = chevronHelper;
+        mStampFactory = new StampedPolylineFactory(context.getResources(),
+                R.drawable.ic_navigation_expand_more, 4);
     }
 
     // --- Lifecycle ---
@@ -151,8 +153,8 @@ final class TripMapRenderer {
 
     private void showTripPolyline(List<Location> tripShape, int color) {
         removeTripPolylines();
-        mChevronHelper.addArrowPolyline(mMap, mTripPolylines, tripShape, color,
-                TRIP_BASE_WIDTH_PX, 4, mContext.getResources());
+        mTripPolylines.add(mMap.addPolyline(
+                mStampFactory.create(tripShape, color, TRIP_BASE_WIDTH_PX)));
     }
 
     private void removeTripPolylines() {

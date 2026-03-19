@@ -68,6 +68,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -436,10 +437,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
      */
     public void selectTrip(String tripId) {
         if (mMarkerData == null || tripId == null) return;
-        Marker marker = mMarkerData.mVehicleMarkers.get(tripId);
+        Marker marker = mMarkerData.getMarkerForTrip(tripId);
         if (marker == null) return;
-        ObaTripStatus status = mMarkerData.mVehicles.get(marker);
-        if (status != null) {
+        if (mMarkerData.getStatusFromMarker(marker) != null) {
             setupInfoWindow();
             marker.showInfoWindow();
         }
@@ -484,7 +484,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         private HashMap<String, Marker> mVehicleMarkers;
 
         /** Tracks trip IDs with in-flight schedule fetches to avoid duplicate requests. */
-        private final HashSet<String> mPendingScheduleFetches = new HashSet<>();
+        private final Set<String> mPendingScheduleFetches = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
         private static final int INITIAL_HASHMAP_SIZE = 5;
 
@@ -682,7 +682,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             // the frame callback handles smooth movement along the polyline
             String tripId = status.getActiveTripId();
             if (tripId == null || TripDataManager.getInstance().getShape(tripId) == null
-                    || VehicleTrajectoryTracker.getInstance().getEstimatedSpeed(tripId) == null) {
+                    || !VehicleTrajectoryTracker.getInstance().isSpeedEstimable(tripId, System.currentTimeMillis())) {
                 Location markerLoc = MapHelpV2.makeLocation(m.getPosition());
                 if (l.distanceTo(markerLoc) < MAX_VEHICLE_ANIMATION_DISTANCE) {
                     AnimationUtil.animateMarkerTo(m, MapHelpV2.makeLatLng(l));
@@ -764,6 +764,10 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             return BitmapDescriptorFactory.fromBitmap(b);
         }
 
+
+        synchronized Marker getMarkerForTrip(String tripId) {
+            return mVehicleMarkers.get(tripId);
+        }
 
         synchronized ObaTripStatus getStatusFromMarker(Marker marker) {
             return mVehicles.get(marker);
@@ -864,13 +868,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             Resources r = mContext.getResources();
             // Info window is always rendered on a white background, so force dark text
             // to avoid white-on-white in dark mode
-            int darkText = 0xDE000000; // 87% black, matching Material dark-on-light
-            int secondaryText = 0x8A000000; // 54% black
             TextView routeView = (TextView) view.findViewById(R.id.route_and_destination);
-            routeView.setTextColor(darkText);
+            routeView.setTextColor(ContextCompat.getColor(mContext, R.color.body_text_1));
             TextView statusView = (TextView) view.findViewById(R.id.status);
             TextView lastUpdatedView = (TextView) view.findViewById(R.id.last_updated);
-            lastUpdatedView.setTextColor(secondaryText);
+            lastUpdatedView.setTextColor(ContextCompat.getColor(mContext, R.color.body_text_2));
             ImageView moreView = (ImageView) view.findViewById(R.id.trip_more_info);
             moreView.setColorFilter(r.getColor(R.color.switch_thumb_normal_material_dark));
             ViewGroup occupancyView = view.findViewById(R.id.occupancy);

@@ -28,6 +28,7 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.maps.model.VisibleRegion;
 import com.google.firebase.analytics.FirebaseAnalytics;
 
@@ -137,6 +138,8 @@ public class BaseMapFragment extends SupportMapFragment
     public static final float CAMERA_DEFAULT_ZOOM = 16.0f;
 
     public static final float DEFAULT_MAP_PADDING_DP = 20.0f;
+
+    private static final float ROUTE_POLYLINE_WIDTH_PX = 10f;
 
     // Keep track of current map padding
     private int mMapPaddingLeft = 0;
@@ -294,6 +297,10 @@ public class BaseMapFragment extends SupportMapFragment
     @Override
     public void onMapReady(com.google.android.gms.maps.GoogleMap map) {
         mMap = map;
+        if (mStampFactory == null) {
+            mStampFactory = new StampedPolylineFactory(getResources(),
+                    R.drawable.ic_navigation_expand_more, 1);
+        }
 
         MapClickListeners mapClickListeners = new MapClickListeners();
 
@@ -523,14 +530,14 @@ public class BaseMapFragment extends SupportMapFragment
         return true;
     }
 
-    private final ChevronPolylineHelper mChevronHelper = new ChevronPolylineHelper();
+    private StampedPolylineFactory mStampFactory;
     private TripMapRenderer mTripRenderer;
 
     public void setupVehicleOverlay() {
         Activity a = getActivity();
         if (mVehicleOverlay == null && a != null) {
             if (mTripRenderer == null) {
-                mTripRenderer = new TripMapRenderer(mMap, a, mChevronHelper);
+                mTripRenderer = new TripMapRenderer(mMap, a);
             }
             mVehicleOverlay = new VehicleOverlay(a, mMap);
             mVehicleOverlay.setController(this);
@@ -1035,8 +1042,9 @@ public class BaseMapFragment extends SupportMapFragment
     }
 
     private int addArrowPolyline(List<Location> points, int color) {
-        return mChevronHelper.addArrowPolyline(mMap, mLineOverlay, points, color,
-                getResources());
+        PolylineOptions opts = mStampFactory.create(points, color, ROUTE_POLYLINE_WIDTH_PX);
+        mLineOverlay.add(mMap.addPolyline(opts));
+        return opts.getPoints().size();
     }
 
     @Override

@@ -29,6 +29,9 @@ import org.onebusaway.android.util.LocationUtils
  */
 object VehicleTrajectoryTracker {
 
+    /** Max age of the newest AVL entry before we consider extrapolation unreliable. */
+    const val MAX_EXTRAPOLATION_AGE_MS = 5L * 60 * 1000
+
     @JvmStatic fun getInstance() = this
 
     private val dataManager = TripDataManager
@@ -69,6 +72,12 @@ object VehicleTrajectoryTracker {
     fun getEstimatedSpeed(tripId: String): Double? =
             getEstimatedSpeed(tripId, System.currentTimeMillis())
 
+    /** Returns true if the tracker has recent enough AVL data to extrapolate this trip. */
+    fun isSpeedEstimable(tripId: String, queryTimeMs: Long): Boolean {
+        val last = dataManager.getLastState(tripId) ?: return false
+        return queryTimeMs - last.lastLocationUpdateTime <= MAX_EXTRAPOLATION_AGE_MS
+    }
+
     /** Returns the distribution from the last speed estimate. */
     @Synchronized fun getLastDistribution(): ProbDistribution? = lastDistribution
 
@@ -106,9 +115,6 @@ object VehicleTrajectoryTracker {
     }
 }
 
-/** Max age of the newest AVL entry before we consider extrapolation unreliable. */
-private const val MAX_EXTRAPOLATION_AGE_MS = 5L * 60 * 1000
-
 /**
  * Extrapolates the current distance along the trip based on the newest valid history entry and
  * estimated speed. Returns null if extrapolation is not possible.
@@ -128,7 +134,7 @@ fun extrapolateDistance(
             history.findLast { it.bestDistanceAlongTrip != null && it.lastLocationUpdateTime > 0 }
                     ?: return null
     val lastTime = newest.lastLocationUpdateTime
-    if (currentTimeMs - lastTime > MAX_EXTRAPOLATION_AGE_MS) return null
+    if (currentTimeMs - lastTime > VehicleTrajectoryTracker.MAX_EXTRAPOLATION_AGE_MS) return null
     val lastDist = newest.bestDistanceAlongTrip ?: return null
     return lastDist + speedMps * (currentTimeMs - lastTime) / 1000.0
 }

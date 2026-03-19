@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.io.elements
 
+import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
+
 /**
  * The best available distance: prefers lastKnownDistanceAlongTrip (raw), falls back to
  * distanceAlongTrip (extrapolated).
@@ -26,3 +28,18 @@ val ObaTripStatus.bestDistanceAlongTrip: Double?
             } else {
                 distanceAlongTrip
             }
+
+/**
+ * True if the server provided a real-time location for this vehicle —
+ * i.e. it has a last-known location *and* the trip is predicted.
+ */
+val ObaTripStatus.isLocationRealtime: Boolean
+    get() = lastKnownLocation != null && isPredicted
+
+/**
+ * True if the trajectory tracker has recent enough AVL data to estimate speed
+ * for this trip.
+ */
+fun ObaTripStatus.isRealtimeSpeedEstimable(queryTimeMs: Long): Boolean =
+        activeTripId != null
+                && VehicleTrajectoryTracker.isSpeedEstimable(activeTripId, queryTimeMs)

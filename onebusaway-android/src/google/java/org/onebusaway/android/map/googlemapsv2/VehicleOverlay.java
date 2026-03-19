@@ -52,7 +52,6 @@ import org.onebusaway.android.io.request.ObaShapeResponse;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
-import org.onebusaway.android.extrapolation.math.ProbDistribution;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.ui.TripDetailsActivity;
@@ -76,9 +75,6 @@ public class VehicleOverlay implements MarkerListeners  {
 
     interface Controller {
         String getFocusedStopId();
-        void onVehicleSelected(String tripId, LatLng vehiclePosition, Integer routeType,
-                               long scheduleDeviation);
-        void onVehicleDeselected();
     }
 
     private static final String TAG = "VehicleOverlay";
@@ -98,8 +94,6 @@ public class VehicleOverlay implements MarkerListeners  {
     private String mCardTripId;
 
     private Controller mController;
-
-    private TripMapRenderer mTripRenderer;
 
     private boolean mExtrapolationTicking;
     private final Choreographer.FrameCallback mFrameCallback = this::onExtrapolationFrame;
@@ -220,10 +214,6 @@ public class VehicleOverlay implements MarkerListeners  {
         mController = controller;
     }
 
-    void setTripRenderer(TripMapRenderer renderer) {
-        mTripRenderer = renderer;
-    }
-
     /**
      * Updates vehicles for the provided routeIds from the status info from the given
      * ObaTripsForRouteResponse
@@ -256,9 +246,6 @@ public class VehicleOverlay implements MarkerListeners  {
      */
     public synchronized void clear() {
         stopExtrapolationTicking();
-        if (mTripRenderer != null) {
-            mTripRenderer.deactivate();
-        }
         if (mMarkerData != null) {
             mMarkerData.clear();
             mMarkerData = null;
@@ -500,7 +487,6 @@ public class VehicleOverlay implements MarkerListeners  {
         if (marker == null) return;
         ObaTripStatus status = mMarkerData.mVehicles.get(marker);
         if (status != null) {
-            mMarkerData.setSelectedTripId(tripId);
             showVehicleInfoCard(status);
         }
     }
@@ -508,12 +494,8 @@ public class VehicleOverlay implements MarkerListeners  {
     @Override
     public boolean markerClicked(Marker marker) {
         if(mMarkerData == null) return false;
-        if (mTripRenderer != null && mTripRenderer.handleEstimateLabelClick(marker)) {
-            return true;
-        }
         ObaTripStatus status = mMarkerData.getStatusFromMarker(marker);
         if (status != null) {
-            mMarkerData.setSelectedTripId(status.getActiveTripId());
             showVehicleInfoCard(status);
             return true;
         }
@@ -522,9 +504,6 @@ public class VehicleOverlay implements MarkerListeners  {
 
     @Override
     public void removeMarkerClicked(LatLng latLng) {
-        if (mMarkerData != null) {
-            mMarkerData.clearSelectedTripId();
-        }
         hideVehicleInfoCard();
     }
 
@@ -548,9 +527,6 @@ public class VehicleOverlay implements MarkerListeners  {
          * but do have activeTripIds.
          */
         private HashMap<String, Marker> mVehicleMarkers;
-
-        /** The activeTripId of the currently-selected (info-window-open) vehicle, or null. */
-        private volatile String mSelectedTripId;
 
         /** Tracks trip IDs with in-flight schedule fetches to avoid duplicate requests. */
         private final HashSet<String> mPendingScheduleFetches = new HashSet<>();
@@ -619,17 +595,6 @@ public class VehicleOverlay implements MarkerListeners  {
             }
             // Remove markers for any previously added tripIds that aren't in the current response
             int removed = removeInactiveMarkers(activeTripIds);
-
-            // Update the data-received marker to reflect the latest AVL position
-            if (mTripRenderer != null && mSelectedTripId != null) {
-                TripDataManager dm = TripDataManager.getInstance();
-                TripDataManager.ShapeData sd = dm.getShapeWithDistances(mSelectedTripId);
-                if (sd != null) {
-                    mTripRenderer.showOrUpdateDataReceivedMarker(mSelectedTripId,
-                            sd.points, sd.cumulativeDistances,
-                            dm.getHistory(mSelectedTripId));
-                }
-            }
 
             Log.d(TAG,
                     "Added " + added + ", updated " + updated + ", removed " + removed
@@ -712,18 +677,6 @@ public class VehicleOverlay implements MarkerListeners  {
                             }
                         }
                     }
-                    if (tripId.equals(mSelectedTripId) && mController != null) {
-                        mActivity.runOnUiThread(() -> {
-                            if (tripId.equals(mSelectedTripId) && mController != null) {
-                                Marker vm = mVehicleMarkers.get(tripId);
-                                LatLng vPos = vm != null ? vm.getPosition() : null;
-                                Integer rType = dm.getRouteType(tripId);
-                                ObaTripStatus st = vm != null ? mVehicles.get(vm) : null;
-                                long dev = st != null ? st.getScheduleDeviation() : 0;
-                                mController.onVehicleSelected(tripId, vPos, rType, dev);
-                            }
-                        });
-                    }
                 } catch (Exception e) {
                     Log.w(TAG, "Failed to fetch schedule/shape for " + tripId, e);
                     if (fetchSchedule) {
@@ -752,11 +705,6 @@ public class VehicleOverlay implements MarkerListeners  {
             ProprietaryMapHelpV2.setZIndex(m, VEHICLE_MARKER_Z_INDEX);
             mVehicleMarkers.put(status.getActiveTripId(), m);
             mVehicles.put(m, status);
-            // Hide non-selected markers when a vehicle is selected
-            if (mSelectedTripId != null
-                    && !mSelectedTripId.equals(status.getActiveTripId())) {
-                m.setVisible(false);
-            }
         }
 
         /**
@@ -862,67 +810,6 @@ public class VehicleOverlay implements MarkerListeners  {
         }
 
 
-        /**
-         * Sets the selected trip and hides all other vehicle markers.
-         */
-        synchronized void setSelectedTripId(String tripId) {
-            if (tripId != null && tripId.equals(mSelectedTripId)) return;
-            String previousTripId = mSelectedTripId;
-            mSelectedTripId = tripId;
-            // Immediately restore the newly selected marker to its full icon
-            if (tripId != null) {
-                restoreMarkerIcon(mVehicleMarkers.get(tripId));
-            }
-            animateChangedIcons(previousTripId);
-            if (mController != null && tripId != null) {
-                Marker vehicleMarker = mVehicleMarkers.get(tripId);
-                LatLng vehiclePos = vehicleMarker != null ? vehicleMarker.getPosition() : null;
-                Integer routeType = TripDataManager.getInstance().getRouteType(tripId);
-                ObaTripStatus status = vehicleMarker != null ? mVehicles.get(vehicleMarker) : null;
-                long deviation = status != null ? status.getScheduleDeviation() : 0;
-                mController.onVehicleSelected(tripId, vehiclePos, routeType, deviation);
-            }
-        }
-
-        /**
-         * Clears the selection, restoring all markers to full vehicle icons.
-         */
-        synchronized void clearSelectedTripId() {
-            if (mSelectedTripId == null) return;
-            String previousTripId = mSelectedTripId;
-            mSelectedTripId = null;
-            animateChangedIcons(previousTripId);
-            if (mController != null) {
-                mController.onVehicleDeselected();
-            }
-        }
-
-        private void restoreMarkerIcon(Marker marker) {
-            if (marker == null) return;
-            ObaTripStatus status = mVehicles.get(marker);
-            if (status == null) return;
-            marker.setIcon(getVehicleIcon(
-                    isLocationRealtime(status), status, mLastResponse));
-        }
-
-        /**
-         * Toggles visibility for markers whose state changed due to selection.
-         * @param previousTripId the previously selected trip, or null if none
-         */
-        private void animateChangedIcons(String previousTripId) {
-            for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
-                String tripId = entry.getKey();
-                // Skip the currently selected marker — already handled
-                if (mSelectedTripId != null && mSelectedTripId.equals(tripId)) continue;
-
-                boolean wasHidden = previousTripId != null && !previousTripId.equals(tripId);
-                boolean shouldHide = mSelectedTripId != null && !mSelectedTripId.equals(tripId);
-                if (wasHidden == shouldHide) continue;
-
-                entry.getValue().setVisible(!shouldHide);
-            }
-        }
-
         synchronized ObaTripStatus getStatusFromMarker(Marker marker) {
             return mVehicles.get(marker);
         }
@@ -953,43 +840,6 @@ public class VehicleOverlay implements MarkerListeners  {
                             mReusableLocation.getLatitude(), mReusableLocation.getLongitude()));
                 }
             }
-
-            updateSelectedTripOverlays(tracker, now);
-        }
-
-        /**
-         * Updates the estimate overlays and data-received marker for the currently
-         * selected trip. Looks up shape, history, and deviation color independently
-         * from the per-marker extrapolation loop.
-         */
-        private void updateSelectedTripOverlays(VehicleTrajectoryTracker tracker, long now) {
-            if (mTripRenderer == null || mSelectedTripId == null) return;
-
-            TripDataManager dm = TripDataManager.getInstance();
-            TripDataManager.ShapeData sd = dm.getShapeWithDistances(mSelectedTripId);
-            List<ObaTripStatus> history = dm.getHistory(mSelectedTripId);
-
-            int selectedColor = 0;
-            Marker selectedMarker = mVehicleMarkers != null
-                    ? mVehicleMarkers.get(mSelectedTripId) : null;
-            if (selectedMarker != null) {
-                ObaTripStatus status = mVehicles.get(selectedMarker);
-                if (status != null) {
-                    int colorRes = getDeviationColorResource(
-                            isLocationRealtime(status), status);
-                    selectedColor = ContextCompat.getColor(mActivity, colorRes);
-                }
-            }
-
-            List<Location> shape = sd != null ? sd.points : null;
-            double[] cumDist = sd != null ? sd.cumulativeDistances : null;
-
-            mTripRenderer.showOrUpdateDataReceivedMarker(mSelectedTripId,
-                    shape, cumDist, history);
-            ProbDistribution distribution = mSelectedTripId != null
-                    ? tracker.getEstimatedDistribution(mSelectedTripId, now) : null;
-            mTripRenderer.updateEstimateOverlays(distribution, shape,
-                    cumDist, history, now, selectedColor);
         }
 
 

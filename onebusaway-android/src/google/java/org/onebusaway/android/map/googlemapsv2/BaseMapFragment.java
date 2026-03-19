@@ -42,8 +42,6 @@ import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaShape;
 import org.onebusaway.android.io.elements.ObaStop;
-import org.onebusaway.android.io.elements.ObaTripSchedule;
-import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.io.request.ObaResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.DirectionsMapController;
@@ -175,12 +173,6 @@ public class BaseMapFragment extends SupportMapFragment
     private String mMapMode = "";
 
     private ArrayList<Polyline> mLineOverlay = new ArrayList<Polyline>();
-
-    // Saved route overlay state for restoration after vehicle deselection
-    private ObaShape[] mSavedRouteShapes;
-    private int mSavedRouteOverlayColor;
-    private List<ObaStop> mSavedRouteStops;
-    private ObaReferences mSavedRouteRefs;
 
     // Markers that are added to the map by classes external to this map package
     private SimpleMarkerOverlay mSimpleMarkerOverlay;
@@ -531,17 +523,12 @@ public class BaseMapFragment extends SupportMapFragment
     }
 
     private StampedPolylineFactory mStampFactory;
-    private TripMapRenderer mTripRenderer;
 
     public void setupVehicleOverlay() {
         Activity a = getActivity();
         if (mVehicleOverlay == null && a != null) {
-            if (mTripRenderer == null) {
-                mTripRenderer = new TripMapRenderer(mMap, a);
-            }
             mVehicleOverlay = new VehicleOverlay(a, mMap);
             mVehicleOverlay.setController(this);
-            mVehicleOverlay.setTripRenderer(mTripRenderer);
         }
     }
 
@@ -690,9 +677,6 @@ public class BaseMapFragment extends SupportMapFragment
 
     @Override
     public void showStops(List<ObaStop> stops, ObaReferences refs) {
-        // Save for restoration after vehicle deselection
-        mSavedRouteStops = stops;
-        mSavedRouteRefs = refs;
         // Make sure that the stop overlay has been successfully initialized
         if (setupStopOverlay() && stops != null) {
             mStopOverlay.populateStops(stops, refs);
@@ -1026,9 +1010,6 @@ public class BaseMapFragment extends SupportMapFragment
 
     @Override
     public void setRouteOverlay(int lineOverlayColor, ObaShape[] shapes, boolean clear) {
-        // Save for restoration after vehicle deselection
-        mSavedRouteShapes = shapes;
-        mSavedRouteOverlayColor = lineOverlayColor;
         if (mMap != null) {
             if (clear) {
                 mLineOverlay.clear();
@@ -1251,48 +1232,6 @@ public class BaseMapFragment extends SupportMapFragment
         return mFocusStopId;
     }
 
-    @Override
-    public void onVehicleSelected(String tripId, LatLng vehiclePosition, Integer routeType,
-                                  long scheduleDeviation) {
-        removeRouteOverlay();
-        if (setupStopOverlay()) {
-            mStopOverlay.clear(false);
-        }
-        TripDataManager dm = TripDataManager.getInstance();
-        TripDataManager.ShapeData sd = dm.getShapeWithDistances(tripId);
-        List<Location> shape = sd != null ? sd.points : null;
-        double[] cumDist = sd != null ? sd.cumulativeDistances : null;
-        ObaTripSchedule schedule = dm.getSchedule(tripId);
-        HashMap<String, String> stopNames = buildStopNameMap();
-        mTripRenderer.activate(tripId, shape, cumDist, schedule, mSavedRouteOverlayColor,
-                vehiclePosition, routeType, stopNames, scheduleDeviation, null);
-    }
-
-    private HashMap<String, String> buildStopNameMap() {
-        HashMap<String, String> map = new HashMap<>();
-        if (mSavedRouteStops != null) {
-            for (ObaStop stop : mSavedRouteStops) {
-                map.put(stop.getId(), stop.getName());
-            }
-        }
-        return map;
-    }
-
-    @Override
-    public void onVehicleDeselected() {
-        mTripRenderer.deactivate();
-        // Restore original route polyline
-        if (mSavedRouteShapes != null) {
-            removeRouteOverlay();
-            setRouteOverlay(mSavedRouteOverlayColor, mSavedRouteShapes);
-        }
-        // Restore original stops
-        if (mSavedRouteStops != null && mSavedRouteRefs != null && setupStopOverlay()) {
-            mStopOverlay.clear(false);
-            mStopOverlay.populateStops(mSavedRouteStops, mSavedRouteRefs);
-        }
-    }
-
     //
     // Dialogs
     //
@@ -1487,9 +1426,6 @@ public class BaseMapFragment extends SupportMapFragment
                 if (mBikeStationOverlay.markerClicked(marker)) {
                     return true;
                 }
-            }
-            if (mTripRenderer != null && mTripRenderer.handleStopMarkerClick(marker)) {
-                return true;
             }
             if (mVehicleOverlay != null) {
                 return mVehicleOverlay.markerClicked(marker);

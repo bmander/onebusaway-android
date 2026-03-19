@@ -49,6 +49,7 @@ import org.onebusaway.android.io.elements.ObaStop;
 import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.io.elements.ObaTripStatus;
+import org.onebusaway.android.io.elements.ObaTripStatusExtensionsKt;
 import org.onebusaway.android.io.request.ObaShapeRequest;
 import org.onebusaway.android.io.request.ObaShapeResponse;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
@@ -252,7 +253,9 @@ public class TripMapFragment extends SupportMapFragment
 
         // Cache deviation color for per-frame use
         if (status != null) {
-            boolean realtime = VehicleOverlay.isLocationRealtime(status);
+            long now = System.currentTimeMillis();
+            boolean realtime = ObaTripStatusExtensionsKt.isLocationRealtime(status)
+                    || ObaTripStatusExtensionsKt.isRealtimeSpeedEstimable(status, now);
             int colorRes = VehicleOverlay.getDeviationColorResource(realtime, status);
             mDeviationColor = ContextCompat.getColor(requireContext(), colorRes);
         } else {

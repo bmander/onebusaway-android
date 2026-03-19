@@ -46,6 +46,7 @@ import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripDetails;
 import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.io.elements.ObaTripStatus;
+import org.onebusaway.android.io.elements.ObaTripStatusExtensionsKt;
 import org.onebusaway.android.io.elements.OccupancyState;
 import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaShapeRequest;
@@ -510,6 +511,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             // Keep track of the activeTripIds that should be shown on the map, so we don't need
             // to iterate again later for this same info
             HashSet<String> activeTripIds = new HashSet<>();
+            long now = System.currentTimeMillis();
 
             // Add or move markers for vehicles included in response
             for (ObaTripDetails trip : trips) {
@@ -518,17 +520,17 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     // Check if this vehicle is running a route we're interested in and isn't CANCELED
                     String activeRoute = response.getTrip(status.getActiveTripId()).getRouteId();
                     if (routeIds.contains(activeRoute) && !Status.CANCELED.equals(status.getStatus())) {
-                        Location l = status.getLastKnownLocation();
-                        boolean isRealtime = true;
+                        recordTrajectoryState(status, response);
 
+                        Location l = status.getLastKnownLocation();
                         if (l == null) {
-                            // If a potentially extrapolated location isn't available, use last position
                             l = status.getPosition();
-                            isRealtime = false;
                         }
-                        if (!status.isPredicted()) {
-                            isRealtime = false;
+                        if (l == null) {
+                            continue;
                         }
+                        boolean isRealtime = ObaTripStatusExtensionsKt.isLocationRealtime(status)
+                                || ObaTripStatusExtensionsKt.isRealtimeSpeedEstimable(status, now);
 
                         Marker m = mVehicleMarkers.get(status.getActiveTripId());
 
@@ -542,7 +544,6 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                         }
                         activeTripIds.add(status.getActiveTripId());
 
-                        recordTrajectoryState(status, response);
                         fetchScheduleAndShapeIfNeeded(status, response);
                     }
                 }
@@ -821,18 +822,6 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
     }
 
     /**
-     * Returns true if there is real-time location information for the given status, false if there
-     * is not
-     *
-     * @param status The trip status information that includes location information
-     * @return true if there is real-time location information for the given status, false if there
-     * is not
-     */
-    protected static boolean isLocationRealtime(ObaTripStatus status) {
-        return status.getLastKnownLocation() != null && status.isPredicted();
-    }
-
-    /**
      * Returns the color resource for a vehicle's schedule deviation status.
      */
     static int getDeviationColorResource(boolean isRealtime, ObaTripStatus status) {
@@ -893,7 +882,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     mContext.getString(R.string.trip_info_separator) + " " + UIUtils
                     .formatDisplayText(trip.getHeadsign()));
 
-            boolean isRealtime = isLocationRealtime(status);
+            long now = System.currentTimeMillis();
+            boolean isRealtime = ObaTripStatusExtensionsKt.isLocationRealtime(status)
+                    || ObaTripStatusExtensionsKt.isRealtimeSpeedEstimable(status, now);
 
             statusView.setBackgroundResource(R.drawable.round_corners_style_b_status);
             GradientDrawable d = (GradientDrawable) statusView.getBackground();
@@ -923,7 +914,6 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 return view;
             }
 
-            long now = System.currentTimeMillis();
             long lastUpdateTime;
             if (status.getLastLocationUpdateTime() != 0) {
                 lastUpdateTime = status.getLastLocationUpdateTime();

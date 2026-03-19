@@ -44,17 +44,13 @@ import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripDetails;
-import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.elements.ObaTripStatusExtensionsKt;
 import org.onebusaway.android.io.elements.OccupancyState;
 import org.onebusaway.android.io.elements.Status;
-import org.onebusaway.android.io.request.ObaShapeRequest;
-import org.onebusaway.android.io.request.ObaShapeResponse;
-import org.onebusaway.android.io.request.ObaTripDetailsRequest;
-import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
+import org.onebusaway.android.extrapolation.data.TripRepository;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.ui.TripDetailsActivity;
 import org.onebusaway.android.ui.TripDetailsListFragment;
@@ -66,9 +62,7 @@ import org.onebusaway.android.util.UIUtils;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -483,9 +477,6 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
          */
         private HashMap<String, Marker> mVehicleMarkers;
 
-        /** Tracks trip IDs with in-flight schedule fetches to avoid duplicate requests. */
-        private final Set<String> mPendingScheduleFetches = java.util.concurrent.ConcurrentHashMap.newKeySet();
-
         private static final int INITIAL_HASHMAP_SIZE = 5;
 
         MarkerData() {
@@ -583,62 +574,22 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         }
 
         /**
-         * Fetches schedule and/or shape data in a background thread if not already cached.
+         * Ensures schedule and shape data are cached for this trip, fetching in the
+         * background if needed.
          */
         private void fetchScheduleAndShapeIfNeeded(ObaTripStatus status,
                                                     ObaTripsForRouteResponse response) {
-            TripDataManager dm = TripDataManager.getInstance();
             String tripId = status.getActiveTripId();
+            if (tripId == null) return;
+
+            TripRepository repo = TripRepository.getInstance();
+            repo.ensureSchedule(tripId);
+
             ObaTrip activeTripObj = response.getTrip(tripId);
             String shapeId = activeTripObj != null ? activeTripObj.getShapeId() : null;
-            boolean needSchedule = tripId != null
-                    && !dm.isScheduleCached(tripId)
-                    && !mPendingScheduleFetches.contains(tripId);
-            boolean needShape = tripId != null && shapeId != null
-                    && dm.getShape(tripId) == null;
-            if (!needSchedule && !needShape) return;
-
-            if (needSchedule) {
-                mPendingScheduleFetches.add(tripId);
+            if (shapeId != null) {
+                repo.ensureShape(tripId, shapeId);
             }
-            final Context ctx = Application.get().getApplicationContext();
-            final boolean fetchSchedule = needSchedule;
-            final boolean fetchShape = needShape;
-            new Thread(() -> {
-                try {
-                    if (fetchSchedule) {
-                        ObaTripDetailsResponse detailsResponse =
-                                new ObaTripDetailsRequest.Builder(ctx, tripId)
-                                        .setIncludeSchedule(true)
-                                        .setIncludeStatus(false)
-                                        .setIncludeTrip(false)
-                                        .build()
-                                        .call();
-                        if (detailsResponse != null) {
-                            ObaTripSchedule schedule = detailsResponse.getSchedule();
-                            if (schedule != null) {
-                                dm.putSchedule(tripId, schedule);
-                            }
-                        }
-                        mPendingScheduleFetches.remove(tripId);
-                    }
-                    if (fetchShape) {
-                        ObaShapeResponse shapeResponse =
-                                ObaShapeRequest.newRequest(ctx, shapeId).call();
-                        if (shapeResponse != null) {
-                            List<Location> points = shapeResponse.getPoints();
-                            if (points != null && !points.isEmpty()) {
-                                dm.putShape(tripId, points);
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    Log.w(TAG, "Failed to fetch schedule/shape for " + tripId, e);
-                    if (fetchSchedule) {
-                        mPendingScheduleFetches.remove(tripId);
-                    }
-                }
-            }).start();
         }
 
         /**

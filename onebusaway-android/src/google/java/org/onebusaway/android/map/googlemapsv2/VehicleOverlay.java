@@ -50,7 +50,6 @@ import org.onebusaway.android.io.elements.OccupancyState;
 import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
-import org.onebusaway.android.extrapolation.data.TripRepository;
 import org.onebusaway.android.extrapolation.math.ProbDistribution;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.ui.TripDetailsActivity;
@@ -669,13 +668,13 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             String tripId = status.getActiveTripId();
             if (tripId == null) return;
 
-            TripRepository repo = TripRepository.getInstance();
-            repo.ensureSchedule(tripId);
+            TripDataManager dm = TripDataManager.getInstance();
+            dm.ensureSchedule(tripId);
 
             ObaTrip activeTripObj = response.getTrip(tripId);
             String shapeId = activeTripObj != null ? activeTripObj.getShapeId() : null;
             if (shapeId != null) {
-                repo.ensureShape(tripId, shapeId);
+                dm.ensureShape(tripId, shapeId);
             }
         }
 

@@ -16,22 +16,34 @@
 package org.onebusaway.android.extrapolation.data
 
 import android.location.Location
+import android.util.Log
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
+import org.onebusaway.android.io.request.ObaShapeRequest
+import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.util.LocationUtils
 
 /**
  * Singleton that owns all per-trip data storage: vehicle position history, route shapes, schedules,
- * service dates, route types, and active trip ID tracking. Pure passive cache — callers push data
- * in, readers pull it out. Thread-safe via synchronized methods.
+ * service dates, route types, and active trip ID tracking. Also provides ensure* methods that
+ * fetch data from the API in the background if not cached. Thread-safe via synchronized methods
+ * and concurrent pending-fetch sets.
  */
 object TripDataManager {
+
+    private const val TAG = "TripDataManager"
 
     @JvmStatic fun getInstance() = this
 
     private val repository = AvlRepository
+    private val fetchExecutor = Executors.newFixedThreadPool(2)
+    private val pendingScheduleFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val pendingShapeFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val scheduleCache = HashMap<String, ObaTripSchedule>()
     private val serviceDateCache = HashMap<String, Long>()
     private val shapeCache = HashMap<String, List<Location>>()
@@ -124,6 +136,30 @@ object TripDataManager {
     fun isScheduleCached(tripId: String?): Boolean =
             tripId != null && scheduleCache.containsKey(tripId)
 
+    /** Fetches and caches the schedule in the background if not already cached or in-flight. */
+    fun ensureSchedule(tripId: String) {
+        if (isScheduleCached(tripId) || !pendingScheduleFetches.add(tripId)) return
+        fetchExecutor.execute {
+            try {
+                val ctx = Application.get().applicationContext
+                val response = ObaTripDetailsRequest.Builder(ctx, tripId)
+                        .setIncludeSchedule(true)
+                        .setIncludeStatus(false)
+                        .setIncludeTrip(false)
+                        .build()
+                        .call()
+                val schedule = response?.schedule
+                if (schedule != null) {
+                    putSchedule(tripId, schedule)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to fetch schedule for $tripId", e)
+            } finally {
+                pendingScheduleFetches.remove(tripId)
+            }
+        }
+    }
+
     // --- Service date cache ---
 
     /** Stores the service date for a trip. */
@@ -206,18 +242,35 @@ object TripDataManager {
         return ShapeData(points, cumDist)
     }
 
+    /** Fetches and caches the shape in the background if not already cached or in-flight. */
+    fun ensureShape(tripId: String, shapeId: String) {
+        if (getShape(tripId) != null || !pendingShapeFetches.add(tripId)) return
+        fetchExecutor.execute {
+            try {
+                val ctx = Application.get().applicationContext
+                val response = ObaShapeRequest.newRequest(ctx, shapeId).call()
+                val points = response?.points
+                if (points != null && points.isNotEmpty()) {
+                    putShape(tripId, points)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to fetch shape for $tripId", e)
+            } finally {
+                pendingShapeFetches.remove(tripId)
+            }
+        }
+    }
+
     // --- Route type cache ---
 
     /** Stores the route type for a trip ID. */
     @Synchronized
-    fun putRouteType(tripId: String?, type: Int) {
-        if (tripId != null) {
-            routeTypeCache[tripId] = type
-        }
+    fun putRouteType(tripId: String, type: Int) {
+        routeTypeCache[tripId] = type
     }
 
     /** Returns the cached route type for the given trip, or null if not cached. */
-    @Synchronized fun getRouteType(tripId: String?): Int? = tripId?.let { routeTypeCache[it] }
+    @Synchronized fun getRouteType(tripId: String): Int? = routeTypeCache[tripId]
 
     // --- Active trip ID tracking ---
 
@@ -234,8 +287,8 @@ object TripDataManager {
      * response has been processed yet.
      */
     @Synchronized
-    fun getLastActiveTripId(polledTripId: String?): String? =
-            polledTripId?.let { lastActiveTripId[it] }
+    fun getLastActiveTripId(polledTripId: String): String? =
+            lastActiveTripId[polledTripId]
 
     // --- Clear ---
 
@@ -249,6 +302,8 @@ object TripDataManager {
         shapeCumDistCache.clear()
         routeTypeCache.clear()
         lastActiveTripId.clear()
+        pendingScheduleFetches.clear()
+        pendingShapeFetches.clear()
     }
 
     // --- Private helpers ---

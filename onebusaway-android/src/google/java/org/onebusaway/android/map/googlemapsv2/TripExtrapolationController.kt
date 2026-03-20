@@ -80,7 +80,8 @@ internal constructor(private val renderer: TripMapRenderer, private val tripId: 
     private fun fetchFrameData(now: Long): FrameData? {
         val tripSnapshot = TripDataManager.getSnapshot(tripId)
         val shapeData = tripSnapshot.shapeData ?: return null
-        val distribution = VehicleTrajectoryTracker.getEstimatedDistribution(tripId, now, tripSnapshot)
+        val distribution =
+                VehicleTrajectoryTracker.getEstimatedDistribution(tripId, now, tripSnapshot)
         return FrameData(tripSnapshot, shapeData, distribution)
     }
 
@@ -110,11 +111,7 @@ internal constructor(private val renderer: TripMapRenderer, private val tripId: 
         } else {
             renderer.hideEstimateOverlays()
         }
-        renderer.showOrUpdateDataReceivedMarker(
-                tripId,
-                frame.shapeData.points,
-                frame.shapeData.cumulativeDistances,
-                frame.tripSnapshot.lastState
-        )
+        val lastState = frame.tripSnapshot.lastState ?: return
+        renderer.showOrUpdateDataReceivedMarker(lastState)
     }
 }

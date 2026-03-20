@@ -17,6 +17,7 @@ package org.onebusaway.android.extrapolation.data
 
 import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.request.ObaShapeRequest
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
@@ -32,6 +33,7 @@ object TripRepository {
 
     @JvmStatic fun getInstance() = this
 
+    private val executor = Executors.newFixedThreadPool(2)
     private val pendingScheduleFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val pendingShapeFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
@@ -42,7 +44,7 @@ object TripRepository {
      */
     fun ensureSchedule(tripId: String) {
         if (cache.isScheduleCached(tripId) || !pendingScheduleFetches.add(tripId)) return
-        Thread {
+        executor.execute {
             try {
                 val ctx = Application.get().applicationContext
                 val response = ObaTripDetailsRequest.Builder(ctx, tripId)
@@ -60,7 +62,7 @@ object TripRepository {
             } finally {
                 pendingScheduleFetches.remove(tripId)
             }
-        }.start()
+        }
     }
 
     /**
@@ -68,7 +70,7 @@ object TripRepository {
      */
     fun ensureShape(tripId: String, shapeId: String) {
         if (cache.getShape(tripId) != null || !pendingShapeFetches.add(tripId)) return
-        Thread {
+        executor.execute {
             try {
                 val ctx = Application.get().applicationContext
                 val response = ObaShapeRequest.newRequest(ctx, shapeId).call()
@@ -81,7 +83,7 @@ object TripRepository {
             } finally {
                 pendingShapeFetches.remove(tripId)
             }
-        }.start()
+        }
     }
 
     /** Clears pending-fetch state. */

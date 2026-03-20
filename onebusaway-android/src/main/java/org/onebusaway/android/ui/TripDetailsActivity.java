@@ -239,13 +239,11 @@ public class TripDetailsActivity extends AppCompatActivity
     public void showMap() {
         if (mCachedResponse == null || mTripId == null) return;
 
-        TripMapFragment mapFragment = TripMapFragment.newInstance(mTripId);
+        TripMapFragment mapFragment = TripMapFragment.newInstance(mTripId, mStopId);
         getSupportFragmentManager().beginTransaction()
                 .replace(R.id.fragment_container, mapFragment, TripMapFragment.TAG)
                 .commit();
 
-        getSupportFragmentManager().executePendingTransactions();
-        mapFragment.activateTrip(mTripId, mStopId, mCachedResponse);
         mShowingMap = true;
         updateToggleIcon();
     }

@@ -45,7 +45,7 @@
             </HorizontalScrollView>
         </ScrollView>
 
-        <org.onebusaway.android.ui.TrajectoryGraphView
+        <org.onebusaway.android.ui.dataview.TrajectoryGraphView
             android:id="@+id/location_data_graph"
             android:layout_width="match_parent"
             android:layout_height="match_parent"

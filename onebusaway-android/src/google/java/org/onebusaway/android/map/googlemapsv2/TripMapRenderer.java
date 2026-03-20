@@ -348,7 +348,8 @@ final class TripMapRenderer {
         boolean newData = updateTime != mLastDataReceivedUpdateTime;
 
         // Always refresh the elapsed-time snippet so it stays current
-        String label = formatElapsedTime(updateTime);
+        String label = updateTime > 0
+                ? UIUtils.formatElapsedTime(System.currentTimeMillis() - updateTime) : "";
         if (mDataReceivedIconMarker != null && !label.equals(mLastDataReceivedLabel)
                 && !mDataReceivedIconMarker.isInfoWindowShown()) {
             mDataReceivedIconMarker.setSnippet(label);
@@ -392,19 +393,6 @@ final class TripMapRenderer {
         }
         mLastDataReceivedLabel = null;
         mLastDataReceivedUpdateTime = 0;
-    }
-
-    private String formatElapsedTime(long lastUpdateTime) {
-        if (lastUpdateTime <= 0) return "";
-        long elapsedSec = TimeUnit.MILLISECONDS.toSeconds(
-                System.currentTimeMillis() - lastUpdateTime);
-        if (elapsedSec < 0) elapsedSec = 0;
-        if (elapsedSec < 60) {
-            return elapsedSec + " sec ago";
-        }
-        long elapsedMin = TimeUnit.SECONDS.toMinutes(elapsedSec);
-        long secMod60 = elapsedSec % 60;
-        return elapsedMin + " min " + secMod60 + " sec ago";
     }
 
     private BitmapDescriptor createDataReceivedCircleIcon() {

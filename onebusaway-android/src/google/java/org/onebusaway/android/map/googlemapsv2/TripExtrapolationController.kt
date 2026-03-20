@@ -103,8 +103,6 @@ internal constructor(private val renderer: TripMapRenderer, private val tripId: 
         if (frame.distribution != null) {
             renderer.updateEstimateOverlays(
                     frame.distribution,
-                    frame.shapeData.points,
-                    frame.shapeData.cumulativeDistances,
                     frame.tripSnapshot.newestValid,
                     now
             )

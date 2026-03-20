@@ -83,10 +83,10 @@ internal object TripMapRendererFactory {
                             routeColor,
                             routeType,
                             stopNames,
-                            selectedStopId
+                            selectedStopId,
+                            deviationColor,
+                            scheduleDeviation
                     )
-            renderer.deviationColor = deviationColor
-            renderer.scheduleDeviation = scheduleDeviation
             renderer.activate(vehiclePosition)
             onReady(renderer)
         }

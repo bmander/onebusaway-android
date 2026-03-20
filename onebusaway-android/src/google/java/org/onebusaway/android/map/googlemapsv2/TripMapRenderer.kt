@@ -62,7 +62,9 @@ internal constructor(
         private val routeColor: Int,
         private val routeType: Int?,
         private val stopNames: Map<String, String>,
-        private val selectedStopId: String?
+        private val selectedStopId: String?,
+        var deviationColor: Int = 0,
+        var scheduleDeviation: Long = 0
 ) {
     companion object {
         @JvmField val TRIP_BASE_WIDTH_PX = 44f
@@ -89,9 +91,6 @@ internal constructor(
     private var lastFixTime = 0L
     private var animatingUntil = 0L
 
-    var deviationColor = 0
-    var scheduleDeviation = 0L
-
     private var active = false
 
     // --- Lifecycle ---
@@ -101,7 +100,7 @@ internal constructor(
         active = true
 
         showTripPolyline(shape, routeColor)
-        showTripStopCircles(schedule, shape, cumDist, stopNames, selectedStopId)
+        showTripStopCircles()
         val lastState = TripDataManager.getLastState(tripId)
         if (lastState != null) {
             showOrUpdateDataReceivedMarker(lastState)
@@ -133,14 +132,7 @@ internal constructor(
 
     // --- Trip stop circles ---
 
-    private fun showTripStopCircles(
-            schedule: ObaTripSchedule?,
-            shape: List<Location>?,
-            cumDist: DoubleArray?,
-            stopNames: Map<String, String>?,
-            selectedStopId: String?
-    ) {
-        if (schedule == null || shape == null || cumDist == null) return
+    private fun showTripStopCircles() {
         val stopTimes = schedule.stopTimes ?: return
 
         val icon = makeStopCircleIcon()
@@ -162,7 +154,7 @@ internal constructor(
                     )
             if (m != null) {
                 tripStopMarkers.add(m)
-                val name = stopNames?.get(st.stopId) ?: st.stopId
+                val name = stopNames[st.stopId] ?: st.stopId
                 stopInfoMap[m] = StopInfo(name, st.arrivalTime)
             }
         }
@@ -297,8 +289,6 @@ internal constructor(
 
     fun updateEstimateOverlays(
             distribution: ProbDistribution?,
-            shape: List<Location>,
-            cumDist: DoubleArray,
             newestValid: ObaTripStatus?,
             now: Long
     ) {
@@ -368,7 +358,7 @@ internal constructor(
         val latLng = MapHelpV2.makeLatLng(pos)
 
         if (dataReceivedMarker != null) {
-            updateDataReceivedPosition(latLng)
+            dataReceivedMarker?.position = latLng
         } else {
             createDataReceivedMarker(latLng)
         }
@@ -384,10 +374,6 @@ internal constructor(
             marker.snippet = label
         }
         lastDataReceivedLabel = label
-    }
-
-    private fun updateDataReceivedPosition(latLng: LatLng) {
-        dataReceivedMarker?.position = latLng
     }
 
     private fun createDataReceivedMarker(latLng: LatLng) {

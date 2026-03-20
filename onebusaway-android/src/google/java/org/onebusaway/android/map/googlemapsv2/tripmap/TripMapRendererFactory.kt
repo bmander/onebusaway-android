@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.map.googlemapsv2
+package org.onebusaway.android.map.googlemapsv2.tripmap
 
+import org.onebusaway.android.map.googlemapsv2.MapHelpV2
+import org.onebusaway.android.map.googlemapsv2.VehicleOverlay
 import android.content.Context
 import android.os.Handler
 import android.os.Looper

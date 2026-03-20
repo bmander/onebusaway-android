@@ -33,7 +33,8 @@ import java.util.List;
 /**
  * Manages all estimate-related map overlays for a selected vehicle:
  * the fast estimate icon marker and the PDF opacity segments.
- * Computes quantile speeds once per param change and shares them.
+ * Recomputes quantile speeds every frame since the zero-inflation
+ * probability decays continuously with time since last AVL update.
  */
 public final class EstimateOverlayManager {
 
@@ -47,10 +48,9 @@ public final class EstimateOverlayManager {
     private final double mPdfHighQuantile;
 
     private final int mSegmentCount;
-    private ProbDistribution mCachedDistribution;
-    private double mCachedLabelSpeedHighMps;
-    private final double[] mCachedPdfEdgeSpeedsMps;
-    private final double[] mCachedPdfMidPdfValues;
+    private double mLabelSpeedHighMps;
+    private final double[] mPdfEdgeSpeedsMps;
+    private final double[] mPdfMidPdfValues;
 
     private Marker mFastEstimateMarker;
     private BitmapDescriptor mFastEstimateIcon;
@@ -75,8 +75,8 @@ public final class EstimateOverlayManager {
         mPdfOverlay = new PdfOverlayRenderer(map, segmentCount,
                 TripMapRenderer.TRIP_BASE_WIDTH_PX);
         mSegmentCount = segmentCount;
-        mCachedPdfEdgeSpeedsMps = new double[segmentCount + 1];
-        mCachedPdfMidPdfValues = new double[segmentCount];
+        mPdfEdgeSpeedsMps = new double[segmentCount + 1];
+        mPdfMidPdfValues = new double[segmentCount];
         mLabelHighQuantile = labelHighQuantile;
         mPdfLowQuantile = pdfLowQuantile;
         mPdfHighQuantile = pdfHighQuantile;
@@ -96,7 +96,6 @@ public final class EstimateOverlayManager {
                 .visible(false)
         );
         mPdfOverlay.create();
-        mCachedDistribution = null;
     }
 
     /** Removes all overlays from the map. */
@@ -107,7 +106,6 @@ public final class EstimateOverlayManager {
         }
         mFastEstimateIcon = null;
         mPdfOverlay.destroy();
-        mCachedDistribution = null;
     }
 
     /** Hides all overlays without removing them. */
@@ -122,24 +120,21 @@ public final class EstimateOverlayManager {
     public void update(ProbDistribution distribution,
                        List<Location> shape, double[] cumDist,
                        double lastDist, double dtSec, int baseColor) {
-        if (!distribution.equals(mCachedDistribution)) {
-            mCachedDistribution = distribution;
-            mCachedLabelSpeedHighMps = distribution.quantile(mLabelHighQuantile);
+        mLabelSpeedHighMps = distribution.quantile(mLabelHighQuantile);
 
-            for (int i = 0; i <= mSegmentCount; i++) {
-                double p = mPdfLowQuantile
-                        + (mPdfHighQuantile - mPdfLowQuantile) * i / mSegmentCount;
-                mCachedPdfEdgeSpeedsMps[i] = distribution.quantile(p);
-            }
-            for (int i = 0; i < mSegmentCount; i++) {
-                double midSpeedMps = (mCachedPdfEdgeSpeedsMps[i]
-                        + mCachedPdfEdgeSpeedsMps[i + 1]) / 2.0;
-                mCachedPdfMidPdfValues[i] = distribution.pdf(midSpeedMps);
-            }
+        for (int i = 0; i <= mSegmentCount; i++) {
+            double p = mPdfLowQuantile
+                    + (mPdfHighQuantile - mPdfLowQuantile) * i / mSegmentCount;
+            mPdfEdgeSpeedsMps[i] = distribution.quantile(p);
+        }
+        for (int i = 0; i < mSegmentCount; i++) {
+            double midSpeedMps = (mPdfEdgeSpeedsMps[i]
+                    + mPdfEdgeSpeedsMps[i + 1]) / 2.0;
+            mPdfMidPdfValues[i] = distribution.pdf(midSpeedMps);
         }
 
-        updateFastEstimatePosition(lastDist + mCachedLabelSpeedHighMps * dtSec, shape, cumDist);
-        mPdfOverlay.update(mCachedPdfEdgeSpeedsMps, mCachedPdfMidPdfValues,
+        updateFastEstimatePosition(lastDist + mLabelSpeedHighMps * dtSec, shape, cumDist);
+        mPdfOverlay.update(mPdfEdgeSpeedsMps, mPdfMidPdfValues,
                 lastDist, dtSec, baseColor, shape, cumDist);
     }
 

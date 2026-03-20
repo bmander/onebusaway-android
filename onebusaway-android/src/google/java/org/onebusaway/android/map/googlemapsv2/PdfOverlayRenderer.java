@@ -41,15 +41,21 @@ public final class PdfOverlayRenderer {
     private final float mWidthPx;
     private Polyline[] mSegments;
 
-    // Pre-allocated array to avoid per-frame allocation
+    // Pre-allocated arrays to avoid per-frame allocation
     private final double[] mSegDists;
     private final Location mReusableLoc = new Location("pdf");
+    /** Reusable point lists for each segment, cleared and refilled each frame. */
+    private final List<List<LatLng>> mSegmentPoints;
 
     public PdfOverlayRenderer(GoogleMap map, int segmentCount, float widthPx) {
         mMap = map;
         mSegmentCount = segmentCount;
         mWidthPx = widthPx;
         mSegDists = new double[segmentCount + 1];
+        mSegmentPoints = new ArrayList<>(segmentCount);
+        for (int i = 0; i < segmentCount; i++) {
+            mSegmentPoints.add(new ArrayList<>());
+        }
     }
 
     /** Creates the polyline segments on the map. */
@@ -116,7 +122,8 @@ public final class PdfOverlayRenderer {
     private void updateSegment(int index, double segStart, double segEnd,
                                double pdfValue, double maxPdf, int rgb,
                                List<Location> shape, double[] cumDist) {
-        List<LatLng> pts = new ArrayList<>();
+        List<LatLng> pts = mSegmentPoints.get(index);
+        pts.clear();
 
         if (!LocationUtils.interpolateAlongPolyline(
                 shape, cumDist, segStart, mReusableLoc)) {

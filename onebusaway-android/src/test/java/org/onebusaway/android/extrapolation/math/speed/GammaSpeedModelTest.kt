@@ -241,4 +241,46 @@ class GammaSpeedModelTest {
         assertEquals(2.0, d.alpha, 0.0)
         assertEquals(7.5, d.scale, 0.0)
     }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `GammaDistribution rejects negative alpha`() {
+        GammaDistribution(-1.0, 1.0)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `GammaDistribution rejects zero scale`() {
+        GammaDistribution(1.0, 0.0)
+    }
+
+    // --- SpeedDistributionFactory (makeGammaProbDistribution) ---
+
+    @Test
+    fun `factory produces distributions with consistent median`() {
+        val factory = makeGammaProbDistribution(mps15, mps15)
+        val dist1 = factory.at(10.0)
+        val dist2 = factory.at(100.0)
+        // Both should have positive median; longer dt = lower p0 = higher median
+        assertTrue("median at dt=10 should be positive", dist1.median() > 0)
+        assertTrue("median at dt=100 should be positive", dist2.median() > 0)
+        assertTrue("longer dt should give higher or equal median",
+                dist2.median() >= dist1.median())
+    }
+
+    @Test
+    fun `factory reuses frozen table across dt values`() {
+        val factory = makeGammaProbDistribution(mps20, mps10)
+        // Calling at() many times should not throw or produce NaN
+        val medians = (1..100).map { factory.at(it.toDouble()).median() }
+        assertTrue("all medians should be finite", medians.all { it.isFinite() })
+        assertTrue("medians should be monotonically non-decreasing",
+                medians.zipWithNext().all { (a, b) -> b >= a })
+    }
+
+    @Test
+    fun `factory at dt=0 has higher zero-inflation than dt=large`() {
+        val factory = makeGammaProbDistribution(mps15, mps15)
+        val atZero = factory.at(0.0) as ZeroInflatedGammaDistribution
+        val atLarge = factory.at(1000.0) as ZeroInflatedGammaDistribution
+        assertTrue("p0 at dt=0 > p0 at dt=1000", atZero.p0 > atLarge.p0)
+    }
 }

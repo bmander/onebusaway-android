@@ -18,9 +18,6 @@ package org.onebusaway.android.map.googlemapsv2
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
 import android.location.Location
 import android.os.Bundle
 import android.util.Log
@@ -36,7 +33,6 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.BitmapDescriptor
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import org.onebusaway.android.R
@@ -61,8 +57,6 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     companion object {
         const val TAG = "TripMapFragment"
         private const val DEFAULT_INITIAL_ZOOM = 12f
-        private const val ICON_SIZE_DP = 28
-        private const val ICON_PADDING_DP = 4
         private const val MARKER_Z_INDEX = 3f
 
         @JvmStatic
@@ -339,39 +333,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     }
 
     private fun createCircleIcon(drawableRes: Int): BitmapDescriptor {
-        val d = resources.displayMetrics.density
-        val sizePx = (ICON_SIZE_DP * d).toInt()
-        val padding = (ICON_PADDING_DP * d).toInt()
-        val strokeWidth = 2f * d
-
-        val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bmp)
-        val cx = sizePx / 2f
-        val cy = sizePx / 2f
-
-        // Stroke
-        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFF616161.toInt()
-            style = Paint.Style.STROKE
-            this.strokeWidth = strokeWidth
-        }
-        canvas.drawCircle(cx, cy, cx - strokeWidth / 2, strokePaint)
-
-        // Fill
-        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xDDFFFFFF.toInt()
-            style = Paint.Style.FILL
-        }
-        canvas.drawCircle(cx, cy, cx - strokeWidth, fillPaint)
-
-        // Icon
-        val icon = ContextCompat.getDrawable(requireContext(), drawableRes)
-        if (icon != null) {
-            icon.setBounds(padding, padding, sizePx - padding, sizePx - padding)
-            icon.draw(canvas)
-        }
-
-        return BitmapDescriptorFactory.fromBitmap(bmp)
+        return MapIconUtils.createCircleIcon(requireContext(), drawableRes)
     }
 
     private fun updateOverlays(tracker: VehicleTrajectoryTracker, now: Long) {

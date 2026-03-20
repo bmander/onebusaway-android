@@ -64,9 +64,6 @@ final class TripMapRenderer {
 
     private static final float DATA_RECEIVED_Z_INDEX = 3f;
     private static final String DATA_RECEIVED_TITLE = "Most recent data";
-    private static final int DATA_ICON_SIZE_DP = 28;
-    private static final int DATA_ICON_PADDING_DP = 4;
-    private static final float DATA_ICON_STROKE_DP = 2f;
 
     // --- Fields ---
 
@@ -429,39 +426,7 @@ final class TripMapRenderer {
     }
 
     private BitmapDescriptor createDataReceivedCircleIcon() {
-        float d = mContext.getResources().getDisplayMetrics().density;
-        int sizePx = (int) (DATA_ICON_SIZE_DP * d);
-        int padding = (int) (DATA_ICON_PADDING_DP * d);
-        float strokeWidth = DATA_ICON_STROKE_DP * d;
-        float cx = sizePx / 2f;
-        float cy = sizePx / 2f;
-
-        Bitmap bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(bmp);
-
-        // Stroke
-        Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        strokePaint.setColor(0xFF616161);
-        strokePaint.setStyle(Paint.Style.STROKE);
-        strokePaint.setStrokeWidth(strokeWidth);
-        c.drawCircle(cx, cy, cx - strokeWidth / 2, strokePaint);
-
-        // Fill
-        Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        fillPaint.setColor(0xDDFFFFFF);
-        fillPaint.setStyle(Paint.Style.FILL);
-        c.drawCircle(cx, cy, cx - strokeWidth, fillPaint);
-
-        // Icon
-        android.graphics.drawable.Drawable icon = ContextCompat.getDrawable(
-                mContext, R.drawable.ic_signal_indicator);
-        if (icon != null) {
-            icon.setTint(0xFF616161);
-            icon.setBounds(padding, padding, sizePx - padding, sizePx - padding);
-            icon.draw(c);
-        }
-
-        return BitmapDescriptorFactory.fromBitmap(bmp);
+        return MapIconUtils.createCircleIcon(mContext, R.drawable.ic_signal_indicator, 0xFF616161);
     }
 
 }

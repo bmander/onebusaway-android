@@ -112,6 +112,7 @@ public class TripDetailsListFragment extends ListFragment {
 
     public interface TripDataCallback {
         void onTripDataLoaded(ObaTripDetailsResponse response);
+        void onLocationDataAvailabilityChanged(boolean hasLocationData);
     }
 
     public static final String TRIP_ID = ".TripId";
@@ -600,9 +601,8 @@ public class TripDetailsListFragment extends ListFragment {
     }
 
     private void notifyLocationDataChanged() {
-        Activity activity = getActivity();
-        if (activity instanceof TripDetailsActivity) {
-            ((TripDetailsActivity) activity).setHasLocationData(mHasLocationData);
+        if (mTripDataCallback != null) {
+            mTripDataCallback.onLocationDataAvailabilityChanged(mHasLocationData);
         }
     }
 

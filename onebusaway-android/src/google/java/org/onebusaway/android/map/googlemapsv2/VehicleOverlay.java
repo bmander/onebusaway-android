@@ -822,10 +822,12 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             // Info window is always rendered on a white background, so force dark text
             // to avoid white-on-white in dark mode
             TextView routeView = (TextView) view.findViewById(R.id.route_and_destination);
-            routeView.setTextColor(ContextCompat.getColor(mContext, R.color.body_text_1));
+            // Google Maps info windows always have a white background regardless of theme,
+            // so force dark text to avoid white-on-white in dark mode
+            routeView.setTextColor(0xDE000000); // 87% black, Material dark-on-light primary
             TextView statusView = (TextView) view.findViewById(R.id.status);
             TextView lastUpdatedView = (TextView) view.findViewById(R.id.last_updated);
-            lastUpdatedView.setTextColor(ContextCompat.getColor(mContext, R.color.body_text_2));
+            lastUpdatedView.setTextColor(0x8A000000); // 54% black, Material dark-on-light secondary
             ImageView moreView = (ImageView) view.findViewById(R.id.trip_more_info);
             moreView.setColorFilter(r.getColor(R.color.switch_thumb_normal_material_dark));
             ViewGroup occupancyView = view.findViewById(R.id.occupancy);

@@ -16,17 +16,10 @@
 package org.onebusaway.android.map.googlemapsv2;
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.drawable.Drawable;
 import android.location.Location;
-
-import androidx.core.content.ContextCompat;
 
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.model.BitmapDescriptor;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
@@ -43,9 +36,6 @@ import java.util.List;
 public final class EstimateLabelManager {
 
     static final float INFO_LABEL_Z_INDEX = 3f;
-    private static final int ICON_SIZE_DP = 28;
-    private static final int ICON_PADDING_DP = 4;
-    private static final float STROKE_WIDTH_DP = 2f;
 
     private final GoogleMap mMap;
     private final Context mContext;
@@ -127,40 +117,7 @@ public final class EstimateLabelManager {
         return false;
     }
 
-    /**
-     * Creates a circular icon with the vector drawable centered inside.
-     */
     private BitmapDescriptor createCircleIcon() {
-        float d = mContext.getResources().getDisplayMetrics().density;
-        int sizePx = (int) (ICON_SIZE_DP * d);
-        int padding = (int) (ICON_PADDING_DP * d);
-        float strokeWidth = STROKE_WIDTH_DP * d;
-        float cx = sizePx / 2f;
-        float cy = sizePx / 2f;
-
-        Bitmap bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bmp);
-
-        // Stroke
-        Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        strokePaint.setColor(0xFF616161);
-        strokePaint.setStyle(Paint.Style.STROKE);
-        strokePaint.setStrokeWidth(strokeWidth);
-        canvas.drawCircle(cx, cy, cx - strokeWidth / 2, strokePaint);
-
-        // Fill
-        Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        fillPaint.setColor(0xDDFFFFFF);
-        fillPaint.setStyle(Paint.Style.FILL);
-        canvas.drawCircle(cx, cy, cx - strokeWidth, fillPaint);
-
-        // Icon
-        Drawable icon = ContextCompat.getDrawable(mContext, R.drawable.ic_fast_estimate);
-        if (icon != null) {
-            icon.setBounds(padding, padding, sizePx - padding, sizePx - padding);
-            icon.draw(canvas);
-        }
-
-        return BitmapDescriptorFactory.fromBitmap(bmp);
+        return MapIconUtils.createCircleIcon(mContext, R.drawable.ic_fast_estimate);
     }
 }

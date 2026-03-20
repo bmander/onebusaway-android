@@ -178,7 +178,7 @@ public class TripDetailsActivity extends AppCompatActivity
             VehicleLocationDataActivity.start(this, mTripId, null, mStopId);
             return true;
         }
-        return false;
+        return super.onOptionsItemSelected(item);
     }
 
     private void updateToggleIcon() {
@@ -194,8 +194,8 @@ public class TripDetailsActivity extends AppCompatActivity
         mToggleItem.setEnabled(mShowingMap || mCachedResponse != null);
     }
 
-    /** Called by TripDetailsListFragment when location data availability changes. */
-    public void setHasLocationData(boolean hasLocationData) {
+    @Override
+    public void onLocationDataAvailabilityChanged(boolean hasLocationData) {
         mHasLocationData = hasLocationData;
         updateLocationDataVisibility();
     }

@@ -17,6 +17,7 @@ package org.onebusaway.android.map.googlemapsv2.tripmap
 
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.location.Location
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -52,16 +53,16 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         @JvmStatic
         fun newInstance(tripId: String, stopId: String? = null): TripMapFragment {
             val options = GoogleMapOptions()
-            val shape = TripDataManager.getShape(tripId)
-            val bounds = MapHelpV2.getBounds(shape)
-            if (bounds != null) {
+            MapHelpV2.getBounds(TripDataManager.getShape(tripId))?.let { bounds ->
                 options.camera(CameraPosition(bounds.center, DEFAULT_INITIAL_ZOOM, 0f, 0f))
             }
-            val args = Bundle()
-            args.putParcelable("MapOptions", options)
-            args.putString(ARG_TRIP_ID, tripId)
-            if (stopId != null) args.putString(ARG_STOP_ID, stopId)
-            return TripMapFragment().apply { arguments = args }
+            return TripMapFragment().apply {
+                arguments = Bundle().apply {
+                    putParcelable("MapOptions", options)
+                    putString(ARG_TRIP_ID, tripId)
+                    stopId?.let { putString(ARG_STOP_ID, it) }
+                }
+            }
         }
     }
 
@@ -72,6 +73,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     private var tripRenderer: TripMapRenderer? = null
     private var extrapolationController: TripExtrapolationController? = null
     private val poller = TripDetailsPoller()
+    private var activated = false
 
     // --- Lifecycle ---
 
@@ -95,8 +97,10 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
 
     override fun onResume() {
         super.onResume()
-        extrapolationController?.start()
-        poller.start(tripId)
+        if (activated) {
+            extrapolationController?.start()
+            poller.start(tripId)
+        }
     }
 
     override fun onPause() {
@@ -112,6 +116,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         tripRenderer?.deactivate()
         tripRenderer = null
         map = null
+        activated = false
         super.onDestroyView()
     }
 
@@ -119,8 +124,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
 
     private fun activate() {
         val m = map ?: return
-        val response = TripDataManager.getTripDetails(tripId)
-        if (response == null) {
+        val response = TripDataManager.getTripDetails(tripId) ?: run {
             Log.w(TAG, "No cached trip details for $tripId")
             return
         }
@@ -128,22 +132,21 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         tripRenderer?.deactivate()
         extrapolationController?.stop()
 
-        poller.start(tripId)
-
         TripMapRendererFactory.create(m, requireContext(), tripId,
-                selectedStopId, response) { renderer ->
-            tripRenderer = renderer
-            extrapolationController = TripExtrapolationController(renderer, tripId)
-            fitCameraToShape()
-            extrapolationController?.start()
-        }
+                selectedStopId, response, ::onRendererReady)
     }
 
-    private fun fitCameraToShape() {
-        val renderer = tripRenderer ?: return
+    private fun onRendererReady(renderer: TripMapRenderer) {
+        tripRenderer = renderer
+        extrapolationController = TripExtrapolationController(renderer, tripId).also { it.start() }
+        poller.start(tripId)
+        activated = true
+        fitCameraToShape(renderer.shape)
+    }
+
+    private fun fitCameraToShape(shape: List<Location>) {
         val m = map ?: return
-        val sd = TripDataManager.getShapeWithDistances(renderer.tripId) ?: return
-        val bounds = MapHelpV2.getBounds(sd.points) ?: return
+        val bounds = MapHelpV2.getBounds(shape) ?: return
         try {
             m.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
         } catch (e: Exception) {
@@ -155,10 +158,9 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
 
     override fun onMarkerClick(marker: Marker): Boolean {
         val renderer = tripRenderer ?: return false
-        if (renderer.handleDataReceivedClick(marker)) return true
-        if (renderer.handleEstimateLabelClick(marker)) return true
-        if (renderer.handleStopMarkerClick(marker)) return true
-        return false
+        return renderer.handleDataReceivedClick(marker)
+                || renderer.handleEstimateLabelClick(marker)
+                || renderer.handleStopMarkerClick(marker)
     }
 
     private fun hasLocationPermission(): Boolean {

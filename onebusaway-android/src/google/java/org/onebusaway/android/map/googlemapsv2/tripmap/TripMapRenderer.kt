@@ -60,7 +60,7 @@ internal constructor(
         private val map: GoogleMap,
         private val context: Context,
         val tripId: String,
-        private val shape: List<Location>,
+        val shape: List<Location>,
         private val cumDist: DoubleArray,
         private val schedule: ObaTripSchedule,
         private val routeColor: Int,

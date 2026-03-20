@@ -774,7 +774,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         }
 
         synchronized int size() {
-            return mVehicleMarkers.size();
+            return mVehicleMarkers != null ? mVehicleMarkers.size() : 0;
         }
     }
 

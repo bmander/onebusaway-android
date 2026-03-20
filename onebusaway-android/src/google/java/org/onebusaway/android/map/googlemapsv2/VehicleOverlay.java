@@ -488,7 +488,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
     private void showDataReceivedMarker(ObaTripStatus status) {
         removeDataReceivedMarker();
 
-        if (!status.isPredicted()) return;
+        if (!status.isPredicted() || status.getLastLocationUpdateTime() <= 0) return;
         Location loc = status.getPosition();
         if (loc == null) return;
 

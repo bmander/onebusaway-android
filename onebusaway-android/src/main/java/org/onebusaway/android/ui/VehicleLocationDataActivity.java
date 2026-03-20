@@ -232,10 +232,8 @@ public class VehicleLocationDataActivity extends AppCompatActivity {
         Long serviceDate = dm.getServiceDate(mTripId);
         ProbDistribution distribution = null;
         if (!tripEnded) {
-            // getEstimatedSpeed populates distribution as a side effect
-            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-            tracker.getEstimatedSpeed(mTripId);
-            distribution = tracker.getLastDistribution();
+            distribution = VehicleTrajectoryTracker.getInstance()
+                    .getEstimatedDistribution(mTripId, System.currentTimeMillis());
         }
         mGraphView.setData(history, schedule, serviceDate != null ? serviceDate : 0,
                 distribution);

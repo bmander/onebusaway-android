@@ -37,8 +37,6 @@ object VehicleTrajectoryTracker {
     private val dataManager = TripDataManager
     private val scheduleEstimator = ScheduleSpeedEstimator(dataManager)
     private var estimator: SpeedEstimator = GammaSpeedEstimator(dataManager)
-    private var lastDistribution: ProbDistribution? = null
-
     /**
      * Returns the estimated speed distribution for the given trip. Uses the route type from
      * TripDataManager to select the appropriate estimator.
@@ -58,7 +56,6 @@ object VehicleTrajectoryTracker {
                     is SpeedEstimateResult.Success -> result.distribution
                     is SpeedEstimateResult.Failure -> null
                 }
-        lastDistribution = dist
         return dist
     }
 
@@ -77,9 +74,6 @@ object VehicleTrajectoryTracker {
         val last = dataManager.getLastState(tripId) ?: return false
         return queryTimeMs - last.lastLocationUpdateTime <= MAX_EXTRAPOLATION_AGE_MS
     }
-
-    /** Returns the distribution from the last speed estimate. */
-    @Synchronized fun getLastDistribution(): ProbDistribution? = lastDistribution
 
     /** Sets the active speed estimator. */
     @Synchronized
@@ -111,7 +105,6 @@ object VehicleTrajectoryTracker {
     /** Clears estimation state. */
     @Synchronized
     fun clearAll() {
-        lastDistribution = null
     }
 }
 

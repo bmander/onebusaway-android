@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.extrapolation.math.speed
 
+import org.onebusaway.android.extrapolation.data.TripDataManager
+
 /** Interface for estimating the speed of a transit vehicle. */
 interface SpeedEstimator {
 
@@ -26,4 +28,12 @@ interface SpeedEstimator {
      * @return a [SpeedEstimateResult] containing either a speed distribution (m/s) or an error
      */
     fun estimateSpeed(tripId: String, queryTime: Long): SpeedEstimateResult
+
+    /**
+     * Estimates speed using a pre-fetched snapshot to avoid repeated TripDataManager lookups.
+     * Default implementation ignores the snapshot and delegates to the standard method.
+     */
+    fun estimateSpeed(tripId: String, queryTime: Long,
+                      snapshot: TripDataManager.TripSnapshot): SpeedEstimateResult =
+            estimateSpeed(tripId, queryTime)
 }

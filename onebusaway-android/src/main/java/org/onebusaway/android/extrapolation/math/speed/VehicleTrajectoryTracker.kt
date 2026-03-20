@@ -69,6 +69,22 @@ object VehicleTrajectoryTracker {
     fun getEstimatedSpeed(tripId: String): Double? =
             getEstimatedSpeed(tripId, System.currentTimeMillis())
 
+    /** Snapshot-based overload that avoids separate TripDataManager lookups. */
+    @Synchronized
+    fun getEstimatedDistribution(tripId: String, queryTime: Long,
+                                  snapshot: TripDataManager.TripSnapshot): ProbDistribution? {
+        val est = if (snapshot.routeType != null && ObaRoute.isGradeSeparated(snapshot.routeType)) {
+            scheduleEstimator
+        } else {
+            estimator
+        }
+        val result = est.estimateSpeed(tripId, queryTime, snapshot)
+        return when (result) {
+            is SpeedEstimateResult.Success -> result.distribution
+            is SpeedEstimateResult.Failure -> null
+        }
+    }
+
     /** Returns true if the tracker has recent enough AVL data to extrapolate this trip. */
     fun isSpeedEstimable(tripId: String, queryTimeMs: Long): Boolean {
         val last = dataManager.getLastState(tripId) ?: return false
@@ -94,11 +110,11 @@ object VehicleTrajectoryTracker {
      */
     @Synchronized
     fun extrapolatePosition(tripId: String, currentTimeMs: Long, out: Location): Boolean {
-        val sd = dataManager.getShapeWithDistances(tripId) ?: return false
+        val snapshot = dataManager.getSnapshot(tripId)
+        val sd = snapshot.shapeData ?: return false
         if (sd.points.isEmpty()) return false
-        val speed = getEstimatedSpeed(tripId) ?: return false
-        val newest = dataManager.getNewestValidEntry(tripId)
-        val dist = extrapolateDistance(newest, speed, currentTimeMs) ?: return false
+        val speed = getEstimatedDistribution(tripId, currentTimeMs, snapshot)?.median() ?: return false
+        val dist = extrapolateDistance(snapshot.newestValid, speed, currentTimeMs) ?: return false
         return LocationUtils.interpolateAlongPolyline(sd.points, sd.cumulativeDistances, dist, out)
     }
 

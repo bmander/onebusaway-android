@@ -16,6 +16,7 @@
 package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 
@@ -38,25 +39,28 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
     private val factoryCache = HashMap<String, CachedFactory>()
 
     override fun estimateSpeed(tripId: String, queryTime: Long): SpeedEstimateResult {
-        // Use getLastState for the cache check — avoids copying the full history list
-        // on every frame. The full mostRecentAvlFixes call only runs on cache miss.
         val lastState = dataManager.getLastState(tripId)
-                ?: return SpeedEstimateResult.Failure(
-                        SpeedEstimateError.InsufficientData("No AVL fixes for trip")
-                )
+        val schedule = dataManager.getSchedule(tripId)
+        return estimateSpeedCore(tripId, queryTime, lastState, schedule)
+    }
+
+    override fun estimateSpeed(tripId: String, queryTime: Long,
+                               snapshot: TripDataManager.TripSnapshot): SpeedEstimateResult =
+            estimateSpeedCore(tripId, queryTime, snapshot.lastState, snapshot.schedule)
+
+    private fun estimateSpeedCore(tripId: String, queryTime: Long,
+                                   lastState: ObaTripStatus?,
+                                   schedule: ObaTripSchedule?): SpeedEstimateResult {
+        if (lastState == null) return SpeedEstimateResult.Failure(
+                SpeedEstimateError.InsufficientData("No AVL fixes for trip"))
 
         val lastFixTime = lastState.lastLocationUpdateTime
         val dtSeconds = (queryTime - lastFixTime) / 1000.0
-        if (dtSeconds < 0)
-                return SpeedEstimateResult.Failure(
-                        SpeedEstimateError.TimestampOutOfBounds("Query time is before last AVL fix")
-                )
-        if (dtSeconds * 1000 > MAX_HORIZON_MS)
-                return SpeedEstimateResult.Failure(
-                        SpeedEstimateError.TimestampOutOfBounds("Query time exceeds max horizon")
-                )
+        if (dtSeconds < 0) return SpeedEstimateResult.Failure(
+                SpeedEstimateError.TimestampOutOfBounds("Query time is before last AVL fix"))
+        if (dtSeconds * 1000 > MAX_HORIZON_MS) return SpeedEstimateResult.Failure(
+                SpeedEstimateError.TimestampOutOfBounds("Query time exceeds max horizon"))
 
-        // Reuse the factory if the AVL data hasn't changed
         val cached = factoryCache[tripId]
         val factory = if (cached != null && cached.lastFixTime == lastFixTime) {
             cached.factory
@@ -64,7 +68,7 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
             val fixes = dataManager.mostRecentAvlFixes(tripId).take(2).toList()
             val prevSpeed = computeAvlSpeed(fixes)
             val scheduleSpeed =
-                    when (val result = scheduleEstimator.estimateSpeed(tripId, queryTime)) {
+                    when (val result = scheduleEstimator.estimateSpeedCore(lastState, schedule, queryTime)) {
                         is SpeedEstimateResult.Failure -> return result
                         is SpeedEstimateResult.Success -> result.distribution.mean
                     }

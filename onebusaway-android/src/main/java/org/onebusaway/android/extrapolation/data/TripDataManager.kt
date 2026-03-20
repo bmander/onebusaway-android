@@ -146,6 +146,33 @@ object TripDataManager {
     )
 
     /**
+     * Read-only snapshot of all per-trip data needed for extrapolation, fetched in a single
+     * synchronized call. Avoids multiple separate lock acquisitions per frame.
+     */
+    data class TripSnapshot(
+            @JvmField val shapeData: ShapeData?,
+            @JvmField val routeType: Int?,
+            @JvmField val lastState: ObaTripStatus?,
+            @JvmField val newestValid: ObaTripStatus?,
+            @JvmField val schedule: ObaTripSchedule?
+    )
+
+    /** Fetches all extrapolation-related data for a trip in one synchronized call. */
+    @Synchronized
+    fun getSnapshot(tripId: String): TripSnapshot {
+        val points = shapeCache[tripId]
+        val cumDist = shapeCumDistCache[tripId]
+        val shapeData = if (points != null && cumDist != null) ShapeData(points, cumDist) else null
+        return TripSnapshot(
+                shapeData = shapeData,
+                routeType = routeTypeCache[tripId],
+                lastState = repository.getLastState(tripId),
+                newestValid = repository.getNewestValidEntry(tripId),
+                schedule = scheduleCache[tripId]
+        )
+    }
+
+    /**
      * Stores the decoded polyline points for a trip's shape, and precomputes cumulative distances
      * for fast interpolation.
      */

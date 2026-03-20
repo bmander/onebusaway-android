@@ -17,6 +17,8 @@ package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.DiracDistribution
+import org.onebusaway.android.io.elements.ObaTripSchedule
+import org.onebusaway.android.io.elements.ObaTripStatus
 
 /**
  * Estimates speed using the trip schedule: finds the two stops bracketing the vehicle's current
@@ -25,13 +27,22 @@ import org.onebusaway.android.extrapolation.math.DiracDistribution
 class ScheduleSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstimator {
 
     override fun estimateSpeed(tripId: String, queryTime: Long): SpeedEstimateResult {
-        val status =
-                dataManager.getLastState(tripId)
-                        ?: return SpeedEstimateResult.Failure(
-                                SpeedEstimateError.InsufficientData("No state for trip")
-                        )
+        val status = dataManager.getLastState(tripId)
+        val schedule = dataManager.getSchedule(tripId)
+        return estimateSpeedCore(status, schedule, queryTime)
+    }
 
-        // Validate queryTime is not before the status was recorded
+    override fun estimateSpeed(tripId: String, queryTime: Long,
+                               snapshot: TripDataManager.TripSnapshot): SpeedEstimateResult =
+            estimateSpeedCore(snapshot.lastState, snapshot.schedule, queryTime)
+
+    internal fun estimateSpeedCore(
+            status: ObaTripStatus?,
+            schedule: ObaTripSchedule?,
+            queryTime: Long): SpeedEstimateResult {
+        if (status == null) return SpeedEstimateResult.Failure(
+                SpeedEstimateError.InsufficientData("No state for trip"))
+
         if (queryTime < status.lastLocationUpdateTime) {
             return SpeedEstimateResult.Failure(
                     SpeedEstimateError.TimestampOutOfBounds("Query time is before vehicle state")
@@ -46,13 +57,9 @@ class ScheduleSpeedEstimator(private val dataManager: TripDataManager) : SpeedEs
                                 )
                         )
 
-        val schedule =
-                dataManager.getSchedule(tripId)
-                        ?: return SpeedEstimateResult.Failure(
-                                SpeedEstimateError.InsufficientData(
-                                        "No schedule available for trip"
-                                )
-                        )
+        if (schedule == null) return SpeedEstimateResult.Failure(
+                SpeedEstimateError.InsufficientData("No schedule available for trip")
+        )
 
         val stopTimes = schedule.stopTimes
         if (stopTimes == null || stopTimes.size < 2) {

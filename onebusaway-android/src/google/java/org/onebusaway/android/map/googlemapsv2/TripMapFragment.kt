@@ -309,18 +309,17 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
 
         val tracker = VehicleTrajectoryTracker
 
-        // Fetch shared data once for both vehicle marker and overlay updates
-        val sd = TripDataManager.getShapeWithDistances(tid)
+        // Fetch all trip data in a single synchronized call
+        val snapshot = TripDataManager.getSnapshot(tid)
+        val sd = snapshot.shapeData
         if (sd == null) {
             Choreographer.getInstance().postFrameCallback(frameCallback)
             return
         }
-        val newestValid = TripDataManager.getNewestValidEntry(tid)
-        val lastState = TripDataManager.getLastState(tid)
-        val distribution = tracker.getEstimatedDistribution(tid, now)
+        val distribution = tracker.getEstimatedDistribution(tid, now, snapshot)
 
-        extrapolateVehicleMarker(tracker, sd, newestValid, distribution, now)
-        updateOverlays(tid, sd, newestValid, lastState, distribution, now)
+        extrapolateVehicleMarker(tracker, sd, snapshot.newestValid, distribution, now)
+        updateOverlays(tid, sd, snapshot.newestValid, snapshot.lastState, distribution, now)
 
         Choreographer.getInstance().postFrameCallback(frameCallback)
     }

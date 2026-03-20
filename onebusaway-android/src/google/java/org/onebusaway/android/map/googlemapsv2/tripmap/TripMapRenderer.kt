@@ -16,11 +16,13 @@
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
 import android.content.Context
+import android.util.Log
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.location.Location
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
@@ -110,6 +112,15 @@ class TripMapRenderer internal constructor(
             showOrUpdateDataReceivedMarker(it, System.currentTimeMillis())
         }
         createEstimateOverlays(vehiclePosition)
+    }
+
+    fun fitCameraToShape() {
+        val bounds = MapHelpV2.getBounds(shape) ?: return
+        try {
+            map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
+        } catch (e: Exception) {
+            Log.w("TripMapRenderer", "Failed to fit camera to shape bounds", e)
+        }
     }
 
     fun deactivate() {

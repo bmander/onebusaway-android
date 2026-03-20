@@ -17,12 +17,10 @@ package org.onebusaway.android.map.googlemapsv2.tripmap
 
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
-import android.location.Location
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import androidx.core.content.ContextCompat
-import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.GoogleMapOptions
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -141,17 +139,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         extrapolationController = TripExtrapolationController(renderer, tripId).also { it.start() }
         poller.start(tripId)
         activated = true
-        fitCameraToShape(renderer.shape)
-    }
-
-    private fun fitCameraToShape(shape: List<Location>) {
-        val m = map ?: return
-        val bounds = MapHelpV2.getBounds(shape) ?: return
-        try {
-            m.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to fit camera to shape bounds", e)
-        }
+        renderer.fitCameraToShape()
     }
 
     // --- Marker click handling ---

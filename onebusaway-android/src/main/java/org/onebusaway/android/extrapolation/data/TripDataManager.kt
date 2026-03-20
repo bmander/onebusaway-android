@@ -87,6 +87,12 @@ object TripDataManager {
         return repository.getLastState(activeTripId)
     }
 
+    /** Returns the newest entry with valid bestDistanceAlongTrip. O(1) cached lookup. */
+    fun getNewestValidEntry(activeTripId: String?): ObaTripStatus? {
+        if (activeTripId == null) return null
+        return repository.getNewestValidEntry(activeTripId)
+    }
+
     /** Returns the set of all trip IDs that have recorded AVL history. */
     fun getTrackedTripIds(): Set<String> = repository.getTrackedTripIds()
 

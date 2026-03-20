@@ -547,15 +547,15 @@ public class TripDetailsListFragment extends ListFragment {
             return;
         }
 
-        List<ObaTripStatus> history = dm.getHistory(activeTripId);
+        ObaTripStatus newestValid = dm.getNewestValidEntry(activeTripId);
         Double speed = VehicleTrajectoryTracker.getInstance().getEstimatedSpeed(activeTripId);
-        if (history == null || speed == null) {
+        if (newestValid == null || speed == null) {
             mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
             return;
         }
 
         Double extrapolatedDist = VehicleTrajectoryTrackerKt.extrapolateDistance(
-                history, speed, System.currentTimeMillis());
+                newestValid, speed, System.currentTimeMillis());
         if (extrapolatedDist == null) {
             mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
             return;

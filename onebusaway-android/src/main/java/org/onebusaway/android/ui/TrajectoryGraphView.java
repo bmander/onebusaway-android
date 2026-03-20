@@ -51,6 +51,7 @@ public class TrajectoryGraphView extends View {
     private static final int BG_COLOR = Color.parseColor("#1A1A1A");
 
     private List<ObaTripStatus> mHistory = new ArrayList<>();
+    private ObaTripStatus mNewestValidEntry;
     private ObaTripSchedule mSchedule;
     private long mServiceDate;
     private long mCurrentTime = System.currentTimeMillis();
@@ -328,6 +329,7 @@ public class TrajectoryGraphView extends View {
                         long serviceDate,
                         ProbDistribution distribution) {
         mHistory = history != null ? new ArrayList<>(history) : new ArrayList<>();
+        mNewestValidEntry = findNewestValidEntry(mHistory);
         mSchedule = schedule;
         mServiceDate = serviceDate;
         mDistribution = distribution;
@@ -600,7 +602,7 @@ public class TrajectoryGraphView extends View {
         if (mEstimatedSpeedMps <= 0 || lastDist == null || mCurrentTime <= lastTime) return;
 
         Double extrapolated = VehicleTrajectoryTrackerKt.extrapolateDistance(
-                mHistory, mEstimatedSpeedMps, mCurrentTime);
+                mNewestValidEntry, mEstimatedSpeedMps, mCurrentTime);
         double extrapolatedDist = extrapolated != null ? extrapolated : lastDist;
         float x1 = toPixelX(lastDist);
         float y1 = toPixelY(lastTime);
@@ -784,5 +786,16 @@ public class TrajectoryGraphView extends View {
         if (residual <= 3.5) return 2 * magnitude;
         if (residual <= 7.5) return 5 * magnitude;
         return 10 * magnitude;
+    }
+
+    private static ObaTripStatus findNewestValidEntry(List<ObaTripStatus> history) {
+        for (int i = history.size() - 1; i >= 0; i--) {
+            ObaTripStatus s = history.get(i);
+            if (ObaTripStatusExtensionsKt.getBestDistanceAlongTrip(s) != null
+                    && s.getLastLocationUpdateTime() > 0) {
+                return s;
+            }
+        }
+        return null;
     }
 }

@@ -19,6 +19,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
 import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 
 /**
  * Centralized AVL (Automatic Vehicle Location) data store. Owns all vehicle history entries and
@@ -32,6 +33,9 @@ object AvlRepository {
 
     /** Primary store: tripId -> ordered list of trip statuses. */
     private val tripHistory = mutableMapOf<String, MutableList<ObaTripStatus>>()
+
+    /** Cached newest entry with valid bestDistanceAlongTrip, per trip. */
+    private val newestValidEntry = mutableMapOf<String, ObaTripStatus>()
 
     /**
      * Records a trip status snapshot for a trip. Deduplicates by lastLocationUpdateTime -- only
@@ -55,6 +59,11 @@ object AvlRepository {
 
             history.add(status)
 
+            // Update the cached newest-valid entry if the new status has distance data
+            if (status.bestDistanceAlongTrip != null) {
+                newestValidEntry[tripId] = status
+            }
+
             if (history.size > MAX_ENTRIES_PER_TRIP) {
                 history.subList(0, history.size - MAX_ENTRIES_PER_TRIP).clear()
             }
@@ -74,11 +83,18 @@ object AvlRepository {
     fun getLastState(tripId: String): ObaTripStatus? =
             lock.read { tripHistory[tripId]?.lastOrNull() }
 
+    /** Returns the newest entry with valid bestDistanceAlongTrip, or null. O(1) cached lookup. */
+    fun getNewestValidEntry(tripId: String): ObaTripStatus? =
+            lock.read { newestValidEntry[tripId] }
+
     /** Returns the set of all trip IDs that have recorded history. */
     fun getTrackedTripIds(): Set<String> = lock.read { tripHistory.keys.toSet() }
 
     // --- Lifecycle ---
 
     /** Clears all stored data. */
-    fun clearAll() = lock.write { tripHistory.clear() }
+    fun clearAll() = lock.write {
+        tripHistory.clear()
+        newestValidEntry.clear()
+    }
 }

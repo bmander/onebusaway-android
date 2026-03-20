@@ -97,8 +97,8 @@ object VehicleTrajectoryTracker {
         val sd = dataManager.getShapeWithDistances(tripId) ?: return false
         if (sd.points.isEmpty()) return false
         val speed = getEstimatedSpeed(tripId) ?: return false
-        val history = dataManager.getHistory(tripId)
-        val dist = extrapolateDistance(history, speed, currentTimeMs) ?: return false
+        val newest = dataManager.getNewestValidEntry(tripId)
+        val dist = extrapolateDistance(newest, speed, currentTimeMs) ?: return false
         return LocationUtils.interpolateAlongPolyline(sd.points, sd.cumulativeDistances, dist, out)
     }
 
@@ -108,14 +108,14 @@ object VehicleTrajectoryTracker {
      */
     fun extrapolatePosition(
             shapeData: TripDataManager.ShapeData,
-            history: List<ObaTripStatus>,
+            newestValid: ObaTripStatus?,
             distribution: ProbDistribution,
             currentTimeMs: Long,
             out: Location
     ): Boolean {
         if (shapeData.points.isEmpty()) return false
         val speed = distribution.median()
-        val dist = extrapolateDistance(history, speed, currentTimeMs) ?: return false
+        val dist = extrapolateDistance(newestValid, speed, currentTimeMs) ?: return false
         return LocationUtils.interpolateAlongPolyline(
                 shapeData.points, shapeData.cumulativeDistances, dist, out)
     }
@@ -131,20 +131,17 @@ object VehicleTrajectoryTracker {
  * Extrapolates the current distance along the trip based on the newest valid history entry and
  * estimated speed. Returns null if extrapolation is not possible.
  *
- * @param history vehicle history entries for the trip
+ * @param newest the newest history entry with valid distance data (from TripDataManager.getNewestValidEntry)
  * @param speedMps estimated speed in meters per second
  * @param currentTimeMs current time in milliseconds
  * @return extrapolated distance in meters, or null
  */
 fun extrapolateDistance(
-        history: List<ObaTripStatus>?,
+        newest: ObaTripStatus?,
         speedMps: Double,
         currentTimeMs: Long
 ): Double? {
-    if (speedMps <= 0 || history == null) return null
-    val newest =
-            history.findLast { it.bestDistanceAlongTrip != null && it.lastLocationUpdateTime > 0 }
-                    ?: return null
+    if (speedMps <= 0 || newest == null) return null
     val lastTime = newest.lastLocationUpdateTime
     if (currentTimeMs - lastTime > VehicleTrajectoryTracker.MAX_EXTRAPOLATION_AGE_MS) return null
     val lastDist = newest.bestDistanceAlongTrip ?: return null

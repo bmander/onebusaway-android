@@ -123,9 +123,8 @@ final class TripMapRenderer {
             showTripPolyline(shape, routeColor);
         }
         showTripStopCircles(schedule, shape, cumDist, stopNames, selectedStopId);
-        List<ObaTripStatus> history = TripDataManager.getInstance()
-                .getHistory(tripId);
-        showOrUpdateDataReceivedMarker(tripId, shape, cumDist, history);
+        ObaTripStatus lastState = TripDataManager.getInstance().getLastState(tripId);
+        showOrUpdateDataReceivedMarker(tripId, shape, cumDist, lastState);
         createEstimateOverlays(tripId, vehiclePosition, routeType);
     }
 
@@ -280,33 +279,18 @@ final class TripMapRenderer {
 
     void updateEstimateOverlays(ProbDistribution distribution,
                                 List<Location> shape, double[] cumDist,
-                                List<ObaTripStatus> history, long now,
+                                ObaTripStatus newestValid, long now,
                                 int baseColor) {
         if (mEstimateOverlay == null) return;
 
         if (distribution == null || shape == null || cumDist == null
-                || history == null || history.isEmpty()) {
+                || newestValid == null) {
             hideEstimateOverlays();
             return;
         }
 
-        // Find newest entry with valid AVL data (equivalent to old findNewestValid)
-        ObaTripStatus newest = null;
-        for (int i = history.size() - 1; i >= 0; i--) {
-            ObaTripStatus entry = history.get(i);
-            if (ObaTripStatusExtensionsKt.getBestDistanceAlongTrip(entry) != null
-                    && entry.getLastLocationUpdateTime() > 0) {
-                newest = entry;
-                break;
-            }
-        }
-        if (newest == null) {
-            hideEstimateOverlays();
-            return;
-        }
-
-        Double lastDist = ObaTripStatusExtensionsKt.getBestDistanceAlongTrip(newest);
-        long lastTime = newest.getLastLocationUpdateTime();
+        Double lastDist = ObaTripStatusExtensionsKt.getBestDistanceAlongTrip(newestValid);
+        long lastTime = newestValid.getLastLocationUpdateTime();
         if (lastDist == null || lastTime <= 0) {
             hideEstimateOverlays();
             return;
@@ -358,10 +342,8 @@ final class TripMapRenderer {
 
     void showOrUpdateDataReceivedMarker(String tripId,
                                         List<Location> shape, double[] cumDist,
-                                        List<ObaTripStatus> history) {
-        if (tripId == null || history == null || history.isEmpty()) return;
-
-        ObaTripStatus latest = history.get(history.size() - 1);
+                                        ObaTripStatus latest) {
+        if (tripId == null || latest == null) return;
         long updateTime = latest.getLastLocationUpdateTime();
         boolean newData = updateTime != mLastDataReceivedUpdateTime;
 

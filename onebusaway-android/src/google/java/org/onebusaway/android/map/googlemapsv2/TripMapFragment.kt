@@ -307,11 +307,12 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
             Choreographer.getInstance().postFrameCallback(frameCallback)
             return
         }
-        val history = TripDataManager.getHistory(tid)
+        val newestValid = TripDataManager.getNewestValidEntry(tid)
+        val lastState = TripDataManager.getLastState(tid)
         val distribution = tracker.getEstimatedDistribution(tid, now)
 
-        extrapolateVehicleMarker(tracker, sd, history, distribution, now)
-        updateOverlays(tid, sd, history, distribution, now)
+        extrapolateVehicleMarker(tracker, sd, newestValid, distribution, now)
+        updateOverlays(tid, sd, newestValid, lastState, distribution, now)
 
         Choreographer.getInstance().postFrameCallback(frameCallback)
     }
@@ -319,12 +320,12 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     private fun extrapolateVehicleMarker(
             tracker: VehicleTrajectoryTracker,
             sd: TripDataManager.ShapeData,
-            history: List<ObaTripStatus>,
+            newestValid: ObaTripStatus?,
             distribution: ProbDistribution?,
             now: Long
     ) {
         if (distribution == null) return
-        if (!tracker.extrapolatePosition(sd, history, distribution, now, reusableLocation)) return
+        if (!tracker.extrapolatePosition(sd, newestValid, distribution, now, reusableLocation)) return
 
         val m = map ?: return
         val marker = vehicleMarker
@@ -356,15 +357,16 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     private fun updateOverlays(
             tid: String,
             sd: TripDataManager.ShapeData,
-            history: List<ObaTripStatus>,
+            newestValid: ObaTripStatus?,
+            lastState: ObaTripStatus?,
             distribution: ProbDistribution?,
             now: Long
     ) {
         val renderer = tripRenderer ?: return
         renderer.updateEstimateOverlays(distribution, sd.points, sd.cumulativeDistances,
-                history, now, deviationColor)
+                newestValid, now, deviationColor)
         renderer.showOrUpdateDataReceivedMarker(tid, sd.points, sd.cumulativeDistances,
-                history)
+                lastState)
     }
 
     // --- Marker click handling ---

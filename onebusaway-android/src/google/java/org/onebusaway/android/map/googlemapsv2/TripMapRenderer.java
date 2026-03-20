@@ -86,7 +86,7 @@ final class TripMapRenderer {
         }
     }
 
-    private EstimateOverlayManager mEstimateOverlay;
+    private SpeedEstimateOverlay mEstimateOverlay;
 
     private Marker mDataReceivedIconMarker;
     private String mLastDataReceivedLabel;
@@ -381,7 +381,7 @@ final class TripMapRenderer {
         if (routeType != null && ObaRoute.isGradeSeparated(routeType)) return;
         if (vehiclePosition == null) return;
 
-        mEstimateOverlay = new EstimateOverlayManager(mMap, mContext);
+        mEstimateOverlay = new SpeedEstimateOverlay(mMap, mContext, TRIP_BASE_WIDTH_PX);
         mEstimateOverlay.create(vehiclePosition);
     }
 

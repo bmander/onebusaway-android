@@ -111,7 +111,6 @@ public class TripDetailsListFragment extends ListFragment {
 
     public interface TripDataCallback {
         void onTripDataLoaded(ObaTripDetailsResponse response);
-        void onShowMap();
     }
 
     public static final String TRIP_ID = ".TripId";
@@ -220,12 +219,10 @@ public class TripDetailsListFragment extends ListFragment {
         setListShown(false);
 
         // We have a menu item to show in action bar.
-        setHasOptionsMenu(true);
-
         getListView().setOnItemClickListener(mClickListener);
         getListView().setOnItemLongClickListener(mLongClickListener);
 
-        // Get saved routeId if it exists - avoids potential NPE in onOptionsItemSelected() (#515)
+        // Get saved routeId if it exists (#515)
         if (savedInstanceState != null) {
             mRouteId = savedInstanceState.getString(ROUTE_ID);
         }
@@ -303,44 +300,6 @@ public class TripDetailsListFragment extends ListFragment {
         mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
 
         super.onResume();
-    }
-
-    //
-    // Action Bar / Options Menu
-    //
-    @Override
-    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-        inflater.inflate(R.menu.trip_details, menu);
-    }
-
-    @Override
-    public void onPrepareOptionsMenu(Menu menu) {
-        MenuItem locationDataItem = menu.findItem(R.id.view_location_data);
-        if (locationDataItem != null) {
-            locationDataItem.setVisible(mHasLocationData);
-        }
-        super.onPrepareOptionsMenu(menu);
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        final int id = item.getItemId();
-        if (id == R.id.refresh) {
-            refresh();
-            return true;
-        } else if (id == R.id.show_on_map) {
-            if (mTripDataCallback != null) {
-                mTripDataCallback.onShowMap();
-            }
-            return true;
-        } else if (id == R.id.view_location_data) {
-            Activity activity = getActivity();
-            if (activity != null) {
-                VehicleLocationDataActivity.start(activity, mTripId, mActiveVehicleId, mStopId);
-            }
-            return true;
-        }
-        return false;
     }
 
     private void setTripDetails(ObaTripDetailsResponse data) {
@@ -615,10 +574,7 @@ public class TripDetailsListFragment extends ListFragment {
             if (mHasLocationData) {
                 mHasLocationData = false;
                 mActiveVehicleId = null;
-                Activity activity = getActivity();
-                if (activity != null) {
-                    activity.invalidateOptionsMenu();
-                }
+                notifyLocationDataChanged();
             }
             return;
         }
@@ -638,10 +594,14 @@ public class TripDetailsListFragment extends ListFragment {
         if (newHasData != mHasLocationData || !TextUtils.equals(newVehicleId, mActiveVehicleId)) {
             mHasLocationData = newHasData;
             mActiveVehicleId = newVehicleId;
-            Activity activity = getActivity();
-            if (activity != null) {
-                activity.invalidateOptionsMenu();
-            }
+            notifyLocationDataChanged();
+        }
+    }
+
+    private void notifyLocationDataChanged() {
+        Activity activity = getActivity();
+        if (activity instanceof TripDetailsActivity) {
+            ((TripDetailsActivity) activity).setHasLocationData(mHasLocationData);
         }
     }
 
@@ -905,7 +865,7 @@ public class TripDetailsListFragment extends ListFragment {
         return (TripDetailsLoader) l;
     }
 
-    private void refresh() {
+    void refresh() {
         if (isAdded()) {
             UIUtils.showProgress(this, true);
             getTripDetailsLoader().onContentChanged();

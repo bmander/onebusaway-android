@@ -19,9 +19,11 @@ package org.onebusaway.android.ui;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.Menu;
 import android.view.MenuItem;
 
 import org.onebusaway.android.R;
+import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.map.googlemapsv2.TripMapFragment;
 import org.onebusaway.android.util.FragmentUtils;
@@ -33,13 +35,17 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
 public class TripDetailsActivity extends AppCompatActivity
-        implements TripDetailsListFragment.TripDataCallback, TripMapFragment.Callback {
+        implements TripDetailsListFragment.TripDataCallback {
 
     private static final String TAG = "TripDetailsActivity";
 
     private ObaTripDetailsResponse mCachedResponse;
     private String mTripId;
     private String mStopId;
+    private boolean mShowingMap = false;
+    private MenuItem mToggleItem;
+    private MenuItem mLocationDataItem;
+    private boolean mHasLocationData = false;
 
     public static class Builder {
 
@@ -134,12 +140,72 @@ public class TripDetailsActivity extends AppCompatActivity
     }
 
     @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.trip_details_activity, menu);
+        mToggleItem = menu.findItem(R.id.toggle_map_list);
+        mLocationDataItem = menu.findItem(R.id.view_location_data);
+        updateToggleIcon();
+        updateLocationDataVisibility();
+        return true;
+    }
+
+    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
             finish();
             return true;
         }
+        if (item.getItemId() == R.id.refresh) {
+            if (mShowingMap) {
+                showMap();
+            } else {
+                Fragment f = getSupportFragmentManager().findFragmentByTag(TripDetailsListFragment.TAG);
+                if (f instanceof TripDetailsListFragment) {
+                    ((TripDetailsListFragment) f).refresh();
+                }
+            }
+            return true;
+        }
+        if (item.getItemId() == R.id.toggle_map_list) {
+            if (mShowingMap) {
+                showList();
+            } else {
+                showMap();
+            }
+            return true;
+        }
+        if (item.getItemId() == R.id.view_location_data) {
+            VehicleLocationDataActivity.start(this, mTripId, null, mStopId);
+            return true;
+        }
         return false;
+    }
+
+    private void updateToggleIcon() {
+        if (mToggleItem == null) return;
+        if (mShowingMap) {
+            mToggleItem.setIcon(R.drawable.ic_list_white);
+            mToggleItem.setTitle(R.string.trip_details_option_showlist);
+        } else {
+            mToggleItem.setIcon(R.drawable.ic_action_location_map);
+            mToggleItem.setTitle(R.string.stop_info_option_showonmap);
+        }
+        // Only enable map toggle when we have data to show
+        mToggleItem.setEnabled(mShowingMap || mCachedResponse != null);
+    }
+
+    /** Called by TripDetailsListFragment when location data availability changes. */
+    public void setHasLocationData(boolean hasLocationData) {
+        mHasLocationData = hasLocationData;
+        updateLocationDataVisibility();
+    }
+
+    private void updateLocationDataVisibility() {
+        if (mLocationDataItem == null) return;
+        // Show if the fragment reported location data, or if there's history in the data manager
+        boolean visible = mHasLocationData
+                || (mTripId != null && TripDataManager.getInstance().getHistorySize(mTripId) > 0);
+        mLocationDataItem.setVisible(visible);
     }
 
     @Override
@@ -164,18 +230,8 @@ public class TripDetailsActivity extends AppCompatActivity
     @Override
     public void onTripDataLoaded(ObaTripDetailsResponse response) {
         mCachedResponse = response;
-    }
-
-    @Override
-    public void onShowMap() {
-        showMap();
-    }
-
-    // --- TripMapFragment.Callback ---
-
-    @Override
-    public void onShowList() {
-        showList();
+        updateToggleIcon();
+        updateLocationDataVisibility();
     }
 
     // --- Fragment swapping ---
@@ -188,10 +244,10 @@ public class TripDetailsActivity extends AppCompatActivity
                 .replace(R.id.fragment_container, mapFragment, TripMapFragment.TAG)
                 .commit();
 
-        // activateTrip must be called after the fragment transaction is committed
-        // and the fragment has its map ready. We post it to handle the timing.
         getSupportFragmentManager().executePendingTransactions();
         mapFragment.activateTrip(mTripId, mStopId, mCachedResponse);
+        mShowingMap = true;
+        updateToggleIcon();
     }
 
     public void showList() {
@@ -199,6 +255,8 @@ public class TripDetailsActivity extends AppCompatActivity
                 .replace(R.id.fragment_container,
                         newListFragment(), TripDetailsListFragment.TAG)
                 .commit();
+        mShowingMap = false;
+        updateToggleIcon();
     }
 
     private TripDetailsListFragment newListFragment() {

@@ -62,10 +62,11 @@ final class TripMapRenderer {
     private static final float STOP_STROKE_WIDTH = 4f;
     private static final int STOP_STROKE_COLOR = 0xFF242424;
 
-    private static final float DATA_RECEIVED_Z_INDEX = 2f;
+    private static final float DATA_RECEIVED_Z_INDEX = 3f;
     private static final String DATA_RECEIVED_TITLE = "Most recent data";
-    private static final int DATA_ICON_RADIUS_DP = 13;
-    private static final int DATA_ICON_INNER_DP = 20;
+    private static final int DATA_ICON_SIZE_DP = 28;
+    private static final int DATA_ICON_PADDING_DP = 4;
+    private static final float DATA_ICON_STROKE_DP = 2f;
 
     // --- Fields ---
 
@@ -400,7 +401,7 @@ final class TripMapRenderer {
                     .flat(true)
                     .title(DATA_RECEIVED_TITLE)
                     .snippet(label)
-                    .zIndex(DATA_RECEIVED_Z_INDEX + 0.1f)
+                    .zIndex(DATA_RECEIVED_Z_INDEX)
             );
         }
     }
@@ -429,24 +430,34 @@ final class TripMapRenderer {
 
     private BitmapDescriptor createDataReceivedCircleIcon() {
         float d = mContext.getResources().getDisplayMetrics().density;
-        int circleRadius = (int) (DATA_ICON_RADIUS_DP * d);
-        int size = circleRadius * 2;
+        int sizePx = (int) (DATA_ICON_SIZE_DP * d);
+        int padding = (int) (DATA_ICON_PADDING_DP * d);
+        float strokeWidth = DATA_ICON_STROKE_DP * d;
+        float cx = sizePx / 2f;
+        float cy = sizePx / 2f;
 
-        Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Bitmap bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(bmp);
 
-        Paint circlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        circlePaint.setColor(0xFF616161);
-        circlePaint.setStyle(Paint.Style.FILL);
-        c.drawCircle(circleRadius, circleRadius, circleRadius, circlePaint);
+        // Stroke
+        Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        strokePaint.setColor(0xFF616161);
+        strokePaint.setStyle(Paint.Style.STROKE);
+        strokePaint.setStrokeWidth(strokeWidth);
+        c.drawCircle(cx, cy, cx - strokeWidth / 2, strokePaint);
 
-        int iconSize = (int) (DATA_ICON_INNER_DP * d);
+        // Fill
+        Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        fillPaint.setColor(0xDDFFFFFF);
+        fillPaint.setStyle(Paint.Style.FILL);
+        c.drawCircle(cx, cy, cx - strokeWidth, fillPaint);
+
+        // Icon
         android.graphics.drawable.Drawable icon = ContextCompat.getDrawable(
                 mContext, R.drawable.ic_signal_indicator);
         if (icon != null) {
-            int iconLeft = (size - iconSize) / 2;
-            int iconTop = (size - iconSize) / 2;
-            icon.setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize);
+            icon.setTint(0xFF616161);
+            icon.setBounds(padding, padding, sizePx - padding, sizePx - padding);
             icon.draw(c);
         }
 

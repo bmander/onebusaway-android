@@ -33,12 +33,12 @@ import org.onebusaway.android.extrapolation.data.TripDetailsPoller
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 
 /**
- * Standalone map fragment for displaying a single trip's route, stops,
- * vehicle position, and speed estimate overlays within TripDetailsActivity.
+ * Standalone map fragment for displaying a single trip's route, stops, vehicle position, and speed
+ * estimate overlays within TripDetailsActivity.
  *
- * Pure lifecycle coordinator — delegates rendering to [TripMapRenderer] (created
- * via [TripMapRendererFactory]), per-frame extrapolation to
- * [TripExtrapolationController], and API polling to [TripDetailsPoller].
+ * Pure lifecycle coordinator — delegates rendering to [TripMapRenderer] (created via
+ * [TripMapRendererFactory]), per-frame extrapolation to [TripExtrapolationController], and API
+ * polling to [TripDetailsPoller].
  */
 class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
 
@@ -136,23 +136,21 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         tripRenderer?.deactivate()
         extrapolationController?.stop()
 
-        val renderer = TripMapRendererFactory.create(m, requireContext(), tid,
-                selectedStopId, response) { _ -> onRendererActivated() }
-        tripRenderer = renderer
-        extrapolationController = TripExtrapolationController(renderer, tid)
         poller.start(tid)
-    }
 
-    private fun onRendererActivated() {
-        fitCameraToShape()
-        extrapolationController?.start()
+        TripMapRendererFactory.create(m, requireContext(), tid, selectedStopId, response) { renderer
+            ->
+            tripRenderer = renderer
+            extrapolationController = TripExtrapolationController(renderer, tid)
+            fitCameraToShape()
+            extrapolationController?.start()
+        }
     }
 
     private fun fitCameraToShape() {
         val renderer = tripRenderer ?: return
         val m = map ?: return
-        val tid = renderer.activeTripId ?: return
-        val sd = TripDataManager.getShapeWithDistances(tid) ?: return
+        val sd = TripDataManager.getShapeWithDistances(renderer.tripId) ?: return
         val bounds = MapHelpV2.getBounds(sd.points) ?: return
         try {
             m.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
@@ -173,9 +171,13 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
 
     private fun hasLocationPermission(): Boolean {
         val ctx = context ?: return false
-        return ContextCompat.checkSelfPermission(ctx,
-                android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                || ContextCompat.checkSelfPermission(ctx,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        return ContextCompat.checkSelfPermission(
+                ctx,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(
+                        ctx,
+                        android.Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
     }
 }

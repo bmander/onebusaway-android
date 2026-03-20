@@ -24,5 +24,6 @@ package org.onebusaway.android.extrapolation.math
 class ZeroInflatedGammaDistribution(
         p0: Double,
         @JvmField val alpha: Double,
-        @JvmField val scale: Double
-) : ZeroInflatedDistribution(p0, FrozenDistribution(GammaDistribution(alpha, scale)))
+        @JvmField val scale: Double,
+        frozenBase: FrozenDistribution = FrozenDistribution(GammaDistribution(alpha, scale))
+) : ZeroInflatedDistribution(p0, frozenBase)

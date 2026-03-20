@@ -33,6 +33,10 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
 
     private val scheduleEstimator = ScheduleSpeedEstimator(dataManager)
 
+    /** Per-trip cached factory, keyed by tripId. Invalidated when lastFixTime changes. */
+    private data class CachedFactory(val lastFixTime: Long, val factory: SpeedDistributionFactory)
+    private val factoryCache = HashMap<String, CachedFactory>()
+
     override fun estimateSpeed(tripId: String, queryTime: Long): SpeedEstimateResult {
         val fixes = dataManager.mostRecentAvlFixes(tripId).take(2).toList()
 
@@ -42,7 +46,8 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
                                 SpeedEstimateError.InsufficientData("No AVL fixes for trip")
                         )
 
-        val dtSeconds = (queryTime - mostRecentFix.lastLocationUpdateTime) / 1000.0
+        val lastFixTime = mostRecentFix.lastLocationUpdateTime
+        val dtSeconds = (queryTime - lastFixTime) / 1000.0
         if (dtSeconds < 0)
                 return SpeedEstimateResult.Failure(
                         SpeedEstimateError.TimestampOutOfBounds("Query time is before last AVL fix")
@@ -52,17 +57,23 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
                         SpeedEstimateError.TimestampOutOfBounds("Query time exceeds max horizon")
                 )
 
-        val prevSpeed = computeAvlSpeed(fixes)
+        // Reuse the factory if the AVL data hasn't changed
+        val cached = factoryCache[tripId]
+        val factory = if (cached != null && cached.lastFixTime == lastFixTime) {
+            cached.factory
+        } else {
+            val prevSpeed = computeAvlSpeed(fixes)
+            val scheduleSpeed =
+                    when (val result = scheduleEstimator.estimateSpeed(tripId, queryTime)) {
+                        is SpeedEstimateResult.Failure -> return result
+                        is SpeedEstimateResult.Success -> result.distribution.mean
+                    }
+            makeGammaProbDistribution(scheduleSpeed, prevSpeed).also {
+                factoryCache[tripId] = CachedFactory(lastFixTime, it)
+            }
+        }
 
-        val scheduleSpeed =
-                when (val result = scheduleEstimator.estimateSpeed(tripId, queryTime)) {
-                    is SpeedEstimateResult.Failure -> return result
-                    is SpeedEstimateResult.Success -> result.distribution.mean
-                }
-
-        return SpeedEstimateResult.Success(
-                gammaProbDistribution(scheduleSpeed, prevSpeed, dtSeconds)
-        )
+        return SpeedEstimateResult.Success(factory.at(dtSeconds))
     }
 
     /** Computes speed from two AVL fixes (distance / time). Returns null if fewer than 2 fixes. */

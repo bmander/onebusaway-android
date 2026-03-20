@@ -17,6 +17,8 @@ package org.onebusaway.android.extrapolation.math.speed
 
 import kotlin.math.exp
 import org.onebusaway.android.extrapolation.math.DiracDistribution
+import org.onebusaway.android.extrapolation.math.FrozenDistribution
+import org.onebusaway.android.extrapolation.math.GammaDistribution
 import org.onebusaway.android.extrapolation.math.ProbDistribution
 import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
 
@@ -31,19 +33,29 @@ private const val A = 0.1732 // unitless
 private const val LAMBDA = 0.00462 // 1/s
 
 /**
- * Computes a zero-inflated gamma speed distribution from schedule and previous observed speeds.
+ * A function that produces a [ProbDistribution] for a given dt (seconds since last observation).
+ * The underlying gamma quantile table is pre-computed at creation time; evaluating at a new dt
+ * is O(1).
+ */
+fun interface SpeedDistributionFactory {
+    fun at(dtSec: Double): ProbDistribution
+}
+
+/**
+ * Creates a [SpeedDistributionFactory] from schedule and previous observed speeds.
+ *
+ * The returned factory pre-computes the gamma quantile table once. Each call to [at] just
+ * computes p0 from dt and wraps it — no gamma CDF math.
  *
  * @param schedSpeedMps scheduled speed in m/s
  * @param prevSpeedMps previous observed speed in m/s (null or non-positive falls back to schedule)
- * @param dt time since last observation in seconds
- * @return a ProbDistribution (in m/s)
+ * @return a factory that produces distributions for any dt
  * @throws IllegalArgumentException if schedSpeedMps is non-positive
  */
-fun gammaProbDistribution(
+fun makeGammaProbDistribution(
         schedSpeedMps: Double,
-        prevSpeedMps: Double?,
-        dt: Double
-): ProbDistribution {
+        prevSpeedMps: Double?
+): SpeedDistributionFactory {
     var vPrev = prevSpeedMps ?: 0.0
     if (vPrev <= 0) vPrev = schedSpeedMps
     require(schedSpeedMps > 0) { "schedSpeedMps must be positive" }
@@ -53,23 +65,33 @@ fun gammaProbDistribution(
 
     // If vEff is 0 because both the schedule and previous speeds are 0, return a degenerate
     // distribution at 0
-    if (vEff <= 0) return DiracDistribution(0.0)
+    if (vEff <= 0) return SpeedDistributionFactory { DiracDistribution(0.0) }
 
     // Shape parameter is an empirical function of effective speed
-    // More spread at lower speeds, tighter at higher speeds
     val b0 = beta0(vEff)
-
     require(b0 > 0) { "Computed b0 must be positive" }
 
-    // Scale is 1/b0 to make E[X] = alpha*scale = vEff
     val alpha = b0 * vEff
     val scale = 1.0 / b0
 
-    // Probability mass at zero speed decays exponentially with time since last observation
-    val p0 = A * exp(-LAMBDA * dt)
+    // Build the quantile table once — this is the expensive part
+    val frozen = FrozenDistribution(GammaDistribution(alpha, scale))
 
-    return ZeroInflatedGammaDistribution(p0, alpha, scale)
+    return SpeedDistributionFactory { dtSec ->
+        val p0 = A * exp(-LAMBDA * dtSec)
+        ZeroInflatedGammaDistribution(p0, alpha, scale, frozen)
+    }
 }
+
+/**
+ * Convenience that creates a distribution directly for a given dt.
+ * Builds a fresh factory each call — use [makeGammaProbDistribution] for per-frame rendering.
+ */
+fun gammaProbDistribution(
+        schedSpeedMps: Double,
+        prevSpeedMps: Double?,
+        dt: Double
+): ProbDistribution = makeGammaProbDistribution(schedSpeedMps, prevSpeedMps).at(dt)
 
 /** Piecewise linear ramp from START_B0 to END_B0, flat after KINK. */
 private fun beta0(vEff: Double): Double =

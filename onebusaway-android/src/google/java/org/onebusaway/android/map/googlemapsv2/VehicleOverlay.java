@@ -89,6 +89,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
     private Controller mController;
 
     private boolean mExtrapolationTicking;
+    private long mLastFrameTimeMs;
+    private static final long FRAME_INTERVAL_MS = 50; // 20fps
     private final Choreographer.FrameCallback mFrameCallback = this::onExtrapolationFrame;
 
     private static final int NORTH = 0;  // directions are clockwise, consistent with MathUtils class
@@ -415,7 +417,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             mExtrapolationTicking = false;
             return;
         }
-        mMarkerData.extrapolatePositions();
+        long now = System.currentTimeMillis();
+        if (now - mLastFrameTimeMs >= FRAME_INTERVAL_MS) {
+            mLastFrameTimeMs = now;
+            mMarkerData.extrapolatePositions();
+        }
         Choreographer.getInstance().postFrameCallback(mFrameCallback);
     }
 

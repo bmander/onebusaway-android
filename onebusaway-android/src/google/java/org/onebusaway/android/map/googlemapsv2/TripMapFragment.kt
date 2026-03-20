@@ -59,6 +59,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         const val TAG = "TripMapFragment"
         private const val DEFAULT_INITIAL_ZOOM = 12f
         private const val MARKER_Z_INDEX = 3f
+        private const val FRAME_INTERVAL_MS = 50L // 20fps
 
         @JvmStatic
         fun newInstance(tripId: String): TripMapFragment {
@@ -83,6 +84,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     private val reusableLocation = Location("extrapolated")
 
     private var extrapolationTicking = false
+    private var lastFrameTimeMs = 0L
     private val frameCallback = Choreographer.FrameCallback { onExtrapolationFrame() }
 
     private var tripId: String? = null
@@ -299,6 +301,12 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         }
 
         val now = System.currentTimeMillis()
+        if (now - lastFrameTimeMs < FRAME_INTERVAL_MS) {
+            Choreographer.getInstance().postFrameCallback(frameCallback)
+            return
+        }
+        lastFrameTimeMs = now
+
         val tracker = VehicleTrajectoryTracker
 
         // Fetch shared data once for both vehicle marker and overlay updates

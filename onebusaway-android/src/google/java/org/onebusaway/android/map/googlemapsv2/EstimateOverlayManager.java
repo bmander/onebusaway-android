@@ -19,21 +19,28 @@ import android.content.Context;
 import android.location.Location;
 
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
 
+import org.onebusaway.android.R;
 import org.onebusaway.android.extrapolation.math.ProbDistribution;
+import org.onebusaway.android.util.LocationUtils;
 
 import java.util.List;
 
 /**
  * Manages all estimate-related map overlays for a selected vehicle:
- * the slow/fast estimate labels and the PDF opacity segments.
+ * the fast estimate icon marker and the PDF opacity segments.
  * Computes quantile speeds once per param change and shares them.
  */
 public final class EstimateOverlayManager {
 
-    private final EstimateLabelManager mLabels;
+    private static final float MARKER_Z_INDEX = 3f;
+
+    private final GoogleMap mMap;
+    private final Context mContext;
     private final PdfOverlayRenderer mPdfOverlay;
     private final double mLabelHighQuantile;
     private final double mPdfLowQuantile;
@@ -44,6 +51,10 @@ public final class EstimateOverlayManager {
     private double mCachedLabelSpeedHighMps;
     private final double[] mCachedPdfEdgeSpeedsMps;
     private final double[] mCachedPdfMidPdfValues;
+
+    private Marker mFastEstimateMarker;
+    private BitmapDescriptor mFastEstimateIcon;
+    private final Location mReusableLoc = new Location("label");
 
     public EstimateOverlayManager(GoogleMap map, Context context) {
         this(map, context, 0.90, 0.01, 0.99, 9);
@@ -59,7 +70,8 @@ public final class EstimateOverlayManager {
                                   double labelHighQuantile,
                                   double pdfLowQuantile, double pdfHighQuantile,
                                   int segmentCount) {
-        mLabels = new EstimateLabelManager(map, context);
+        mMap = map;
+        mContext = context;
         mPdfOverlay = new PdfOverlayRenderer(map, segmentCount,
                 TripMapRenderer.TRIP_BASE_WIDTH_PX);
         mSegmentCount = segmentCount;
@@ -72,21 +84,35 @@ public final class EstimateOverlayManager {
 
     /** Creates all overlays at the given initial position. */
     public void create(LatLng initialPosition) {
-        mLabels.create(initialPosition);
+        mFastEstimateIcon = MapIconUtils.createCircleIcon(mContext, R.drawable.ic_fast_estimate);
+        mFastEstimateMarker = mMap.addMarker(new MarkerOptions()
+                .position(initialPosition)
+                .icon(mFastEstimateIcon)
+                .title("Fast estimate")
+                .snippet("90th percentile speed")
+                .anchor(0.5f, 0.5f)
+                .flat(true)
+                .zIndex(MARKER_Z_INDEX)
+                .visible(false)
+        );
         mPdfOverlay.create();
         mCachedDistribution = null;
     }
 
     /** Removes all overlays from the map. */
     public void destroy() {
-        mLabels.destroy();
+        if (mFastEstimateMarker != null) {
+            mFastEstimateMarker.remove();
+            mFastEstimateMarker = null;
+        }
+        mFastEstimateIcon = null;
         mPdfOverlay.destroy();
         mCachedDistribution = null;
     }
 
     /** Hides all overlays without removing them. */
     public void hide() {
-        mLabels.hide();
+        if (mFastEstimateMarker != null) mFastEstimateMarker.setVisible(false);
         mPdfOverlay.hide();
     }
 
@@ -112,15 +138,33 @@ public final class EstimateOverlayManager {
             }
         }
 
-        mLabels.update(
-                lastDist + mCachedLabelSpeedHighMps * dtSec,
-                shape, cumDist);
+        updateFastEstimatePosition(lastDist + mCachedLabelSpeedHighMps * dtSec, shape, cumDist);
         mPdfOverlay.update(mCachedPdfEdgeSpeedsMps, mCachedPdfMidPdfValues,
                 lastDist, dtSec, baseColor, shape, cumDist);
     }
 
-    /** Delegates click handling to the estimate labels. */
+    /** Returns true if the clicked marker was the fast estimate icon. */
     public boolean handleClick(Marker marker) {
-        return mLabels.handleClick(marker);
+        if (marker.equals(mFastEstimateMarker)) {
+            if (mFastEstimateMarker.isInfoWindowShown()) {
+                mFastEstimateMarker.hideInfoWindow();
+            } else {
+                mFastEstimateMarker.showInfoWindow();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private void updateFastEstimatePosition(double distance,
+                                             List<Location> shape, double[] cumDist) {
+        if (mFastEstimateMarker == null) return;
+        if (!LocationUtils.interpolateAlongPolyline(shape, cumDist, distance, mReusableLoc)) {
+            mFastEstimateMarker.setVisible(false);
+            return;
+        }
+        mFastEstimateMarker.setPosition(new LatLng(
+                mReusableLoc.getLatitude(), mReusableLoc.getLongitude()));
+        mFastEstimateMarker.setVisible(true);
     }
 }

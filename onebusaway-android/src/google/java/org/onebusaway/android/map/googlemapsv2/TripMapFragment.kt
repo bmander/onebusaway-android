@@ -38,6 +38,7 @@ import com.google.android.gms.maps.model.MarkerOptions
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.extrapolation.math.ProbDistribution
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
 import org.onebusaway.android.io.elements.ObaReferences
 import org.onebusaway.android.io.elements.ObaRoute
@@ -291,7 +292,8 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     }
 
     private fun onExtrapolationFrame() {
-        if (!extrapolationTicking || tripId == null || map == null) {
+        val tid = tripId
+        if (!extrapolationTicking || tid == null || map == null) {
             extrapolationTicking = false
             return
         }
@@ -299,15 +301,30 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         val now = System.currentTimeMillis()
         val tracker = VehicleTrajectoryTracker
 
-        extrapolateVehicleMarker(tracker, now)
-        updateOverlays(tracker, now)
+        // Fetch shared data once for both vehicle marker and overlay updates
+        val sd = TripDataManager.getShapeWithDistances(tid)
+        if (sd == null) {
+            Choreographer.getInstance().postFrameCallback(frameCallback)
+            return
+        }
+        val history = TripDataManager.getHistory(tid)
+        val distribution = tracker.getEstimatedDistribution(tid, now)
+
+        extrapolateVehicleMarker(tracker, sd, history, distribution, now)
+        updateOverlays(tid, sd, history, distribution, now)
 
         Choreographer.getInstance().postFrameCallback(frameCallback)
     }
 
-    private fun extrapolateVehicleMarker(tracker: VehicleTrajectoryTracker, now: Long) {
-        val tid = tripId ?: return
-        if (!tracker.extrapolatePosition(tid, now, reusableLocation)) return
+    private fun extrapolateVehicleMarker(
+            tracker: VehicleTrajectoryTracker,
+            sd: TripDataManager.ShapeData,
+            history: List<ObaTripStatus>,
+            distribution: ProbDistribution?,
+            now: Long
+    ) {
+        if (distribution == null) return
+        if (!tracker.extrapolatePosition(sd, history, distribution, now, reusableLocation)) return
 
         val m = map ?: return
         val marker = vehicleMarker
@@ -336,12 +353,14 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         return MapIconUtils.createCircleIcon(requireContext(), drawableRes)
     }
 
-    private fun updateOverlays(tracker: VehicleTrajectoryTracker, now: Long) {
+    private fun updateOverlays(
+            tid: String,
+            sd: TripDataManager.ShapeData,
+            history: List<ObaTripStatus>,
+            distribution: ProbDistribution?,
+            now: Long
+    ) {
         val renderer = tripRenderer ?: return
-        val tid = tripId ?: return
-        val sd = TripDataManager.getShapeWithDistances(tid) ?: return
-        val history = TripDataManager.getHistory(tid)
-        val distribution = tracker.getEstimatedDistribution(tid, now)
         renderer.updateEstimateOverlays(distribution, sd.points, sd.cumulativeDistances,
                 history, now, deviationColor)
         renderer.showOrUpdateDataReceivedMarker(tid, sd.points, sd.cumulativeDistances,

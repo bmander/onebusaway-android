@@ -102,6 +102,24 @@ object VehicleTrajectoryTracker {
         return LocationUtils.interpolateAlongPolyline(sd.points, sd.cumulativeDistances, dist, out)
     }
 
+    /**
+     * Extrapolates a vehicle's position using pre-fetched data. Avoids re-fetching shape,
+     * history, and distribution that the caller already has.
+     */
+    fun extrapolatePosition(
+            shapeData: TripDataManager.ShapeData,
+            history: List<ObaTripStatus>,
+            distribution: ProbDistribution,
+            currentTimeMs: Long,
+            out: Location
+    ): Boolean {
+        if (shapeData.points.isEmpty()) return false
+        val speed = distribution.median()
+        val dist = extrapolateDistance(history, speed, currentTimeMs) ?: return false
+        return LocationUtils.interpolateAlongPolyline(
+                shapeData.points, shapeData.cumulativeDistances, dist, out)
+    }
+
     /** Clears estimation state. */
     @Synchronized
     fun clearAll() {

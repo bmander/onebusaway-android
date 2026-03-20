@@ -110,6 +110,6 @@ internal constructor(private val renderer: TripMapRenderer, private val tripId: 
             renderer.hideEstimateOverlays()
         }
         val lastState = frame.tripSnapshot.lastState ?: return
-        renderer.showOrUpdateDataReceivedMarker(lastState)
+        renderer.showOrUpdateDataReceivedMarker(lastState, now)
     }
 }

@@ -38,15 +38,14 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
     private val factoryCache = HashMap<String, CachedFactory>()
 
     override fun estimateSpeed(tripId: String, queryTime: Long): SpeedEstimateResult {
-        val fixes = dataManager.mostRecentAvlFixes(tripId).take(2).toList()
+        // Use getLastState for the cache check — avoids copying the full history list
+        // on every frame. The full mostRecentAvlFixes call only runs on cache miss.
+        val lastState = dataManager.getLastState(tripId)
+                ?: return SpeedEstimateResult.Failure(
+                        SpeedEstimateError.InsufficientData("No AVL fixes for trip")
+                )
 
-        val mostRecentFix =
-                fixes.firstOrNull()
-                        ?: return SpeedEstimateResult.Failure(
-                                SpeedEstimateError.InsufficientData("No AVL fixes for trip")
-                        )
-
-        val lastFixTime = mostRecentFix.lastLocationUpdateTime
+        val lastFixTime = lastState.lastLocationUpdateTime
         val dtSeconds = (queryTime - lastFixTime) / 1000.0
         if (dtSeconds < 0)
                 return SpeedEstimateResult.Failure(
@@ -62,6 +61,7 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
         val factory = if (cached != null && cached.lastFixTime == lastFixTime) {
             cached.factory
         } else {
+            val fixes = dataManager.mostRecentAvlFixes(tripId).take(2).toList()
             val prevSpeed = computeAvlSpeed(fixes)
             val scheduleSpeed =
                     when (val result = scheduleEstimator.estimateSpeed(tripId, queryTime)) {
@@ -75,6 +75,9 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
 
         return SpeedEstimateResult.Success(factory.at(dtSeconds))
     }
+
+    /** Clears the per-trip factory cache. */
+    fun clearCache() = factoryCache.clear()
 
     /** Computes speed from two AVL fixes (distance / time). Returns null if fewer than 2 fixes. */
     private fun computeAvlSpeed(fixes: List<ObaTripStatus>): Double? {

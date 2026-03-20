@@ -923,7 +923,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
     /**
      * Returns the color resource for a vehicle's schedule deviation status.
      */
-    static int getDeviationColorResource(boolean isRealtime, ObaTripStatus status) {
+    public static int getDeviationColorResource(boolean isRealtime, ObaTripStatus status) {
         if (isRealtime) {
             long deviationMin = TimeUnit.SECONDS.toMinutes(status.getScheduleDeviation());
             return ArrivalInfoUtils.computeColorFromDeviation(deviationMin);

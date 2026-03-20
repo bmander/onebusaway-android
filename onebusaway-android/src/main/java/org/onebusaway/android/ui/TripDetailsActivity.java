@@ -25,7 +25,7 @@ import android.view.MenuItem;
 import org.onebusaway.android.R;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
-import org.onebusaway.android.map.googlemapsv2.TripMapFragment;
+import org.onebusaway.android.map.googlemapsv2.tripmap.TripMapFragment;
 import org.onebusaway.android.util.FragmentUtils;
 import org.onebusaway.android.util.UIUtils;
 

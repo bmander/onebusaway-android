@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.map.googlemapsv2
+package org.onebusaway.android.map.googlemapsv2.tripmap
 
+import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.os.Bundle

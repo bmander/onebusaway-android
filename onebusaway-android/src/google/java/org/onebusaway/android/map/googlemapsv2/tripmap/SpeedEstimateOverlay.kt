@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.map.googlemapsv2
+package org.onebusaway.android.map.googlemapsv2.tripmap
 
+import org.onebusaway.android.map.googlemapsv2.MapIconUtils
 import android.content.Context
 import android.location.Location
 import com.google.android.gms.maps.GoogleMap

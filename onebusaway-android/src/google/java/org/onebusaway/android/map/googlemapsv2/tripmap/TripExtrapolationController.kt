@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.map.googlemapsv2
+package org.onebusaway.android.map.googlemapsv2.tripmap
 
 import android.location.Location
 import android.view.Choreographer

@@ -33,7 +33,7 @@ import java.util.List;
 /**
  * Creates stamped polyline options using a single stamp built at construction time.
  */
-final class StampedPolylineFactory {
+public final class StampedPolylineFactory {
 
     private final StampStyle mStamp;
 
@@ -42,7 +42,7 @@ final class StampedPolylineFactory {
      * @param resId            drawable resource to use as the stamp
      * @param spacingMultiplier 1 = default density, 4 = one-quarter as many stamps
      */
-    StampedPolylineFactory(Resources res, int resId, int spacingMultiplier) {
+    public StampedPolylineFactory(Resources res, int resId, int spacingMultiplier) {
         Bitmap stamp = BitmapFactory.decodeResource(res, resId);
         if (spacingMultiplier > 1) {
             Bitmap padded = Bitmap.createBitmap(
@@ -60,7 +60,7 @@ final class StampedPolylineFactory {
     /**
      * Creates stamped polyline options.
      */
-    PolylineOptions create(List<Location> points, int color, float width) {
+    public PolylineOptions create(List<Location> points, int color, float width) {
         PolylineOptions opts = new PolylineOptions();
         opts.width(width);
         opts.zIndex(1f);

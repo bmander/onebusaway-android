@@ -26,7 +26,7 @@ package org.onebusaway.android.extrapolation.math
  * @param resolution number of table entries (higher = more accurate, default 200)
  */
 class FrozenDistribution(
-        source: ProbDistribution,
+        private val source: ProbDistribution,
         resolution: Int = 200
 ) : ProbDistribution {
 
@@ -53,11 +53,7 @@ class FrozenDistribution(
         return table[lo] + frac * (table[lo + 1] - table[lo])
     }
 
-    override fun pdf(x: Double): Double {
-        throw UnsupportedOperationException("FrozenDistribution only supports quantile lookup")
-    }
+    override fun pdf(x: Double): Double = source.pdf(x)
 
-    override fun cdf(x: Double): Double {
-        throw UnsupportedOperationException("FrozenDistribution only supports quantile lookup")
-    }
+    override fun cdf(x: Double): Double = source.cdf(x)
 }

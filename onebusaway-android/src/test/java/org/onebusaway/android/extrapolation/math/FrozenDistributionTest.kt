@@ -18,7 +18,6 @@ package org.onebusaway.android.extrapolation.math
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.onebusaway.android.extrapolation.math.speed.gammaProbDistribution
 
 class FrozenDistributionTest {
 
@@ -80,40 +79,34 @@ class FrozenDistributionTest {
     }
 
     @Test
-    fun `zero-inflated frozen quantile matches analytic`() {
+    fun `zero-inflated gamma with frozen base matches analytic`() {
         val gamma = GammaDistribution(alpha = 3.0, scale = 2.5)
-        val frozen = FrozenDistribution(gamma)
-        val zifg = ZeroInflatedFrozenGammaDistribution(frozen, a = 0.1732, lambda = 0.00462)
-
-        // At dt=0, p0 = A = 0.1732
-        // quantile(0.5, 0) should equal gamma.quantile((0.5 - 0.1732) / (1 - 0.1732))
         val p0 = 0.1732
+        val zig = ZeroInflatedGammaDistribution(p0, alpha = 3.0, scale = 2.5)
+
+        // quantile(0.5) should equal gamma.quantile((0.5 - p0) / (1 - p0))
         val pAdj = (0.5 - p0) / (1 - p0)
         val expected = gamma.quantile(pAdj)
-        val actual = zifg.quantile(0.5, 0.0)
+        val actual = zig.quantile(0.5)
         assertEquals(expected, actual, expected * 0.02)
     }
 
     @Test
-    fun `zero-inflated frozen quantile at large dt approaches gamma quantile`() {
+    fun `zero-inflated gamma with frozen base at small p0 approaches gamma quantile`() {
         val gamma = GammaDistribution(alpha = 3.0, scale = 2.5)
-        val frozen = FrozenDistribution(gamma)
-        val zifg = ZeroInflatedFrozenGammaDistribution(frozen, a = 0.1732, lambda = 0.00462)
+        val zig = ZeroInflatedGammaDistribution(p0 = 0.0001, alpha = 3.0, scale = 2.5)
 
-        // At very large dt, p0 -> 0, so quantile(p, dt) -> gamma.quantile(p)
-        val largeDt = 10000.0
+        // With p0 near zero, quantile(p) -> gamma.quantile(p)
         val expected = gamma.quantile(0.5)
-        val actual = zifg.quantile(0.5, largeDt)
+        val actual = zig.quantile(0.5)
         assertEquals(expected, actual, expected * 0.02)
     }
 
     @Test
-    fun `zero-inflated frozen returns zero below p0`() {
-        val gamma = GammaDistribution(alpha = 3.0, scale = 2.5)
-        val frozen = FrozenDistribution(gamma)
-        val zifg = ZeroInflatedFrozenGammaDistribution(frozen, a = 0.5, lambda = 0.001)
+    fun `zero-inflated gamma with frozen base returns zero below p0`() {
+        val zig = ZeroInflatedGammaDistribution(p0 = 0.5, alpha = 3.0, scale = 2.5)
 
-        // At dt=0, p0 = 0.5, so quantile(0.3, 0) should be 0
-        assertEquals(0.0, zifg.quantile(0.3, 0.0), 0.0)
+        // quantile(0.3) should be 0 since 0.3 < p0
+        assertEquals(0.0, zig.quantile(0.3), 0.0)
     }
 }

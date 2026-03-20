@@ -15,10 +15,6 @@
  */
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
-import org.onebusaway.android.map.googlemapsv2.AnimationUtil
-import org.onebusaway.android.map.googlemapsv2.MapHelpV2
-import org.onebusaway.android.map.googlemapsv2.MapIconUtils
-import org.onebusaway.android.map.googlemapsv2.StampedPolylineFactory
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -40,23 +36,25 @@ import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
+import org.onebusaway.android.map.googlemapsv2.AnimationUtil
+import org.onebusaway.android.map.googlemapsv2.MapHelpV2
+import org.onebusaway.android.map.googlemapsv2.MapIconUtils
+import org.onebusaway.android.map.googlemapsv2.StampedPolylineFactory
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.UIUtils
 
 private const val STOP_STROKE_WIDTH = 4f
 private const val STOP_STROKE_COLOR = 0xFF242424.toInt()
-private const val DATA_RECEIVED_Z_INDEX = 3f
 private const val DATA_RECEIVED_TITLE = "Most recent data"
 private const val ANIMATE_DURATION_MS = 600
-private const val VEHICLE_MARKER_Z_INDEX = 3f
+private const val MARKER_Z_INDEX = 3f
 
 /**
- * Owns all trip-specific map rendering: trip polyline, stop dots, estimate overlays, vehicle
- * marker, and data-received marker. Activated when a vehicle is selected and deactivated when
- * deselected.
+ * Owns all trip-specific map rendering: trip polyline, stop dots, estimate overlays,
+ * vehicle marker, and data-received marker. Constructed with immutable trip data;
+ * only vehicle position and overlays update per-frame.
  */
-class TripMapRenderer
-internal constructor(
+class TripMapRenderer internal constructor(
         private val map: GoogleMap,
         private val context: Context,
         val tripId: String,
@@ -67,180 +65,109 @@ internal constructor(
         private val routeType: Int?,
         private val stopNames: Map<String, String>,
         private val selectedStopId: String?,
-        var deviationColor: Int = 0,
-        var scheduleDeviation: Long = 0
+        val deviationColor: Int,
+        val scheduleDeviation: Long
 ) {
     companion object {
         @JvmField val TRIP_BASE_WIDTH_PX = 44f
     }
 
-    private val stampFactory =
-            StampedPolylineFactory(context.resources, R.drawable.ic_navigation_expand_more, 4)
+    private val stampFactory = StampedPolylineFactory(
+            context.resources, R.drawable.ic_navigation_expand_more, 4)
+
+    // --- Map objects (mutable rendering state) ---
 
     private val tripPolylines = mutableListOf<Polyline>()
     private val tripStopMarkers = mutableListOf<Marker>()
     private val stopInfoMap = mutableMapOf<Marker, StopInfo>()
-
-    private data class StopInfo(val name: String, val arrivalTimeSec: Long)
-
     private var estimateOverlay: SpeedEstimateOverlay? = null
-
     private var dataReceivedMarker: Marker? = null
     private var lastDataReceivedLabel: String? = null
     private var lastDataReceivedUpdateTime = 0L
-    private var cachedCircleIcon: BitmapDescriptor? = null
-
     private var vehicleMarker: Marker? = null
-    private var vehicleIcon: BitmapDescriptor? = null
     private var lastFixTime = 0L
     private var animatingUntil = 0L
 
-    private var active = false
+    // --- Lazy icon creation ---
+
+    private val vehicleIcon by lazy {
+        MapIconUtils.createCircleIcon(context, R.drawable.ic_vehicle_position)
+    }
+    private val dataReceivedIcon by lazy {
+        MapIconUtils.createCircleIcon(context, R.drawable.ic_signal_indicator, 0xFF616161.toInt())
+    }
+    private val stopCircleIcon by lazy { makeStopCircleIcon() }
+    private val bullseyeIcon by lazy { makeBullseyeIcon() }
+
+    private data class StopInfo(val name: String, val arrivalTimeSec: Long)
 
     // --- Lifecycle ---
 
     fun activate(vehiclePosition: LatLng?) {
-        if (active) deactivate()
-        active = true
-
-        showTripPolyline(shape, routeColor)
+        showTripPolyline()
         showTripStopCircles()
-        val lastState = TripDataManager.getLastState(tripId)
-        if (lastState != null) {
-            showOrUpdateDataReceivedMarker(lastState)
+        TripDataManager.getLastState(tripId)?.let {
+            showOrUpdateDataReceivedMarker(it, System.currentTimeMillis())
         }
         createEstimateOverlays(vehiclePosition)
     }
 
     fun deactivate() {
-        if (!active) return
-        removeTripPolylines()
-        removeTripStopCircles()
+        tripPolylines.forEach { it.remove() }
+        tripPolylines.clear()
+        tripStopMarkers.forEach { it.remove() }
+        tripStopMarkers.clear()
+        stopInfoMap.clear()
         removeDataReceivedMarker()
-        removeVehicleMarker()
-        destroyEstimateOverlays()
-        active = false
+        vehicleMarker?.remove()
+        vehicleMarker = null
+        estimateOverlay?.destroy()
+        estimateOverlay = null
     }
 
     // --- Trip polyline ---
 
-    private fun showTripPolyline(shape: List<Location>, color: Int) {
-        removeTripPolylines()
-        tripPolylines.add(map.addPolyline(stampFactory.create(shape, color, TRIP_BASE_WIDTH_PX)))
+    private fun showTripPolyline() {
+        tripPolylines.add(map.addPolyline(
+                stampFactory.create(shape, routeColor, TRIP_BASE_WIDTH_PX)))
     }
 
-    private fun removeTripPolylines() {
-        tripPolylines.forEach { it.remove() }
-        tripPolylines.clear()
-    }
-
-    // --- Trip stop circles ---
+    // --- Stop circles ---
 
     private fun showTripStopCircles() {
         val stopTimes = schedule.stopTimes ?: return
-
-        val icon = makeStopCircleIcon()
-        val selectedIcon = if (selectedStopId != null) makeBullseyeIcon() else null
-
         for (st in stopTimes) {
-            val loc =
-                    LocationUtils.interpolateAlongPolyline(shape, cumDist, st.distanceAlongTrip)
-                            ?: continue
+            val loc = LocationUtils.interpolateAlongPolyline(
+                    shape, cumDist, st.distanceAlongTrip) ?: continue
             val isSelected = st.stopId == selectedStopId
-            val m =
-                    map.addMarker(
-                            MarkerOptions()
-                                    .position(LatLng(loc.latitude, loc.longitude))
-                                    .icon(if (isSelected) selectedIcon else icon)
-                                    .anchor(0.5f, 0.5f)
-                                    .flat(true)
-                                    .zIndex(if (isSelected) 1.5f else 1f)
-                    )
-            if (m != null) {
-                tripStopMarkers.add(m)
-                val name = stopNames[st.stopId] ?: st.stopId
-                stopInfoMap[m] = StopInfo(name, st.arrivalTime)
+            map.addMarker(MarkerOptions()
+                    .position(LatLng(loc.latitude, loc.longitude))
+                    .icon(if (isSelected) bullseyeIcon else stopCircleIcon)
+                    .anchor(0.5f, 0.5f)
+                    .flat(true)
+                    .zIndex(if (isSelected) 1.5f else 1f)
+            )?.let { marker ->
+                tripStopMarkers.add(marker)
+                stopInfoMap[marker] = StopInfo(
+                        stopNames[st.stopId] ?: st.stopId, st.arrivalTime)
             }
         }
-    }
-
-    private fun makeStopCircleIcon(): BitmapDescriptor {
-        val size = TRIP_BASE_WIDTH_PX.toInt()
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val c = Canvas(bmp)
-        val r = size / 2f
-        c.drawCircle(
-                r,
-                r,
-                r - STOP_STROKE_WIDTH / 2f,
-                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-        )
-        c.drawCircle(
-                r,
-                r,
-                r - STOP_STROKE_WIDTH / 2f,
-                Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    style = Paint.Style.STROKE
-                    strokeWidth = STOP_STROKE_WIDTH
-                    color = STOP_STROKE_COLOR
-                }
-        )
-        return BitmapDescriptorFactory.fromBitmap(bmp)
-    }
-
-    private fun makeBullseyeIcon(): BitmapDescriptor {
-        val size = TRIP_BASE_WIDTH_PX.toInt()
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val c = Canvas(bmp)
-        val r = size / 2f
-        c.drawCircle(
-                r,
-                r,
-                r - STOP_STROKE_WIDTH / 2f,
-                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-        )
-        c.drawCircle(
-                r,
-                r,
-                r - STOP_STROKE_WIDTH / 2f,
-                Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    style = Paint.Style.STROKE
-                    strokeWidth = STOP_STROKE_WIDTH
-                    color = STOP_STROKE_COLOR
-                }
-        )
-        c.drawCircle(
-                r,
-                r,
-                r * 0.4f,
-                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = STOP_STROKE_COLOR }
-        )
-        return BitmapDescriptorFactory.fromBitmap(bmp)
-    }
-
-    private fun removeTripStopCircles() {
-        tripStopMarkers.forEach { it.remove() }
-        tripStopMarkers.clear()
-        stopInfoMap.clear()
     }
 
     fun handleStopMarkerClick(marker: Marker): Boolean {
         val info = stopInfoMap[marker] ?: return false
         marker.title = info.name
-        marker.snippet = computeEtaSnippet(info.arrivalTimeSec)
+        marker.snippet = computeEtaSnippet(info.arrivalTimeSec, System.currentTimeMillis())
         marker.showInfoWindow()
         return true
     }
 
-    private fun computeEtaSnippet(arrivalTimeSec: Long): String? {
+    private fun computeEtaSnippet(arrivalTimeSec: Long, now: Long): String? {
         val serviceDate = TripDataManager.getServiceDate(tripId) ?: return null
-
         val predictedMs = serviceDate + arrivalTimeSec * 1000 + scheduleDeviation * 1000
-        val now = System.currentTimeMillis()
         val diffMs = predictedMs - now
         val diffMin = TimeUnit.MILLISECONDS.toMinutes(diffMs)
         val clockTime = UIUtils.formatTime(context, predictedMs)
-
         return when {
             diffMs <= 0 -> "$clockTime (departed)"
             diffMin < 1 -> "$clockTime (< 1 min)"
@@ -248,26 +175,50 @@ internal constructor(
         }
     }
 
+    // --- Stop circle icons ---
+
+    private fun makeStopCircleIcon(): BitmapDescriptor =
+            drawCircleIcon { _, _ -> /* no inner dot */ }
+
+    private fun makeBullseyeIcon(): BitmapDescriptor =
+            drawCircleIcon { canvas, r ->
+                canvas.drawCircle(r, r, r * 0.4f,
+                        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = STOP_STROKE_COLOR })
+            }
+
+    private fun drawCircleIcon(drawInner: (Canvas, Float) -> Unit): BitmapDescriptor {
+        val size = TRIP_BASE_WIDTH_PX.toInt()
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val r = size / 2f
+        val fillRadius = r - STOP_STROKE_WIDTH / 2f
+        canvas.drawCircle(r, r, fillRadius,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+        canvas.drawCircle(r, r, fillRadius,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    style = Paint.Style.STROKE
+                    strokeWidth = STOP_STROKE_WIDTH
+                    color = STOP_STROKE_COLOR
+                })
+        drawInner(canvas, r)
+        return BitmapDescriptorFactory.fromBitmap(bmp)
+    }
+
     // --- Vehicle marker ---
 
     fun updateVehiclePosition(location: Location?, newestValid: ObaTripStatus?, now: Long) {
         if (location == null) return
 
-        if (vehicleMarker == null) {
-            if (vehicleIcon == null) {
-                vehicleIcon = MapIconUtils.createCircleIcon(context, R.drawable.ic_vehicle_position)
-            }
-            vehicleMarker =
-                    map.addMarker(
-                            MarkerOptions()
-                                    .position(MapHelpV2.makeLatLng(location))
-                                    .icon(vehicleIcon)
-                                    .title("Best estimate")
-                                    .snippet("50th percentile")
-                                    .anchor(0.5f, 0.5f)
-                                    .flat(true)
-                                    .zIndex(VEHICLE_MARKER_Z_INDEX)
-                    )
+        val marker = vehicleMarker
+        if (marker == null) {
+            vehicleMarker = map.addMarker(MarkerOptions()
+                    .position(MapHelpV2.makeLatLng(location))
+                    .icon(vehicleIcon)
+                    .title("Best estimate")
+                    .snippet("50th percentile")
+                    .anchor(0.5f, 0.5f)
+                    .flat(true)
+                    .zIndex(MARKER_Z_INDEX))
             return
         }
 
@@ -276,130 +227,79 @@ internal constructor(
         val freshData = lastFixTime != 0L && fixTime != lastFixTime
         lastFixTime = fixTime
 
-        if (freshData) {
-            AnimationUtil.animateMarkerTo(vehicleMarker, target, ANIMATE_DURATION_MS)
-            animatingUntil = now + ANIMATE_DURATION_MS
-        } else if (now >= animatingUntil) {
-            vehicleMarker?.position = target
+        when {
+            freshData -> {
+                AnimationUtil.animateMarkerTo(marker, target, ANIMATE_DURATION_MS)
+                animatingUntil = now + ANIMATE_DURATION_MS
+            }
+            now >= animatingUntil -> marker.position = target
         }
-    }
-
-    private fun removeVehicleMarker() {
-        vehicleMarker?.remove()
-        vehicleMarker = null
     }
 
     // --- Estimate overlays ---
 
-    fun updateEstimateOverlays(
-            distribution: ProbDistribution?,
-            newestValid: ObaTripStatus?,
-            now: Long
-    ) {
+    fun updateEstimateOverlays(distribution: ProbDistribution?,
+                                newestValid: ObaTripStatus?, now: Long) {
         val overlay = estimateOverlay ?: return
-
         if (distribution == null || newestValid == null) {
-            hideEstimateOverlays()
-            return
+            overlay.hide(); return
         }
-
-        val lastDist = newestValid.bestDistanceAlongTrip
+        val lastDist = newestValid.bestDistanceAlongTrip ?: run { overlay.hide(); return }
         val lastTime = newestValid.lastLocationUpdateTime
-        if (lastDist == null || lastTime <= 0) {
-            hideEstimateOverlays()
-            return
-        }
-
+        if (lastTime <= 0) { overlay.hide(); return }
         val dtSec = (now - lastTime) / 1000.0
-        if (dtSec < 0.5) {
-            hideEstimateOverlays()
-            return
-        }
-
+        if (dtSec < 0.5) { overlay.hide(); return }
         overlay.update(distribution, shape, cumDist, lastDist, dtSec, deviationColor)
     }
 
-    fun hideEstimateOverlays() {
-        estimateOverlay?.hide()
-    }
+    fun hideEstimateOverlays() { estimateOverlay?.hide() }
 
     fun handleEstimateLabelClick(marker: Marker) = estimateOverlay?.handleClick(marker) ?: false
 
-    fun handleDataReceivedClick(marker: Marker): Boolean {
-        if (marker == dataReceivedMarker) {
-            marker.showInfoWindow()
-            return true
-        }
-        return false
-    }
+    fun handleDataReceivedClick(marker: Marker) =
+            if (marker == dataReceivedMarker) { marker.showInfoWindow(); true } else false
 
     private fun createEstimateOverlays(vehiclePosition: LatLng?) {
         if (routeType != null && ObaRoute.isGradeSeparated(routeType)) return
         if (vehiclePosition == null) return
-
-        val overlay = SpeedEstimateOverlay(map, context, TRIP_BASE_WIDTH_PX)
-        overlay.create(vehiclePosition)
-        estimateOverlay = overlay
-    }
-
-    private fun destroyEstimateOverlays() {
-        estimateOverlay?.destroy()
-        estimateOverlay = null
+        estimateOverlay = SpeedEstimateOverlay(map, context, TRIP_BASE_WIDTH_PX).also {
+            it.create(vehiclePosition)
+        }
     }
 
     // --- Data-received marker ---
 
-    fun showOrUpdateDataReceivedMarker(latest: ObaTripStatus) {
+    fun showOrUpdateDataReceivedMarker(latest: ObaTripStatus, now: Long) {
         val updateTime = latest.lastLocationUpdateTime
         val newData = updateTime != lastDataReceivedUpdateTime
-
-        refreshDataReceivedLabel(updateTime)
-
+        refreshDataReceivedLabel(updateTime, now)
         if (!newData && dataReceivedMarker != null) return
         lastDataReceivedUpdateTime = updateTime
 
         val pos = latest.position ?: latest.lastKnownLocation ?: return
         val latLng = MapHelpV2.makeLatLng(pos)
 
-        if (dataReceivedMarker != null) {
-            dataReceivedMarker?.position = latLng
-        } else {
-            createDataReceivedMarker(latLng)
-        }
+        dataReceivedMarker?.let { it.position = latLng }
+                ?: run { createDataReceivedMarker(latLng) }
     }
 
-    private fun refreshDataReceivedLabel(updateTime: Long) {
-        val label =
-                if (updateTime > 0)
-                        UIUtils.formatElapsedTime(System.currentTimeMillis() - updateTime)
-                else ""
-        val marker = dataReceivedMarker
-        if (marker != null && label != lastDataReceivedLabel && !marker.isInfoWindowShown) {
-            marker.snippet = label
-        }
+    private fun refreshDataReceivedLabel(updateTime: Long, now: Long) {
+        val label = if (updateTime > 0)
+            UIUtils.formatElapsedTime(now - updateTime) else ""
+        dataReceivedMarker?.takeIf { label != lastDataReceivedLabel && !it.isInfoWindowShown }
+                ?.let { it.snippet = label }
         lastDataReceivedLabel = label
     }
 
     private fun createDataReceivedMarker(latLng: LatLng) {
-        if (cachedCircleIcon == null) {
-            cachedCircleIcon =
-                    MapIconUtils.createCircleIcon(
-                            context,
-                            R.drawable.ic_signal_indicator,
-                            0xFF616161.toInt()
-                    )
-        }
-        dataReceivedMarker =
-                map.addMarker(
-                        MarkerOptions()
-                                .position(latLng)
-                                .icon(cachedCircleIcon)
-                                .anchor(0.5f, 0.5f)
-                                .flat(true)
-                                .title(DATA_RECEIVED_TITLE)
-                                .snippet(lastDataReceivedLabel)
-                                .zIndex(DATA_RECEIVED_Z_INDEX)
-                )
+        dataReceivedMarker = map.addMarker(MarkerOptions()
+                .position(latLng)
+                .icon(dataReceivedIcon)
+                .anchor(0.5f, 0.5f)
+                .flat(true)
+                .title(DATA_RECEIVED_TITLE)
+                .snippet(lastDataReceivedLabel)
+                .zIndex(MARKER_Z_INDEX))
     }
 
     fun removeDataReceivedMarker() {

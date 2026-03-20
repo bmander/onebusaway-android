@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
-import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -31,24 +30,27 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.Marker
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.TripDetailsPoller
-import org.onebusaway.android.io.request.ObaTripDetailsResponse
+import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 
 /**
- * Standalone map fragment for displaying a single trip's route, stops, vehicle position, and speed
- * estimate overlays within TripDetailsActivity.
+ * Standalone map fragment for displaying a single trip's route, stops,
+ * vehicle position, and speed estimate overlays within TripDetailsActivity.
  *
- * Pure lifecycle coordinator — delegates rendering to [TripMapRenderer] (created via
- * [TripMapRendererFactory]), per-frame extrapolation to [TripExtrapolationController], and API
- * polling to [TripDetailsPoller].
+ * Self-contained: reads trip data from [TripDataManager] using the tripId
+ * passed as a fragment argument. Delegates rendering to [TripMapRenderer],
+ * per-frame extrapolation to [TripExtrapolationController], and API polling
+ * to [TripDetailsPoller].
  */
 class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
 
     companion object {
         const val TAG = "TripMapFragment"
+        private const val ARG_TRIP_ID = "tripId"
+        private const val ARG_STOP_ID = "stopId"
         private const val DEFAULT_INITIAL_ZOOM = 12f
 
         @JvmStatic
-        fun newInstance(tripId: String): TripMapFragment {
+        fun newInstance(tripId: String, stopId: String? = null): TripMapFragment {
             val options = GoogleMapOptions()
             val shape = TripDataManager.getShape(tripId)
             val bounds = MapHelpV2.getBounds(shape)
@@ -57,18 +59,19 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
             }
             val args = Bundle()
             args.putParcelable("MapOptions", options)
+            args.putString(ARG_TRIP_ID, tripId)
+            if (stopId != null) args.putString(ARG_STOP_ID, stopId)
             return TripMapFragment().apply { arguments = args }
         }
     }
+
+    private val tripId: String get() = requireArguments().getString(ARG_TRIP_ID)!!
+    private val selectedStopId: String? get() = arguments?.getString(ARG_STOP_ID)
 
     private var map: GoogleMap? = null
     private var tripRenderer: TripMapRenderer? = null
     private var extrapolationController: TripExtrapolationController? = null
     private val poller = TripDetailsPoller()
-
-    private var tripId: String? = null
-    private var selectedStopId: String? = null
-    private var deferredTripDetails: ObaTripDetailsResponse? = null
 
     // --- Lifecycle ---
 
@@ -87,17 +90,13 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
             googleMap.isMyLocationEnabled = true
         }
 
-        val deferred = deferredTripDetails
-        if (deferred != null) {
-            deferredTripDetails = null
-            doActivateTrip(deferred)
-        }
+        activate()
     }
 
     override fun onResume() {
         super.onResume()
         extrapolationController?.start()
-        tripId?.let { poller.start(it) }
+        poller.start(tripId)
     }
 
     override fun onPause() {
@@ -116,33 +115,25 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         super.onDestroyView()
     }
 
-    // --- Public API ---
+    // --- Activation ---
 
-    fun activateTrip(tripId: String, stopId: String?, tripDetails: ObaTripDetailsResponse) {
-        this.tripId = tripId
-        this.selectedStopId = stopId
-        if (map != null) {
-            doActivateTrip(tripDetails)
-        } else {
-            deferredTripDetails = tripDetails
-        }
-    }
-
-    // --- Internal activation ---
-
-    private fun doActivateTrip(response: ObaTripDetailsResponse) {
-        val tid = tripId ?: return
+    private fun activate() {
         val m = map ?: return
+        val response = TripDataManager.getTripDetails(tripId)
+        if (response == null) {
+            Log.w(TAG, "No cached trip details for $tripId")
+            return
+        }
 
         tripRenderer?.deactivate()
         extrapolationController?.stop()
 
-        poller.start(tid)
+        poller.start(tripId)
 
-        TripMapRendererFactory.create(m, requireContext(), tid, selectedStopId, response) { renderer
-            ->
+        TripMapRendererFactory.create(m, requireContext(), tripId,
+                selectedStopId, response) { renderer ->
             tripRenderer = renderer
-            extrapolationController = TripExtrapolationController(renderer, tid)
+            extrapolationController = TripExtrapolationController(renderer, tripId)
             fitCameraToShape()
             extrapolationController?.start()
         }
@@ -172,13 +163,9 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
 
     private fun hasLocationPermission(): Boolean {
         val ctx = context ?: return false
-        return ContextCompat.checkSelfPermission(
-                ctx,
-                android.Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(
-                        ctx,
-                        android.Manifest.permission.ACCESS_COARSE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
+        return ContextCompat.checkSelfPermission(ctx,
+                android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(ctx,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
     }
 }

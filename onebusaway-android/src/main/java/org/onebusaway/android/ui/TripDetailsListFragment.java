@@ -306,6 +306,11 @@ public class TripDetailsListFragment extends ListFragment {
     private void setTripDetails(ObaTripDetailsResponse data) {
         mTripInfo = data;
 
+        // Cache the full response so the map fragment can read it by tripId
+        if (mTripId != null) {
+            TripDataManager.getInstance().putTripDetails(mTripId, data);
+        }
+
         final int code = mTripInfo.getCode();
         if (code == ObaApi.OBA_OK) {
             setEmptyText("");

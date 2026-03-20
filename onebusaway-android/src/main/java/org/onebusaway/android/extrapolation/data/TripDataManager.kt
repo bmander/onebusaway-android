@@ -44,6 +44,7 @@ object TripDataManager {
     private val fetchExecutor = Executors.newFixedThreadPool(2)
     private val pendingScheduleFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val pendingShapeFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val tripDetailsCache = HashMap<String, ObaTripDetailsResponse>()
     private val scheduleCache = HashMap<String, ObaTripSchedule>()
     private val serviceDateCache = HashMap<String, Long>()
     private val shapeCache = HashMap<String, List<Location>>()
@@ -107,6 +108,16 @@ object TripDataManager {
 
     /** Returns the set of all trip IDs that have recorded AVL history. */
     fun getTrackedTripIds(): Set<String> = repository.getTrackedTripIds()
+
+    // --- Trip details response cache ---
+
+    @Synchronized
+    fun putTripDetails(tripId: String, response: ObaTripDetailsResponse) {
+        tripDetailsCache[tripId] = response
+    }
+
+    @Synchronized
+    fun getTripDetails(tripId: String): ObaTripDetailsResponse? = tripDetailsCache[tripId]
 
     /**
      * Returns a sequence of history entries with valid AVL fixes, newest first. Lazily evaluated
@@ -296,6 +307,7 @@ object TripDataManager {
     @Synchronized
     fun clearAll() {
         repository.clearAll()
+        tripDetailsCache.clear()
         scheduleCache.clear()
         serviceDateCache.clear()
         shapeCache.clear()

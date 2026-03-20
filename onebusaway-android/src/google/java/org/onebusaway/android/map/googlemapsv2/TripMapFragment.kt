@@ -15,14 +15,16 @@
  */
 package org.onebusaway.android.map.googlemapsv2
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.location.Location
 import android.os.Bundle
 import android.util.Log
 import android.view.Choreographer
-import android.view.Menu
-import android.view.MenuInflater
-import android.view.MenuItem
 import android.view.View
 import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -33,6 +35,8 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import org.onebusaway.android.R
@@ -54,13 +58,12 @@ import org.onebusaway.android.io.request.ObaTripDetailsResponse
  */
 class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
 
-    interface Callback {
-        fun onShowList()
-    }
-
     companion object {
         const val TAG = "TripMapFragment"
         private const val DEFAULT_INITIAL_ZOOM = 12f
+        private const val ICON_SIZE_DP = 28
+        private const val ICON_PADDING_DP = 4
+        private const val MARKER_Z_INDEX = 3f
 
         @JvmStatic
         fun newInstance(tripId: String): TripMapFragment {
@@ -81,6 +84,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     private var map: GoogleMap? = null
     private var tripRenderer: TripMapRenderer? = null
     private var vehicleMarker: Marker? = null
+    private var vehicleIcon: BitmapDescriptor? = null
     private val reusableLocation = Location("extrapolated")
 
     private var extrapolationTicking = false
@@ -92,31 +96,23 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     private var deferredTripDetails: ObaTripDetailsResponse? = null
     private var deviationColor = 0
 
-    private var callback: Callback? = null
-
     // --- Lifecycle ---
-
-    override fun onAttach(context: Context) {
-        super.onAttach(context)
-        callback = context as? Callback
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setHasOptionsMenu(true)
-    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         getMapAsync(this)
     }
 
+    @SuppressLint("MissingPermission")
     override fun onMapReady(googleMap: GoogleMap) {
         map = googleMap
         tripRenderer = TripMapRenderer(googleMap, requireContext())
         googleMap.setOnMarkerClickListener(this)
         googleMap.uiSettings.isZoomControlsEnabled = true
         MapHelpV2.applyMapStyle(googleMap, requireContext())
+        if (hasLocationPermission()) {
+            googleMap.isMyLocationEnabled = true
+        }
 
         val deferred = deferredTripDetails
         if (deferred != null) {
@@ -142,25 +138,6 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         vehicleMarker = null
         map = null
         super.onDestroyView()
-    }
-
-    override fun onDetach() {
-        super.onDetach()
-        callback = null
-    }
-
-    // --- Menu ---
-
-    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
-        inflater.inflate(R.menu.trip_details_map, menu)
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.show_list) {
-            callback?.onShowList()
-            return true
-        }
-        return super.onOptionsItemSelected(item)
     }
 
     // --- Public API ---
@@ -341,11 +318,17 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         val m = map ?: return
         val marker = vehicleMarker
         if (marker == null) {
+            if (vehicleIcon == null) {
+                vehicleIcon = createCircleIcon(R.drawable.ic_vehicle_position)
+            }
             vehicleMarker = m.addMarker(MarkerOptions()
                     .position(MapHelpV2.makeLatLng(reusableLocation))
+                    .icon(vehicleIcon)
+                    .title("Best estimate")
+                    .snippet("50th percentile")
                     .anchor(0.5f, 0.5f)
                     .flat(true)
-                    .zIndex(2f))
+                    .zIndex(MARKER_Z_INDEX))
         } else {
             val pos = MapHelpV2.makeLatLng(reusableLocation)
             val cur = marker.position
@@ -353,6 +336,42 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
                 marker.position = pos
             }
         }
+    }
+
+    private fun createCircleIcon(drawableRes: Int): BitmapDescriptor {
+        val d = resources.displayMetrics.density
+        val sizePx = (ICON_SIZE_DP * d).toInt()
+        val padding = (ICON_PADDING_DP * d).toInt()
+        val strokeWidth = 2f * d
+
+        val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val cx = sizePx / 2f
+        val cy = sizePx / 2f
+
+        // Stroke
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF616161.toInt()
+            style = Paint.Style.STROKE
+            this.strokeWidth = strokeWidth
+        }
+        canvas.drawCircle(cx, cy, cx - strokeWidth / 2, strokePaint)
+
+        // Fill
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xDDFFFFFF.toInt()
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(cx, cy, cx - strokeWidth, fillPaint)
+
+        // Icon
+        val icon = ContextCompat.getDrawable(requireContext(), drawableRes)
+        if (icon != null) {
+            icon.setBounds(padding, padding, sizePx - padding, sizePx - padding)
+            icon.draw(canvas)
+        }
+
+        return BitmapDescriptorFactory.fromBitmap(bmp)
     }
 
     private fun updateOverlays(tracker: VehicleTrajectoryTracker, now: Long) {
@@ -375,5 +394,13 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         if (renderer.handleEstimateLabelClick(marker)) return true
         if (renderer.handleStopMarkerClick(marker)) return true
         return false
+    }
+
+    private fun hasLocationPermission(): Boolean {
+        val ctx = context ?: return false
+        return ContextCompat.checkSelfPermission(ctx,
+                android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(ctx,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
     }
 }

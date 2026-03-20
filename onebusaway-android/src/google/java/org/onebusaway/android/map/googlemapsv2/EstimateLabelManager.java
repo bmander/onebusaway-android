@@ -19,7 +19,10 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.drawable.Drawable;
 import android.location.Location;
+
+import androidx.core.content.ContextCompat;
 
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.model.BitmapDescriptor;
@@ -28,30 +31,27 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import org.onebusaway.android.R;
 import org.onebusaway.android.util.LocationUtils;
 
 import java.util.List;
 
 /**
- * Owns the slow/fast estimate label markers, icon creation, and click-to-expand.
- * Labels interpolate directly on the polyline.
+ * Owns the fast estimate icon marker on the trip polyline.
+ * Tapping the icon shows an info window with the estimate description.
  */
 public final class EstimateLabelManager {
 
-    static final float INFO_LABEL_Z_INDEX = 0.5f; // VEHICLE_MARKER_Z_INDEX (1) - 0.5f
-    private static final int INFO_LABEL_SP = 10;
-    private static final int INFO_LABEL_POINTER_WIDTH_DP = 10;
-    private static final String FAST_ESTIMATE_LABEL = "Fast estimate";
-    private static final String FAST_ESTIMATE_EXPANDED = "Fast estimate\n90th percentile speed";
-    private static final double LABEL_DEADZONE_DEG = 20.0;
+    static final float INFO_LABEL_Z_INDEX = 3f;
+    private static final int ICON_SIZE_DP = 28;
+    private static final int ICON_PADDING_DP = 4;
+    private static final float STROKE_WIDTH_DP = 2f;
 
     private final GoogleMap mMap;
     private final Context mContext;
 
     private Marker mFastEstimateMarker;
-    private BitmapDescriptor mFastEstimateIcon;
-    private BitmapDescriptor mFastEstimateExpandedIcon;
-    private boolean mFastEstimateExpanded;
+    private BitmapDescriptor mIcon;
 
     private final Location mReusableLoc = new Location("label");
 
@@ -60,26 +60,31 @@ public final class EstimateLabelManager {
         mContext = context;
     }
 
-    /** Creates the label markers at the given initial position. */
+    /** Creates the marker at the given initial position. */
     public void create(LatLng initialPosition) {
-        mFastEstimateIcon = createInfoLabelIcon(FAST_ESTIMATE_LABEL, null);
-        mFastEstimateExpandedIcon = createInfoLabelExpandedIcon(FAST_ESTIMATE_EXPANDED);
-        mFastEstimateExpanded = false;
-
-        mFastEstimateMarker = addFlatInfoLabelMarker(initialPosition, mFastEstimateIcon);
+        mIcon = createCircleIcon();
+        mFastEstimateMarker = mMap.addMarker(new MarkerOptions()
+                .position(initialPosition)
+                .icon(mIcon)
+                .title("Fast estimate")
+                .snippet("90th percentile speed")
+                .anchor(0.5f, 0.5f)
+                .flat(true)
+                .zIndex(INFO_LABEL_Z_INDEX)
+                .visible(false)
+        );
     }
 
-    /** Removes the label markers and clears state. */
+    /** Removes the marker and clears state. */
     public void destroy() {
         if (mFastEstimateMarker != null) {
             mFastEstimateMarker.remove();
             mFastEstimateMarker = null;
         }
-        mFastEstimateIcon = null;
-        mFastEstimateExpandedIcon = null;
+        mIcon = null;
     }
 
-    /** Hides the markers without removing them. */
+    /** Hides the marker without removing it. */
     public void hide() {
         if (mFastEstimateMarker != null) mFastEstimateMarker.setVisible(false);
     }
@@ -89,184 +94,73 @@ public final class EstimateLabelManager {
     }
 
     /**
-     * Per-frame update: positions label at the given distance along the polyline.
-     *
-     * @param dist90  fast estimate distance (90th percentile)
-     * @param shape   decoded polyline points
-     * @param cumDist precomputed cumulative distances
+     * Per-frame update: positions the icon at the given distance along the polyline.
      */
     public void update(double dist90,
                        List<Location> shape, double[] cumDist) {
         if (mFastEstimateMarker == null) return;
 
-        updateInfoLabelPosition(mFastEstimateMarker, dist90, shape, cumDist);
+        if (!LocationUtils.interpolateAlongPolyline(
+                shape, cumDist, dist90, mReusableLoc)) {
+            mFastEstimateMarker.setVisible(false);
+            return;
+        }
+        mFastEstimateMarker.setPosition(new LatLng(
+                mReusableLoc.getLatitude(),
+                mReusableLoc.getLongitude()));
+        mFastEstimateMarker.setVisible(true);
     }
 
     /**
-     * Handles a click on an info label marker by toggling between collapsed
-     * and expanded label. Returns true if the marker was an info label.
+     * Handles a click on the estimate marker by showing/hiding its info window.
+     * Returns true if the marker was the estimate icon.
      */
     public boolean handleClick(Marker marker) {
         if (marker.equals(mFastEstimateMarker)) {
-            mFastEstimateExpanded = !mFastEstimateExpanded;
-            mFastEstimateMarker.setIcon(mFastEstimateExpanded
-                    ? mFastEstimateExpandedIcon : mFastEstimateIcon);
+            if (mFastEstimateMarker.isInfoWindowShown()) {
+                mFastEstimateMarker.hideInfoWindow();
+            } else {
+                mFastEstimateMarker.showInfoWindow();
+            }
             return true;
         }
         return false;
     }
 
-    // --- Label positioning ---
-
-    private void updateInfoLabelPosition(Marker marker, double distance,
-                                         List<Location> shape, double[] cumDist) {
-        if (!LocationUtils.interpolateAlongPolyline(
-                shape, cumDist, distance, mReusableLoc)) {
-            marker.setVisible(false);
-            return;
-        }
-        marker.setPosition(new LatLng(
-                mReusableLoc.getLatitude(),
-                mReusableLoc.getLongitude()));
-        double heading = LocationUtils.headingAlongPolyline(
-                shape, cumDist, distance);
-        if (!Double.isNaN(heading)) {
-            double labelAz = clampedLabelAzimuth(heading);
-            marker.setRotation((float) (labelAz - 90.0));
-        }
-        marker.setVisible(true);
-    }
-
-    private Marker addFlatInfoLabelMarker(LatLng pos, BitmapDescriptor icon) {
-        return mMap.addMarker(new MarkerOptions()
-                .position(pos)
-                .icon(icon)
-                .anchor(0f, 0.5f)
-                .flat(true)
-                .zIndex(INFO_LABEL_Z_INDEX)
-                .visible(false)
-        );
-    }
-
-    // --- Icon creation (static, shared with data-received label in VehicleOverlay) ---
-
-    private BitmapDescriptor createInfoLabelIcon(String label, float[] outWidth) {
-        return createInfoLabelIcon(mContext, new String[]{label}, outWidth);
-    }
-
-    private BitmapDescriptor createInfoLabelExpandedIcon(String label) {
-        return createInfoLabelIcon(mContext, label.split("\n"), null);
-    }
-
-    static BitmapDescriptor createInfoLabelIcon(Context context, String[] lines,
-                                                float[] outWidth) {
-        float d = context.getResources().getDisplayMetrics().density;
-
-        Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        textPaint.setTextSize(INFO_LABEL_SP * d);
-        textPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        textPaint.setColor(0xFF616161);
-        Paint.FontMetrics fm = textPaint.getFontMetrics();
-        int lineHeight = (int) Math.ceil(fm.descent - fm.ascent);
-        float lineGap = d;
-
-        float maxLineWidth = 0;
-        for (String line : lines) {
-            maxLineWidth = Math.max(maxLineWidth, textPaint.measureText(line));
-        }
-
-        float padLeft = 4 * d;
-        float padRight = 6 * d;
-        float padY = 2 * d;
-        float pointerWidth = INFO_LABEL_POINTER_WIDTH_DP * d;
-        int textBlockHeight = lineHeight * lines.length
-                + (int) (lineGap * (lines.length - 1));
-        int bubbleWidth = (int) (pointerWidth + padLeft + maxLineWidth + padRight);
-        int bubbleHeight = (int) (textBlockHeight + padY * 2);
-        float cornerRadius = 3 * d;
-
-        Bitmap bmp = Bitmap.createBitmap(bubbleWidth, bubbleHeight, Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(bmp);
-
-        float bodyLeft = drawPointerBubble(c, 0, 0,
-                bubbleWidth, bubbleHeight, cornerRadius, pointerWidth);
-
-        float textX = bodyLeft + padLeft;
-        float textY = padY - fm.ascent;
-        for (int i = 0; i < lines.length; i++) {
-            c.drawText(lines[i], textX, textY + i * (lineHeight + lineGap), textPaint);
-        }
-
-        if (outWidth != null && outWidth.length > 0) {
-            outWidth[0] = bubbleWidth;
-        }
-        return BitmapDescriptorFactory.fromBitmap(bmp);
-    }
-
     /**
-     * Draws a 5-sided pointer bubble: a rectangle with the left side replaced
-     * by two edges meeting at a pointed tip.
-     *
-     * @return the X coordinate of the body's left edge (after the pointer)
+     * Creates a circular icon with the vector drawable centered inside.
      */
-    private static float drawPointerBubble(Canvas c, float left, float top,
-                                   float width, float height,
-                                   float cornerRadius, float pointerWidth) {
-        float bodyLeft = left + pointerWidth;
-        float right = left + width;
-        float bottom = top + height;
-        float midY = top + height / 2f;
-        float r = cornerRadius;
+    private BitmapDescriptor createCircleIcon() {
+        float d = mContext.getResources().getDisplayMetrics().density;
+        int sizePx = (int) (ICON_SIZE_DP * d);
+        int padding = (int) (ICON_PADDING_DP * d);
+        float strokeWidth = STROKE_WIDTH_DP * d;
+        float cx = sizePx / 2f;
+        float cy = sizePx / 2f;
 
-        android.graphics.Path path = new android.graphics.Path();
-        path.moveTo(left, midY);
-        path.lineTo(bodyLeft, top);
-        path.lineTo(right - r, top);
-        path.quadTo(right, top, right, top + r);
-        path.lineTo(right, bottom - r);
-        path.quadTo(right, bottom, right - r, bottom);
-        path.lineTo(bodyLeft, bottom);
-        path.close();
+        Bitmap bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bmp);
 
-        Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bgPaint.setColor(0xDDFFFFFF);
-        bgPaint.setStyle(Paint.Style.FILL);
-        c.drawPath(path, bgPaint);
+        // Stroke
+        Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        strokePaint.setColor(0xFF616161);
+        strokePaint.setStyle(Paint.Style.STROKE);
+        strokePaint.setStrokeWidth(strokeWidth);
+        canvas.drawCircle(cx, cy, cx - strokeWidth / 2, strokePaint);
 
-        return bodyLeft;
-    }
+        // Fill
+        Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        fillPaint.setColor(0xDDFFFFFF);
+        fillPaint.setStyle(Paint.Style.FILL);
+        canvas.drawCircle(cx, cy, cx - strokeWidth, fillPaint);
 
-    // --- Azimuth helpers ---
-
-    private static double normalizeDeg(double angle) {
-        return ((angle % 360) + 360) % 360;
-    }
-
-    private static double headingToLabelAzimuth(double heading) {
-        double az = normalizeDeg(heading - 90);
-        if (az > 180) {
-            az = normalizeDeg(heading + 90);
+        // Icon
+        Drawable icon = ContextCompat.getDrawable(mContext, R.drawable.ic_fast_estimate);
+        if (icon != null) {
+            icon.setBounds(padding, padding, sizePx - padding, sizePx - padding);
+            icon.draw(canvas);
         }
-        return az;
-    }
 
-    static double clampedLabelAzimuth(double heading) {
-        double labelAz = headingToLabelAzimuth(heading);
-        labelAz = clampAzimuthAwayFrom(labelAz, 0);
-        labelAz = clampAzimuthAwayFrom(labelAz, 180);
-        return labelAz;
-    }
-
-    private static double clampAzimuthAwayFrom(double value, double center) {
-        double delta = value - center;
-        if (delta > 180) delta -= 360;
-        if (delta < -180) delta += 360;
-        if (delta >= -LABEL_DEADZONE_DEG && delta < 0) {
-            return normalizeDeg(center - LABEL_DEADZONE_DEG);
-        }
-        if (delta >= 0 && delta < LABEL_DEADZONE_DEG) {
-            return normalizeDeg(center + LABEL_DEADZONE_DEG);
-        }
-        return value;
+        return BitmapDescriptorFactory.fromBitmap(bmp);
     }
 }

@@ -739,7 +739,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
          * Extrapolates vehicle positions using trajectory data and moves markers
          * along their route polylines. Called every frame via Choreographer.
          */
-        void extrapolatePositions() {
+        synchronized void extrapolatePositions() {
             if (mVehicleMarkers == null || mVehicleMarkers.isEmpty())
                 return;
 

@@ -27,6 +27,11 @@ import kotlin.math.sqrt
 class GammaDistribution(@JvmField val alpha: Double, @JvmField val scale: Double) :
         ProbDistribution {
 
+    init {
+        require(alpha > 0) { "alpha must be positive, got $alpha" }
+        require(scale > 0) { "scale must be positive, got $scale" }
+    }
+
     override val mean: Double
         get() = alpha * scale
 

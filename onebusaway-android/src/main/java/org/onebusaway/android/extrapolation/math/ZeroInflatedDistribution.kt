@@ -26,6 +26,10 @@ open class ZeroInflatedDistribution(
         protected val base: ProbDistribution
 ) : ProbDistribution {
 
+    init {
+        require(p0 in 0.0..1.0) { "p0 must be in [0, 1], got $p0" }
+    }
+
     override val mean: Double
         get() = (1 - p0) * base.mean
 

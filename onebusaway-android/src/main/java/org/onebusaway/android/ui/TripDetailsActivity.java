@@ -23,6 +23,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 
 import org.onebusaway.android.R;
+import org.onebusaway.android.ui.dataview.VehicleLocationDataActivity;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.map.googlemapsv2.tripmap.TripMapFragment;

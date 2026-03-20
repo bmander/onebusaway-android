@@ -509,7 +509,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 ObaTripStatus status = trip.getStatus();
                 if (status != null) {
                     // Check if this vehicle is running a route we're interested in and isn't CANCELED
-                    String activeRoute = response.getTrip(status.getActiveTripId()).getRouteId();
+                    ObaTrip activeTrip = response.getTrip(status.getActiveTripId());
+                    if (activeTrip == null) continue;
+                    String activeRoute = activeTrip.getRouteId();
                     if (routeIds.contains(activeRoute) && !Status.CANCELED.equals(status.getStatus())) {
                         recordTrajectoryState(status, response);
 
@@ -704,9 +706,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
          */
         private BitmapDescriptor getVehicleIcon(boolean isRealtime, ObaTripStatus status,
                                                 ObaTripsForRouteResponse response) {
-            String routeId = response.getTrip(status.getActiveTripId()).getRouteId();
-            ObaRoute route = response.getRoute(routeId);
-            int vehicleType = route.getType();
+            ObaTrip trip = response.getTrip(status.getActiveTripId());
+            ObaRoute route = trip != null ? response.getRoute(trip.getRouteId()) : null;
+            int vehicleType = route != null ? route.getType() : DEFAULT_VEHICLE_TYPE;
             int colorResource = getDeviationColorResource(isRealtime, status);
             double direction = MathUtils.toDirection(status.getOrientation());
             int halfWind = MathUtils.getHalfWindIndex((float) direction, NUM_DIRECTIONS - 1);
@@ -829,7 +831,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             ViewGroup occupancyView = view.findViewById(R.id.occupancy);
 
             ObaTrip trip = mLastResponse.getTrip(status.getActiveTripId());
+            if (trip == null) return null;
             ObaRoute route = mLastResponse.getRoute(trip.getRouteId());
+            if (route == null) return null;
 
             routeView.setText(UIUtils.getRouteDisplayName(route) + " " +
                     mContext.getString(R.string.trip_info_separator) + " " + UIUtils

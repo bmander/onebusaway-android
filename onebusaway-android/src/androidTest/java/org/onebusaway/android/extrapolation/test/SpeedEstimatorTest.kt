@@ -29,7 +29,6 @@ import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.DiracDistribution
 import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
 import org.onebusaway.android.extrapolation.math.speed.GammaSpeedEstimator
-import org.onebusaway.android.extrapolation.math.speed.gammaProbDistribution
 import org.onebusaway.android.extrapolation.math.speed.ScheduleSpeedEstimator
 import org.onebusaway.android.extrapolation.math.speed.SpeedEstimateError
 import org.onebusaway.android.extrapolation.math.speed.SpeedEstimateResult
@@ -180,7 +179,7 @@ class SpeedEstimatorTest {
         assertEquals(42.0, speed!!, 0.01)
 
         // Restore default
-        tracker.setEstimator(GammaSpeedEstimator())
+        tracker.setEstimator(GammaSpeedEstimator(dm))
     }
 
     @Test
@@ -293,7 +292,7 @@ class SpeedEstimatorTest {
 
     @Test
     fun testScheduleEstimatorNoCachedScheduleReturnsFailure() {
-        val estimator = ScheduleSpeedEstimator()
+        val estimator = ScheduleSpeedEstimator(dm)
         val timestamp = 1000L
 
         val status = createStatus(
@@ -302,7 +301,7 @@ class SpeedEstimatorTest {
         dm.recordStatus(status)
 
         // No schedule cached - should return failure
-        val result = estimator.estimateSpeed("trip1", timestamp, dm)
+        val result = estimator.estimateSpeed("trip1", timestamp)
         assertTrue(result is SpeedEstimateResult.Failure)
         val error = (result as SpeedEstimateResult.Failure).error
         assertTrue(error is SpeedEstimateError.InsufficientData)
@@ -310,7 +309,7 @@ class SpeedEstimatorTest {
 
     @Test
     fun testScheduleEstimatorNullScheduledDistance() {
-        val estimator = ScheduleSpeedEstimator()
+        val estimator = ScheduleSpeedEstimator(dm)
         val timestamp = 10000L
 
         val status = createStatus(
@@ -318,13 +317,13 @@ class SpeedEstimatorTest {
         )
         dm.recordStatus(status)
 
-        val result = estimator.estimateSpeed("trip1", timestamp, dm)
+        val result = estimator.estimateSpeed("trip1", timestamp)
         assertTrue(result is SpeedEstimateResult.Failure)
     }
 
     @Test
     fun testScheduleEstimatorCorrectSegmentSpeed() {
-        val estimator = ScheduleSpeedEstimator()
+        val estimator = ScheduleSpeedEstimator(dm)
         val timestamp = 10000L
 
         val schedule = createSchedule(
@@ -339,7 +338,7 @@ class SpeedEstimatorTest {
         )
         dm.recordStatus(status)
 
-        val result = estimator.estimateSpeed("trip1", timestamp, dm)
+        val result = estimator.estimateSpeed("trip1", timestamp)
         assertTrue(result is SpeedEstimateResult.Success)
         val dist = (result as SpeedEstimateResult.Success).distribution
         assertEquals(1000.0 / 60.0, dist.mean, 0.01)
@@ -347,7 +346,7 @@ class SpeedEstimatorTest {
 
     @Test
     fun testScheduleEstimatorSecondSegment() {
-        val estimator = ScheduleSpeedEstimator()
+        val estimator = ScheduleSpeedEstimator(dm)
         val timestamp = 10000L
 
         val schedule = createSchedule(
@@ -362,7 +361,7 @@ class SpeedEstimatorTest {
         )
         dm.recordStatus(status)
 
-        val result = estimator.estimateSpeed("trip1", timestamp, dm)
+        val result = estimator.estimateSpeed("trip1", timestamp)
         assertTrue(result is SpeedEstimateResult.Success)
         val dist = (result as SpeedEstimateResult.Success).distribution
         assertEquals(2000.0 / 120.0, dist.mean, 0.01)
@@ -370,7 +369,7 @@ class SpeedEstimatorTest {
 
     @Test
     fun testScheduleEstimatorBeforeFirstStop() {
-        val estimator = ScheduleSpeedEstimator()
+        val estimator = ScheduleSpeedEstimator(dm)
         val timestamp = 10000L
 
         val schedule = createSchedule(
@@ -385,13 +384,13 @@ class SpeedEstimatorTest {
         )
         dm.recordStatus(status)
 
-        val result = estimator.estimateSpeed("trip1", timestamp, dm)
+        val result = estimator.estimateSpeed("trip1", timestamp)
         assertTrue(result is SpeedEstimateResult.Failure)
     }
 
     @Test
     fun testScheduleEstimatorAfterLastStop() {
-        val estimator = ScheduleSpeedEstimator()
+        val estimator = ScheduleSpeedEstimator(dm)
         val timestamp = 10000L
 
         val schedule = createSchedule(
@@ -406,13 +405,13 @@ class SpeedEstimatorTest {
         )
         dm.recordStatus(status)
 
-        val result = estimator.estimateSpeed("trip1", timestamp, dm)
+        val result = estimator.estimateSpeed("trip1", timestamp)
         assertTrue(result is SpeedEstimateResult.Failure)
     }
 
     @Test
     fun testScheduleEstimatorTooFewStops() {
-        val estimator = ScheduleSpeedEstimator()
+        val estimator = ScheduleSpeedEstimator(dm)
         val timestamp = 10000L
 
         val schedule = createSchedule(
@@ -427,13 +426,13 @@ class SpeedEstimatorTest {
         )
         dm.recordStatus(status)
 
-        val result = estimator.estimateSpeed("trip1", timestamp, dm)
+        val result = estimator.estimateSpeed("trip1", timestamp)
         assertTrue(result is SpeedEstimateResult.Failure)
     }
 
     @Test
     fun testScheduleEstimatorZeroTimeDelta() {
-        val estimator = ScheduleSpeedEstimator()
+        val estimator = ScheduleSpeedEstimator(dm)
         val timestamp = 10000L
 
         val schedule = createSchedule(
@@ -448,13 +447,13 @@ class SpeedEstimatorTest {
         )
         dm.recordStatus(status)
 
-        val result = estimator.estimateSpeed("trip1", timestamp, dm)
+        val result = estimator.estimateSpeed("trip1", timestamp)
         assertTrue(result is SpeedEstimateResult.Failure)
     }
 
     @Test
     fun testScheduleEstimatorTimestampBeforeStatus() {
-        val estimator = ScheduleSpeedEstimator()
+        val estimator = ScheduleSpeedEstimator(dm)
         val statusTimestamp = 10000L
         val requestedTimestamp = 5000L // Before status
 
@@ -470,79 +469,17 @@ class SpeedEstimatorTest {
         )
         dm.recordStatus(status)
 
-        val result = estimator.estimateSpeed("trip1", requestedTimestamp, dm)
+        val result = estimator.estimateSpeed("trip1", requestedTimestamp)
         assertTrue(result is SpeedEstimateResult.Failure)
         val error = (result as SpeedEstimateResult.Failure).error
         assertTrue(error is SpeedEstimateError.TimestampOutOfBounds)
-    }
-
-    // --- GammaSpeedModel tests ---
-    // (Detailed GammaSpeedModel tests are in the JVM unit test suite;
-    //  these are smoke tests that verify it works on device.)
-
-    @Test
-    fun testGammaSpeedModel_fromSpeeds_workedExample() {
-        // 20 mph ≈ 8.94 m/s, 10 mph ≈ 4.47 m/s
-        val dist = gammaProbDistribution(8.94, 4.47, 2000.0) as ZeroInflatedGammaDistribution
-        assertEquals(2.65, dist.alpha, 0.15)
-        assertEquals(3.22, dist.scale, 0.5)
-    }
-
-    @Test
-    fun testGammaSpeedModel_cdf_quantile_roundTrip() {
-        val dist = gammaProbDistribution(6.71, 6.71, 2000.0)
-
-        for (p in doubleArrayOf(0.10, 0.25, 0.50, 0.75, 0.90)) {
-            val q = dist.quantile(p)
-            assertEquals("CDF(quantile($p)) should equal $p", p, dist.cdf(q), 0.01)
-        }
-    }
-
-    @Test
-    fun testGammaSpeedModel_prevSpeedFallback() {
-        val dist = gammaProbDistribution(8.94, 0.0, 2000.0) as ZeroInflatedGammaDistribution
-        val distEqual = gammaProbDistribution(8.94, 8.94, 2000.0) as ZeroInflatedGammaDistribution
-        assertEquals(distEqual.alpha, dist.alpha, 0.001)
-        assertEquals(distEqual.scale, dist.scale, 0.001)
-    }
-
-    @Test(expected = IllegalArgumentException::class)
-    fun testGammaSpeedModel_schedSpeedZero_throws() {
-        gammaProbDistribution(0.0, 5.0, 2000.0)
-    }
-
-    @Test(expected = IllegalArgumentException::class)
-    fun testGammaSpeedModel_schedSpeedNegative_throws() {
-        gammaProbDistribution(-1.0, 5.0, 2000.0)
-    }
-
-    @Test
-    fun testGammaSpeedModel_mean() {
-        val dist = gammaProbDistribution(6.71, 6.71, 2000.0)
-        assertTrue("Mean speed should be positive", dist.mean > 0)
-        assertEquals(6.71, dist.mean, 1.5)
-    }
-
-    @Test
-    fun testGammaSpeedModel_pdf_positiveInRange() {
-        val dist = gammaProbDistribution(6.71, 6.71, 2000.0)
-        assertEquals(0.0, dist.pdf(0.0), 0.001)
-        assertTrue("PDF should be positive at mean", dist.pdf(6.71) > 0)
-    }
-
-    @Test
-    fun testGammaSpeedModel_cdf_boundaries() {
-        val dist = gammaProbDistribution(6.71, 6.71, 2000.0) as ZeroInflatedGammaDistribution
-        assertEquals(dist.p0, dist.cdf(0.0), 0.001)
-        assertEquals(0.0, dist.cdf(-1.0), 0.001)
-        assertTrue(dist.cdf(45.0) > 0.99)
     }
 
     // --- GammaSpeedEstimator tests ---
 
     @Test
     fun testGammaSpeedEstimator_returnsGammaMedian() {
-        val estimator = GammaSpeedEstimator()
+        val estimator = GammaSpeedEstimator(dm)
         // departureTimes[0]=100s, so trip starts at serviceDate + 100_000ms
         // serviceDate must be > 0 for putServiceDate to accept it
         val serviceDate = 1L
@@ -567,7 +504,7 @@ class SpeedEstimatorTest {
         dm.recordStatus(status1)
         dm.recordStatus(status2)
 
-        val result = estimator.estimateSpeed("trip1", queryTime, dm)
+        val result = estimator.estimateSpeed("trip1", queryTime)
         assertTrue(result is SpeedEstimateResult.Success)
         val dist = (result as SpeedEstimateResult.Success).distribution
         assertTrue(dist is ZeroInflatedGammaDistribution)
@@ -579,7 +516,7 @@ class SpeedEstimatorTest {
 
     @Test
     fun testGammaSpeedEstimator_noScheduleFallsBack() {
-        val estimator = GammaSpeedEstimator()
+        val estimator = GammaSpeedEstimator(dm)
         val timestamp = 1000L
 
         val status = createStatus(
@@ -587,7 +524,7 @@ class SpeedEstimatorTest {
         )
         dm.recordStatus(status)
 
-        val result = estimator.estimateSpeed("trip1", timestamp, dm)
+        val result = estimator.estimateSpeed("trip1", timestamp)
         assertTrue(result is SpeedEstimateResult.Failure)
     }
 

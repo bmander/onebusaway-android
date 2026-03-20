@@ -51,6 +51,7 @@ import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.extrapolation.data.TripRepository;
+import org.onebusaway.android.extrapolation.math.ProbDistribution;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.ui.TripDetailsActivity;
 import org.onebusaway.android.ui.TripDetailsListFragment;
@@ -678,6 +679,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     if (!activeTripIds.contains(tripId)) {
                         entry.getValue().remove();
                         mVehicles.remove(m);
+                        mLastFixTimes.remove(tripId);
+                        mAnimatingUntil.remove(tripId);
                         iterator.remove();
                         removed++;
                     }
@@ -693,6 +696,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     if (!activeTripIds.contains(tripId)) {
                         entry.getValue().remove();
                         mVehicles.remove(m);
+                        mLastFixTimes.remove(tripId);
+                        mAnimatingUntil.remove(tripId);
                         mVehicleMarkers.remove(tripId);
                         removed++;
                     }
@@ -741,9 +746,17 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         /** Reusable Location to avoid per-frame allocation in extrapolation. */
         private final Location mReusableLocation = new Location("extrapolated");
 
+        /** Tracks last AVL fix time per trip to detect fresh data. */
+        private final HashMap<String, Long> mLastFixTimes = new HashMap<>();
+        /** Tracks when an animation was started, to avoid overriding it with setPosition. */
+        private final HashMap<String, Long> mAnimatingUntil = new HashMap<>();
+
+        private static final int ANIMATE_DURATION_MS = 600;
+
         /**
          * Extrapolates vehicle positions using trajectory data and moves markers
          * along their route polylines. Called every frame via Choreographer.
+         * Animates the marker when a fresh AVL data point changes the estimate.
          */
         synchronized void extrapolatePositions() {
             if (mVehicleMarkers == null || mVehicleMarkers.isEmpty())
@@ -753,13 +766,58 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             long now = System.currentTimeMillis();
 
             for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
-                if (tracker.extrapolatePosition(entry.getKey(), now, mReusableLocation)) {
-                    entry.getValue().setPosition(new LatLng(
-                            mReusableLocation.getLatitude(), mReusableLocation.getLongitude()));
+                String tripId = entry.getKey();
+                TripDataManager.TripSnapshot snapshot = TripDataManager.getInstance()
+                        .getSnapshot(tripId);
+                LatLng target = computeExtrapolatedPosition(tracker, tripId, now, snapshot);
+                if (target == null) continue;
+
+                Marker marker = entry.getValue();
+                if (detectFreshAvlData(tripId, snapshot.newestValid)) {
+                    startTransitionAnimation(tripId, marker, target, now);
+                } else {
+                    setPositionIfNotAnimating(tripId, marker, target, now);
                 }
             }
         }
 
+        /** Computes the extrapolated position for a trip, or null if unavailable. */
+        private LatLng computeExtrapolatedPosition(
+                VehicleTrajectoryTracker tracker, String tripId, long now,
+                TripDataManager.TripSnapshot snapshot) {
+            TripDataManager.ShapeData sd = snapshot.shapeData;
+            if (sd == null || sd.points.isEmpty()) return null;
+            ProbDistribution dist = tracker.getEstimatedDistribution(tripId, now, snapshot);
+            if (dist == null) return null;
+            if (!tracker.extrapolatePosition(sd, snapshot.newestValid,
+                    dist, now, mReusableLocation)) return null;
+            return new LatLng(mReusableLocation.getLatitude(), mReusableLocation.getLongitude());
+        }
+
+        /** Returns true if the newest AVL fix time changed since last check for this trip. */
+        private boolean detectFreshAvlData(String tripId, ObaTripStatus newest) {
+            long fixTime = newest != null ? newest.getLastLocationUpdateTime() : 0;
+            Long prevFixTime = mLastFixTimes.put(tripId, fixTime);
+            return prevFixTime != null && fixTime != prevFixTime;
+        }
+
+        private void startTransitionAnimation(String tripId, Marker marker,
+                                               LatLng target, long now) {
+            if (marker.getPosition() != null) {
+                AnimationUtil.animateMarkerTo(marker, target, ANIMATE_DURATION_MS);
+            } else {
+                marker.setPosition(target);
+            }
+            mAnimatingUntil.put(tripId, now + ANIMATE_DURATION_MS);
+        }
+
+        private void setPositionIfNotAnimating(String tripId, Marker marker,
+                                                LatLng target, long now) {
+            Long animEnd = mAnimatingUntil.get(tripId);
+            if (animEnd == null || now >= animEnd) {
+                marker.setPosition(target);
+            }
+        }
 
         /**
          * Clears any stop markers from the map
@@ -777,6 +835,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 mVehicles.clear();
                 mVehicles = null;
             }
+            mLastFixTimes.clear();
+            mAnimatingUntil.clear();
         }
 
         synchronized int size() {

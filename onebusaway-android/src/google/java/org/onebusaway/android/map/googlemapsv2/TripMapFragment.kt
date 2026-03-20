@@ -47,6 +47,7 @@ import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.isLocationRealtime
 import org.onebusaway.android.io.elements.isRealtimeSpeedEstimable
 import org.onebusaway.android.io.request.ObaShapeRequest
+import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 
 /**
@@ -60,6 +61,8 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         private const val DEFAULT_INITIAL_ZOOM = 12f
         private const val MARKER_Z_INDEX = 3f
         private const val FRAME_INTERVAL_MS = 50L // 20fps
+        private const val ANIMATE_DURATION_MS = 600
+        private const val POLL_INTERVAL_MS = 10_000L // 10s API refresh
 
         @JvmStatic
         fun newInstance(tripId: String): TripMapFragment {
@@ -82,10 +85,16 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     private var vehicleMarker: Marker? = null
     private var vehicleIcon: BitmapDescriptor? = null
     private val reusableLocation = Location("extrapolated")
+    private var lastFixTime = 0L
+    private var animatingUntil = 0L
 
     private var extrapolationTicking = false
     private var lastFrameTimeMs = 0L
     private val frameCallback = Choreographer.FrameCallback { onExtrapolationFrame() }
+
+    private val pollHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    @Volatile private var polling = false
+    private val pollRunnable = Runnable { pollTripDetails() }
 
     private var tripId: String? = null
     private var selectedStopId: String? = null
@@ -121,14 +130,17 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     override fun onResume() {
         super.onResume()
         startExtrapolationTicking()
+        startPolling()
     }
 
     override fun onPause() {
         stopExtrapolationTicking()
+        stopPolling()
         super.onPause()
     }
 
     override fun onDestroyView() {
+        stopPolling()
         tripRenderer?.deactivate()
         tripRenderer = null
         vehicleMarker?.remove()
@@ -293,6 +305,40 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         Choreographer.getInstance().removeFrameCallback(frameCallback)
     }
 
+    // --- API polling ---
+
+    private fun startPolling() {
+        if (!polling && tripId != null) {
+            polling = true
+            pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
+        }
+    }
+
+    private fun stopPolling() {
+        polling = false
+        pollHandler.removeCallbacks(pollRunnable)
+    }
+
+    private fun pollTripDetails() {
+        if (!polling) return
+        val tid = tripId ?: return
+
+        Thread {
+            try {
+                val ctx = Application.get().applicationContext
+                val response = ObaTripDetailsRequest.newRequest(ctx, tid).call()
+                if (response != null) {
+                    TripDataManager.recordTripDetailsResponse(tid, response)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to poll trip details for $tid", e)
+            }
+            if (polling) {
+                pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
+            }
+        }.start()
+    }
+
     private fun onExtrapolationFrame() {
         val tid = tripId
         if (!extrapolationTicking || tid == null || map == null) {
@@ -349,10 +395,16 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
                     .flat(true)
                     .zIndex(MARKER_Z_INDEX))
         } else {
-            val pos = MapHelpV2.makeLatLng(reusableLocation)
-            val cur = marker.position
-            if (cur == null || cur.latitude != pos.latitude || cur.longitude != pos.longitude) {
-                marker.position = pos
+            val target = MapHelpV2.makeLatLng(reusableLocation)
+            val fixTime = newestValid?.lastLocationUpdateTime ?: 0L
+            val freshData = lastFixTime != 0L && fixTime != lastFixTime
+            lastFixTime = fixTime
+
+            if (freshData) {
+                AnimationUtil.animateMarkerTo(marker, target, ANIMATE_DURATION_MS)
+                animatingUntil = now + ANIMATE_DURATION_MS
+            } else if (now >= animatingUntil) {
+                marker.position = target
             }
         }
     }

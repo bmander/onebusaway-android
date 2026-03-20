@@ -16,12 +16,9 @@
 package org.onebusaway.android.map.googlemapsv2
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.pm.PackageManager
-import android.location.Location
 import android.os.Bundle
 import android.util.Log
-import android.view.Choreographer
 import android.view.View
 import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -30,39 +27,24 @@ import com.google.android.gms.maps.GoogleMapOptions
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
-import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.Marker
-import com.google.android.gms.maps.model.MarkerOptions
-import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.math.ProbDistribution
-import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
-import org.onebusaway.android.io.elements.ObaReferences
-import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.elements.ObaTripSchedule
-import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.isLocationRealtime
-import org.onebusaway.android.io.elements.isRealtimeSpeedEstimable
-import org.onebusaway.android.io.request.ObaShapeRequest
-import org.onebusaway.android.io.request.ObaTripDetailsRequest
+import org.onebusaway.android.extrapolation.data.TripDetailsPoller
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 
 /**
  * Standalone map fragment for displaying a single trip's route, stops,
  * vehicle position, and speed estimate overlays within TripDetailsActivity.
+ *
+ * Pure lifecycle coordinator — delegates rendering to [TripMapRenderer] (created
+ * via [TripMapRendererFactory]), per-frame extrapolation to
+ * [TripExtrapolationController], and API polling to [TripDetailsPoller].
  */
 class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
 
     companion object {
         const val TAG = "TripMapFragment"
         private const val DEFAULT_INITIAL_ZOOM = 12f
-        private const val MARKER_Z_INDEX = 3f
-        private const val FRAME_INTERVAL_MS = 50L // 20fps
-        private const val ANIMATE_DURATION_MS = 600
-        private const val POLL_INTERVAL_MS = 10_000L // 10s API refresh
 
         @JvmStatic
         fun newInstance(tripId: String): TripMapFragment {
@@ -73,8 +55,6 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
                 options.camera(CameraPosition(bounds.center, DEFAULT_INITIAL_ZOOM, 0f, 0f))
             }
             val args = Bundle()
-            // "MapOptions" is the internal key SupportMapFragment uses to read
-            // GoogleMapOptions from arguments (see SupportMapFragment.newInstance()).
             args.putParcelable("MapOptions", options)
             return TripMapFragment().apply { arguments = args }
         }
@@ -82,25 +62,12 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
 
     private var map: GoogleMap? = null
     private var tripRenderer: TripMapRenderer? = null
-    private var vehicleMarker: Marker? = null
-    private var vehicleIcon: BitmapDescriptor? = null
-    private val reusableLocation = Location("extrapolated")
-    private var lastFixTime = 0L
-    private var animatingUntil = 0L
-
-    private var extrapolationTicking = false
-    private var lastFrameTimeMs = 0L
-    private val frameCallback = Choreographer.FrameCallback { onExtrapolationFrame() }
-
-    private val pollHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    @Volatile private var polling = false
-    private val pollRunnable = Runnable { pollTripDetails() }
+    private var extrapolationController: TripExtrapolationController? = null
+    private val poller = TripDetailsPoller()
 
     private var tripId: String? = null
     private var selectedStopId: String? = null
-    /** Held only to replay activation if the map isn't ready yet. */
     private var deferredTripDetails: ObaTripDetailsResponse? = null
-    private var deviationColor = 0
 
     // --- Lifecycle ---
 
@@ -112,7 +79,6 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     @SuppressLint("MissingPermission")
     override fun onMapReady(googleMap: GoogleMap) {
         map = googleMap
-        tripRenderer = TripMapRenderer(googleMap, requireContext())
         googleMap.setOnMarkerClickListener(this)
         googleMap.uiSettings.isZoomControlsEnabled = true
         MapHelpV2.applyMapStyle(googleMap, requireContext())
@@ -129,22 +95,22 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
 
     override fun onResume() {
         super.onResume()
-        startExtrapolationTicking()
-        startPolling()
+        extrapolationController?.start()
+        tripId?.let { poller.start(it) }
     }
 
     override fun onPause() {
-        stopExtrapolationTicking()
-        stopPolling()
+        extrapolationController?.stop()
+        poller.stop()
         super.onPause()
     }
 
     override fun onDestroyView() {
-        stopPolling()
+        poller.stop()
+        extrapolationController?.stop()
+        extrapolationController = null
         tripRenderer?.deactivate()
         tripRenderer = null
-        vehicleMarker?.remove()
-        vehicleMarker = null
         map = null
         super.onDestroyView()
     }
@@ -154,7 +120,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     fun activateTrip(tripId: String, stopId: String?, tripDetails: ObaTripDetailsResponse) {
         this.tripId = tripId
         this.selectedStopId = stopId
-        if (map != null && tripRenderer != null) {
+        if (map != null) {
             doActivateTrip(tripDetails)
         } else {
             deferredTripDetails = tripDetails
@@ -165,267 +131,34 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
 
     private fun doActivateTrip(response: ObaTripDetailsResponse) {
         val tid = tripId ?: return
-
-        val schedule = response.schedule ?: return
-        val status = response.status
-        val refs = response.refs ?: return
-
-        val trip = refs.getTrip(tid) ?: return
-        val route = refs.getRoute(trip.routeId)
-
-        val routeColor = resolveRouteColor(route)
-        val routeType = route?.type
-        val vehiclePosition = resolveVehiclePosition(status)
-        val scheduleDeviation = resolveScheduleDeviation(status)
-        updateDeviationColor(status)
-        cacheResponseData(tid, schedule, status)
-        val stopNames = buildStopNameMap(schedule, refs)
-
-        activateWithShape(trip.shapeId, schedule, routeColor, vehiclePosition,
-                routeType, stopNames, scheduleDeviation)
-    }
-
-    private fun resolveRouteColor(route: ObaRoute?): Int {
-        val defaultColor = ContextCompat.getColor(requireContext(), R.color.route_line_color_default)
-        return if (route?.color != null) route.color else defaultColor
-    }
-
-    private fun resolveVehiclePosition(status: ObaTripStatus?): LatLng? {
-        if (status == null || tripId != status.activeTripId) return null
-        val loc = status.lastKnownLocation ?: status.position ?: return null
-        return MapHelpV2.makeLatLng(loc)
-    }
-
-    private fun resolveScheduleDeviation(status: ObaTripStatus?): Long {
-        if (status != null && tripId == status.activeTripId) {
-            return status.scheduleDeviation
-        }
-        return 0
-    }
-
-    private fun updateDeviationColor(status: ObaTripStatus?) {
-        if (status != null) {
-            val now = System.currentTimeMillis()
-            val realtime = status.isLocationRealtime || status.isRealtimeSpeedEstimable(now)
-            val colorRes = VehicleOverlay.getDeviationColorResource(realtime, status)
-            deviationColor = ContextCompat.getColor(requireContext(), colorRes)
-        } else {
-            deviationColor = ContextCompat.getColor(requireContext(),
-                    R.color.stop_info_scheduled_time)
-        }
-    }
-
-    private fun cacheResponseData(tripId: String, schedule: ObaTripSchedule, status: ObaTripStatus?) {
-        TripDataManager.putSchedule(tripId, schedule)
-        if (status != null && status.serviceDate > 0) {
-            TripDataManager.putServiceDate(tripId, status.serviceDate)
-        }
-    }
-
-    private fun buildStopNameMap(schedule: ObaTripSchedule, refs: ObaReferences): Map<String, String> {
-        val stopNames = mutableMapOf<String, String>()
-        val stopTimes = schedule.stopTimes ?: return stopNames
-        for (st in stopTimes) {
-            val stop = refs.getStop(st.stopId)
-            if (stop != null) {
-                stopNames[st.stopId] = stop.name
-            }
-        }
-        return stopNames
-    }
-
-    private fun activateWithShape(shapeId: String?, schedule: ObaTripSchedule, routeColor: Int,
-                                   vehiclePosition: LatLng?, routeType: Int?,
-                                   stopNames: Map<String, String>, scheduleDeviation: Long) {
-        val tid = tripId ?: return
-        val cached = TripDataManager.getShapeWithDistances(tid)
-        if (cached != null) {
-            activateRenderer(cached.points, cached.cumulativeDistances, schedule, routeColor,
-                    vehiclePosition, routeType, stopNames, scheduleDeviation)
-            return
-        }
-
-        if (shapeId == null) return
-
-        Thread {
-            try {
-                val ctx = Application.get().applicationContext
-                val points = ObaShapeRequest.newRequest(ctx, shapeId).call()?.points
-                if (points.isNullOrEmpty()) return@Thread
-                TripDataManager.putShape(tid, points)
-                val activity = activity ?: return@Thread
-                activity.runOnUiThread {
-                    if (!isAdded) return@runOnUiThread
-                    val sd = TripDataManager.getShapeWithDistances(tid) ?: return@runOnUiThread
-                    activateRenderer(sd.points, sd.cumulativeDistances, schedule, routeColor,
-                            vehiclePosition, routeType, stopNames, scheduleDeviation)
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to fetch shape for $tid", e)
-            }
-        }.start()
-    }
-
-    private fun activateRenderer(shape: List<Location>, cumDist: DoubleArray,
-                                  schedule: ObaTripSchedule, routeColor: Int,
-                                  vehiclePosition: LatLng?, routeType: Int?,
-                                  stopNames: Map<String, String>, scheduleDeviation: Long) {
-        val renderer = tripRenderer ?: return
-        if (map == null) return
-
-        renderer.activate(tripId, shape, cumDist, schedule, routeColor,
-                vehiclePosition, routeType, stopNames, scheduleDeviation,
-                selectedStopId)
-
-        fitCameraToShape(shape)
-        startExtrapolationTicking()
-    }
-
-    private fun fitCameraToShape(shape: List<Location>) {
         val m = map ?: return
-        val bounds = MapHelpV2.getBounds(shape) ?: return
+
+        tripRenderer?.deactivate()
+        extrapolationController?.stop()
+
+        val renderer = TripMapRendererFactory.create(m, requireContext(), tid,
+                selectedStopId, response) { _ -> onRendererActivated() }
+        tripRenderer = renderer
+        extrapolationController = TripExtrapolationController(renderer, tid)
+        poller.start(tid)
+    }
+
+    private fun onRendererActivated() {
+        fitCameraToShape()
+        extrapolationController?.start()
+    }
+
+    private fun fitCameraToShape() {
+        val renderer = tripRenderer ?: return
+        val m = map ?: return
+        val tid = renderer.activeTripId ?: return
+        val sd = TripDataManager.getShapeWithDistances(tid) ?: return
+        val bounds = MapHelpV2.getBounds(sd.points) ?: return
         try {
             m.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
         } catch (e: Exception) {
             Log.w(TAG, "Failed to fit camera to shape bounds", e)
         }
-    }
-
-    // --- Choreographer frame callback ---
-
-    private fun startExtrapolationTicking() {
-        if (!extrapolationTicking && map != null && tripId != null) {
-            extrapolationTicking = true
-            Choreographer.getInstance().postFrameCallback(frameCallback)
-        }
-    }
-
-    private fun stopExtrapolationTicking() {
-        extrapolationTicking = false
-        Choreographer.getInstance().removeFrameCallback(frameCallback)
-    }
-
-    // --- API polling ---
-
-    private fun startPolling() {
-        if (!polling && tripId != null) {
-            polling = true
-            pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
-        }
-    }
-
-    private fun stopPolling() {
-        polling = false
-        pollHandler.removeCallbacks(pollRunnable)
-    }
-
-    private fun pollTripDetails() {
-        if (!polling) return
-        val tid = tripId ?: return
-
-        Thread {
-            try {
-                val ctx = Application.get().applicationContext
-                val response = ObaTripDetailsRequest.newRequest(ctx, tid).call()
-                if (response != null) {
-                    TripDataManager.recordTripDetailsResponse(tid, response)
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to poll trip details for $tid", e)
-            }
-            if (polling) {
-                pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
-            }
-        }.start()
-    }
-
-    private fun onExtrapolationFrame() {
-        val tid = tripId
-        if (!extrapolationTicking || tid == null || map == null) {
-            extrapolationTicking = false
-            return
-        }
-
-        val now = System.currentTimeMillis()
-        if (now - lastFrameTimeMs < FRAME_INTERVAL_MS) {
-            Choreographer.getInstance().postFrameCallback(frameCallback)
-            return
-        }
-        lastFrameTimeMs = now
-
-        val tracker = VehicleTrajectoryTracker
-
-        // Fetch all trip data in a single synchronized call
-        val snapshot = TripDataManager.getSnapshot(tid)
-        val sd = snapshot.shapeData
-        if (sd == null) {
-            Choreographer.getInstance().postFrameCallback(frameCallback)
-            return
-        }
-        val distribution = tracker.getEstimatedDistribution(tid, now, snapshot)
-
-        extrapolateVehicleMarker(tracker, sd, snapshot.newestValid, distribution, now)
-        updateOverlays(tid, sd, snapshot.newestValid, snapshot.lastState, distribution, now)
-
-        Choreographer.getInstance().postFrameCallback(frameCallback)
-    }
-
-    private fun extrapolateVehicleMarker(
-            tracker: VehicleTrajectoryTracker,
-            sd: TripDataManager.ShapeData,
-            newestValid: ObaTripStatus?,
-            distribution: ProbDistribution?,
-            now: Long
-    ) {
-        if (distribution == null) return
-        if (!tracker.extrapolatePosition(sd, newestValid, distribution, now, reusableLocation)) return
-
-        val m = map ?: return
-        val marker = vehicleMarker
-        if (marker == null) {
-            if (vehicleIcon == null) {
-                vehicleIcon = createCircleIcon(R.drawable.ic_vehicle_position)
-            }
-            vehicleMarker = m.addMarker(MarkerOptions()
-                    .position(MapHelpV2.makeLatLng(reusableLocation))
-                    .icon(vehicleIcon)
-                    .title("Best estimate")
-                    .snippet("50th percentile")
-                    .anchor(0.5f, 0.5f)
-                    .flat(true)
-                    .zIndex(MARKER_Z_INDEX))
-        } else {
-            val target = MapHelpV2.makeLatLng(reusableLocation)
-            val fixTime = newestValid?.lastLocationUpdateTime ?: 0L
-            val freshData = lastFixTime != 0L && fixTime != lastFixTime
-            lastFixTime = fixTime
-
-            if (freshData) {
-                AnimationUtil.animateMarkerTo(marker, target, ANIMATE_DURATION_MS)
-                animatingUntil = now + ANIMATE_DURATION_MS
-            } else if (now >= animatingUntil) {
-                marker.position = target
-            }
-        }
-    }
-
-    private fun createCircleIcon(drawableRes: Int): BitmapDescriptor {
-        return MapIconUtils.createCircleIcon(requireContext(), drawableRes)
-    }
-
-    private fun updateOverlays(
-            tid: String,
-            sd: TripDataManager.ShapeData,
-            newestValid: ObaTripStatus?,
-            lastState: ObaTripStatus?,
-            distribution: ProbDistribution?,
-            now: Long
-    ) {
-        val renderer = tripRenderer ?: return
-        renderer.updateEstimateOverlays(distribution, sd.points, sd.cumulativeDistances,
-                newestValid, now, deviationColor)
-        renderer.showOrUpdateDataReceivedMarker(tid, sd.points, sd.cumulativeDistances,
-                lastState)
     }
 
     // --- Marker click handling ---

@@ -93,6 +93,15 @@ final class TripMapRenderer {
     private long mLastDataReceivedUpdateTime;
     private BitmapDescriptor mCachedCircleIcon;
 
+    private Marker mVehicleMarker;
+    private BitmapDescriptor mVehicleIcon;
+    private long mLastFixTime;
+    private long mAnimatingUntil;
+    private static final int ANIMATE_DURATION_MS = 600;
+    private static final float VEHICLE_MARKER_Z_INDEX = 3f;
+
+    int deviationColor;
+
     private boolean mActive;
     private String mActiveTripId;
     private int mRouteColor;
@@ -133,9 +142,17 @@ final class TripMapRenderer {
         removeTripPolylines();
         removeTripStopCircles();
         removeDataReceivedMarker();
+        removeVehicleMarker();
         destroyEstimateOverlays();
         mActive = false;
         mActiveTripId = null;
+    }
+
+    private void removeVehicleMarker() {
+        if (mVehicleMarker != null) {
+            mVehicleMarker.remove();
+            mVehicleMarker = null;
+        }
     }
 
     boolean isActive() {
@@ -275,12 +292,49 @@ final class TripMapRenderer {
         return clockTime + " (" + diffMin + " min)";
     }
 
+    // --- Vehicle marker ---
+
+    /**
+     * Updates the vehicle marker position. Creates the marker on first call.
+     * Animates on fresh AVL data, skips setPosition during animation.
+     */
+    void updateVehiclePosition(Location location, ObaTripStatus newestValid, long now) {
+        if (location == null) return;
+
+        if (mVehicleMarker == null) {
+            if (mVehicleIcon == null) {
+                mVehicleIcon = MapIconUtils.createCircleIcon(
+                        mContext, R.drawable.ic_vehicle_position);
+            }
+            mVehicleMarker = mMap.addMarker(new MarkerOptions()
+                    .position(MapHelpV2.makeLatLng(location))
+                    .icon(mVehicleIcon)
+                    .title("Best estimate")
+                    .snippet("50th percentile")
+                    .anchor(0.5f, 0.5f)
+                    .flat(true)
+                    .zIndex(VEHICLE_MARKER_Z_INDEX));
+            return;
+        }
+
+        LatLng target = MapHelpV2.makeLatLng(location);
+        long fixTime = newestValid != null ? newestValid.getLastLocationUpdateTime() : 0;
+        boolean freshData = mLastFixTime != 0 && fixTime != mLastFixTime;
+        mLastFixTime = fixTime;
+
+        if (freshData) {
+            AnimationUtil.animateMarkerTo(mVehicleMarker, target, ANIMATE_DURATION_MS);
+            mAnimatingUntil = now + ANIMATE_DURATION_MS;
+        } else if (now >= mAnimatingUntil) {
+            mVehicleMarker.setPosition(target);
+        }
+    }
+
     // --- Estimate overlays ---
 
     void updateEstimateOverlays(ProbDistribution distribution,
                                 List<Location> shape, double[] cumDist,
-                                ObaTripStatus newestValid, long now,
-                                int baseColor) {
+                                ObaTripStatus newestValid, long now) {
         if (mEstimateOverlay == null) return;
 
         if (distribution == null || shape == null || cumDist == null
@@ -302,7 +356,7 @@ final class TripMapRenderer {
             return;
         }
 
-        mEstimateOverlay.update(distribution, shape, cumDist, lastDist, dtSec, baseColor);
+        mEstimateOverlay.update(distribution, shape, cumDist, lastDist, dtSec, deviationColor);
     }
 
     void hideEstimateOverlays() {

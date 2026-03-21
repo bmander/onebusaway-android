@@ -80,7 +80,7 @@ class TripMapRenderer internal constructor(
     private val tripPolylines = mutableListOf<Polyline>()
     private val tripStopMarkers = mutableListOf<Marker>()
     private val stopInfoMap = mutableMapOf<Marker, StopInfo>()
-    private var estimateOverlay: SpeedEstimateOverlay? = null
+    private var estimateOverlay: DistanceEstimateOverlay? = null
     private var dataReceivedMarker: Marker? = null
     private var lastDataReceivedLabel: String? = null
     private var lastDataReceivedUpdateTime = 0L
@@ -263,7 +263,7 @@ class TripMapRenderer internal constructor(
     private fun createEstimateOverlays(vehiclePosition: LatLng?) {
         if (routeType != null && ObaRoute.isGradeSeparated(routeType)) return
         if (vehiclePosition == null) return
-        estimateOverlay = SpeedEstimateOverlay(map, context, TRIP_BASE_WIDTH_PX).also {
+        estimateOverlay = DistanceEstimateOverlay(map, context, TRIP_BASE_WIDTH_PX).also {
             it.create(vehiclePosition)
         }
     }

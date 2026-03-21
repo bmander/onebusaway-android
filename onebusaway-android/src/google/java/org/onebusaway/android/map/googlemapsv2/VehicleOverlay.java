@@ -16,17 +16,9 @@
 package org.onebusaway.android.map.googlemapsv2;
 
 import android.app.Activity;
-import android.content.Context;
-import android.content.res.Resources;
-import android.graphics.drawable.GradientDrawable;
 import android.location.Location;
 import android.util.Log;
 import android.view.Choreographer;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.ImageView;
-import android.widget.TextView;
 
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.model.BitmapDescriptor;
@@ -40,7 +32,6 @@ import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripDetails;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.elements.ObaTripStatusExtensionsKt;
-import org.onebusaway.android.io.elements.OccupancyState;
 import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
@@ -48,14 +39,12 @@ import org.onebusaway.android.extrapolation.math.ProbDistribution;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.ui.TripDetailsActivity;
 import org.onebusaway.android.ui.TripDetailsListFragment;
-import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.UIUtils;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A map overlay that shows vehicle positions on the map.
@@ -195,7 +184,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         long now = System.currentTimeMillis();
         if (now - mLastFrameTimeMs >= FRAME_INTERVAL_MS) {
             mLastFrameTimeMs = now;
-            mMarkerData.extrapolatePositions();
+            mMarkerData.extrapolatePositions(now);
         }
         Choreographer.getInstance().postFrameCallback(mFrameCallback);
     }
@@ -321,6 +310,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             ObaTripDetails[] trips = response.getTrips();
             HashSet<String> activeTripIds = new HashSet<>();
             long now = System.currentTimeMillis();
+            TripDataManager dm = TripDataManager.getInstance();
 
             for (ObaTripDetails trip : trips) {
                 ObaTripStatus status = trip.getStatus();
@@ -332,7 +322,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 if (!routeIds.contains(activeRoute) || Status.CANCELED.equals(status.getStatus()))
                     continue;
 
-                recordTrajectoryState(status, response);
+                recordTrajectoryState(dm, status, activeTrip, response);
 
                 Location l = status.getLastKnownLocation();
                 if (l == null) l = status.getPosition();
@@ -346,11 +336,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     addMarkerToMap(l, isRealtime, status, response);
                     added++;
                 } else {
-                    updateMarker(m, l, isRealtime, status, response);
+                    updateMarker(m, l, isRealtime, status, response, now);
                     updated++;
                 }
                 activeTripIds.add(status.getActiveTripId());
-                fetchScheduleAndShapeIfNeeded(status, response);
+                fetchScheduleAndShapeIfNeeded(dm, status, activeTrip);
             }
 
             int removed = removeInactiveMarkers(activeTripIds);
@@ -360,13 +350,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             Log.d(TAG, "Icon cache: " + mIconFactory.getCacheStats());
         }
 
-        private void recordTrajectoryState(ObaTripStatus status,
-                                            ObaTripsForRouteResponse response) {
-            TripDataManager dm = TripDataManager.getInstance();
-            ObaTrip activeTripObj = response.getTrip(status.getActiveTripId());
+        private void recordTrajectoryState(TripDataManager dm, ObaTripStatus status,
+                                            ObaTrip activeTrip, ObaTripsForRouteResponse response) {
             dm.recordStatus(status);
             if (dm.getRouteType(status.getActiveTripId()) == null) {
-                String routeId = activeTripObj != null ? activeTripObj.getRouteId() : null;
+                String routeId = activeTrip.getRouteId();
                 ObaRoute route = routeId != null ? response.getRoute(routeId) : null;
                 if (route != null) {
                     dm.putRouteType(status.getActiveTripId(), route.getType());
@@ -374,14 +362,12 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             }
         }
 
-        private void fetchScheduleAndShapeIfNeeded(ObaTripStatus status,
-                                                    ObaTripsForRouteResponse response) {
+        private void fetchScheduleAndShapeIfNeeded(TripDataManager dm, ObaTripStatus status,
+                                                    ObaTrip activeTrip) {
             String tripId = status.getActiveTripId();
             if (tripId == null) return;
-            TripDataManager dm = TripDataManager.getInstance();
             dm.ensureSchedule(tripId);
-            ObaTrip activeTripObj = response.getTrip(tripId);
-            String shapeId = activeTripObj != null ? activeTripObj.getShapeId() : null;
+            String shapeId = activeTrip.getShapeId();
             if (shapeId != null) {
                 dm.ensureShape(tripId, shapeId);
             }
@@ -400,14 +386,14 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         }
 
         private void updateMarker(Marker m, Location l, boolean isRealtime, ObaTripStatus status,
-                                  ObaTripsForRouteResponse response) {
+                                  ObaTripsForRouteResponse response, long now) {
             boolean showInfo = m.isInfoWindowShown();
             m.setIcon(mIconFactory.getVehicleIcon(isRealtime, status, response));
             mVehicles.put(m, status);
 
             String tripId = status.getActiveTripId();
             if (tripId == null || TripDataManager.getInstance().getShape(tripId) == null
-                    || !VehicleTrajectoryTracker.getInstance().isSpeedEstimable(tripId, System.currentTimeMillis())) {
+                    || !VehicleTrajectoryTracker.getInstance().isSpeedEstimable(tripId, now)) {
                 Location markerLoc = MapHelpV2.makeLocation(m.getPosition());
                 if (l.distanceTo(markerLoc) < MAX_VEHICLE_ANIMATION_DISTANCE) {
                     AnimationUtil.animateMarkerTo(m, MapHelpV2.makeLatLng(l));
@@ -422,35 +408,18 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
         private int removeInactiveMarkers(HashSet<String> activeTripIds) {
             int removed = 0;
-            try {
-                Iterator<Map.Entry<String, Marker>> iterator = mVehicleMarkers.entrySet().iterator();
-                while (iterator.hasNext()) {
-                    Map.Entry<String, Marker> entry = iterator.next();
-                    String tripId = entry.getKey();
-                    Marker m = entry.getValue();
-                    if (!activeTripIds.contains(tripId)) {
-                        m.remove();
-                        mVehicles.remove(m);
-                        mLastFixTimes.remove(tripId);
-                        mAnimatingUntil.remove(tripId);
-                        iterator.remove();
-                        removed++;
-                    }
-                }
-            } catch (UnsupportedOperationException e) {
-                Log.w(TAG, "Problem removing vehicle via iterator: " + e);
-                HashMap<String, Marker> copy = new HashMap<>(mVehicleMarkers);
-                for (Map.Entry<String, Marker> entry : copy.entrySet()) {
-                    String tripId = entry.getKey();
-                    Marker m = entry.getValue();
-                    if (!activeTripIds.contains(tripId)) {
-                        m.remove();
-                        mVehicles.remove(m);
-                        mLastFixTimes.remove(tripId);
-                        mAnimatingUntil.remove(tripId);
-                        mVehicleMarkers.remove(tripId);
-                        removed++;
-                    }
+            Iterator<Map.Entry<String, Marker>> iterator = mVehicleMarkers.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, Marker> entry = iterator.next();
+                String tripId = entry.getKey();
+                Marker m = entry.getValue();
+                if (!activeTripIds.contains(tripId)) {
+                    m.remove();
+                    mVehicles.remove(m);
+                    mLastFixTimes.remove(tripId);
+                    mAnimatingUntil.remove(tripId);
+                    iterator.remove();
+                    removed++;
                 }
             }
             return removed;
@@ -466,16 +435,15 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
         // --- Extrapolation ---
 
-        synchronized void extrapolatePositions() {
+        synchronized void extrapolatePositions(long now) {
             if (mVehicleMarkers == null || mVehicleMarkers.isEmpty()) return;
 
             VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
-            long now = System.currentTimeMillis();
+            TripDataManager dm = TripDataManager.getInstance();
 
             for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
                 String tripId = entry.getKey();
-                TripDataManager.TripSnapshot snapshot = TripDataManager.getInstance()
-                        .getSnapshot(tripId);
+                TripDataManager.TripSnapshot snapshot = dm.getSnapshot(tripId);
                 LatLng target = computeExtrapolatedPosition(tracker, tripId, now, snapshot);
                 if (target == null) continue;
 
@@ -521,7 +489,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                                                 LatLng target, long now) {
             Long animEnd = mAnimatingUntil.get(tripId);
             if (animEnd == null || now >= animEnd) {
-                marker.setPosition(target);
+                LatLng current = marker.getPosition();
+                if (current == null || current.latitude != target.latitude
+                        || current.longitude != target.longitude) {
+                    marker.setPosition(target);
+                }
             }
         }
 

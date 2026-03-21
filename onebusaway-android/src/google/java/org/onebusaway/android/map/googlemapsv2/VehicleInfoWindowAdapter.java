@@ -24,6 +24,8 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.core.content.ContextCompat;
+
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.model.Marker;
 
@@ -45,9 +47,11 @@ import java.util.concurrent.TimeUnit;
  */
 class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
 
-    /**
-     * Provides the data needed by the info window to render vehicle status.
-     */
+    // Google Maps info windows always have a white background regardless of theme,
+    // so force dark text to avoid white-on-white in dark mode
+    private static final int PRIMARY_TEXT_COLOR = 0xDE000000;   // 87% black
+    private static final int SECONDARY_TEXT_COLOR = 0x8A000000; // 54% black
+
     interface InfoSource {
         ObaTripStatus getStatusFromMarker(Marker marker);
         boolean isDataReceivedMarker(Marker marker);
@@ -57,11 +61,15 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
     private final LayoutInflater mInflater;
     private final Context mContext;
     private final InfoSource mSource;
+    private final int mPaddingSides;
+    private final int mPaddingTopBottom;
 
     VehicleInfoWindowAdapter(Context context, InfoSource source) {
         mInflater = LayoutInflater.from(context);
         mContext = context;
         mSource = source;
+        mPaddingSides = UIUtils.dpToPixels(context, 5);
+        mPaddingTopBottom = UIUtils.dpToPixels(context, 2);
     }
 
     @Override
@@ -86,21 +94,9 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
         ObaRoute route = response.getRoute(trip.getRouteId());
         if (route == null) return null;
 
-        View view = mInflater.inflate(R.layout.vehicle_info_window, null);
-        Resources r = mContext.getResources();
+        InfoWindowViews views = inflateAndBind();
 
-        // Google Maps info windows always have a white background regardless of theme,
-        // so force dark text to avoid white-on-white in dark mode
-        TextView routeView = view.findViewById(R.id.route_and_destination);
-        routeView.setTextColor(0xDE000000); // 87% black, Material dark-on-light primary
-        TextView statusView = view.findViewById(R.id.status);
-        TextView lastUpdatedView = view.findViewById(R.id.last_updated);
-        lastUpdatedView.setTextColor(0x8A000000); // 54% black, Material dark-on-light secondary
-        ImageView moreView = view.findViewById(R.id.trip_more_info);
-        moreView.setColorFilter(r.getColor(R.color.switch_thumb_normal_material_dark));
-        ViewGroup occupancyView = view.findViewById(R.id.occupancy);
-
-        routeView.setText(UIUtils.getRouteDisplayName(route) + " " +
+        views.routeView.setText(UIUtils.getRouteDisplayName(route) + " " +
                 mContext.getString(R.string.trip_info_separator) + " " +
                 UIUtils.formatDisplayText(trip.getHeadsign()));
 
@@ -108,25 +104,26 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
         boolean isRealtime = ObaTripStatusExtensionsKt.isLocationRealtime(status)
                 || ObaTripStatusExtensionsKt.isRealtimeSpeedEstimable(status, now);
 
-        statusView.setBackgroundResource(R.drawable.round_corners_style_b_status);
-        GradientDrawable d = (GradientDrawable) statusView.getBackground();
-        int pSides = UIUtils.dpToPixels(mContext, 5);
-        int pTopBottom = UIUtils.dpToPixels(mContext, 2);
+        views.statusView.setBackgroundResource(R.drawable.round_corners_style_b_status);
+        GradientDrawable d = (GradientDrawable) views.statusView.getBackground();
 
         if (!isRealtime) {
-            statusView.setText(r.getString(R.string.stop_info_scheduled));
-            d.setColor(r.getColor(R.color.stop_info_scheduled_time));
-            statusView.setPadding(pSides, pTopBottom, pSides, pTopBottom);
-            lastUpdatedView.setText(r.getString(R.string.vehicle_last_updated_scheduled));
-            UIUtils.setOccupancyVisibilityAndColor(occupancyView, null, OccupancyState.HISTORICAL);
-            UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.HISTORICAL);
-            return view;
+            Resources r = mContext.getResources();
+            views.statusView.setText(r.getString(R.string.stop_info_scheduled));
+            d.setColor(ContextCompat.getColor(mContext, R.color.stop_info_scheduled_time));
+            views.statusView.setPadding(mPaddingSides, mPaddingTopBottom, mPaddingSides, mPaddingTopBottom);
+            views.lastUpdatedView.setText(r.getString(R.string.vehicle_last_updated_scheduled));
+            UIUtils.setOccupancyVisibilityAndColor(views.occupancyView, null, OccupancyState.HISTORICAL);
+            UIUtils.setOccupancyContentDescription(views.occupancyView, null, OccupancyState.HISTORICAL);
+            return views.root;
         }
 
+        Resources r = mContext.getResources();
+        int colorRes = VehicleIconFactory.getDeviationColorResource(isRealtime, status);
         long deviationMin = TimeUnit.SECONDS.toMinutes(status.getScheduleDeviation());
-        statusView.setText(ArrivalInfoUtils.computeArrivalLabelFromDelay(r, deviationMin));
-        d.setColor(r.getColor(ArrivalInfoUtils.computeColorFromDeviation(deviationMin)));
-        statusView.setPadding(pSides, pTopBottom, pSides, pTopBottom);
+        views.statusView.setText(ArrivalInfoUtils.computeArrivalLabelFromDelay(r, deviationMin));
+        d.setColor(ContextCompat.getColor(mContext, colorRes));
+        views.statusView.setPadding(mPaddingSides, mPaddingTopBottom, mPaddingSides, mPaddingTopBottom);
 
         long lastUpdateTime = status.getLastLocationUpdateTime() != 0
                 ? status.getLastLocationUpdateTime()
@@ -138,40 +135,60 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
         String lastUpdated = elapsedSec < 60
                 ? r.getString(R.string.vehicle_last_updated_sec, elapsedSec)
                 : r.getString(R.string.vehicle_last_updated_min_and_sec, elapsedMin, secMod60);
-        lastUpdatedView.setText(lastUpdated);
+        views.lastUpdatedView.setText(lastUpdated);
 
-        if (status.getOccupancyStatus() != null) {
-            UIUtils.setOccupancyVisibilityAndColor(occupancyView, status.getOccupancyStatus(), OccupancyState.REALTIME);
-            UIUtils.setOccupancyContentDescription(occupancyView, status.getOccupancyStatus(), OccupancyState.REALTIME);
-        } else {
-            UIUtils.setOccupancyVisibilityAndColor(occupancyView, null, OccupancyState.REALTIME);
-            UIUtils.setOccupancyContentDescription(occupancyView, null, OccupancyState.REALTIME);
-        }
+        UIUtils.setOccupancyVisibilityAndColor(views.occupancyView, status.getOccupancyStatus(), OccupancyState.REALTIME);
+        UIUtils.setOccupancyContentDescription(views.occupancyView, status.getOccupancyStatus(), OccupancyState.REALTIME);
 
-        return view;
+        return views.root;
     }
 
     private View createDataReceivedInfoView(Marker marker) {
+        InfoWindowViews views = inflateAndBind();
+
+        views.routeView.setText(marker.getTitle());
+        views.statusView.setVisibility(View.GONE);
+        views.lastUpdatedView.setText(marker.getSnippet());
+        views.occupancyView.setVisibility(View.GONE);
+
+        return views.root;
+    }
+
+    private InfoWindowViews inflateAndBind() {
         View view = mInflater.inflate(R.layout.vehicle_info_window, null);
-        Resources r = mContext.getResources();
 
         TextView routeView = view.findViewById(R.id.route_and_destination);
-        routeView.setTextColor(0xDE000000);
-        routeView.setText(marker.getTitle());
-
-        TextView statusView = view.findViewById(R.id.status);
-        statusView.setVisibility(View.GONE);
+        routeView.setTextColor(PRIMARY_TEXT_COLOR);
 
         TextView lastUpdatedView = view.findViewById(R.id.last_updated);
-        lastUpdatedView.setTextColor(0x8A000000);
-        lastUpdatedView.setText(marker.getSnippet());
+        lastUpdatedView.setTextColor(SECONDARY_TEXT_COLOR);
 
         ImageView moreView = view.findViewById(R.id.trip_more_info);
-        moreView.setColorFilter(r.getColor(R.color.switch_thumb_normal_material_dark));
+        moreView.setColorFilter(ContextCompat.getColor(mContext, R.color.switch_thumb_normal_material_dark));
 
-        ViewGroup occupancyView = view.findViewById(R.id.occupancy);
-        occupancyView.setVisibility(View.GONE);
+        return new InfoWindowViews(
+                view,
+                routeView,
+                view.findViewById(R.id.status),
+                lastUpdatedView,
+                view.findViewById(R.id.occupancy)
+        );
+    }
 
-        return view;
+    private static class InfoWindowViews {
+        final View root;
+        final TextView routeView;
+        final TextView statusView;
+        final TextView lastUpdatedView;
+        final ViewGroup occupancyView;
+
+        InfoWindowViews(View root, TextView routeView, TextView statusView,
+                        TextView lastUpdatedView, ViewGroup occupancyView) {
+            this.root = root;
+            this.routeView = routeView;
+            this.statusView = statusView;
+            this.lastUpdatedView = lastUpdatedView;
+            this.occupancyView = occupancyView;
+        }
     }
 }

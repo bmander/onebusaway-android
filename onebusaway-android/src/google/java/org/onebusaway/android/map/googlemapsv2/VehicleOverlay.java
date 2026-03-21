@@ -243,7 +243,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         mDataReceivedMarker = mMap.addMarker(new MarkerOptions()
                 .position(MapHelpV2.makeLatLng(loc))
                 .icon(mDataReceivedIcon)
-                .title("Most recent data")
+                .title(mActivity.getString(R.string.marker_most_recent_data))
                 .snippet(snippet)
                 .anchor(0.5f, 0.5f)
                 .flat(true)

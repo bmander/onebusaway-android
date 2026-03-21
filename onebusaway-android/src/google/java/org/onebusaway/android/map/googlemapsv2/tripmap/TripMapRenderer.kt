@@ -47,7 +47,6 @@ import org.onebusaway.android.util.UIUtils
 
 private const val STOP_STROKE_WIDTH = 4f
 private const val STOP_STROKE_COLOR = 0xFF242424.toInt()
-private const val DATA_RECEIVED_TITLE = "Most recent data"
 private const val ANIMATE_DURATION_MS = 600
 private const val MARKER_Z_INDEX = 3f
 
@@ -225,8 +224,8 @@ class TripMapRenderer internal constructor(
             vehicleMarker = map.addMarker(MarkerOptions()
                     .position(MapHelpV2.makeLatLng(location))
                     .icon(vehicleIcon)
-                    .title("Best estimate")
-                    .snippet("50th percentile")
+                    .title(context.getString(R.string.marker_best_estimate))
+                    .snippet(context.getString(R.string.marker_best_estimate_snippet))
                     .anchor(0.5f, 0.5f)
                     .flat(true)
                     .zIndex(MARKER_Z_INDEX))
@@ -308,7 +307,7 @@ class TripMapRenderer internal constructor(
                 .icon(dataReceivedIcon)
                 .anchor(0.5f, 0.5f)
                 .flat(true)
-                .title(DATA_RECEIVED_TITLE)
+                .title(context.getString(R.string.marker_most_recent_data))
                 .snippet(lastDataReceivedLabel)
                 .zIndex(MARKER_Z_INDEX))
     }

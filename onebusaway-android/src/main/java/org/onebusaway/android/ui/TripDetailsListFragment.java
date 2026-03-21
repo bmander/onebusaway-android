@@ -90,7 +90,7 @@ import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.nav.NavigationService;
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
-import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
+import org.onebusaway.android.extrapolation.VehicleTrajectoryTracker;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.DBUtil;

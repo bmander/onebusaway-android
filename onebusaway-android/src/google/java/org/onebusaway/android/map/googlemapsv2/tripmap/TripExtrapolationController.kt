@@ -18,7 +18,7 @@ package org.onebusaway.android.map.googlemapsv2.tripmap
 import android.location.Location
 import android.view.Choreographer
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
+import org.onebusaway.android.extrapolation.VehicleTrajectoryTracker
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.util.LocationUtils
 

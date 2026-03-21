@@ -27,8 +27,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ZeroInflatedDistribution
-import org.onebusaway.android.extrapolation.math.speed.GammaExtrapolator
-import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
+import org.onebusaway.android.extrapolation.GammaExtrapolator
+import org.onebusaway.android.extrapolation.VehicleTrajectoryTracker
 import org.onebusaway.android.io.elements.Occupancy
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus

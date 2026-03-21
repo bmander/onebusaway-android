@@ -18,7 +18,6 @@ package org.onebusaway.android.extrapolation
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.DiracDistribution
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
-import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 

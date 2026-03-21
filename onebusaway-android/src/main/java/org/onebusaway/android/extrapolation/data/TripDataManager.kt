@@ -16,6 +16,8 @@
 package org.onebusaway.android.extrapolation.data
 
 import android.location.Location
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -42,6 +44,7 @@ object TripDataManager {
 
     private val repository = AvlRepository
     private val fetchExecutor = Executors.newFixedThreadPool(2)
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val pendingScheduleFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val pendingShapeFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val tripDetailsCache = HashMap<String, ObaTripDetailsResponse>()
@@ -253,9 +256,20 @@ object TripDataManager {
         return ShapeData(points, cumDist)
     }
 
-    /** Fetches and caches the shape in the background if not already cached or in-flight. */
-    fun ensureShape(tripId: String, shapeId: String) {
-        if (getShape(tripId) != null || !pendingShapeFetches.add(tripId)) return
+    /**
+     * Fetches and caches the shape in the background if not already cached or in-flight.
+     * If [onReady] is provided, it is invoked on the main thread with the [ShapeData] once
+     * the shape is available. If the shape is already cached, [onReady] is called immediately.
+     */
+    fun ensureShape(tripId: String, shapeId: String, onReady: ((ShapeData) -> Unit)? = null) {
+        if (getShape(tripId) != null) {
+            if (onReady != null) {
+                val sd = getShapeWithDistances(tripId)
+                if (sd != null) onReady(sd)
+            }
+            return
+        }
+        if (!pendingShapeFetches.add(tripId)) return
         fetchExecutor.execute {
             try {
                 val ctx = Application.get().applicationContext
@@ -263,6 +277,10 @@ object TripDataManager {
                 val points = response?.points
                 if (points != null && points.isNotEmpty()) {
                     putShape(tripId, points)
+                    if (onReady != null) {
+                        val sd = getShapeWithDistances(tripId)
+                        if (sd != null) mainHandler.post { onReady(sd) }
+                    }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to fetch shape for $tripId", e)

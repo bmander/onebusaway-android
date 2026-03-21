@@ -16,9 +16,6 @@
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
-import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
@@ -34,16 +31,13 @@ import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 import org.onebusaway.android.map.googlemapsv2.VehicleIconFactory
 
-private const val TAG = "TripMapRendererFactory"
-private val mainHandler = Handler(Looper.getMainLooper())
-
 /**
  * Creates and activates a [TripMapRenderer] from an API response.
  *
- * Returns null if the response lacks required data (schedule, refs, trip).
- * If the shape is already cached, the renderer is ready immediately.
+ * Returns without calling [onReady] if the response lacks required data (schedule, refs, trip).
+ * If the shape is already cached, [onReady] is called synchronously.
  * If the shape needs fetching, [TripDataManager.ensureShape] handles it
- * and [onShapeAvailable] is called once the shape arrives.
+ * and [onReady] is called on the main thread once the shape arrives.
  */
 internal object TripMapRendererFactory {
 
@@ -69,53 +63,20 @@ internal object TripMapRendererFactory {
         val scheduleDeviation = resolveScheduleDeviation(tripId, status)
         val stopNames = buildStopNameMap(schedule, refs)
 
-        // Ensure shape is available (uses TripDataManager's thread pool + dedup)
-        val shapeId = trip.shapeId
-        if (shapeId != null) {
-            TripDataManager.ensureShape(tripId, shapeId)
-        }
-
-        fun buildRenderer(sd: TripDataManager.ShapeData): TripMapRenderer {
+        fun buildRenderer(sd: TripDataManager.ShapeData) {
             val renderer = TripMapRenderer(map, context, tripId,
                     sd.points, sd.cumulativeDistances, schedule,
                     routeColor, route?.type, stopNames, selectedStopId,
                     deviationColor, scheduleDeviation)
             renderer.activate(vehiclePosition)
-            return renderer
+            onReady(renderer)
         }
 
-        // If shape is already cached, build and deliver synchronously
-        val cached = TripDataManager.getShapeWithDistances(tripId)
-        if (cached != null) {
-            onReady(buildRenderer(cached))
-            return
-        }
-
-        // Shape not yet available — poll until ensureShape delivers it
+        // Fetch shape if needed; callback fires on main thread when available
+        val shapeId = trip.shapeId
         if (shapeId != null) {
-            pollForShape(tripId, ::buildRenderer, onReady)
+            TripDataManager.ensureShape(tripId, shapeId, ::buildRenderer)
         }
-    }
-
-    /**
-     * Polls TripDataManager for shape data at short intervals until available.
-     * This avoids duplicating the fetch logic that ensureShape already handles.
-     */
-    private fun pollForShape(
-            tripId: String,
-            buildRenderer: (TripDataManager.ShapeData) -> TripMapRenderer,
-            onReady: (TripMapRenderer) -> Unit
-    ) {
-        mainHandler.postDelayed(object : Runnable {
-            override fun run() {
-                val sd = TripDataManager.getShapeWithDistances(tripId)
-                if (sd != null) {
-                    onReady(buildRenderer(sd))
-                } else {
-                    mainHandler.postDelayed(this, 200)
-                }
-            }
-        }, 200)
     }
 
     // --- Response parsing ---

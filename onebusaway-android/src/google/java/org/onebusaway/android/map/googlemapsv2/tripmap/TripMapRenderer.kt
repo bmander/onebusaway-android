@@ -37,7 +37,6 @@ import org.onebusaway.android.extrapolation.math.ProbDistribution
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.map.googlemapsv2.AnimationUtil
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 import org.onebusaway.android.map.googlemapsv2.MapIconUtils
@@ -248,18 +247,10 @@ class TripMapRenderer internal constructor(
 
     // --- Estimate overlays ---
 
-    fun updateEstimateOverlays(distribution: ProbDistribution?,
-                                newestValid: ObaTripStatus?, now: Long) {
+    fun updateEstimateOverlays(distribution: ProbDistribution?) {
         val overlay = estimateOverlay ?: return
-        if (distribution == null || newestValid == null) {
-            overlay.hide(); return
-        }
-        val lastDist = newestValid.bestDistanceAlongTrip ?: run { overlay.hide(); return }
-        val lastTime = newestValid.lastLocationUpdateTime
-        if (lastTime <= 0) { overlay.hide(); return }
-        val dtSec = (now - lastTime) / 1000.0
-        if (dtSec < 0.5) { overlay.hide(); return }
-        overlay.update(distribution, shape, cumDist, lastDist, dtSec, deviationColor)
+        if (distribution == null) { overlay.hide(); return }
+        overlay.update(distribution, shape, cumDist, deviationColor)
     }
 
     fun hideEstimateOverlays() { estimateOverlay?.hide() }

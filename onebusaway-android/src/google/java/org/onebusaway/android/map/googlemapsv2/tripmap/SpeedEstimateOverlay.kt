@@ -93,26 +93,23 @@ class SpeedEstimateOverlay @JvmOverloads constructor(
     // --- Per-frame update ---
 
     /**
-     * Updates all overlay geometry from the distribution. Computes quantile speeds,
-     * converts to distances, positions polyline segments and the fast-estimate marker.
+     * Updates all overlay geometry from the distance distribution. Quantiles are distances
+     * along the trip; PDF values determine segment opacity.
      */
     fun update(distribution: ProbDistribution,
-               shape: List<Location>, cumDist: DoubleArray,
-               lastDist: Double, dtSec: Double, baseColor: Int) {
+               shape: List<Location>, cumDist: DoubleArray, baseColor: Int) {
         val segs = segments ?: return
 
-        // Compute edge speeds → distances and PDF values at midpoints
-        val fastEstimateSpeed = distribution.quantile(FAST_ESTIMATE_QUANTILE)
+        // Compute edge distances and PDF values at midpoints
         var maxPdf = 0.0
         for (i in 0..segmentCount) {
             val p = PDF_LOW_QUANTILE + (PDF_HIGH_QUANTILE - PDF_LOW_QUANTILE) * i / segmentCount
-            val speed = distribution.quantile(p)
-            edgeDistances[i] = lastDist + speed * dtSec
+            edgeDistances[i] = distribution.quantile(p)
         }
         for (i in 0 until segmentCount) {
-            val midSpeed = (distribution.quantile(
-                    PDF_LOW_QUANTILE + (PDF_HIGH_QUANTILE - PDF_LOW_QUANTILE) * (i + 0.5) / segmentCount))
-            pdfValues[i] = distribution.pdf(midSpeed)
+            val midP = PDF_LOW_QUANTILE + (PDF_HIGH_QUANTILE - PDF_LOW_QUANTILE) * (i + 0.5) / segmentCount
+            val midDist = distribution.quantile(midP)
+            pdfValues[i] = distribution.pdf(midDist)
             if (pdfValues[i] > maxPdf) maxPdf = pdfValues[i]
         }
 
@@ -125,7 +122,7 @@ class SpeedEstimateOverlay @JvmOverloads constructor(
         }
 
         // Update fast-estimate marker
-        updateMarkerPosition(lastDist + fastEstimateSpeed * dtSec, shape, cumDist)
+        updateMarkerPosition(distribution.quantile(FAST_ESTIMATE_QUANTILE), shape, cumDist)
     }
 
     /** Returns true if the clicked marker was the fast estimate icon. */

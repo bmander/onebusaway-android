@@ -72,7 +72,7 @@ internal constructor(private val renderer: TripMapRenderer, private val tripId: 
                             distribution.median(), reusableLocation)) {
                 renderer.updateVehiclePosition(reusableLocation, snapshot.newestValid, now)
             }
-            renderer.updateEstimateOverlays(distribution, snapshot.newestValid, now)
+            renderer.updateEstimateOverlays(distribution)
         } else {
             renderer.hideEstimateOverlays()
         }

@@ -258,7 +258,7 @@ class SpeedEstimatorTest {
 
     @Test
     fun testGammaExtrapolator_returnsDistanceDistribution() {
-        val extrapolator = GammaExtrapolator(dm)
+        val extrapolator = GammaExtrapolator("trip1", dm)
         val serviceDate = 1L
         val queryTime = 200_000L
 
@@ -280,15 +280,14 @@ class SpeedEstimatorTest {
         dm.recordStatus(status1)
         dm.recordStatus(status2)
 
-        val snapshot = dm.getSnapshot("trip1")
-        val dist = extrapolator.extrapolate(snapshot.newestValid!!, snapshot, queryTime + 5000)
+        val dist = extrapolator.extrapolate(queryTime + 5000)
         assertNotNull(dist)
         assertTrue("Median distance should be > last distance", dist!!.median() > 400.0)
     }
 
     @Test
     fun testGammaExtrapolator_noScheduleReturnsNull() {
-        val extrapolator = GammaExtrapolator(dm)
+        val extrapolator = GammaExtrapolator("trip1", dm)
         val timestamp = 1000L
 
         val status = createStatus(
@@ -296,8 +295,7 @@ class SpeedEstimatorTest {
         )
         dm.recordStatus(status)
 
-        val snapshot = dm.getSnapshot("trip1")
-        val dist = extrapolator.extrapolate(snapshot.newestValid!!, snapshot, timestamp)
+        val dist = extrapolator.extrapolate(timestamp)
         assertNull(dist)
     }
 

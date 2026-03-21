@@ -27,8 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ZeroInflatedDistribution
-import org.onebusaway.android.extrapolation.math.speed.GammaSpeedEstimator
-import org.onebusaway.android.extrapolation.math.speed.SpeedEstimateResult
+import org.onebusaway.android.extrapolation.math.speed.GammaExtrapolator
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
 import org.onebusaway.android.io.elements.Occupancy
 import org.onebusaway.android.io.elements.ObaTripSchedule
@@ -255,15 +254,13 @@ class SpeedEstimatorTest {
         assertEquals(1, dm.getHistorySize("trip1"))
     }
 
-    // --- GammaSpeedEstimator tests ---
+    // --- GammaExtrapolator tests ---
 
     @Test
-    fun testGammaSpeedEstimator_returnsGammaMedian() {
-        val estimator = GammaSpeedEstimator(dm)
-        // departureTimes[0]=100s, so trip starts at serviceDate + 100_000ms
-        // serviceDate must be > 0 for putServiceDate to accept it
+    fun testGammaExtrapolator_returnsDistanceDistribution() {
+        val extrapolator = GammaExtrapolator(dm)
         val serviceDate = 1L
-        val queryTime = 200_000L  // well after trip start (100_001ms)
+        val queryTime = 200_000L
 
         val schedule = createSchedule(
             doubleArrayOf(0.0, 1000.0),
@@ -273,7 +270,6 @@ class SpeedEstimatorTest {
         dm.putSchedule("trip1", schedule)
         dm.putServiceDate("trip1", serviceDate)
 
-        // Two history entries so v_prev can be computed
         val status1 = createStatus(
             "v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, 170_000L
         )
@@ -284,17 +280,15 @@ class SpeedEstimatorTest {
         dm.recordStatus(status1)
         dm.recordStatus(status2)
 
-        val result = estimator.estimateSpeed("trip1", queryTime)
-        assertTrue(result is SpeedEstimateResult.Success)
-        val dist = (result as SpeedEstimateResult.Success).distribution
-        assertTrue(dist is ZeroInflatedDistribution)
-        assertTrue("Mean should be positive", dist.mean > 0)
-        assertTrue("Median should be positive", dist.median() > 0)
+        val snapshot = dm.getSnapshot("trip1")
+        val dist = extrapolator.extrapolate(snapshot.newestValid!!, snapshot, queryTime + 5000)
+        assertNotNull(dist)
+        assertTrue("Median distance should be > last distance", dist!!.median() > 400.0)
     }
 
     @Test
-    fun testGammaSpeedEstimator_noScheduleFallsBack() {
-        val estimator = GammaSpeedEstimator(dm)
+    fun testGammaExtrapolator_noScheduleReturnsNull() {
+        val extrapolator = GammaExtrapolator(dm)
         val timestamp = 1000L
 
         val status = createStatus(
@@ -302,8 +296,9 @@ class SpeedEstimatorTest {
         )
         dm.recordStatus(status)
 
-        val result = estimator.estimateSpeed("trip1", timestamp)
-        assertTrue(result is SpeedEstimateResult.Failure)
+        val snapshot = dm.getSnapshot("trip1")
+        val dist = extrapolator.extrapolate(snapshot.newestValid!!, snapshot, timestamp)
+        assertNull(dist)
     }
 
 

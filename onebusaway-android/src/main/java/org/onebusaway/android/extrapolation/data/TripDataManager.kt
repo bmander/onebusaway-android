@@ -167,7 +167,7 @@ object TripDataManager {
                     putSchedule(tripId, schedule)
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to fetch schedule for $tripId", e)
+                Log.e(TAG, "Failed to fetch schedule for $tripId", e)
             } finally {
                 pendingScheduleFetches.remove(tripId)
             }
@@ -283,7 +283,7 @@ object TripDataManager {
                     }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to fetch shape for $tripId", e)
+                Log.e(TAG, "Failed to fetch shape for $tripId", e)
             } finally {
                 pendingShapeFetches.remove(tripId)
             }

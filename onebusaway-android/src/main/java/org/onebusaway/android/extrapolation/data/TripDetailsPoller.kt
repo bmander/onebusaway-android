@@ -63,7 +63,7 @@ class TripDetailsPoller(
                     TripDataManager.recordTripDetailsResponse(tid, response)
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to poll trip details for $tid", e)
+                Log.e(TAG, "Failed to poll trip details for $tid", e)
             }
             handler.post {
                 if (active) {

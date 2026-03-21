@@ -118,8 +118,8 @@ class TripMapRenderer internal constructor(
         val bounds = MapHelpV2.getBounds(shape) ?: return
         try {
             map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
-        } catch (e: Exception) {
-            Log.w("TripMapRenderer", "Failed to fit camera to shape bounds", e)
+        } catch (e: IllegalStateException) {
+            Log.w("TripMapRenderer", "Map not laid out yet, skipping camera fit", e)
         }
     }
 

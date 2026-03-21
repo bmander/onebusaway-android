@@ -61,10 +61,9 @@ class TrajectoryGraphView @JvmOverloads constructor(
     private var schedule: ObaTripSchedule? = null
     private var serviceDate = 0L
     private var currentTime = System.currentTimeMillis()
-    private var estimatedSpeedMps = 0.0
     private var distribution: ProbDistribution? = null
-    private var cachedCiLoMps = 0.0
-    private var cachedCiHiMps = 0.0
+    private var cachedCiLoDist = 0.0
+    private var cachedCiHiDist = 0.0
     private var highlightedStopId: String? = null
 
     private val density = context.resources.displayMetrics.density
@@ -159,13 +158,12 @@ class TrajectoryGraphView @JvmOverloads constructor(
         this.schedule = schedule
         this.serviceDate = serviceDate
         this.distribution = distribution
-        estimatedSpeedMps = distribution?.mean ?: 0.0
         if (distribution != null) {
-            cachedCiLoMps = distribution.quantile(0.10)
-            cachedCiHiMps = distribution.quantile(0.90)
+            cachedCiLoDist = distribution.quantile(0.10)
+            cachedCiHiDist = distribution.quantile(0.90)
         } else {
-            cachedCiLoMps = 0.0
-            cachedCiHiMps = 0.0
+            cachedCiLoDist = 0.0
+            cachedCiHiDist = 0.0
         }
         currentTime = System.currentTimeMillis()
         invalidate()
@@ -380,12 +378,10 @@ class TrajectoryGraphView @JvmOverloads constructor(
     }
 
     private fun drawExtrapolationAndDeviation(canvas: Canvas, lastDist: Double?, lastTime: Long) {
-        if (estimatedSpeedMps <= 0 || lastDist == null || currentTime <= lastTime) return
+        val dist = distribution ?: return
+        if (lastDist == null || currentTime <= lastTime) return
 
-        val extrapolatedDist = newestValidEntry?.let { entry ->
-            val d = entry.bestDistanceAlongTrip ?: return@let null
-            d + estimatedSpeedMps * (currentTime - entry.lastLocationUpdateTime) / 1000.0
-        } ?: lastDist
+        val extrapolatedDist = dist.median()
 
         val x1 = viewport.toPixelX(lastDist)
         val y1 = viewport.toPixelY(lastTime)
@@ -411,22 +407,18 @@ class TrajectoryGraphView @JvmOverloads constructor(
     private fun drawGammaPdfAndBands(canvas: Canvas, lastDist: Double?, lastTime: Long) {
         val dist = distribution ?: return
         if (lastDist == null || currentTime <= lastTime) return
-        val dtSec = (currentTime - lastTime) / 1000.0
-        if (dtSec < 1.0) return
 
         val maxHeightPx = 105 * density
-        val speedLoMps = dist.quantile(0.001)
-        val speedHiMps = dist.quantile(0.999)
-        val posMin = lastDist + speedLoMps * dtSec
-        val posMax = lastDist + speedHiMps * dtSec
+        val posMin = dist.quantile(0.001)
+        val posMax = dist.quantile(0.999)
         if (posMax <= posMin) return
 
         val binWidth = (posMax - posMin) / PDF_NUM_BINS
 
         var maxVal = 0.0
         for (i in 0 until PDF_NUM_BINS) {
-            val speedMps = ((posMin + (i + 0.5) * binWidth) - lastDist) / dtSec
-            val v = dist.pdf(speedMps)
+            val pos = posMin + (i + 0.5) * binWidth
+            val v = dist.pdf(pos)
             pdfValues[i] = v
             if (v > maxVal) maxVal = v
         }
@@ -449,9 +441,9 @@ class TrajectoryGraphView @JvmOverloads constructor(
         val yStart = viewport.toPixelY(lastTime)
         val yNow = viewport.toPixelY(currentTime)
         canvas.drawLine(xStart, yStart,
-                viewport.toPixelX(lastDist + cachedCiLoMps * dtSec), yNow, confidenceBandPaint)
+                viewport.toPixelX(cachedCiLoDist), yNow, confidenceBandPaint)
         canvas.drawLine(xStart, yStart,
-                viewport.toPixelX(lastDist + cachedCiHiMps * dtSec), yNow, confidenceBandPaint)
+                viewport.toPixelX(cachedCiHiDist), yNow, confidenceBandPaint)
     }
 
     private fun drawNowLine(canvas: Canvas) {

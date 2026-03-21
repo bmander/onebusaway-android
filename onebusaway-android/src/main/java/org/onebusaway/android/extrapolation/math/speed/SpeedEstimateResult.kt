@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.extrapolation.math.speed
 
-import org.onebusaway.android.extrapolation.math.ProbDistribution
+import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 
 /**
  * Result of a speed estimation attempt. Either a successful distribution or an error describing why

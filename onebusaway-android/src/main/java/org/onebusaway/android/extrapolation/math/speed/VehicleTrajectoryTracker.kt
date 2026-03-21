@@ -19,7 +19,7 @@ import android.location.Location
 import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.ScheduleReplayExtrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.math.ProbDistribution
+import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.util.LocationUtils
 

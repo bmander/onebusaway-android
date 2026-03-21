@@ -26,7 +26,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.math.ZeroInflatedDistribution
+import org.onebusaway.android.extrapolation.math.prob.ZeroInflatedDistribution
 import org.onebusaway.android.extrapolation.math.speed.GammaSpeedEstimator
 import org.onebusaway.android.extrapolation.math.speed.SpeedEstimateResult
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker

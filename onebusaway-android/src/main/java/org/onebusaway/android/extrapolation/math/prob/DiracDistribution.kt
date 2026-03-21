@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.extrapolation.math
+package org.onebusaway.android.extrapolation.math.prob
 
 /** A degenerate (Dirac delta) distribution concentrated at a single [value]. */
 class DiracDistribution(@JvmField val value: Double) : ProbDistribution {

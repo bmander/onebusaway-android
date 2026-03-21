@@ -16,11 +16,11 @@
 package org.onebusaway.android.extrapolation.math.speed
 
 import kotlin.math.exp
-import org.onebusaway.android.extrapolation.math.DiracDistribution
-import org.onebusaway.android.extrapolation.math.FrozenDistribution
-import org.onebusaway.android.extrapolation.math.GammaDistribution
-import org.onebusaway.android.extrapolation.math.ProbDistribution
-import org.onebusaway.android.extrapolation.math.ZeroInflatedDistribution
+import org.onebusaway.android.extrapolation.math.prob.DiracDistribution
+import org.onebusaway.android.extrapolation.math.prob.FrozenDistribution
+import org.onebusaway.android.extrapolation.math.prob.GammaDistribution
+import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
+import org.onebusaway.android.extrapolation.math.prob.ZeroInflatedDistribution
 
 // Fitted parameters expressed in m/s; fit on a single day of King County Metro
 // data from early March 2026. TODO: get more data.

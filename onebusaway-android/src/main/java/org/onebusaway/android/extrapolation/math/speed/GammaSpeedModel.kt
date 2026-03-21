@@ -63,8 +63,7 @@ fun makeGammaProbDistribution(
     // Effective speed is a blend of schedule and previous speed
     val vEff = schedSpeedMps * D + (1 - D) * vPrev
 
-    // If vEff is 0 because both the schedule and previous speeds are 0, return a degenerate
-    // distribution at 0
+    // Defensive guard: should not be reachable given the require above
     if (vEff <= 0) return SpeedDistributionFactory { DiracDistribution(0.0) }
 
     // Shape parameter is an empirical function of effective speed

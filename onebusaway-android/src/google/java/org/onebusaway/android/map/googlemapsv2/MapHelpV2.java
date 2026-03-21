@@ -37,7 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 
 /**
- * Utilities to help process data for Android Maps API v1
+ * Utilities for Google Maps API v2 map operations.
  */
 public class MapHelpV2 {
 

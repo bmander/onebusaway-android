@@ -28,7 +28,7 @@ import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.MapUtils;
 import org.onebusaway.android.map.googlemapsv2.BaseMapFragment;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
-import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
+import org.onebusaway.android.extrapolation.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.UIUtils;
 

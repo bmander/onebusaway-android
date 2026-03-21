@@ -13,11 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.extrapolation.math.speed
+package org.onebusaway.android.extrapolation
 
 import android.location.Location
-import org.onebusaway.android.extrapolation.Extrapolator
-import org.onebusaway.android.extrapolation.ScheduleReplayExtrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.elements.ObaRoute

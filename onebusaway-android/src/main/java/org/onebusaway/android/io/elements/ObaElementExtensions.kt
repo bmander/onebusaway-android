@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.io.elements
 
-import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
+import org.onebusaway.android.extrapolation.VehicleTrajectoryTracker
 
 /**
  * The best available distance: prefers lastKnownDistanceAlongTrip (raw), falls back to

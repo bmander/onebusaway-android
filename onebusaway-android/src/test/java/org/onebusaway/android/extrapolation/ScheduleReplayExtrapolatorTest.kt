@@ -13,12 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.extrapolation.math.speed
+package org.onebusaway.android.extrapolation
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import org.onebusaway.android.extrapolation.replaySchedule
 import org.onebusaway.android.io.elements.ObaTripSchedule
 
 class ScheduleReplayExtrapolatorTest {

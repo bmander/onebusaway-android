@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.extrapolation.math.speed
+package org.onebusaway.android.extrapolation
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -24,7 +24,7 @@ import org.onebusaway.android.extrapolation.math.prob.ZeroInflatedDistribution
 class GammaSpeedModelTest {
 
     private fun gammaDist(sched: Double, prev: Double?, dt: Double = 60.0) =
-            makeGammaProbDistribution(sched, prev).at(dt)
+            buildSpeedDistributionFactory(sched, prev)(dt)
 
     // m/s test speeds (named for readability)
     private val mps5 = 2.235 // ~5 mph
@@ -256,13 +256,13 @@ class GammaSpeedModelTest {
         GammaDistribution(1.0, 0.0)
     }
 
-    // --- SpeedDistributionFactory (makeGammaProbDistribution) ---
+    // --- SpeedDistributionFactory (buildSpeedDistributionFactory) ---
 
     @Test
     fun `factory produces distributions with consistent median`() {
-        val factory = makeGammaProbDistribution(mps15, mps15)
-        val dist1 = factory.at(10.0)
-        val dist2 = factory.at(100.0)
+        val factory = buildSpeedDistributionFactory(mps15, mps15)
+        val dist1 = factory(10.0)
+        val dist2 = factory(100.0)
         // Both should have positive median; longer dt = lower p0 = higher median
         assertTrue("median at dt=10 should be positive", dist1.median() > 0)
         assertTrue("median at dt=100 should be positive", dist2.median() > 0)
@@ -272,9 +272,9 @@ class GammaSpeedModelTest {
 
     @Test
     fun `factory reuses frozen table across dt values`() {
-        val factory = makeGammaProbDistribution(mps20, mps10)
+        val factory = buildSpeedDistributionFactory(mps20, mps10)
         // Calling at() many times should not throw or produce NaN
-        val medians = (1..100).map { factory.at(it.toDouble()).median() }
+        val medians = (1..100).map { factory(it.toDouble()).median() }
         assertTrue("all medians should be finite", medians.all { it.isFinite() })
         assertTrue("medians should be monotonically non-decreasing",
                 medians.zipWithNext().all { (a, b) -> b >= a })
@@ -282,9 +282,9 @@ class GammaSpeedModelTest {
 
     @Test
     fun `factory at dt=0 has higher zero-inflation than dt=large`() {
-        val factory = makeGammaProbDistribution(mps15, mps15)
-        val atZero = factory.at(0.0) as ZeroInflatedDistribution
-        val atLarge = factory.at(1000.0) as ZeroInflatedDistribution
+        val factory = buildSpeedDistributionFactory(mps15, mps15)
+        val atZero = factory(0.0) as ZeroInflatedDistribution
+        val atLarge = factory(1000.0) as ZeroInflatedDistribution
         assertTrue("p0 at dt=0 > p0 at dt=1000", atZero.p0 > atLarge.p0)
     }
 }

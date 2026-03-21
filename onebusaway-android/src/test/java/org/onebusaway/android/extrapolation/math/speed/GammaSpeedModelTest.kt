@@ -19,7 +19,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.onebusaway.android.extrapolation.math.GammaDistribution
-import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
+import org.onebusaway.android.extrapolation.math.ZeroInflatedDistribution
 
 class GammaSpeedModelTest {
 
@@ -46,27 +46,27 @@ class GammaSpeedModelTest {
 
     @Test
     fun `fromSpeeds falls back to schedSpeed when prevSpeed is zero`() {
-        val withZero = gammaProbDistribution(mps20, 0.0, 60.0) as ZeroInflatedGammaDistribution
-        val withEqual = gammaProbDistribution(mps20, mps20, 60.0) as ZeroInflatedGammaDistribution
-        assertEquals(withEqual.alpha, withZero.alpha, 1e-9)
-        assertEquals(withEqual.scale, withZero.scale, 1e-9)
+        val withZero = gammaProbDistribution(mps20, 0.0, 60.0)
+        val withEqual = gammaProbDistribution(mps20, mps20, 60.0)
+        assertEquals(withEqual.mean, withZero.mean, 1e-9)
+        assertEquals(withEqual.median(), withZero.median(), 1e-9)
     }
 
     @Test
     fun `fromSpeeds falls back to schedSpeed when prevSpeed is negative`() {
-        val withNeg = gammaProbDistribution(mps20, -5.0, 60.0) as ZeroInflatedGammaDistribution
-        val withEqual = gammaProbDistribution(mps20, mps20, 60.0) as ZeroInflatedGammaDistribution
-        assertEquals(withEqual.alpha, withNeg.alpha, 1e-9)
-        assertEquals(withEqual.scale, withNeg.scale, 1e-9)
+        val withNeg = gammaProbDistribution(mps20, -5.0, 60.0)
+        val withEqual = gammaProbDistribution(mps20, mps20, 60.0)
+        assertEquals(withEqual.mean, withNeg.mean, 1e-9)
+        assertEquals(withEqual.median(), withNeg.median(), 1e-9)
     }
 
     @Test
-    fun `fromSpeeds produces positive alpha and scale`() {
+    fun `fromSpeeds produces positive mean and median`() {
         for (sched in listOf(mps5, mps15, mps30, mps60)) {
             for (prev in listOf(mps5, mps15, mps30, mps60)) {
-                val dist = gammaProbDistribution(sched, prev, 60.0) as ZeroInflatedGammaDistribution
-                assertTrue("alpha <= 0", dist.alpha > 0)
-                assertTrue("scale <= 0", dist.scale > 0)
+                val dist = gammaProbDistribution(sched, prev, 60.0)
+                assertTrue("mean <= 0", dist.mean > 0)
+                assertTrue("median <= 0", dist.median() > 0)
             }
         }
     }
@@ -76,25 +76,26 @@ class GammaSpeedModelTest {
         // mps20 = 8.941, mps10 = 4.470
         // vEff = 8.941 * 0.9127 + 4.470 * 0.0873 = 8.55 m/s (above KINK)
         // b0 = END_B0 = 0.3102
-        // alpha = b0 * vEff = 0.3102 * 8.55 ≈ 2.65
-        // scale = 1/b0 = 3.22
-        val dist = gammaProbDistribution(mps20, mps10, 60.0) as ZeroInflatedGammaDistribution
-        assertEquals(2.65, dist.alpha, 0.1)
-        assertEquals(3.22, dist.scale, 0.1)
+        // alpha = b0 * vEff = 0.3102 * 8.55 ≈ 2.65, scale = 1/b0 = 3.22
+        // gamma mean = alpha * scale ≈ 8.55
+        // p0 at dt=60 = 0.1732 * exp(-0.00462 * 60) ≈ 0.131
+        // zero-inflated mean = (1 - p0) * gamma_mean ≈ 0.869 * 8.55 ≈ 7.43
+        val dist = gammaProbDistribution(mps20, mps10, 60.0)
+        assertEquals(7.43, dist.mean, 0.3)
     }
 
     @Test
     fun `fromSpeeds at very low speed`() {
-        val dist = gammaProbDistribution(0.447, 0.447, 60.0) as ZeroInflatedGammaDistribution
-        assertTrue(dist.alpha > 0)
-        assertTrue(dist.scale > 0)
+        val dist = gammaProbDistribution(0.447, 0.447, 60.0)
+        assertTrue(dist.mean > 0)
+        assertTrue(dist.median() > 0)
     }
 
     @Test
     fun `fromSpeeds at highway speed`() {
-        val dist = gammaProbDistribution(mps60, mps60, 60.0) as ZeroInflatedGammaDistribution
-        assertTrue(dist.alpha > 0)
-        assertTrue(dist.scale > 0)
+        val dist = gammaProbDistribution(mps60, mps60, 60.0)
+        assertTrue(dist.mean > 0)
+        assertTrue(dist.median() > 0)
     }
 
     // --- mean / median ---
@@ -139,7 +140,7 @@ class GammaSpeedModelTest {
 
     @Test
     fun `pdf continuous part integrates to approximately (1 - p0)`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0) as ZeroInflatedGammaDistribution
+        val dist = gammaProbDistribution(mps15, mps15, 60.0) as ZeroInflatedDistribution
         val dx = 0.005
         var sum = 0.0
         var x = dx
@@ -155,7 +156,7 @@ class GammaSpeedModelTest {
 
     @Test
     fun `cdf at zero equals p0 and is zero for negative`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0) as ZeroInflatedGammaDistribution
+        val dist = gammaProbDistribution(mps15, mps15, 60.0) as ZeroInflatedDistribution
         assertEquals(dist.p0, dist.cdf(0.0), 1e-12)
         assertEquals(0.0, dist.cdf(-1.0), 1e-12)
     }
@@ -279,8 +280,8 @@ class GammaSpeedModelTest {
     @Test
     fun `factory at dt=0 has higher zero-inflation than dt=large`() {
         val factory = makeGammaProbDistribution(mps15, mps15)
-        val atZero = factory.at(0.0) as ZeroInflatedGammaDistribution
-        val atLarge = factory.at(1000.0) as ZeroInflatedGammaDistribution
+        val atZero = factory.at(0.0) as ZeroInflatedDistribution
+        val atLarge = factory.at(1000.0) as ZeroInflatedDistribution
         assertTrue("p0 at dt=0 > p0 at dt=1000", atZero.p0 > atLarge.p0)
     }
 }

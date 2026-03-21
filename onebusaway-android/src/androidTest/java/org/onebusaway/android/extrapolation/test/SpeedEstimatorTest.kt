@@ -27,7 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.DiracDistribution
-import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
+import org.onebusaway.android.extrapolation.math.ZeroInflatedDistribution
 import org.onebusaway.android.extrapolation.math.speed.GammaSpeedEstimator
 import org.onebusaway.android.extrapolation.math.speed.ScheduleSpeedEstimator
 import org.onebusaway.android.extrapolation.math.speed.SpeedEstimateError
@@ -507,11 +507,9 @@ class SpeedEstimatorTest {
         val result = estimator.estimateSpeed("trip1", queryTime)
         assertTrue(result is SpeedEstimateResult.Success)
         val dist = (result as SpeedEstimateResult.Success).distribution
-        assertTrue(dist is ZeroInflatedGammaDistribution)
-        val zig = dist as ZeroInflatedGammaDistribution
-        assertTrue("Alpha should be positive", zig.alpha > 0)
-        assertTrue("Scale should be positive", zig.scale > 0)
-        assertTrue("Median should be positive", zig.median() > 0)
+        assertTrue(dist is ZeroInflatedDistribution)
+        assertTrue("Mean should be positive", dist.mean > 0)
+        assertTrue("Median should be positive", dist.median() > 0)
     }
 
     @Test

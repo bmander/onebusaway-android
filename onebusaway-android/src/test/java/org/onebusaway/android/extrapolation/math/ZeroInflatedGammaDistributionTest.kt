@@ -19,19 +19,17 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/**
+ * Tests for [ZeroInflatedDistribution] with a gamma base, matching the production
+ * usage pattern in the speed estimation model.
+ */
 class ZeroInflatedGammaDistributionTest {
 
+    private fun zig(p0: Double, alpha: Double = 3.0, scale: Double = 5.0) =
+            ZeroInflatedDistribution(p0, FrozenDistribution(GammaDistribution(alpha, scale)))
+
     // Standard test distribution: 20% zero-inflation, Gamma(3, 5) for positive values
-    private val dist = ZeroInflatedGammaDistribution(p0 = 0.2, alpha = 3.0, scale = 5.0)
-
-    // --- Constructor and fields ---
-
-    @Test
-    fun `fields are accessible`() {
-        assertEquals(0.2, dist.p0, 0.0)
-        assertEquals(3.0, dist.alpha, 0.0)
-        assertEquals(5.0, dist.scale, 0.0)
-    }
+    private val dist = zig(0.2)
 
     // --- mean ---
 
@@ -43,14 +41,12 @@ class ZeroInflatedGammaDistributionTest {
 
     @Test
     fun `mean is zero when p0 is 1`() {
-        val allZero = ZeroInflatedGammaDistribution(p0 = 1.0, alpha = 3.0, scale = 5.0)
-        assertEquals(0.0, allZero.mean, 1e-9)
+        assertEquals(0.0, zig(1.0).mean, 1e-9)
     }
 
     @Test
     fun `mean equals gamma mean when p0 is 0`() {
-        val noZero = ZeroInflatedGammaDistribution(p0 = 0.0, alpha = 3.0, scale = 5.0)
-        assertEquals(15.0, noZero.mean, 1e-9)
+        assertEquals(15.0, zig(0.0).mean, 1e-9)
     }
 
     // --- pdf ---
@@ -70,7 +66,6 @@ class ZeroInflatedGammaDistributionTest {
 
     @Test
     fun `pdf integrates to approximately (1 - p0)`() {
-        // The continuous part should integrate to (1 - p0) = 0.8
         val dx = 0.01
         var sum = 0.0
         var x = dx
@@ -177,8 +172,7 @@ class ZeroInflatedGammaDistributionTest {
 
     @Test
     fun `median returns 0 when p0 is greater than 0_5`() {
-        val highZero = ZeroInflatedGammaDistribution(p0 = 0.6, alpha = 3.0, scale = 5.0)
-        assertEquals(0.0, highZero.median(), 1e-12)
+        assertEquals(0.0, zig(0.6).median(), 1e-12)
     }
 
     @Test
@@ -190,7 +184,7 @@ class ZeroInflatedGammaDistributionTest {
 
     @Test
     fun `works with p0 equals 0 (pure gamma)`() {
-        val pureGamma = ZeroInflatedGammaDistribution(p0 = 0.0, alpha = 3.0, scale = 5.0)
+        val pureGamma = zig(0.0)
         val gamma = GammaDistribution(3.0, 5.0)
 
         assertEquals(gamma.mean, pureGamma.mean, 1e-12)
@@ -201,7 +195,7 @@ class ZeroInflatedGammaDistributionTest {
 
     @Test
     fun `works with p0 equals 1 (always zero)`() {
-        val allZero = ZeroInflatedGammaDistribution(p0 = 1.0, alpha = 3.0, scale = 5.0)
+        val allZero = zig(1.0)
 
         assertEquals(0.0, allZero.mean, 1e-12)
         assertEquals(1.0, allZero.cdf(0.0), 1e-12)

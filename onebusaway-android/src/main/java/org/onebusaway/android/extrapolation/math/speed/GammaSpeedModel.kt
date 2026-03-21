@@ -20,7 +20,7 @@ import org.onebusaway.android.extrapolation.math.DiracDistribution
 import org.onebusaway.android.extrapolation.math.FrozenDistribution
 import org.onebusaway.android.extrapolation.math.GammaDistribution
 import org.onebusaway.android.extrapolation.math.ProbDistribution
-import org.onebusaway.android.extrapolation.math.ZeroInflatedGammaDistribution
+import org.onebusaway.android.extrapolation.math.ZeroInflatedDistribution
 
 // Fitted parameters expressed in m/s; fit on a single day of King County Metro
 // data from early March 2026. TODO: get more data.
@@ -78,7 +78,7 @@ fun makeGammaProbDistribution(
 
     return SpeedDistributionFactory { dtSec ->
         val p0 = A * exp(-LAMBDA * dtSec)
-        ZeroInflatedGammaDistribution(p0, alpha, scale, frozen)
+        ZeroInflatedDistribution(p0, frozen)
     }
 }
 

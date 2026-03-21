@@ -50,3 +50,13 @@ fun createExtrapolator(
     else
         GammaExtrapolator(tripId, dataManager)
 }
+
+/** Returns true if the trip has a recent enough valid AVL fix for extrapolation. */
+fun canExtrapolate(
+        tripId: String,
+        queryTimeMs: Long,
+        dataManager: TripDataManager = TripDataManager
+): Boolean {
+    val newest = dataManager.getNewestValidEntry(tripId) ?: return false
+    return queryTimeMs - newest.lastLocationUpdateTime <= Extrapolator.MAX_EXTRAPOLATION_AGE_MS
+}

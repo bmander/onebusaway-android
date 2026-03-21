@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.io.elements
 
-import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.extrapolation.canExtrapolate
 
 /**
  * The best available distance: prefers lastKnownDistanceAlongTrip (raw), falls back to
@@ -42,7 +42,7 @@ val ObaTripStatus.isLocationRealtime: Boolean
  */
 fun ObaTripStatus.isRealtimeSpeedEstimable(queryTimeMs: Long): Boolean =
         activeTripId != null
-                && TripDataManager.canExtrapolate(activeTripId, queryTimeMs)
+                && canExtrapolate(activeTripId, queryTimeMs)
 
 /**
  * Computes the scheduled segment speed (m/s) at a given distance along the trip.

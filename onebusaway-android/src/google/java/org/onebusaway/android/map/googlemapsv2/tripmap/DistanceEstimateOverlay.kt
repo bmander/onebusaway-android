@@ -36,12 +36,11 @@ private const val PDF_HIGH_QUANTILE = 0.99
 private const val DEFAULT_SEGMENT_COUNT = 15
 
 /**
- * Renders the speed estimate visualization on the trip map: a set of opacity-graded
- * polyline segments showing the PDF, plus a fast-estimate icon marker at the 90th
- * percentile position. Takes a [ProbDistribution] each frame and handles all quantile
- * computation, distance conversion, polyline geometry, and marker positioning.
+ * Renders the distance estimate visualization on the trip map: a set of opacity-graded
+ * polyline segments showing the PDF over distance, plus a fast-estimate icon marker at
+ * the 90th percentile position. Takes a [ProbDistribution] over distance each frame.
  */
-class SpeedEstimateOverlay @JvmOverloads constructor(
+class DistanceEstimateOverlay @JvmOverloads constructor(
         private val map: GoogleMap,
         private val context: Context,
         private val polylineWidth: Float,

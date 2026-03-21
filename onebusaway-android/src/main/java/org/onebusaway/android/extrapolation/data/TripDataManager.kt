@@ -263,6 +263,7 @@ object TripDataManager {
      * If [onReady] is provided, it is invoked on the main thread with the [ShapeData] once
      * the shape is available. If the shape is already cached, [onReady] is called immediately.
      */
+    @JvmOverloads
     fun ensureShape(tripId: String, shapeId: String, onReady: ((ShapeData) -> Unit)? = null) {
         if (getShape(tripId) != null) {
             if (onReady != null) {

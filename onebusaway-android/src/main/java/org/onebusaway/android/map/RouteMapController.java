@@ -28,7 +28,6 @@ import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.MapUtils;
 import org.onebusaway.android.map.googlemapsv2.BaseMapFragment;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
-import org.onebusaway.android.extrapolation.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.UIUtils;
 
@@ -153,7 +152,6 @@ public class RouteMapController implements MapModeController {
 
         // Clear trip data and speed estimation state
         TripDataManager.getInstance().clearAll();
-        VehicleTrajectoryTracker.getInstance().clearAll();
 
         // Clear the existing route and vehicle overlays
         mFragment.getMapView().removeRouteOverlay();

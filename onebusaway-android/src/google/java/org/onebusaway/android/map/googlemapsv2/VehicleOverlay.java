@@ -34,9 +34,10 @@ import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.elements.ObaElementExtensionsKt;
 import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
+import org.onebusaway.android.extrapolation.Extrapolator;
+import org.onebusaway.android.extrapolation.ExtrapolatorKt;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
-import org.onebusaway.android.extrapolation.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.ui.TripDetailsActivity;
 import org.onebusaway.android.ui.TripDetailsListFragment;
@@ -295,6 +296,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         /** Reusable Location to avoid per-frame allocation in extrapolation. */
         private final Location mReusableLocation = new Location("extrapolated");
 
+        /** Per-trip extrapolator instances. */
+        private final HashMap<String, Extrapolator> mExtrapolators = new HashMap<>();
+
         /** Tracks last AVL fix time per trip to detect fresh data. */
         private final HashMap<String, Long> mLastFixTimes = new HashMap<>();
         /** Tracks when an animation was started, to avoid overriding it with setPosition. */
@@ -394,7 +398,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
             String tripId = status.getActiveTripId();
             if (tripId == null || TripDataManager.getInstance().getShape(tripId) == null
-                    || !VehicleTrajectoryTracker.getInstance().canExtrapolate(tripId, now)) {
+                    || !TripDataManager.getInstance().canExtrapolate(tripId, now)) {
                 Location markerLoc = MapHelpV2.makeLocation(m.getPosition());
                 if (l.distanceTo(markerLoc) < MAX_VEHICLE_ANIMATION_DISTANCE) {
                     AnimationUtil.animateMarkerTo(m, MapHelpV2.makeLatLng(l));
@@ -419,6 +423,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     mVehicles.remove(m);
                     mLastFixTimes.remove(tripId);
                     mAnimatingUntil.remove(tripId);
+                    mExtrapolators.remove(tripId);
                     iterator.remove();
                     removed++;
                 }
@@ -439,12 +444,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         synchronized void extrapolatePositions(long now) {
             if (mVehicleMarkers == null || mVehicleMarkers.isEmpty()) return;
 
-            VehicleTrajectoryTracker tracker = VehicleTrajectoryTracker.getInstance();
             TripDataManager dm = TripDataManager.getInstance();
 
             for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
                 String tripId = entry.getKey();
-                LatLng target = computeExtrapolatedPosition(tracker, tripId, now);
+                LatLng target = computeExtrapolatedPosition(tripId, now);
                 if (target == null) continue;
 
                 Marker marker = entry.getValue();
@@ -458,12 +462,19 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             }
         }
 
-        private LatLng computeExtrapolatedPosition(
-                VehicleTrajectoryTracker tracker, String tripId, long now) {
+        private Extrapolator getOrCreateExtrapolator(String tripId) {
+            Extrapolator ext = mExtrapolators.get(tripId);
+            if (ext != null) return ext;
+            ext = ExtrapolatorKt.createExtrapolator(tripId, TripDataManager.getInstance());
+            mExtrapolators.put(tripId, ext);
+            return ext;
+        }
+
+        private LatLng computeExtrapolatedPosition(String tripId, long now) {
             TripDataManager.ShapeData sd = TripDataManager.getInstance()
                     .getShapeWithDistances(tripId);
             if (sd == null || sd.points.isEmpty()) return null;
-            ProbDistribution dist = tracker.extrapolate(tripId, now);
+            ProbDistribution dist = getOrCreateExtrapolator(tripId).extrapolate(now);
             if (dist == null) return null;
             if (!LocationUtils.interpolateAlongPolyline(
                     sd.points, sd.cumulativeDistances, dist.median(), mReusableLocation))
@@ -513,6 +524,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             }
             mLastFixTimes.clear();
             mAnimatingUntil.clear();
+            mExtrapolators.clear();
         }
 
         synchronized int size() {

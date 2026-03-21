@@ -27,6 +27,7 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.Marker
+import org.onebusaway.android.extrapolation.createExtrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.TripDetailsPoller
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
@@ -136,7 +137,8 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
 
     private fun onRendererReady(renderer: TripMapRenderer) {
         tripRenderer = renderer
-        extrapolationController = TripExtrapolationController(renderer, tripId).also { it.start() }
+        val extrapolator = createExtrapolator(tripId)
+        extrapolationController = TripExtrapolationController(renderer, tripId, extrapolator).also { it.start() }
         poller.start(tripId)
         activated = true
         renderer.fitCameraToShape()

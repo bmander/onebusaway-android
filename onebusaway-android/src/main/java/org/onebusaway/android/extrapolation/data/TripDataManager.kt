@@ -324,6 +324,15 @@ object TripDataManager {
     fun getLastActiveTripId(polledTripId: String): String? =
             lastActiveTripId[polledTripId]
 
+    // --- Extrapolation readiness ---
+
+    /** Returns true if the trip has recent enough AVL data for extrapolation. */
+    fun canExtrapolate(tripId: String, queryTimeMs: Long): Boolean {
+        val last = getLastState(tripId) ?: return false
+        return queryTimeMs - last.lastLocationUpdateTime <=
+                org.onebusaway.android.extrapolation.Extrapolator.MAX_EXTRAPOLATION_AGE_MS
+    }
+
     // --- Clear ---
 
     /** Clears all data caches. */

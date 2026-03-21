@@ -28,7 +28,6 @@ import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ZeroInflatedDistribution
 import org.onebusaway.android.extrapolation.GammaExtrapolator
-import org.onebusaway.android.extrapolation.VehicleTrajectoryTracker
 import org.onebusaway.android.io.elements.Occupancy
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
@@ -40,13 +39,11 @@ import org.onebusaway.android.io.elements.Status
 @RunWith(AndroidJUnit4::class)
 class SpeedEstimatorTest {
 
-    private val tracker = VehicleTrajectoryTracker
     private val dm = TripDataManager
 
     @Before
     fun setUp() {
         dm.clearAll()
-        tracker.clearAll()
     }
 
     // --- TripDataManager tests ---
@@ -337,7 +334,8 @@ class SpeedEstimatorTest {
         )
 
         dm.recordStatus(latestStatus)
-        val dist = tracker.extrapolate("trip1", latestTimestamp)
+        val extrapolator = GammaExtrapolator("trip1", dm)
+        val dist = extrapolator.extrapolate(latestTimestamp)
         assertNotNull(dist)
         assertTrue("Extrapolated distance should be positive", dist!!.median() > 0)
     }

@@ -23,6 +23,9 @@ import org.onebusaway.android.extrapolation.math.prob.ZeroInflatedDistribution
 
 class GammaSpeedModelTest {
 
+    private fun gammaDist(sched: Double, prev: Double?, dt: Double = 60.0) =
+            makeGammaProbDistribution(sched, prev).at(dt)
+
     // m/s test speeds (named for readability)
     private val mps5 = 2.235 // ~5 mph
     private val mps10 = 4.470 // ~10 mph
@@ -36,26 +39,26 @@ class GammaSpeedModelTest {
 
     @Test(expected = IllegalArgumentException::class)
     fun `fromSpeeds throws when schedSpeed is zero`() {
-        gammaProbDistribution(0.0, mps5, 60.0)
+        gammaDist(0.0, mps5, 60.0)
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun `fromSpeeds throws when schedSpeed is negative`() {
-        gammaProbDistribution(-1.0, mps5, 60.0)
+        gammaDist(-1.0, mps5, 60.0)
     }
 
     @Test
     fun `fromSpeeds falls back to schedSpeed when prevSpeed is zero`() {
-        val withZero = gammaProbDistribution(mps20, 0.0, 60.0)
-        val withEqual = gammaProbDistribution(mps20, mps20, 60.0)
+        val withZero = gammaDist(mps20, 0.0, 60.0)
+        val withEqual = gammaDist(mps20, mps20, 60.0)
         assertEquals(withEqual.mean, withZero.mean, 1e-9)
         assertEquals(withEqual.median(), withZero.median(), 1e-9)
     }
 
     @Test
     fun `fromSpeeds falls back to schedSpeed when prevSpeed is negative`() {
-        val withNeg = gammaProbDistribution(mps20, -5.0, 60.0)
-        val withEqual = gammaProbDistribution(mps20, mps20, 60.0)
+        val withNeg = gammaDist(mps20, -5.0, 60.0)
+        val withEqual = gammaDist(mps20, mps20, 60.0)
         assertEquals(withEqual.mean, withNeg.mean, 1e-9)
         assertEquals(withEqual.median(), withNeg.median(), 1e-9)
     }
@@ -64,7 +67,7 @@ class GammaSpeedModelTest {
     fun `fromSpeeds produces positive mean and median`() {
         for (sched in listOf(mps5, mps15, mps30, mps60)) {
             for (prev in listOf(mps5, mps15, mps30, mps60)) {
-                val dist = gammaProbDistribution(sched, prev, 60.0)
+                val dist = gammaDist(sched, prev, 60.0)
                 assertTrue("mean <= 0", dist.mean > 0)
                 assertTrue("median <= 0", dist.median() > 0)
             }
@@ -80,20 +83,20 @@ class GammaSpeedModelTest {
         // gamma mean = alpha * scale ≈ 8.55
         // p0 at dt=60 = 0.1732 * exp(-0.00462 * 60) ≈ 0.131
         // zero-inflated mean = (1 - p0) * gamma_mean ≈ 0.869 * 8.55 ≈ 7.43
-        val dist = gammaProbDistribution(mps20, mps10, 60.0)
+        val dist = gammaDist(mps20, mps10, 60.0)
         assertEquals(7.43, dist.mean, 0.3)
     }
 
     @Test
     fun `fromSpeeds at very low speed`() {
-        val dist = gammaProbDistribution(0.447, 0.447, 60.0)
+        val dist = gammaDist(0.447, 0.447, 60.0)
         assertTrue(dist.mean > 0)
         assertTrue(dist.median() > 0)
     }
 
     @Test
     fun `fromSpeeds at highway speed`() {
-        val dist = gammaProbDistribution(mps60, mps60, 60.0)
+        val dist = gammaDist(mps60, mps60, 60.0)
         assertTrue(dist.mean > 0)
         assertTrue(dist.median() > 0)
     }
@@ -109,14 +112,14 @@ class GammaSpeedModelTest {
     @Test
     fun `mean speed is close to input when schedSpeed equals prevSpeed`() {
         for (inputMps in listOf(mps10, mps20, mps40)) {
-            val dist = gammaProbDistribution(inputMps, inputMps, 60.0)
+            val dist = gammaDist(inputMps, inputMps, 60.0)
             assertEquals("mean should be near $inputMps m/s", inputMps, dist.mean, inputMps * 0.2)
         }
     }
 
     @Test
     fun `median is less than mean for right-skewed gamma`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0)
+        val dist = gammaDist(mps15, mps15, 60.0)
         val median = dist.quantile(0.5)
         assertTrue("median ($median) should be < mean (${dist.mean})", median < dist.mean)
     }
@@ -125,14 +128,14 @@ class GammaSpeedModelTest {
 
     @Test
     fun `pdf is zero at zero and negative`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0)
+        val dist = gammaDist(mps15, mps15, 60.0)
         assertEquals(0.0, dist.pdf(0.0), 1e-12)
         assertEquals(0.0, dist.pdf(-5.0), 1e-12)
     }
 
     @Test
     fun `pdf is positive for reasonable speeds`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0)
+        val dist = gammaDist(mps15, mps15, 60.0)
         for (speed in listOf(mps5, mps10, mps15, mps20)) {
             assertTrue("pdf should be > 0 at $speed m/s", dist.pdf(speed) > 0)
         }
@@ -140,7 +143,7 @@ class GammaSpeedModelTest {
 
     @Test
     fun `pdf continuous part integrates to approximately (1 - p0)`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0) as ZeroInflatedDistribution
+        val dist = gammaDist(mps15, mps15, 60.0) as ZeroInflatedDistribution
         val dx = 0.005
         var sum = 0.0
         var x = dx
@@ -156,28 +159,28 @@ class GammaSpeedModelTest {
 
     @Test
     fun `cdf at zero equals p0 and is zero for negative`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0) as ZeroInflatedDistribution
+        val dist = gammaDist(mps15, mps15, 60.0) as ZeroInflatedDistribution
         assertEquals(dist.p0, dist.cdf(0.0), 1e-12)
         assertEquals(0.0, dist.cdf(-1.0), 1e-12)
     }
 
     @Test
     fun `cdf approaches 1 for large values`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0)
+        val dist = gammaDist(mps15, mps15, 60.0)
         assertTrue(dist.cdf(45.0) > 0.99)
         assertTrue(dist.cdf(90.0) > 0.999)
     }
 
     @Test
     fun `cdf increases from low to high speeds`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0)
+        val dist = gammaDist(mps15, mps15, 60.0)
         assertTrue("cdf(5mph) < cdf(15mph)", dist.cdf(mps5) < dist.cdf(mps15))
         assertTrue("cdf(15mph) < cdf(40mph)", dist.cdf(mps15) < dist.cdf(mps40))
     }
 
     @Test
     fun `cdf at median is approximately 0_5`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0)
+        val dist = gammaDist(mps15, mps15, 60.0)
         val median = dist.quantile(0.5)
         assertEquals(0.5, dist.cdf(median), 0.01)
     }
@@ -186,19 +189,19 @@ class GammaSpeedModelTest {
 
     @Test
     fun `quantile at 0 returns 0`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0)
+        val dist = gammaDist(mps15, mps15, 60.0)
         assertEquals(0.0, dist.quantile(0.0), 1e-12)
     }
 
     @Test
     fun `quantile at 1 returns MAX_VALUE`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0)
+        val dist = gammaDist(mps15, mps15, 60.0)
         assertEquals(Double.MAX_VALUE, dist.quantile(1.0), 0.0)
     }
 
     @Test
     fun `quantile is monotonically non-decreasing`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0)
+        val dist = gammaDist(mps15, mps15, 60.0)
         var prev = 0.0
         // Note: quantile returns 0 for p <= p0, then increases for p > p0
         for (p in listOf(0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99)) {
@@ -210,7 +213,7 @@ class GammaSpeedModelTest {
 
     @Test
     fun `cdf of quantile round-trips for percentiles above p0`() {
-        val dist = gammaProbDistribution(mps15, mps15, 60.0)
+        val dist = gammaDist(mps15, mps15, 60.0)
         // Only test percentiles > p0 where quantile returns positive values
         for (p in doubleArrayOf(0.25, 0.50, 0.75, 0.90, 0.95)) {
             val q = dist.quantile(p)
@@ -222,7 +225,7 @@ class GammaSpeedModelTest {
     fun `cdf of quantile round-trips across different speed regimes`() {
         for (sched in listOf(mps5, mps15, mps40)) {
             for (prev in listOf(mps5, mps15, mps40)) {
-                val dist = gammaProbDistribution(sched, prev, 60.0)
+                val dist = gammaDist(sched, prev, 60.0)
                 val q50 = dist.quantile(0.5)
                 assertEquals(
                         "round-trip failed for sched=$sched prev=$prev",

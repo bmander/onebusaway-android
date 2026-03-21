@@ -139,7 +139,7 @@ object VehicleTrajectoryTracker {
     /** Clears estimation state. */
     @Synchronized
     fun clearAll() {
-        (estimator as? GammaSpeedEstimator)?.clearCache()
+        estimator.clearCache()
     }
 }
 

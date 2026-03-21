@@ -81,7 +81,7 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
     }
 
     /** Clears the per-trip factory cache. */
-    fun clearCache() = factoryCache.clear()
+    override fun clearCache() = factoryCache.clear()
 
     /** Computes speed from two AVL fixes (distance / time). Returns null if fewer than 2 fixes. */
     private fun computeAvlSpeed(fixes: List<ObaTripStatus>): Double? {

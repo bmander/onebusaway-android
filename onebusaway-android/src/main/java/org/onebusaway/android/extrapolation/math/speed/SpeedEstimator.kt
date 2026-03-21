@@ -36,4 +36,7 @@ interface SpeedEstimator {
     fun estimateSpeed(tripId: String, queryTime: Long,
                       snapshot: TripDataManager.TripSnapshot): SpeedEstimateResult =
             estimateSpeed(tripId, queryTime)
+
+    /** Clears any cached estimation state. Default no-op. */
+    fun clearCache() {}
 }

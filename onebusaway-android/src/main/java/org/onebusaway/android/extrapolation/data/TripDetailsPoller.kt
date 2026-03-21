@@ -65,8 +65,10 @@ class TripDetailsPoller(
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to poll trip details for $tid", e)
             }
-            if (active) {
-                handler.postDelayed(runnable, intervalMs)
+            handler.post {
+                if (active) {
+                    handler.postDelayed(runnable, intervalMs)
+                }
             }
         }.start()
     }

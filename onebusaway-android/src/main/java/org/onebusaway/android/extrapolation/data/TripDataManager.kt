@@ -165,6 +165,8 @@ object TripDataManager {
                 val schedule = response?.schedule
                 if (schedule != null) {
                     putSchedule(tripId, schedule)
+                } else {
+                    Log.d(TAG, "Schedule fetch for $tripId returned no schedule data")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch schedule for $tripId", e)
@@ -281,6 +283,8 @@ object TripDataManager {
                         val sd = getShapeWithDistances(tripId)
                         if (sd != null) mainHandler.post { onReady(sd) }
                     }
+                } else {
+                    Log.d(TAG, "Shape fetch for $tripId returned no points")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch shape for $tripId", e)

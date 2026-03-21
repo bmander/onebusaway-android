@@ -61,6 +61,8 @@ class TripDetailsPoller(
                 val response = ObaTripDetailsRequest.newRequest(ctx, tid).call()
                 if (response != null) {
                     TripDataManager.recordTripDetailsResponse(tid, response)
+                } else {
+                    Log.d(TAG, "Null response polling trip details for $tid")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to poll trip details for $tid", e)

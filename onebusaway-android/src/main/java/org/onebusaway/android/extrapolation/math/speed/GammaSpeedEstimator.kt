@@ -21,9 +21,9 @@ import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 
 /**
- * Speed estimator using the H12 gamma distribution model. Combines schedule speed with the most
- * recent AVL-derived speed to produce a gamma distribution over vehicle speed. Falls back to a
- * point estimate from the schedule if the gamma model can't be computed.
+ * Speed estimator using a zero-inflated gamma distribution model. Combines schedule speed with
+ * the most recent AVL-derived speed to produce a gamma distribution over vehicle speed. Falls
+ * back to a point estimate from the schedule if the gamma model can't be computed.
  */
 class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstimator {
 

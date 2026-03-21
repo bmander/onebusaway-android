@@ -37,6 +37,7 @@ import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.extrapolation.math.ProbDistribution;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
+import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.ui.TripDetailsActivity;
 import org.onebusaway.android.ui.TripDetailsListFragment;
 import org.onebusaway.android.util.UIUtils;
@@ -462,10 +463,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 TripDataManager.TripSnapshot snapshot) {
             TripDataManager.ShapeData sd = snapshot.shapeData;
             if (sd == null || sd.points.isEmpty()) return null;
-            ProbDistribution dist = tracker.getEstimatedDistribution(tripId, now, snapshot);
+            ProbDistribution dist = tracker.extrapolate(tripId, now, snapshot);
             if (dist == null) return null;
-            if (!tracker.extrapolatePosition(sd, snapshot.newestValid,
-                    dist, now, mReusableLocation)) return null;
+            if (!LocationUtils.interpolateAlongPolyline(
+                    sd.points, sd.cumulativeDistances, dist.median(), mReusableLocation))
+                return null;
             return new LatLng(mReusableLocation.getLatitude(), mReusableLocation.getLongitude());
         }
 

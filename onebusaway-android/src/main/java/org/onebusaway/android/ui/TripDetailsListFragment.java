@@ -88,7 +88,7 @@ import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.nav.NavigationService;
-import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTrackerKt;
+import org.onebusaway.android.extrapolation.math.ProbDistribution;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
@@ -552,15 +552,14 @@ public class TripDetailsListFragment extends ListFragment {
             return;
         }
 
-        ObaTripStatus newestValid = dm.getNewestValidEntry(activeTripId);
-        Double speed = VehicleTrajectoryTracker.getInstance().getEstimatedSpeed(activeTripId);
-        if (newestValid == null || speed == null) {
+        ProbDistribution distribution = VehicleTrajectoryTracker.getInstance()
+                .extrapolate(activeTripId, System.currentTimeMillis());
+        if (distribution == null) {
             mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
             return;
         }
 
-        Double extrapolatedDist = VehicleTrajectoryTrackerKt.extrapolateDistance(
-                newestValid, speed, System.currentTimeMillis());
+        Double extrapolatedDist = distribution.median();
         if (extrapolatedDist == null) {
             mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
             return;

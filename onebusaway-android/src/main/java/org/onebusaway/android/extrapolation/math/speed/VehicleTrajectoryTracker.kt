@@ -16,16 +16,15 @@
 package org.onebusaway.android.extrapolation.math.speed
 
 import android.location.Location
+import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.ProbDistribution
 import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.util.LocationUtils
 
 /**
- * Singleton speed-estimation facade. Delegates trip data access to [TripDataManager] and owns only
- * speed estimation logic (gamma model, schedule speed, route type routing).
+ * Singleton extrapolation facade. Dispatches to [GammaExtrapolator] for bus-like routes
+ * or [ScheduleReplayExtrapolator] for grade-separated transit, based on route type.
  */
 object VehicleTrajectoryTracker {
 
@@ -35,54 +34,44 @@ object VehicleTrajectoryTracker {
     @JvmStatic fun getInstance() = this
 
     private val dataManager = TripDataManager
-    private val scheduleEstimator = ScheduleSpeedEstimator(dataManager)
-    private var estimator: SpeedEstimator = GammaSpeedEstimator(dataManager)
+    private val gammaExtrapolator = GammaExtrapolator(dataManager)
+    private val scheduleReplayExtrapolator = ScheduleReplayExtrapolator()
+
+    private fun selectExtrapolator(routeType: Int?): Extrapolator =
+            if (routeType != null && ObaRoute.isGradeSeparated(routeType))
+                scheduleReplayExtrapolator
+            else
+                gammaExtrapolator
+
     /**
-     * Returns the estimated speed distribution for the given trip. Uses the route type from
-     * TripDataManager to select the appropriate estimator.
+     * Extrapolates a distribution over distance along the trip at [queryTimeMs].
+     * Returns null if extrapolation is not possible.
      */
     @Synchronized
-    fun getEstimatedDistribution(tripId: String, queryTime: Long): ProbDistribution? {
-        val routeType = dataManager.getRouteType(tripId)
-        val est =
-                if (routeType != null && ObaRoute.isGradeSeparated(routeType)) {
-                    scheduleEstimator
-                } else {
-                    estimator
-                }
-        val result = est.estimateSpeed(tripId, queryTime)
-        val dist =
-                when (result) {
-                    is SpeedEstimateResult.Success -> result.distribution
-                    is SpeedEstimateResult.Failure -> null
-                }
-        return dist
+    fun extrapolate(tripId: String, queryTimeMs: Long,
+                    snapshot: TripDataManager.TripSnapshot): ProbDistribution? {
+        val newestValid = snapshot.newestValid ?: return null
+        return selectExtrapolator(snapshot.routeType)
+                .extrapolate(newestValid, snapshot, queryTimeMs)
     }
 
-    /** Returns the estimated speed in m/s for the given trip. */
+    /** Convenience overload that fetches the snapshot internally. */
     @Synchronized
-    fun getEstimatedSpeed(tripId: String, timestampMs: Long): Double? =
-            getEstimatedDistribution(tripId, timestampMs)?.median()
+    fun extrapolate(tripId: String, queryTimeMs: Long): ProbDistribution? =
+            extrapolate(tripId, queryTimeMs, dataManager.getSnapshot(tripId))
 
-    /** Convenience overload that uses the current system time. */
+    /**
+     * Extrapolates a vehicle's lat/lng position, writing into [out].
+     * Returns true if a valid position was computed.
+     */
     @Synchronized
-    fun getEstimatedSpeed(tripId: String): Double? =
-            getEstimatedSpeed(tripId, System.currentTimeMillis())
-
-    /** Snapshot-based overload that avoids separate TripDataManager lookups. */
-    @Synchronized
-    fun getEstimatedDistribution(tripId: String, queryTime: Long,
-                                  snapshot: TripDataManager.TripSnapshot): ProbDistribution? {
-        val est = if (snapshot.routeType != null && ObaRoute.isGradeSeparated(snapshot.routeType)) {
-            scheduleEstimator
-        } else {
-            estimator
-        }
-        val result = est.estimateSpeed(tripId, queryTime, snapshot)
-        return when (result) {
-            is SpeedEstimateResult.Success -> result.distribution
-            is SpeedEstimateResult.Failure -> null
-        }
+    fun extrapolatePosition(tripId: String, queryTimeMs: Long, out: Location): Boolean {
+        val snapshot = dataManager.getSnapshot(tripId)
+        val sd = snapshot.shapeData ?: return false
+        if (sd.points.isEmpty()) return false
+        val dist = extrapolate(tripId, queryTimeMs, snapshot) ?: return false
+        return LocationUtils.interpolateAlongPolyline(
+                sd.points, sd.cumulativeDistances, dist.median(), out)
     }
 
     /** Returns true if the tracker has recent enough AVL data to extrapolate this trip. */
@@ -91,75 +80,9 @@ object VehicleTrajectoryTracker {
         return queryTimeMs - last.lastLocationUpdateTime <= MAX_EXTRAPOLATION_AGE_MS
     }
 
-    /** Sets the active speed estimator. */
-    @Synchronized
-    fun setEstimator(estimator: SpeedEstimator?) {
-        if (estimator != null) {
-            this.estimator = estimator
-        }
-    }
-
-    /**
-     * Extrapolates a vehicle's position along its route polyline. Looks up shape, history, and
-     * speed internally, then combines distance extrapolation with polyline interpolation.
-     *
-     * @param tripId the trip to extrapolate
-     * @param currentTimeMs current time in milliseconds
-     * @param out reusable Location to receive the interpolated position
-     * @return true if a valid position was computed and written to [out]
-     */
-    @Synchronized
-    fun extrapolatePosition(tripId: String, currentTimeMs: Long, out: Location): Boolean {
-        val snapshot = dataManager.getSnapshot(tripId)
-        val sd = snapshot.shapeData ?: return false
-        if (sd.points.isEmpty()) return false
-        val speed = getEstimatedDistribution(tripId, currentTimeMs, snapshot)?.median() ?: return false
-        val dist = extrapolateDistance(snapshot.newestValid, speed, currentTimeMs) ?: return false
-        return LocationUtils.interpolateAlongPolyline(sd.points, sd.cumulativeDistances, dist, out)
-    }
-
-    /**
-     * Extrapolates a vehicle's position using pre-fetched data. Avoids re-fetching shape,
-     * history, and distribution that the caller already has.
-     */
-    fun extrapolatePosition(
-            shapeData: TripDataManager.ShapeData,
-            newestValid: ObaTripStatus?,
-            distribution: ProbDistribution,
-            currentTimeMs: Long,
-            out: Location
-    ): Boolean {
-        if (shapeData.points.isEmpty()) return false
-        val speed = distribution.median()
-        val dist = extrapolateDistance(newestValid, speed, currentTimeMs) ?: return false
-        return LocationUtils.interpolateAlongPolyline(
-                shapeData.points, shapeData.cumulativeDistances, dist, out)
-    }
-
     /** Clears estimation state. */
     @Synchronized
     fun clearAll() {
-        estimator.clearCache()
+        gammaExtrapolator.clearCache()
     }
-}
-
-/**
- * Extrapolates the current distance along the trip based on the newest valid history entry and
- * estimated speed. Returns null if extrapolation is not possible.
- *
- * @param newest the newest history entry with valid distance data (from TripDataManager.getNewestValidEntry)
- * @param speedMps estimated speed in meters per second
- * @param currentTimeMs current time in milliseconds
- * @return extrapolated distance in meters, or null
- */
-fun extrapolateDistance(
-        newest: ObaTripStatus?,
-        speedMps: Double,
-        currentTimeMs: Long
-): Double? {
-    if (speedMps <= 0 || newest == null) return null
-    val lastTime = newest.lastLocationUpdateTime
-    if (currentTimeMs - lastTime > VehicleTrajectoryTracker.MAX_EXTRAPOLATION_AGE_MS) return null
-    val lastDist = newest.bestDistanceAlongTrip ?: return null
-    return lastDist + speedMps * (currentTimeMs - lastTime) / 1000.0
 }

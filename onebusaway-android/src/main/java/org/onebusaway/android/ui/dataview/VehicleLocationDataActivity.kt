@@ -195,7 +195,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         val schedule = TripDataManager.getSchedule(tripId)
         val serviceDate = TripDataManager.getServiceDate(tripId) ?: 0L
         val distribution: ProbDistribution? = if (!tripEnded)
-            VehicleTrajectoryTracker.getEstimatedDistribution(tripId, System.currentTimeMillis())
+            VehicleTrajectoryTracker.extrapolate(tripId, System.currentTimeMillis())
         else null
         graphView.setData(history, schedule, serviceDate, distribution)
     }

@@ -26,13 +26,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.math.DiracDistribution
 import org.onebusaway.android.extrapolation.math.ZeroInflatedDistribution
 import org.onebusaway.android.extrapolation.math.speed.GammaSpeedEstimator
-import org.onebusaway.android.extrapolation.math.speed.ScheduleSpeedEstimator
-import org.onebusaway.android.extrapolation.math.speed.SpeedEstimateError
 import org.onebusaway.android.extrapolation.math.speed.SpeedEstimateResult
-import org.onebusaway.android.extrapolation.math.speed.SpeedEstimator
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
 import org.onebusaway.android.io.elements.Occupancy
 import org.onebusaway.android.io.elements.ObaTripSchedule
@@ -159,35 +155,6 @@ class SpeedEstimatorTest {
         assertEquals(0, dm.getHistory("trip1").size)
     }
 
-    @Test
-    fun testTrackerSetEstimator() {
-        // Set a custom estimator that always returns 42.0
-        tracker.setEstimator(object : SpeedEstimator {
-            override fun estimateSpeed(
-                tripId: String,
-                queryTime: Long
-            ) = SpeedEstimateResult.Success(DiracDistribution(42.0))
-        })
-
-        val timestamp = 100_000L
-        val status = createStatus(
-            "v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, timestamp
-        )
-        dm.recordStatus(status)
-        val speed = tracker.getEstimatedSpeed("trip1", timestamp)
-        assertNotNull(speed)
-        assertEquals(42.0, speed!!, 0.01)
-
-        // Restore default
-        tracker.setEstimator(GammaSpeedEstimator(dm))
-    }
-
-    @Test
-    fun testTrackerSetEstimatorIgnoresNull() {
-        // Should not throw or change current estimator
-        tracker.setEstimator(null)
-    }
-
     // --- TripDataManager schedule cache tests ---
 
     @Test
@@ -288,193 +255,6 @@ class SpeedEstimatorTest {
         assertEquals(1, dm.getHistorySize("trip1"))
     }
 
-    // --- ScheduleSpeedEstimator tests ---
-
-    @Test
-    fun testScheduleEstimatorNoCachedScheduleReturnsFailure() {
-        val estimator = ScheduleSpeedEstimator(dm)
-        val timestamp = 1000L
-
-        val status = createStatus(
-            "v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, timestamp
-        )
-        dm.recordStatus(status)
-
-        // No schedule cached - should return failure
-        val result = estimator.estimateSpeed("trip1", timestamp)
-        assertTrue(result is SpeedEstimateResult.Failure)
-        val error = (result as SpeedEstimateResult.Failure).error
-        assertTrue(error is SpeedEstimateError.InsufficientData)
-    }
-
-    @Test
-    fun testScheduleEstimatorNullScheduledDistance() {
-        val estimator = ScheduleSpeedEstimator(dm)
-        val timestamp = 10000L
-
-        val status = createStatus(
-            "v1", "trip1", 47.0, -122.0, 200.0, null, 5000.0, timestamp
-        )
-        dm.recordStatus(status)
-
-        val result = estimator.estimateSpeed("trip1", timestamp)
-        assertTrue(result is SpeedEstimateResult.Failure)
-    }
-
-    @Test
-    fun testScheduleEstimatorCorrectSegmentSpeed() {
-        val estimator = ScheduleSpeedEstimator(dm)
-        val timestamp = 10000L
-
-        val schedule = createSchedule(
-            doubleArrayOf(0.0, 1000.0, 3000.0),
-            longArrayOf(0, 120, 300),
-            longArrayOf(60, 180, 360)
-        )
-        dm.putSchedule("trip1", schedule)
-
-        val status = createStatus(
-            "v1", "trip1", 47.0, -122.0, 500.0, 500.0, 5000.0, timestamp
-        )
-        dm.recordStatus(status)
-
-        val result = estimator.estimateSpeed("trip1", timestamp)
-        assertTrue(result is SpeedEstimateResult.Success)
-        val dist = (result as SpeedEstimateResult.Success).distribution
-        assertEquals(1000.0 / 60.0, dist.mean, 0.01)
-    }
-
-    @Test
-    fun testScheduleEstimatorSecondSegment() {
-        val estimator = ScheduleSpeedEstimator(dm)
-        val timestamp = 10000L
-
-        val schedule = createSchedule(
-            doubleArrayOf(0.0, 1000.0, 3000.0),
-            longArrayOf(0, 120, 300),
-            longArrayOf(60, 180, 360)
-        )
-        dm.putSchedule("trip1", schedule)
-
-        val status = createStatus(
-            "v1", "trip1", 47.0, -122.0, 1500.0, 1500.0, 5000.0, timestamp
-        )
-        dm.recordStatus(status)
-
-        val result = estimator.estimateSpeed("trip1", timestamp)
-        assertTrue(result is SpeedEstimateResult.Success)
-        val dist = (result as SpeedEstimateResult.Success).distribution
-        assertEquals(2000.0 / 120.0, dist.mean, 0.01)
-    }
-
-    @Test
-    fun testScheduleEstimatorBeforeFirstStop() {
-        val estimator = ScheduleSpeedEstimator(dm)
-        val timestamp = 10000L
-
-        val schedule = createSchedule(
-            doubleArrayOf(100.0, 1000.0, 3000.0),
-            longArrayOf(60, 120, 300),
-            longArrayOf(60, 180, 360)
-        )
-        dm.putSchedule("trip1", schedule)
-
-        val status = createStatus(
-            "v1", "trip1", 47.0, -122.0, 50.0, 50.0, 5000.0, timestamp
-        )
-        dm.recordStatus(status)
-
-        val result = estimator.estimateSpeed("trip1", timestamp)
-        assertTrue(result is SpeedEstimateResult.Failure)
-    }
-
-    @Test
-    fun testScheduleEstimatorAfterLastStop() {
-        val estimator = ScheduleSpeedEstimator(dm)
-        val timestamp = 10000L
-
-        val schedule = createSchedule(
-            doubleArrayOf(0.0, 1000.0, 3000.0),
-            longArrayOf(0, 120, 300),
-            longArrayOf(60, 180, 360)
-        )
-        dm.putSchedule("trip1", schedule)
-
-        val status = createStatus(
-            "v1", "trip1", 47.0, -122.0, 3500.0, 3500.0, 5000.0, timestamp
-        )
-        dm.recordStatus(status)
-
-        val result = estimator.estimateSpeed("trip1", timestamp)
-        assertTrue(result is SpeedEstimateResult.Failure)
-    }
-
-    @Test
-    fun testScheduleEstimatorTooFewStops() {
-        val estimator = ScheduleSpeedEstimator(dm)
-        val timestamp = 10000L
-
-        val schedule = createSchedule(
-            doubleArrayOf(0.0),
-            longArrayOf(0),
-            longArrayOf(60)
-        )
-        dm.putSchedule("trip1", schedule)
-
-        val status = createStatus(
-            "v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, timestamp
-        )
-        dm.recordStatus(status)
-
-        val result = estimator.estimateSpeed("trip1", timestamp)
-        assertTrue(result is SpeedEstimateResult.Failure)
-    }
-
-    @Test
-    fun testScheduleEstimatorZeroTimeDelta() {
-        val estimator = ScheduleSpeedEstimator(dm)
-        val timestamp = 10000L
-
-        val schedule = createSchedule(
-            doubleArrayOf(0.0, 1000.0),
-            longArrayOf(60, 60),
-            longArrayOf(60, 60)
-        )
-        dm.putSchedule("trip1", schedule)
-
-        val status = createStatus(
-            "v1", "trip1", 47.0, -122.0, 500.0, 500.0, 5000.0, timestamp
-        )
-        dm.recordStatus(status)
-
-        val result = estimator.estimateSpeed("trip1", timestamp)
-        assertTrue(result is SpeedEstimateResult.Failure)
-    }
-
-    @Test
-    fun testScheduleEstimatorTimestampBeforeStatus() {
-        val estimator = ScheduleSpeedEstimator(dm)
-        val statusTimestamp = 10000L
-        val requestedTimestamp = 5000L // Before status
-
-        val schedule = createSchedule(
-            doubleArrayOf(0.0, 1000.0),
-            longArrayOf(0, 120),
-            longArrayOf(60, 180)
-        )
-        dm.putSchedule("trip1", schedule)
-
-        val status = createStatus(
-            "v1", "trip1", 47.0, -122.0, 500.0, 500.0, 5000.0, statusTimestamp
-        )
-        dm.recordStatus(status)
-
-        val result = estimator.estimateSpeed("trip1", requestedTimestamp)
-        assertTrue(result is SpeedEstimateResult.Failure)
-        val error = (result as SpeedEstimateResult.Failure).error
-        assertTrue(error is SpeedEstimateError.TimestampOutOfBounds)
-    }
-
     // --- GammaSpeedEstimator tests ---
 
     @Test
@@ -564,9 +344,9 @@ class SpeedEstimatorTest {
         )
 
         dm.recordStatus(latestStatus)
-        val speed = tracker.getEstimatedSpeed("trip1", latestTimestamp)
-        assertNotNull(speed)
-        assertTrue("Speed should be positive", speed!! > 0)
+        val dist = tracker.extrapolate("trip1", latestTimestamp)
+        assertNotNull(dist)
+        assertTrue("Extrapolated distance should be positive", dist!!.median() > 0)
     }
 
     // --- Helper methods ---

@@ -103,7 +103,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         val toolbar: Toolbar = findViewById(R.id.toolbar)
         setSupportActionBar(toolbar)
         UIUtils.setupActionBar(this)
-        supportActionBar?.title = "Trip Data"
+        supportActionBar?.title = getString(R.string.debug_trip_data_title)
 
         tripId = intent.getStringExtra(EXTRA_TRIP_ID) ?: run { finish(); return }
         vehicleId = intent.getStringExtra(EXTRA_VEHICLE_ID)
@@ -143,8 +143,8 @@ class VehicleLocationDataActivity : AppCompatActivity() {
 
     private fun setupTabs() {
         val tabs: TabLayout = findViewById(R.id.location_data_tabs)
-        tabs.addTab(tabs.newTab().setText("Graph"))
-        tabs.addTab(tabs.newTab().setText("Table"))
+        tabs.addTab(tabs.newTab().setText(getString(R.string.debug_tab_graph)))
+        tabs.addTab(tabs.newTab().setText(getString(R.string.debug_tab_table)))
         tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 tableContainer.visibility = View.GONE

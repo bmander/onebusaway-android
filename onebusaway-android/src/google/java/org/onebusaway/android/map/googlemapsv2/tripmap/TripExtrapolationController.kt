@@ -17,9 +17,8 @@ package org.onebusaway.android.map.googlemapsv2.tripmap
 
 import android.location.Location
 import android.view.Choreographer
+import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.VehicleTrajectoryTracker
-import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.util.LocationUtils
 
 private const val FRAME_INTERVAL_MS = 50L // 20fps
@@ -29,7 +28,11 @@ private const val FRAME_INTERVAL_MS = 50L // 20fps
  * and distributions each frame, then delegates all rendering to [TripMapRenderer].
  */
 class TripExtrapolationController
-internal constructor(private val renderer: TripMapRenderer, private val tripId: String) {
+internal constructor(
+        private val renderer: TripMapRenderer,
+        private val tripId: String,
+        private val extrapolator: Extrapolator
+) {
     private val choreographer: Choreographer = Choreographer.getInstance()
     private val reusableLocation = Location("extrapolated")
     @Volatile private var ticking = false
@@ -64,7 +67,7 @@ internal constructor(private val renderer: TripMapRenderer, private val tripId: 
 
     private fun doFrame(now: Long) {
         val shapeData = TripDataManager.getShapeWithDistances(tripId) ?: return
-        val distribution = VehicleTrajectoryTracker.extrapolate(tripId, now)
+        val distribution = extrapolator.extrapolate(now)
 
         if (distribution != null) {
             if (LocationUtils.interpolateAlongPolyline(

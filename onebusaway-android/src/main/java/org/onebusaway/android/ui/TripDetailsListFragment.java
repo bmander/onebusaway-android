@@ -88,9 +88,10 @@ import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.nav.NavigationService;
+import org.onebusaway.android.extrapolation.Extrapolator;
+import org.onebusaway.android.extrapolation.ExtrapolatorKt;
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
-import org.onebusaway.android.extrapolation.VehicleTrajectoryTracker;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.DBUtil;
@@ -141,6 +142,7 @@ public class TripDetailsListFragment extends ListFragment {
     public static final int REQUEST_ENABLE_LOCATION = 1;
 
     private String mTripId;
+    private Extrapolator mExtrapolator;
 
     private String mRouteId;
 
@@ -552,8 +554,10 @@ public class TripDetailsListFragment extends ListFragment {
             return;
         }
 
-        ProbDistribution distribution = VehicleTrajectoryTracker.getInstance()
-                .extrapolate(activeTripId, System.currentTimeMillis());
+        if (mExtrapolator == null) {
+            mExtrapolator = ExtrapolatorKt.createExtrapolator(activeTripId, dm);
+        }
+        ProbDistribution distribution = mExtrapolator.extrapolate(System.currentTimeMillis());
         if (distribution == null) {
             mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
             return;

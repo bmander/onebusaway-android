@@ -15,13 +15,20 @@
  */
 package org.onebusaway.android.extrapolation
 
+import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
+import org.onebusaway.android.io.elements.ObaRoute
 
 /**
  * Extrapolates a vehicle's position along a trip, returning a distribution over
  * distance along the trip. Each instance is bound to a specific trip.
  */
 interface Extrapolator {
+
+    companion object {
+        /** Max age of the newest AVL entry before extrapolation is considered unreliable. */
+        const val MAX_EXTRAPOLATION_AGE_MS = 5L * 60 * 1000
+    }
 
     /**
      * Computes a distribution over extrapolated distance along the trip at [queryTimeMs].
@@ -30,4 +37,16 @@ interface Extrapolator {
      * @return a [ProbDistribution] over distance (meters), or null if extrapolation is not possible
      */
     fun extrapolate(queryTimeMs: Long): ProbDistribution?
+}
+
+/** Creates the appropriate [Extrapolator] for a trip based on its route type. */
+fun createExtrapolator(
+        tripId: String,
+        dataManager: TripDataManager = TripDataManager
+): Extrapolator {
+    val routeType = dataManager.getRouteType(tripId)
+    return if (routeType != null && ObaRoute.isGradeSeparated(routeType))
+        ScheduleReplayExtrapolator(tripId, dataManager)
+    else
+        GammaExtrapolator(tripId, dataManager)
 }

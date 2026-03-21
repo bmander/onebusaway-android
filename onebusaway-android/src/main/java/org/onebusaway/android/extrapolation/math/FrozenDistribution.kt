@@ -38,7 +38,7 @@ class FrozenDistribution(
         require(resolution >= 2) { "resolution must be >= 2, got $resolution" }
         step = 1.0 / (resolution - 1)
         table = DoubleArray(resolution) { i ->
-            val p = i * step
+            val p = (i * step).coerceAtMost(1.0 - 1e-9)
             source.quantile(p)
         }
     }

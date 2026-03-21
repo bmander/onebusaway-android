@@ -26,4 +26,9 @@ class ZeroInflatedGammaDistribution(
         @JvmField val alpha: Double,
         @JvmField val scale: Double,
         frozenBase: FrozenDistribution = FrozenDistribution(GammaDistribution(alpha, scale))
-) : ZeroInflatedDistribution(p0, frozenBase)
+) : ZeroInflatedDistribution(p0, frozenBase) {
+    init {
+        require(alpha > 0) { "alpha must be positive, got $alpha" }
+        require(scale > 0) { "scale must be positive, got $scale" }
+    }
+}

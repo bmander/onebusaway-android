@@ -30,7 +30,7 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import org.onebusaway.android.extrapolation.math.ProbDistribution
-import org.onebusaway.android.extrapolation.math.speed.extrapolateDistance
+import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
@@ -383,8 +383,9 @@ class TrajectoryGraphView @JvmOverloads constructor(
     private fun drawExtrapolationAndDeviation(canvas: Canvas, lastDist: Double?, lastTime: Long) {
         if (estimatedSpeedMps <= 0 || lastDist == null || currentTime <= lastTime) return
 
-        val extrapolatedDist = newestValidEntry?.let {
-            extrapolateDistance(it, estimatedSpeedMps, currentTime)
+        val extrapolatedDist = newestValidEntry?.let { entry ->
+            val d = entry.bestDistanceAlongTrip ?: return@let null
+            d + estimatedSpeedMps * (currentTime - entry.lastLocationUpdateTime) / 1000.0
         } ?: lastDist
 
         val x1 = viewport.toPixelX(lastDist)

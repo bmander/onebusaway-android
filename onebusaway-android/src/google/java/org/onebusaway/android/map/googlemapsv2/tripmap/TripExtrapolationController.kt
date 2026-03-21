@@ -18,17 +18,10 @@ package org.onebusaway.android.map.googlemapsv2.tripmap
 import android.location.Location
 import android.view.Choreographer
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.math.ProbDistribution
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
+import org.onebusaway.android.util.LocationUtils
 
 private const val FRAME_INTERVAL_MS = 50L // 20fps
-
-/** Data needed to render a single frame, with shapeData guaranteed non-null. */
-private data class FrameData(
-        val tripSnapshot: TripDataManager.TripSnapshot,
-        val shapeData: TripDataManager.ShapeData,
-        val distribution: ProbDistribution?
-)
 
 /**
  * Owns the per-frame extrapolation loop for a single trip on the trip map view. Computes positions
@@ -60,8 +53,7 @@ internal constructor(private val renderer: TripMapRenderer, private val tripId: 
         if (!ticking) return
 
         val now = System.currentTimeMillis()
-        val ready = now - lastFrameTimeMs >= FRAME_INTERVAL_MS
-        if (ready) {
+        if (now - lastFrameTimeMs >= FRAME_INTERVAL_MS) {
             lastFrameTimeMs = now
             doFrame(now)
         }
@@ -70,46 +62,21 @@ internal constructor(private val renderer: TripMapRenderer, private val tripId: 
     }
 
     private fun doFrame(now: Long) {
-        val frame = fetchFrameData(now) ?: return
+        val snapshot = TripDataManager.getSnapshot(tripId)
+        val shapeData = snapshot.shapeData ?: return
+        val distribution = VehicleTrajectoryTracker.extrapolate(tripId, now, snapshot)
 
-        extrapolateVehicle(frame, now)
-        updateOverlays(frame, now)
-    }
-
-    /** Fetches snapshot and distribution. Returns null if shape data is unavailable. */
-    private fun fetchFrameData(now: Long): FrameData? {
-        val tripSnapshot = TripDataManager.getSnapshot(tripId)
-        val shapeData = tripSnapshot.shapeData ?: return null
-        val distribution =
-                VehicleTrajectoryTracker.getEstimatedDistribution(tripId, now, tripSnapshot)
-        return FrameData(tripSnapshot, shapeData, distribution)
-    }
-
-    private fun extrapolateVehicle(frame: FrameData, now: Long) {
-        val distribution = frame.distribution ?: return
-        if (!VehicleTrajectoryTracker.extrapolatePosition(
-                        frame.shapeData,
-                        frame.tripSnapshot.newestValid,
-                        distribution,
-                        now,
-                        reusableLocation
-                )
-        )
-                return
-        renderer.updateVehiclePosition(reusableLocation, frame.tripSnapshot.newestValid, now)
-    }
-
-    private fun updateOverlays(frame: FrameData, now: Long) {
-        if (frame.distribution != null) {
-            renderer.updateEstimateOverlays(
-                    frame.distribution,
-                    frame.tripSnapshot.newestValid,
-                    now
-            )
+        if (distribution != null) {
+            if (LocationUtils.interpolateAlongPolyline(
+                            shapeData.points, shapeData.cumulativeDistances,
+                            distribution.median(), reusableLocation)) {
+                renderer.updateVehiclePosition(reusableLocation, snapshot.newestValid, now)
+            }
+            renderer.updateEstimateOverlays(distribution, snapshot.newestValid, now)
         } else {
             renderer.hideEstimateOverlays()
         }
-        val lastState = frame.tripSnapshot.lastState ?: return
-        renderer.showOrUpdateDataReceivedMarker(lastState, now)
+
+        snapshot.lastState?.let { renderer.showOrUpdateDataReceivedMarker(it, now) }
     }
 }

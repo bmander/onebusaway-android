@@ -126,7 +126,7 @@ public class VehicleIconFactory {
     private static final int MAX_CACHE_SIZE = 15;
 
     private static LruCache<String, Bitmap> sUncoloredIcons;
-    private static LruCache<String, Bitmap> sColoredIconCache;
+    private static LruCache<String, BitmapDescriptor> sIconCache;
 
     private final Context mContext;
 
@@ -139,8 +139,8 @@ public class VehicleIconFactory {
         if (sUncoloredIcons == null) {
             sUncoloredIcons = new LruCache<>(MAX_CACHE_SIZE);
         }
-        if (sColoredIconCache == null) {
-            sColoredIconCache = new LruCache<>(MAX_CACHE_SIZE);
+        if (sIconCache == null) {
+            sIconCache = new LruCache<>(MAX_CACHE_SIZE);
         }
     }
 
@@ -156,8 +156,7 @@ public class VehicleIconFactory {
         double direction = MathUtils.toDirection(status.getOrientation());
         int halfWind = MathUtils.getHalfWindIndex((float) direction, NUM_DIRECTIONS - 1);
 
-        Bitmap b = getColoredBitmap(vehicleType, colorResource, halfWind);
-        return BitmapDescriptorFactory.fromBitmap(b);
+        return getCachedIcon(vehicleType, colorResource, halfWind);
     }
 
     /**
@@ -171,20 +170,20 @@ public class VehicleIconFactory {
         return R.color.stop_info_scheduled_time;
     }
 
-    private Bitmap getColoredBitmap(int vehicleType, int colorResource, int halfWind) {
-        int color = ContextCompat.getColor(mContext, colorResource);
-
+    private BitmapDescriptor getCachedIcon(int vehicleType, int colorResource, int halfWind) {
         if (vehicleType == ObaRoute.TYPE_CABLECAR) {
             vehicleType = ObaRoute.TYPE_TRAM;
         }
 
         String key = vehicleType + " " + halfWind + " " + colorResource;
-        Bitmap b = sColoredIconCache.get(key);
-        if (b == null) {
-            b = UIUtils.colorBitmap(getUncoloredIcon(halfWind, vehicleType), color);
-            sColoredIconCache.put(key, b);
+        BitmapDescriptor icon = sIconCache.get(key);
+        if (icon == null) {
+            int color = ContextCompat.getColor(mContext, colorResource);
+            Bitmap b = UIUtils.colorBitmap(getUncoloredIcon(halfWind, vehicleType), color);
+            icon = BitmapDescriptorFactory.fromBitmap(b);
+            sIconCache.put(key, icon);
         }
-        return b;
+        return icon;
     }
 
     private static Bitmap getUncoloredIcon(int halfWind, int vehicleType) {
@@ -209,8 +208,8 @@ public class VehicleIconFactory {
 
     /** Returns cache stats for logging. */
     public String getCacheStats() {
-        return String.format("colored: size=%d hits=%d misses=%d, uncolored: size=%d hits=%d misses=%d",
-                sColoredIconCache.size(), sColoredIconCache.hitCount(), sColoredIconCache.missCount(),
+        return String.format("icons: size=%d hits=%d misses=%d, uncolored: size=%d hits=%d misses=%d",
+                sIconCache.size(), sIconCache.hitCount(), sIconCache.missCount(),
                 sUncoloredIcons.size(), sUncoloredIcons.hitCount(), sUncoloredIcons.missCount());
     }
 }

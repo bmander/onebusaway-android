@@ -33,7 +33,6 @@ import org.onebusaway.android.extrapolation.math.ProbDistribution
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.util.PreferenceUtils
 import java.text.SimpleDateFormat
 import java.util.Date

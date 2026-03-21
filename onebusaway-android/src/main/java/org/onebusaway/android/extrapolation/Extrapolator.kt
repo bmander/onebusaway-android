@@ -17,7 +17,9 @@ package org.onebusaway.android.extrapolation
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.ProbDistribution
+import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
 import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 
 /**
  * Extrapolates a vehicle's position along a trip, returning a distribution over
@@ -42,4 +44,18 @@ interface Extrapolator {
 
     /** Clears any cached state. Default no-op. */
     fun clearCache() {}
+}
+
+/**
+ * Common precondition data for extrapolation. Returns null if the data is invalid.
+ */
+data class ExtrapolationContext(val lastDist: Double, val dtMs: Long)
+
+fun validateExtrapolation(newestValid: ObaTripStatus, queryTimeMs: Long): ExtrapolationContext? {
+    val lastDist = newestValid.bestDistanceAlongTrip ?: return null
+    val lastTime = newestValid.lastLocationUpdateTime
+    if (lastTime <= 0) return null
+    val dtMs = queryTimeMs - lastTime
+    if (dtMs < 0 || dtMs > VehicleTrajectoryTracker.MAX_EXTRAPOLATION_AGE_MS) return null
+    return ExtrapolationContext(lastDist, dtMs)
 }

@@ -19,8 +19,8 @@ import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.AffineTransformDistribution
 import org.onebusaway.android.extrapolation.math.ProbDistribution
+import org.onebusaway.android.extrapolation.validateExtrapolation
 import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 
 /**
  * Extrapolator for bus-like routes using the gamma speed distribution model.
@@ -36,18 +36,14 @@ class GammaExtrapolator(dataManager: TripDataManager) : Extrapolator {
             snapshot: TripDataManager.TripSnapshot,
             queryTimeMs: Long
     ): ProbDistribution? {
-        val lastDist = newestValid.bestDistanceAlongTrip ?: return null
-        val lastTime = newestValid.lastLocationUpdateTime
-        val dtMs = queryTimeMs - lastTime
-        if (dtMs < 0 || dtMs > VehicleTrajectoryTracker.MAX_EXTRAPOLATION_AGE_MS) return null
+        val (lastDist, dtMs) = validateExtrapolation(newestValid, queryTimeMs) ?: return null
 
         val tripId = newestValid.activeTripId ?: return null
         val result = speedEstimator.estimateSpeed(tripId, queryTimeMs, snapshot)
         val speedDistribution = (result as? SpeedEstimateResult.Success)?.distribution
                 ?: return null
 
-        val dtSec = dtMs / 1000.0
-        return AffineTransformDistribution(speedDistribution, lastDist, dtSec)
+        return AffineTransformDistribution(speedDistribution, lastDist, dtMs / 1000.0)
     }
 
     override fun clearCache() = speedEstimator.clearCache()

@@ -53,31 +53,31 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
         if (lastState == null) return SpeedEstimateResult.Failure(
                 SpeedEstimateError.InsufficientData("No AVL fixes for trip"))
 
-        val lastFixTime = lastState.lastLocationUpdateTime
-        val dtSeconds = (queryTime - lastFixTime) / 1000.0
-        if (dtSeconds < 0) return SpeedEstimateResult.Failure(
+        val dtMs = queryTime - lastState.lastLocationUpdateTime
+        if (dtMs < 0) return SpeedEstimateResult.Failure(
                 SpeedEstimateError.TimestampOutOfBounds("Query time is before last AVL fix"))
-        if (dtSeconds * 1000 > MAX_HORIZON_MS) return SpeedEstimateResult.Failure(
+        if (dtMs > MAX_HORIZON_MS) return SpeedEstimateResult.Failure(
                 SpeedEstimateError.TimestampOutOfBounds("Query time exceeds max horizon"))
 
-        val cached = factoryCache[tripId]
-        val factory = if (cached != null && cached.lastFixTime == lastFixTime) {
-            cached.factory
-        } else {
-            val fixes = dataManager.mostRecentAvlFixes(tripId).take(2).toList()
-            val prevSpeed = computeAvlSpeed(fixes)
-            val currentDist = lastState.scheduledDistanceAlongTrip
-                    ?: return SpeedEstimateResult.Failure(
-                            SpeedEstimateError.InsufficientData("No scheduled distance along trip"))
-            val scheduleSpeed = schedule?.speedAtDistance(currentDist)
-                    ?: return SpeedEstimateResult.Failure(
-                            SpeedEstimateError.InsufficientData("Cannot compute schedule speed"))
-            makeGammaProbDistribution(scheduleSpeed, prevSpeed).also {
-                factoryCache[tripId] = CachedFactory(lastFixTime, it)
-            }
-        }
+        val factory = resolveFactory(tripId, lastState, schedule)
+                ?: return SpeedEstimateResult.Failure(
+                        SpeedEstimateError.InsufficientData("Cannot compute speed model"))
 
-        return SpeedEstimateResult.Success(factory.at(dtSeconds))
+        return SpeedEstimateResult.Success(factory.at(dtMs / 1000.0))
+    }
+
+    private fun resolveFactory(tripId: String, lastState: ObaTripStatus,
+                                schedule: ObaTripSchedule?): SpeedDistributionFactory? {
+        val lastFixTime = lastState.lastLocationUpdateTime
+        factoryCache[tripId]?.let { if (it.lastFixTime == lastFixTime) return it.factory }
+
+        val prevSpeed = computeAvlSpeed(dataManager.mostRecentAvlFixes(tripId).take(2).toList())
+        val scheduleSpeed = schedule?.speedAtDistance(
+                lastState.scheduledDistanceAlongTrip ?: return null) ?: return null
+
+        return makeGammaProbDistribution(scheduleSpeed, prevSpeed).also {
+            factoryCache[tripId] = CachedFactory(lastFixTime, it)
+        }
     }
 
     /** Clears the per-trip factory cache. */

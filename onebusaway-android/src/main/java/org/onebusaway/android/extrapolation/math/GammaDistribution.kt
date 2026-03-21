@@ -53,7 +53,8 @@ class GammaDistribution(@JvmField val alpha: Double, @JvmField val scale: Double
         var hi = mean + 10 * sqrt(alpha) * scale
         var lo = 0.0
 
-        while (cdf(hi) < p) {
+        repeat(60) {
+            if (cdf(hi) >= p) return@repeat
             hi *= 2
         }
 

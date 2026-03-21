@@ -82,16 +82,6 @@ fun makeGammaProbDistribution(
     }
 }
 
-/**
- * Convenience that creates a distribution directly for a given dt.
- * Builds a fresh factory each call — use [makeGammaProbDistribution] for per-frame rendering.
- */
-fun gammaProbDistribution(
-        schedSpeedMps: Double,
-        prevSpeedMps: Double?,
-        dt: Double
-): ProbDistribution = makeGammaProbDistribution(schedSpeedMps, prevSpeedMps).at(dt)
-
 /** Piecewise linear ramp from START_B0 to END_B0, flat after KINK. */
 private fun beta0(vEff: Double): Double =
         when {

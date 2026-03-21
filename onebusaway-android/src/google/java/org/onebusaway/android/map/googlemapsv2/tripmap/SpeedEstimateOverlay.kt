@@ -25,7 +25,7 @@ import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.Polyline
 import com.google.android.gms.maps.model.PolylineOptions
 import org.onebusaway.android.R
-import org.onebusaway.android.extrapolation.math.ProbDistribution
+import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.util.LocationUtils
 
 private const val MARKER_Z_INDEX = 3f

@@ -35,7 +35,7 @@ import org.onebusaway.android.io.elements.ObaElementExtensionsKt;
 import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
-import org.onebusaway.android.extrapolation.math.ProbDistribution;
+import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.ui.TripDetailsActivity;

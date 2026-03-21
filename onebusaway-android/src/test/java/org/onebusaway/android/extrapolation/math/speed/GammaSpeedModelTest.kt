@@ -18,8 +18,8 @@ package org.onebusaway.android.extrapolation.math.speed
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.onebusaway.android.extrapolation.math.GammaDistribution
-import org.onebusaway.android.extrapolation.math.ZeroInflatedDistribution
+import org.onebusaway.android.extrapolation.math.prob.GammaDistribution
+import org.onebusaway.android.extrapolation.math.prob.ZeroInflatedDistribution
 
 class GammaSpeedModelTest {
 

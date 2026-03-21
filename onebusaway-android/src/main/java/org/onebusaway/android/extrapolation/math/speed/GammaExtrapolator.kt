@@ -17,8 +17,8 @@ package org.onebusaway.android.extrapolation.math.speed
 
 import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.math.AffineTransformDistribution
-import org.onebusaway.android.extrapolation.math.ProbDistribution
+import org.onebusaway.android.extrapolation.math.prob.AffineTransformDistribution
+import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.extrapolation.validateExtrapolation
 import org.onebusaway.android.io.elements.ObaTripStatus
 

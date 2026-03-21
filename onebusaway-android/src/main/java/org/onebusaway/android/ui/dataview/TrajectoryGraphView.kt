@@ -104,6 +104,11 @@ class TrajectoryGraphView @JvmOverloads constructor(
 
     private val schedulePaint = strokePaint("#4488FF", 2f)
     private val scheduleDotPaint = fillPaint("#4488FF")
+    private val scheduleDwellPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#4488FF")
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+    }
     private val trajectoryPaint = strokePaint("#44CC44", 3f)
     private val trajectoryDotPaint = fillPaint("#44CC44")
     private val nowLinePaint = strokePaint("#FF4444", 1f, dashDp = floatArrayOf(8f, 4f))
@@ -342,11 +347,18 @@ class TrajectoryGraphView @JvmOverloads constructor(
         var first = true
         for (st in stops) {
             val x = viewport.toPixelX(st.distanceAlongTrip)
-            val y = viewport.toPixelY(serviceDate + st.arrivalTime * 1000L)
-            if (first) { schedulePath.moveTo(x, y); first = false }
-            else schedulePath.lineTo(x, y)
+            val yArrive = viewport.toPixelY(serviceDate + st.arrivalTime * 1000L)
+            val yDepart = viewport.toPixelY(serviceDate + st.departureTime * 1000L)
+            if (first) { schedulePath.moveTo(x, yArrive); first = false }
+            else schedulePath.lineTo(x, yArrive)
             val dotRadius = if (highlightedStopId == st.stopId) 8 * density else 4 * density
-            canvas.drawCircle(x, y, dotRadius, scheduleDotPaint)
+            if (st.departureTime != st.arrivalTime) {
+                schedulePath.lineTo(x, yDepart)
+                scheduleDwellPaint.strokeWidth = dotRadius * 2
+                canvas.drawLine(x, yArrive, x, yDepart, scheduleDwellPaint)
+            } else {
+                canvas.drawCircle(x, yArrive, dotRadius, scheduleDotPaint)
+            }
         }
         canvas.drawPath(schedulePath, schedulePaint)
     }
@@ -492,7 +504,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
             val d1 = stops[i].distanceAlongTrip
             if (distanceMeters in d0..d1 && d1 > d0) {
                 val fraction = (distanceMeters - d0) / (d1 - d0)
-                val t0 = serviceDate + stops[i - 1].arrivalTime * 1000L
+                val t0 = serviceDate + stops[i - 1].departureTime * 1000L
                 val t1 = serviceDate + stops[i].arrivalTime * 1000L
                 return t0 + (fraction * (t1 - t0)).toLong()
             }

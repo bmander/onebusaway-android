@@ -19,6 +19,7 @@ import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
+import org.onebusaway.android.io.elements.speedAtDistance
 
 /**
  * Speed estimator using a zero-inflated gamma distribution model. Combines schedule speed with
@@ -31,8 +32,6 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
         /** Maximum time horizon (ms) for which gamma speed estimates are considered valid. */
         const val MAX_HORIZON_MS = 15 * 60 * 1000L // 15 minutes
     }
-
-    private val scheduleEstimator = ScheduleSpeedEstimator(dataManager)
 
     /** Per-trip cached factory, keyed by tripId. Invalidated when lastFixTime changes. */
     private data class CachedFactory(val lastFixTime: Long, val factory: SpeedDistributionFactory)
@@ -67,11 +66,12 @@ class GammaSpeedEstimator(private val dataManager: TripDataManager) : SpeedEstim
         } else {
             val fixes = dataManager.mostRecentAvlFixes(tripId).take(2).toList()
             val prevSpeed = computeAvlSpeed(fixes)
-            val scheduleSpeed =
-                    when (val result = scheduleEstimator.estimateSpeedCore(lastState, schedule, queryTime)) {
-                        is SpeedEstimateResult.Failure -> return result
-                        is SpeedEstimateResult.Success -> result.distribution.mean
-                    }
+            val currentDist = lastState.scheduledDistanceAlongTrip
+                    ?: return SpeedEstimateResult.Failure(
+                            SpeedEstimateError.InsufficientData("No scheduled distance along trip"))
+            val scheduleSpeed = schedule?.speedAtDistance(currentDist)
+                    ?: return SpeedEstimateResult.Failure(
+                            SpeedEstimateError.InsufficientData("Cannot compute schedule speed"))
             makeGammaProbDistribution(scheduleSpeed, prevSpeed).also {
                 factoryCache[tripId] = CachedFactory(lastFixTime, it)
             }

@@ -31,7 +31,7 @@ import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripDetails;
 import org.onebusaway.android.io.elements.ObaTripStatus;
-import org.onebusaway.android.io.elements.ObaTripStatusExtensionsKt;
+import org.onebusaway.android.io.elements.ObaElementExtensionsKt;
 import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
@@ -328,8 +328,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 if (l == null) l = status.getPosition();
                 if (l == null) continue;
 
-                boolean isRealtime = ObaTripStatusExtensionsKt.isLocationRealtime(status)
-                        || ObaTripStatusExtensionsKt.isRealtimeSpeedEstimable(status, now);
+                boolean isRealtime = ObaElementExtensionsKt.isLocationRealtime(status)
+                        || ObaElementExtensionsKt.isRealtimeSpeedEstimable(status, now);
 
                 Marker m = mVehicleMarkers.get(status.getActiveTripId());
                 if (m == null) {

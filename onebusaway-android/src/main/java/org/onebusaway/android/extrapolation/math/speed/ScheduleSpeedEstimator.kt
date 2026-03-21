@@ -19,6 +19,7 @@ import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.DiracDistribution
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.elements.speedAtDistance
 
 /**
  * Estimates speed using the trip schedule: finds the two stops bracketing the vehicle's current
@@ -29,14 +30,14 @@ class ScheduleSpeedEstimator(private val dataManager: TripDataManager) : SpeedEs
     override fun estimateSpeed(tripId: String, queryTime: Long): SpeedEstimateResult {
         val status = dataManager.getLastState(tripId)
         val schedule = dataManager.getSchedule(tripId)
-        return estimateSpeedCore(status, schedule, queryTime)
+        return estimateFromStatus(status, schedule, queryTime)
     }
 
     override fun estimateSpeed(tripId: String, queryTime: Long,
                                snapshot: TripDataManager.TripSnapshot): SpeedEstimateResult =
-            estimateSpeedCore(snapshot.lastState, snapshot.schedule, queryTime)
+            estimateFromStatus(snapshot.lastState, snapshot.schedule, queryTime)
 
-    internal fun estimateSpeedCore(
+    private fun estimateFromStatus(
             status: ObaTripStatus?,
             schedule: ObaTripSchedule?,
             queryTime: Long): SpeedEstimateResult {
@@ -49,50 +50,14 @@ class ScheduleSpeedEstimator(private val dataManager: TripDataManager) : SpeedEs
             )
         }
 
-        val currentDist =
-                status.scheduledDistanceAlongTrip
-                        ?: return SpeedEstimateResult.Failure(
-                                SpeedEstimateError.InsufficientData(
-                                        "No scheduled distance along trip"
-                                )
-                        )
+        val currentDist = status.scheduledDistanceAlongTrip
+                ?: return SpeedEstimateResult.Failure(
+                        SpeedEstimateError.InsufficientData("No scheduled distance along trip"))
 
-        if (schedule == null) return SpeedEstimateResult.Failure(
-                SpeedEstimateError.InsufficientData("No schedule available for trip")
-        )
+        val speed = schedule?.speedAtDistance(currentDist)
+                ?: return SpeedEstimateResult.Failure(
+                        SpeedEstimateError.InsufficientData("Cannot compute schedule speed"))
 
-        val stopTimes = schedule.stopTimes
-        if (stopTimes == null || stopTimes.size < 2) {
-            return SpeedEstimateResult.Failure(
-                    SpeedEstimateError.InsufficientData("Insufficient stop times in schedule")
-            )
-        }
-
-        val segmentStart =
-                try {
-                    schedule.findSegmentStartIndex(currentDist)
-                } catch (e: IndexOutOfBoundsException) {
-                    return SpeedEstimateResult.Failure(
-                            SpeedEstimateError.InsufficientData(
-                                    "Distance out of schedule bounds: ${e.message}"
-                            )
-                    )
-                }
-
-        val distDelta =
-                stopTimes[segmentStart + 1].distanceAlongTrip -
-                        stopTimes[segmentStart].distanceAlongTrip
-        val timeDelta =
-                stopTimes[segmentStart + 1].arrivalTime - stopTimes[segmentStart].departureTime
-
-        if (distDelta <= 0 || timeDelta <= 0) {
-            return SpeedEstimateResult.Failure(
-                    SpeedEstimateError.InsufficientData(
-                            "Invalid distance or time delta between stops"
-                    )
-            )
-        }
-
-        return SpeedEstimateResult.Success(DiracDistribution(distDelta / timeDelta))
+        return SpeedEstimateResult.Success(DiracDistribution(speed))
     }
 }

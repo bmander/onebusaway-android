@@ -33,7 +33,7 @@ import org.onebusaway.android.R;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripStatus;
-import org.onebusaway.android.io.elements.ObaTripStatusExtensionsKt;
+import org.onebusaway.android.io.elements.ObaElementExtensionsKt;
 import org.onebusaway.android.io.elements.OccupancyState;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.util.ArrivalInfoUtils;
@@ -101,8 +101,8 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
                 UIUtils.formatDisplayText(trip.getHeadsign()));
 
         long now = System.currentTimeMillis();
-        boolean isRealtime = ObaTripStatusExtensionsKt.isLocationRealtime(status)
-                || ObaTripStatusExtensionsKt.isRealtimeSpeedEstimable(status, now);
+        boolean isRealtime = ObaElementExtensionsKt.isLocationRealtime(status)
+                || ObaElementExtensionsKt.isRealtimeSpeedEstimable(status, now);
 
         views.statusView.setBackgroundResource(R.drawable.round_corners_style_b_status);
         GradientDrawable d = (GradientDrawable) views.statusView.getBackground();

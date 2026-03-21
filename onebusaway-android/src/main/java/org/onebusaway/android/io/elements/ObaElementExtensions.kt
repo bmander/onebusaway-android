@@ -43,3 +43,25 @@ val ObaTripStatus.isLocationRealtime: Boolean
 fun ObaTripStatus.isRealtimeSpeedEstimable(queryTimeMs: Long): Boolean =
         activeTripId != null
                 && VehicleTrajectoryTracker.isSpeedEstimable(activeTripId, queryTimeMs)
+
+/**
+ * Computes the scheduled segment speed (m/s) at a given distance along the trip.
+ * Returns null if the schedule has too few stops or the distance is out of bounds.
+ */
+fun ObaTripSchedule.speedAtDistance(distanceAlongTrip: Double): Double? {
+    val stopTimes = stopTimes ?: return null
+    if (stopTimes.size < 2) return null
+
+    val segmentStart = try {
+        findSegmentStartIndex(distanceAlongTrip)
+    } catch (e: IndexOutOfBoundsException) {
+        return null
+    }
+
+    val distDelta = stopTimes[segmentStart + 1].distanceAlongTrip -
+            stopTimes[segmentStart].distanceAlongTrip
+    val timeDelta = stopTimes[segmentStart + 1].arrivalTime -
+            stopTimes[segmentStart].departureTime
+
+    return if (distDelta > 0 && timeDelta > 0) distDelta / timeDelta else null
+}

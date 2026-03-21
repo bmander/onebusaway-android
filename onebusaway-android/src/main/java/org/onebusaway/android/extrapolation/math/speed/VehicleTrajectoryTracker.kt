@@ -17,6 +17,7 @@ package org.onebusaway.android.extrapolation.math.speed
 
 import android.location.Location
 import org.onebusaway.android.extrapolation.Extrapolator
+import org.onebusaway.android.extrapolation.ScheduleReplayExtrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.ProbDistribution
 import org.onebusaway.android.io.elements.ObaRoute
@@ -75,7 +76,7 @@ object VehicleTrajectoryTracker {
     }
 
     /** Returns true if the tracker has recent enough AVL data to extrapolate this trip. */
-    fun isSpeedEstimable(tripId: String, queryTimeMs: Long): Boolean {
+    fun canExtrapolate(tripId: String, queryTimeMs: Long): Boolean {
         val last = dataManager.getLastState(tripId) ?: return false
         return queryTimeMs - last.lastLocationUpdateTime <= MAX_EXTRAPOLATION_AGE_MS
     }

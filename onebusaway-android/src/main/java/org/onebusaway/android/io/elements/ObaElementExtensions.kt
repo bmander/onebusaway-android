@@ -37,12 +37,12 @@ val ObaTripStatus.isLocationRealtime: Boolean
     get() = lastKnownLocation != null && isPredicted
 
 /**
- * True if the trajectory tracker has recent enough AVL data to estimate speed
- * for this trip.
+ * True if the trajectory tracker has recent enough AVL data to extrapolate
+ * this trip's position.
  */
 fun ObaTripStatus.isRealtimeSpeedEstimable(queryTimeMs: Long): Boolean =
         activeTripId != null
-                && VehicleTrajectoryTracker.isSpeedEstimable(activeTripId, queryTimeMs)
+                && VehicleTrajectoryTracker.canExtrapolate(activeTripId, queryTimeMs)
 
 /**
  * Computes the scheduled segment speed (m/s) at a given distance along the trip.

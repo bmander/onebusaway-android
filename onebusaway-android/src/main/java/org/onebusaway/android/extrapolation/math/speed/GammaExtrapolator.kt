@@ -19,61 +19,53 @@ import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.AffineTransformDistribution
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
-import org.onebusaway.android.extrapolation.validateExtrapolation
-import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.io.elements.speedAtDistance
 
 /**
- * Extrapolator for bus-like routes using the gamma speed distribution model.
+ * Per-trip extrapolator for bus-like routes using the gamma speed distribution model.
  * Combines schedule speed with the most recent AVL-derived speed to produce a
  * gamma distribution over vehicle speed, then transforms it to a distribution
  * over distance via distance = lastDist + speed * dt.
  */
-class GammaExtrapolator(private val dataManager: TripDataManager) : Extrapolator {
+class GammaExtrapolator(
+        private val tripId: String,
+        private val dataManager: TripDataManager
+) : Extrapolator {
 
     companion object {
-        /** Maximum time horizon (ms) for which gamma speed estimates are considered valid. */
         const val MAX_HORIZON_MS = 15 * 60 * 1000L
     }
 
-    /** Per-trip cached factory, keyed by tripId. Invalidated when lastFixTime changes. */
     private data class CachedFactory(val lastFixTime: Long, val factory: SpeedDistributionFactory)
-    private val factoryCache = HashMap<String, CachedFactory>()
+    private var cachedFactory: CachedFactory? = null
 
-    override fun extrapolate(
-            newestValid: ObaTripStatus,
-            snapshot: TripDataManager.TripSnapshot,
-            queryTimeMs: Long
-    ): ProbDistribution? {
-        val (lastDist, dtMs) = validateExtrapolation(newestValid, queryTimeMs) ?: return null
-        val tripId = newestValid.activeTripId ?: return null
+    override fun extrapolate(queryTimeMs: Long): ProbDistribution? {
+        val newestValid = dataManager.getNewestValidEntry(tripId) ?: return null
+        val lastDist = newestValid.bestDistanceAlongTrip ?: return null
+        val lastTime = newestValid.lastLocationUpdateTime
+        if (lastTime <= 0) return null
+        val dtMs = queryTimeMs - lastTime
+        if (dtMs < 0 || dtMs > MAX_HORIZON_MS) return null
 
-        val lastState = snapshot.lastState ?: return null
-        val lastFixTime = lastState.lastLocationUpdateTime
-        if (dtMs > MAX_HORIZON_MS) return null
-
-        val factory = resolveFactory(tripId, lastFixTime, lastState, snapshot.schedule)
-                ?: return null
+        val factory = resolveFactory(lastTime) ?: return null
         val speedDistribution = factory.at(dtMs / 1000.0)
 
         return AffineTransformDistribution(speedDistribution, lastDist, dtMs / 1000.0)
     }
 
-    override fun clearCache() = factoryCache.clear()
-
-    private fun resolveFactory(tripId: String, lastFixTime: Long,
-                                lastState: ObaTripStatus,
-                                schedule: ObaTripSchedule?): SpeedDistributionFactory? {
-        factoryCache[tripId]?.let { if (it.lastFixTime == lastFixTime) return it.factory }
+    private fun resolveFactory(lastFixTime: Long): SpeedDistributionFactory? {
+        cachedFactory?.let { if (it.lastFixTime == lastFixTime) return it.factory }
 
         val prevSpeed = computeAvlSpeed(dataManager.mostRecentAvlFixes(tripId).take(2).toList())
+        val lastState = dataManager.getLastState(tripId) ?: return null
+        val schedule = dataManager.getSchedule(tripId)
         val scheduleSpeed = schedule?.speedAtDistance(
                 lastState.scheduledDistanceAlongTrip ?: return null) ?: return null
 
         return makeGammaProbDistribution(scheduleSpeed, prevSpeed).also {
-            factoryCache[tripId] = CachedFactory(lastFixTime, it)
+            cachedFactory = CachedFactory(lastFixTime, it)
         }
     }
 

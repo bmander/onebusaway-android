@@ -24,8 +24,9 @@ import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.util.LocationUtils
 
 /**
- * Singleton extrapolation facade. Dispatches to [GammaExtrapolator] for bus-like routes
- * or [ScheduleReplayExtrapolator] for grade-separated transit, based on route type.
+ * Singleton extrapolation facade. Manages per-trip [Extrapolator] instances,
+ * creating the appropriate type based on route type (gamma for buses,
+ * schedule replay for grade-separated transit).
  */
 object VehicleTrajectoryTracker {
 
@@ -35,31 +36,24 @@ object VehicleTrajectoryTracker {
     @JvmStatic fun getInstance() = this
 
     private val dataManager = TripDataManager
-    private val gammaExtrapolator = GammaExtrapolator(dataManager)
-    private val scheduleReplayExtrapolator = ScheduleReplayExtrapolator()
+    private val extrapolators = HashMap<String, Extrapolator>()
 
-    private fun selectExtrapolator(routeType: Int?): Extrapolator =
-            if (routeType != null && ObaRoute.isGradeSeparated(routeType))
-                scheduleReplayExtrapolator
-            else
-                gammaExtrapolator
+    private fun getOrCreateExtrapolator(tripId: String): Extrapolator =
+            extrapolators.getOrPut(tripId) {
+                val routeType = dataManager.getRouteType(tripId)
+                if (routeType != null && ObaRoute.isGradeSeparated(routeType))
+                    ScheduleReplayExtrapolator(tripId, dataManager)
+                else
+                    GammaExtrapolator(tripId, dataManager)
+            }
 
     /**
      * Extrapolates a distribution over distance along the trip at [queryTimeMs].
      * Returns null if extrapolation is not possible.
      */
     @Synchronized
-    fun extrapolate(tripId: String, queryTimeMs: Long,
-                    snapshot: TripDataManager.TripSnapshot): ProbDistribution? {
-        val newestValid = snapshot.newestValid ?: return null
-        return selectExtrapolator(snapshot.routeType)
-                .extrapolate(newestValid, snapshot, queryTimeMs)
-    }
-
-    /** Convenience overload that fetches the snapshot internally. */
-    @Synchronized
     fun extrapolate(tripId: String, queryTimeMs: Long): ProbDistribution? =
-            extrapolate(tripId, queryTimeMs, dataManager.getSnapshot(tripId))
+            getOrCreateExtrapolator(tripId).extrapolate(queryTimeMs)
 
     /**
      * Extrapolates a vehicle's lat/lng position, writing into [out].
@@ -67,10 +61,9 @@ object VehicleTrajectoryTracker {
      */
     @Synchronized
     fun extrapolatePosition(tripId: String, queryTimeMs: Long, out: Location): Boolean {
-        val snapshot = dataManager.getSnapshot(tripId)
-        val sd = snapshot.shapeData ?: return false
+        val sd = dataManager.getShapeWithDistances(tripId) ?: return false
         if (sd.points.isEmpty()) return false
-        val dist = extrapolate(tripId, queryTimeMs, snapshot) ?: return false
+        val dist = extrapolate(tripId, queryTimeMs) ?: return false
         return LocationUtils.interpolateAlongPolyline(
                 sd.points, sd.cumulativeDistances, dist.median(), out)
     }
@@ -81,9 +74,9 @@ object VehicleTrajectoryTracker {
         return queryTimeMs - last.lastLocationUpdateTime <= MAX_EXTRAPOLATION_AGE_MS
     }
 
-    /** Clears estimation state. */
+    /** Clears all per-trip extrapolator instances. */
     @Synchronized
     fun clearAll() {
-        gammaExtrapolator.clearCache()
+        extrapolators.clear()
     }
 }

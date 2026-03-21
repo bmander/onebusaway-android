@@ -14,27 +14,32 @@
  * limitations under the License.
  */
 package org.onebusaway.android.extrapolation
+
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.DiracDistribution
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
-import org.onebusaway.android.extrapolation.validateExtrapolation
+import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
 import org.onebusaway.android.io.elements.ObaTripSchedule
-import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 
 /**
- * Extrapolator for grade-separated transit (rail, subway) that replays the schedule
+ * Per-trip extrapolator for grade-separated transit (rail, subway) that replays the schedule
  * trajectory forward from the vehicle's current position, including dwell times at stops.
  */
-class ScheduleReplayExtrapolator : Extrapolator {
+class ScheduleReplayExtrapolator(
+        private val tripId: String,
+        private val dataManager: TripDataManager
+) : Extrapolator {
 
-    override fun extrapolate(
-            newestValid: ObaTripStatus,
-            snapshot: TripDataManager.TripSnapshot,
-            queryTimeMs: Long
-    ): ProbDistribution? {
-        val schedule = snapshot.schedule ?: return null
-        val (lastDist, dtMs) = validateExtrapolation(newestValid, queryTimeMs) ?: return null
+    override fun extrapolate(queryTimeMs: Long): ProbDistribution? {
+        val newestValid = dataManager.getNewestValidEntry(tripId) ?: return null
+        val lastDist = newestValid.bestDistanceAlongTrip ?: return null
+        val lastTime = newestValid.lastLocationUpdateTime
+        if (lastTime <= 0) return null
+        val dtMs = queryTimeMs - lastTime
+        if (dtMs < 0 || dtMs > VehicleTrajectoryTracker.MAX_EXTRAPOLATION_AGE_MS) return null
 
+        val schedule = dataManager.getSchedule(tripId) ?: return null
         val distance = replaySchedule(schedule, lastDist, dtMs / 1000.0) ?: return null
         return DiracDistribution(distance)
     }

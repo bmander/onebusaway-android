@@ -444,14 +444,14 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
             for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
                 String tripId = entry.getKey();
-                TripDataManager.TripSnapshot snapshot = dm.getSnapshot(tripId);
-                LatLng target = computeExtrapolatedPosition(tracker, tripId, now, snapshot);
+                LatLng target = computeExtrapolatedPosition(tracker, tripId, now);
                 if (target == null) continue;
 
                 Marker marker = entry.getValue();
-                if (detectFreshAvlData(tripId, snapshot.newestValid)) {
+                ObaTripStatus newestValid = dm.getNewestValidEntry(tripId);
+                if (detectFreshAvlData(tripId, newestValid)) {
                     startTransitionAnimation(tripId, marker, target, now);
-                    updateDataReceivedMarkerIfNeeded(tripId, snapshot.newestValid, now);
+                    updateDataReceivedMarkerIfNeeded(tripId, newestValid, now);
                 } else {
                     setPositionIfNotAnimating(tripId, marker, target, now);
                 }
@@ -459,11 +459,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         }
 
         private LatLng computeExtrapolatedPosition(
-                VehicleTrajectoryTracker tracker, String tripId, long now,
-                TripDataManager.TripSnapshot snapshot) {
-            TripDataManager.ShapeData sd = snapshot.shapeData;
+                VehicleTrajectoryTracker tracker, String tripId, long now) {
+            TripDataManager.ShapeData sd = TripDataManager.getInstance()
+                    .getShapeWithDistances(tripId);
             if (sd == null || sd.points.isEmpty()) return null;
-            ProbDistribution dist = tracker.extrapolate(tripId, now, snapshot);
+            ProbDistribution dist = tracker.extrapolate(tripId, now);
             if (dist == null) return null;
             if (!LocationUtils.interpolateAlongPolyline(
                     sd.points, sd.cumulativeDistances, dist.median(), mReusableLocation))

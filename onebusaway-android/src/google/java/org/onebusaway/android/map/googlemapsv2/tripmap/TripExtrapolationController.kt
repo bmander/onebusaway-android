@@ -19,6 +19,7 @@ import android.location.Location
 import android.view.Choreographer
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.speed.VehicleTrajectoryTracker
+import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.util.LocationUtils
 
 private const val FRAME_INTERVAL_MS = 50L // 20fps
@@ -62,21 +63,23 @@ internal constructor(private val renderer: TripMapRenderer, private val tripId: 
     }
 
     private fun doFrame(now: Long) {
-        val snapshot = TripDataManager.getSnapshot(tripId)
-        val shapeData = snapshot.shapeData ?: return
-        val distribution = VehicleTrajectoryTracker.extrapolate(tripId, now, snapshot)
+        val shapeData = TripDataManager.getShapeWithDistances(tripId) ?: return
+        val distribution = VehicleTrajectoryTracker.extrapolate(tripId, now)
 
         if (distribution != null) {
             if (LocationUtils.interpolateAlongPolyline(
                             shapeData.points, shapeData.cumulativeDistances,
                             distribution.median(), reusableLocation)) {
-                renderer.updateVehiclePosition(reusableLocation, snapshot.newestValid, now)
+                val newestValid = TripDataManager.getNewestValidEntry(tripId)
+                renderer.updateVehiclePosition(reusableLocation, newestValid, now)
             }
             renderer.updateEstimateOverlays(distribution)
         } else {
             renderer.hideEstimateOverlays()
         }
 
-        snapshot.lastState?.let { renderer.showOrUpdateDataReceivedMarker(it, now) }
+        TripDataManager.getLastState(tripId)?.let {
+            renderer.showOrUpdateDataReceivedMarker(it, now)
+        }
     }
 }

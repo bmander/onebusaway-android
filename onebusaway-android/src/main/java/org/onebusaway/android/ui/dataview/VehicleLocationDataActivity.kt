@@ -210,7 +210,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
                     TripDataManager.recordTripDetailsResponse(tripId, response)
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to poll trip details for $tripId", e)
+                Log.e(TAG, "Failed to poll trip details for $tripId", e)
             }
         }.start()
     }

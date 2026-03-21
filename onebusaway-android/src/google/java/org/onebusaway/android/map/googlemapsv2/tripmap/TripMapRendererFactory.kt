@@ -32,7 +32,7 @@ import org.onebusaway.android.io.elements.isLocationRealtime
 import org.onebusaway.android.io.elements.isRealtimeSpeedEstimable
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
-import org.onebusaway.android.map.googlemapsv2.VehicleOverlay
+import org.onebusaway.android.map.googlemapsv2.VehicleIconFactory
 
 private const val TAG = "TripMapRendererFactory"
 private val mainHandler = Handler(Looper.getMainLooper())
@@ -136,7 +136,7 @@ internal object TripMapRendererFactory {
         if (status == null) return ContextCompat.getColor(context, R.color.stop_info_scheduled_time)
         val now = System.currentTimeMillis()
         val realtime = status.isLocationRealtime || status.isRealtimeSpeedEstimable(now)
-        val colorRes = VehicleOverlay.getDeviationColorResource(realtime, status)
+        val colorRes = VehicleIconFactory.getDeviationColorResource(realtime, status)
         return ContextCompat.getColor(context, colorRes)
     }
 

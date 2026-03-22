@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.io.elements
 
-import org.onebusaway.android.extrapolation.canExtrapolate
+import org.onebusaway.android.extrapolation.data.TripDataManager
 
 /**
  * The best available distance: prefers lastKnownDistanceAlongTrip (raw), falls back to
@@ -37,12 +37,11 @@ val ObaTripStatus.isLocationRealtime: Boolean
     get() = lastKnownLocation != null && isPredicted
 
 /**
- * True if the trajectory tracker has recent enough AVL data to extrapolate
- * this trip's position.
+ * True if the trip has valid AVL data that an extrapolator could use.
  */
 fun ObaTripStatus.isRealtimeSpeedEstimable(queryTimeMs: Long): Boolean =
         activeTripId != null
-                && canExtrapolate(activeTripId, queryTimeMs)
+                && TripDataManager.getNewestValidEntry(activeTripId) != null
 
 /**
  * Computes the scheduled segment speed (m/s) at a given distance along the trip.

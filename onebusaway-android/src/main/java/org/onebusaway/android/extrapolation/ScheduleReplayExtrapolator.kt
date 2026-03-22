@@ -35,11 +35,11 @@ class ScheduleReplayExtrapolator(
         val lastDist = newestValid.bestDistanceAlongTrip ?: return null
         val lastTime = newestValid.lastLocationUpdateTime
         if (lastTime <= 0) return null
-        val dtMs = queryTimeMs - lastTime
-        if (dtMs < 0 || dtMs > Extrapolator.MAX_EXTRAPOLATION_AGE_MS) return null
+        val dtSec = (queryTimeMs - lastTime) / 1000.0
+        if (dtSec < 0) return null
 
         val schedule = dataManager.getSchedule(tripId) ?: return null
-        val distance = replaySchedule(schedule, lastDist, dtMs / 1000.0) ?: return null
+        val distance = replaySchedule(schedule, lastDist, dtSec) ?: return null
         return DiracDistribution(distance)
     }
 }

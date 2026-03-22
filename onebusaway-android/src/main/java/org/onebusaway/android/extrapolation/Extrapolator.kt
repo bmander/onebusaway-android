@@ -25,11 +25,6 @@ import org.onebusaway.android.io.elements.ObaRoute
  */
 interface Extrapolator {
 
-    companion object {
-        /** Max age of the newest AVL entry before extrapolation is considered unreliable. */
-        const val MAX_EXTRAPOLATION_AGE_MS = 5L * 60 * 1000
-    }
-
     /**
      * Computes a distribution over extrapolated distance along the trip at [queryTimeMs].
      *
@@ -49,14 +44,4 @@ fun createExtrapolator(
         ScheduleReplayExtrapolator(tripId, dataManager)
     else
         GammaExtrapolator(tripId, dataManager)
-}
-
-/** Returns true if the trip has a recent enough valid AVL fix for extrapolation. */
-fun canExtrapolate(
-        tripId: String,
-        queryTimeMs: Long,
-        dataManager: TripDataManager = TripDataManager
-): Boolean {
-    val newest = dataManager.getNewestValidEntry(tripId) ?: return false
-    return queryTimeMs - newest.lastLocationUpdateTime <= Extrapolator.MAX_EXTRAPOLATION_AGE_MS
 }

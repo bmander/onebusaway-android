@@ -397,8 +397,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             mVehicles.put(m, status);
 
             String tripId = status.getActiveTripId();
-            if (tripId == null || TripDataManager.getInstance().getShape(tripId) == null
-                    || !ExtrapolatorKt.canExtrapolate(tripId, now, TripDataManager.getInstance())) {
+            TripDataManager dm = TripDataManager.getInstance();
+            if (tripId == null || dm.getShape(tripId) == null
+                    || dm.getNewestValidEntry(tripId) == null) {
                 Location markerLoc = MapHelpV2.makeLocation(m.getPosition());
                 if (l.distanceTo(markerLoc) < MAX_VEHICLE_ANIMATION_DISTANCE) {
                     AnimationUtil.animateMarkerTo(m, MapHelpV2.makeLatLng(l));

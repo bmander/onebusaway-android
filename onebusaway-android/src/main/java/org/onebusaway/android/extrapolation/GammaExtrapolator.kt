@@ -25,24 +25,23 @@ import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.io.elements.speedAtDistance
 
-// H33 two-gamma mixture parameters, fitted on multi-span King County Metro data (in mph).
-private const val START_B0 = 0.736731   // 1/mph
-private const val END_B0 = 0.144060     // 1/mph
-private const val KINK = 21.959         // mph
-private const val R_INTERCEPT = -0.004730
-private const val R_SLOPE = 0.041241
-private const val CV_INTERCEPT = 0.588421
-private const val CV_SLOPE = 0.001527
-private const val MW_INTERCEPT = -1.735145
-private const val MW_SLOPE = -0.014205
+// H34 two-gamma mixture parameters, fitted on span-weighted King County Metro data (in mph).
+private const val START_B0 = 0.571381   // 1/mph
+private const val END_B0 = 0.124442     // 1/mph
+private const val KINK = 21.918         // mph
+private const val R_INTERCEPT = 0.006024
+private const val R_SLOPE = 0.026456
+private val SLOW_ALPHA = exp(-1.322671) // constant slow shape ≈ 0.266
+private const val MW_INTERCEPT = -1.347435
+private const val MW_SLOPE = -0.018838
 
 internal const val MPS_TO_MPH = 2.23694
 
 /**
- * Per-trip extrapolator for bus-like routes using the H33 two-gamma mixture
+ * Per-trip extrapolator for bus-like routes using the H34 two-gamma mixture
  * speed distribution model. Conditioned on scheduled speed only; the slow
- * component captures delayed/stopped vehicles while the fast component is
- * ensemble-mean-locked to the schedule speed.
+ * component (constant shape) captures delayed/stopped vehicles while the fast
+ * component is ensemble-mean-locked to the schedule speed.
  */
 class GammaExtrapolator(
         private val tripId: String,
@@ -78,21 +77,21 @@ class GammaExtrapolator(
         val scheduleSpeed = schedule?.speedAtDistance(
                 lastState.scheduledDistanceAlongTrip ?: return null) ?: return null
 
-        return buildH33SpeedDistribution(scheduleSpeed).also {
+        return buildH34SpeedDistribution(scheduleSpeed).also {
             cachedDistribution = lastFixTime to it
         }
     }
 }
 
-// --- H33 two-gamma mixture speed model ---
+// --- H34 two-gamma mixture speed model ---
 
 /**
- * Builds a frozen two-gamma mixture speed distribution from H33 parameters.
+ * Builds a frozen two-gamma mixture speed distribution from H34 parameters.
  * The returned distribution is over speed in mph.
  *
  * @param schedSpeedMps scheduled speed in m/s (must be positive)
  */
-internal fun buildH33SpeedDistribution(schedSpeedMps: Double): ProbDistribution {
+internal fun buildH34SpeedDistribution(schedSpeedMps: Double): ProbDistribution {
     require(schedSpeedMps > 0) { "schedSpeedMps must be positive" }
 
     val v = schedSpeedMps * MPS_TO_MPH
@@ -100,13 +99,10 @@ internal fun buildH33SpeedDistribution(schedSpeedMps: Double): ProbDistribution 
     // Mixture weight
     val m = sigmoid(MW_INTERCEPT + MW_SLOPE * v)
 
-    // Slow component (ratio parameterization)
+    // Slow component (constant shape, ratio-based mean)
     val r = sigmoid(R_INTERCEPT + R_SLOPE * v)
     val meanSlow = r * v
-    val cv = exp(CV_INTERCEPT + CV_SLOPE * v)
-    val cv2 = cv * cv
-    val alpha1 = 1.0 / cv2
-    val scale1 = meanSlow * cv2
+    val scale1 = meanSlow / SLOW_ALPHA
 
     // Fast component (ensemble-mean locked to v_sched)
     val b0 = beta0(v)
@@ -114,7 +110,7 @@ internal fun buildH33SpeedDistribution(schedSpeedMps: Double): ProbDistribution 
     val c = (1.0 - m * r) / (1.0 - m)
     val scale2 = c / b0
 
-    val slow = GammaDistribution(alpha1, scale1)
+    val slow = GammaDistribution(SLOW_ALPHA, scale1)
     val fast = GammaDistribution(alpha2, scale2)
     return FrozenDistribution(GammaMixtureDistribution(m, slow, fast))
 }

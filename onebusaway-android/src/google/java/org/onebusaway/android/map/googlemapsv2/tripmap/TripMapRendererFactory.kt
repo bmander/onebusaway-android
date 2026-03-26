@@ -25,8 +25,11 @@ import org.onebusaway.android.io.elements.ObaReferences
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.elements.isLocationRealtime
+import org.onebusaway.android.io.elements.isRealtimeSpeedEstimable
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
+import org.onebusaway.android.map.googlemapsv2.VehicleIconFactory
 
 /**
  * Creates and activates a [TripMapRenderer] from an API response.
@@ -56,6 +59,7 @@ internal object TripMapRendererFactory {
 
         val routeColor = resolveRouteColor(context, route)
         val vehiclePosition = resolveVehiclePosition(tripId, status)
+        val deviationColor = resolveDeviationColor(context, status)
         val scheduleDeviation = resolveScheduleDeviation(tripId, status)
         val stopNames = buildStopNameMap(schedule, refs)
 
@@ -63,7 +67,7 @@ internal object TripMapRendererFactory {
             val renderer = TripMapRenderer(map, context, tripId,
                     sd.points, sd.cumulativeDistances, schedule,
                     routeColor, route?.type, stopNames, selectedStopId,
-                    scheduleDeviation)
+                    deviationColor, scheduleDeviation)
             renderer.activate(vehiclePosition)
             onReady(renderer)
         }
@@ -88,6 +92,14 @@ internal object TripMapRendererFactory {
 
     private fun resolveScheduleDeviation(tripId: String, status: ObaTripStatus?) =
             if (status != null && tripId == status.activeTripId) status.scheduleDeviation else 0L
+
+    private fun resolveDeviationColor(context: Context, status: ObaTripStatus?): Int {
+        if (status == null) return ContextCompat.getColor(context, R.color.stop_info_scheduled_time)
+        val now = System.currentTimeMillis()
+        val realtime = status.isLocationRealtime || status.isRealtimeSpeedEstimable(now)
+        val colorRes = VehicleIconFactory.getDeviationColorResource(realtime, status)
+        return ContextCompat.getColor(context, colorRes)
+    }
 
     private fun cacheResponseData(tripId: String, schedule: ObaTripSchedule, status: ObaTripStatus?) {
         TripDataManager.putSchedule(tripId, schedule)

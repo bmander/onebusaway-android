@@ -99,15 +99,18 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
                shape: List<Location>, cumDist: DoubleArray, baseColor: Int) {
         val segs = segments ?: return
 
-        // Compute edge distances and PDF values at midpoints
+        // Space segments uniformly in distance between the 1st and 99th percentile
+        val distLo = distribution.quantile(PDF_LOW_QUANTILE)
+        val distHi = distribution.quantile(PDF_HIGH_QUANTILE)
+        if (distHi <= distLo) return
+        val segWidth = (distHi - distLo) / segmentCount
+
         var maxPdf = 0.0
         for (i in 0..segmentCount) {
-            val p = PDF_LOW_QUANTILE + (PDF_HIGH_QUANTILE - PDF_LOW_QUANTILE) * i / segmentCount
-            edgeDistances[i] = distribution.quantile(p)
+            edgeDistances[i] = distLo + segWidth * i
         }
         for (i in 0 until segmentCount) {
-            val midP = PDF_LOW_QUANTILE + (PDF_HIGH_QUANTILE - PDF_LOW_QUANTILE) * (i + 0.5) / segmentCount
-            val midDist = distribution.quantile(midP)
+            val midDist = distLo + segWidth * (i + 0.5)
             pdfValues[i] = distribution.pdf(midDist)
             if (pdfValues[i] > maxPdf) maxPdf = pdfValues[i]
         }

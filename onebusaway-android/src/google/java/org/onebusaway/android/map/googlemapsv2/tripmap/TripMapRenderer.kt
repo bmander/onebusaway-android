@@ -44,14 +44,6 @@ import org.onebusaway.android.map.googlemapsv2.StampedPolylineFactory
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.UIUtils
 
-/** Shifts hue by 180 degrees to produce a color that contrasts with the input. */
-private fun contrastingColor(color: Int): Int {
-    val hsv = FloatArray(3)
-    Color.colorToHSV(color, hsv)
-    hsv[0] = (hsv[0] + 180f) % 360f
-    return Color.HSVToColor(hsv)
-}
-
 private const val STOP_STROKE_WIDTH = 4f
 private const val STOP_STROKE_COLOR = 0xFF242424.toInt()
 private const val ANIMATE_DURATION_MS = 600
@@ -73,6 +65,7 @@ class TripMapRenderer internal constructor(
         private val routeType: Int?,
         private val stopNames: Map<String, String>,
         private val selectedStopId: String?,
+        val deviationColor: Int,
         val scheduleDeviation: Long
 ) {
     companion object {
@@ -81,8 +74,6 @@ class TripMapRenderer internal constructor(
 
     private val stampFactory = StampedPolylineFactory(
             context.resources, R.drawable.ic_navigation_expand_more, 4)
-
-    private val overlayColor = contrastingColor(routeColor)
 
     // --- Map objects (mutable rendering state) ---
 
@@ -259,7 +250,7 @@ class TripMapRenderer internal constructor(
     fun updateEstimateOverlays(distribution: ProbDistribution?) {
         val overlay = estimateOverlay ?: return
         if (distribution == null) { overlay.hide(); return }
-        overlay.update(distribution, shape, cumDist, overlayColor)
+        overlay.update(distribution, shape, cumDist, deviationColor)
     }
 
     fun hideEstimateOverlays() { estimateOverlay?.hide() }

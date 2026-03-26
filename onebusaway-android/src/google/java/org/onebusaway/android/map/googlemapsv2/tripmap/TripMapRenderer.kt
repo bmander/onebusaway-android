@@ -91,7 +91,7 @@ class TripMapRenderer internal constructor(
     private val stopInfoMap = mutableMapOf<Marker, StopInfo>()
     private var estimateOverlay: DistanceEstimateOverlay? = null
     private var dataReceivedMarker: Marker? = null
-    private var lastDataReceivedLabel: String? = null
+    private var dataReceivedInfoShown = false
     private var lastDataReceivedUpdateTime = 0L
     private var vehicleMarker: Marker? = null
     private var lastFixTime = 0L
@@ -266,8 +266,12 @@ class TripMapRenderer internal constructor(
 
     fun handleEstimateLabelClick(marker: Marker) = estimateOverlay?.handleClick(marker) ?: false
 
-    fun handleDataReceivedClick(marker: Marker) =
-            if (marker == dataReceivedMarker) { marker.showInfoWindow(); true } else false
+    fun handleDataReceivedClick(marker: Marker): Boolean {
+        if (marker != dataReceivedMarker) return false
+        dataReceivedInfoShown = !dataReceivedInfoShown
+        if (dataReceivedInfoShown) marker.showInfoWindow() else marker.hideInfoWindow()
+        return true
+    }
 
     private fun createEstimateOverlays(vehiclePosition: LatLng?) {
         if (routeType != null && ObaRoute.isGradeSeparated(routeType)) return
@@ -282,40 +286,40 @@ class TripMapRenderer internal constructor(
     fun showOrUpdateDataReceivedMarker(latest: ObaTripStatus, now: Long) {
         val updateTime = latest.lastLocationUpdateTime
         val newData = updateTime != lastDataReceivedUpdateTime
-        refreshDataReceivedLabel(updateTime, now)
         if (!newData && dataReceivedMarker != null) return
         lastDataReceivedUpdateTime = updateTime
+
+        val label = if (updateTime > 0)
+            UIUtils.formatElapsedTime(now - updateTime) else ""
 
         val pos = latest.position ?: latest.lastKnownLocation ?: return
         val latLng = MapHelpV2.makeLatLng(pos)
 
-        dataReceivedMarker?.let { it.position = latLng }
-                ?: run { createDataReceivedMarker(latLng) }
+        val marker = dataReceivedMarker
+        if (marker != null) {
+            marker.position = latLng
+            marker.snippet = label
+            if (dataReceivedInfoShown) marker.showInfoWindow()
+        } else {
+            createDataReceivedMarker(latLng, label)
+        }
     }
 
-    private fun refreshDataReceivedLabel(updateTime: Long, now: Long) {
-        val label = if (updateTime > 0)
-            UIUtils.formatElapsedTime(now - updateTime) else ""
-        dataReceivedMarker?.takeIf { label != lastDataReceivedLabel && !it.isInfoWindowShown }
-                ?.let { it.snippet = label }
-        lastDataReceivedLabel = label
-    }
-
-    private fun createDataReceivedMarker(latLng: LatLng) {
+    private fun createDataReceivedMarker(latLng: LatLng, snippet: String) {
         dataReceivedMarker = map.addMarker(MarkerOptions()
                 .position(latLng)
                 .icon(dataReceivedIcon)
                 .anchor(0.5f, 0.5f)
                 .flat(true)
                 .title(context.getString(R.string.marker_most_recent_data))
-                .snippet(lastDataReceivedLabel)
+                .snippet(snippet)
                 .zIndex(MARKER_Z_INDEX))
     }
 
     fun removeDataReceivedMarker() {
         dataReceivedMarker?.remove()
         dataReceivedMarker = null
-        lastDataReceivedLabel = null
+        dataReceivedInfoShown = false
         lastDataReceivedUpdateTime = 0
     }
 }

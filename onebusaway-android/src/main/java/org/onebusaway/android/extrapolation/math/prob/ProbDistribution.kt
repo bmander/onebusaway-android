@@ -23,3 +23,21 @@ interface ProbDistribution {
     fun cdf(x: Double): Double
     fun quantile(p: Double): Double
 }
+
+private const val BISECT_REL_TOL = 1e-9
+
+/**
+ * Finds x such that [f](x) = [target] by bisection, starting from [initialHi].
+ * If [f]([initialHi]) < [target], doubles [initialHi] until it brackets.
+ */
+internal fun bisect(f: (Double) -> Double, target: Double, initialHi: Double): Double {
+    var hi = initialHi
+    while (f(hi) < target) hi *= 2
+
+    var lo = 0.0
+    while (hi - lo > BISECT_REL_TOL * (hi + lo)) {
+        val mid = (lo + hi) / 2
+        if (f(mid) < target) lo = mid else hi = mid
+    }
+    return (lo + hi) / 2
+}

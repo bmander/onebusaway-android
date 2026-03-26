@@ -49,19 +49,7 @@ class GammaDistribution(@JvmField val alpha: Double, @JvmField val scale: Double
         if (p <= 0) return 0.0
         if (p >= 1) return Double.MAX_VALUE
 
-        var hi = mean + 10 * sqrt(alpha) * scale
-        var lo = 0.0
-
-        repeat(60) {
-            if (cdf(hi) >= p) return@repeat
-            hi *= 2
-        }
-
-        repeat(40) {
-            val mid = (lo + hi) / 2
-            if (cdf(mid) < p) lo = mid else hi = mid
-        }
-        return (lo + hi) / 2
+        return bisect(::cdf, p, mean + 10 * sqrt(alpha) * scale)
     }
 
     companion object {

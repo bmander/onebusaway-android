@@ -36,7 +36,7 @@ private const val CV_SLOPE = 0.001527
 private const val MW_INTERCEPT = -1.735145
 private const val MW_SLOPE = -0.014205
 
-private const val MPS_TO_MPH = 2.23694
+internal const val MPS_TO_MPH = 2.23694
 
 /**
  * Per-trip extrapolator for bus-like routes using the H33 two-gamma mixture

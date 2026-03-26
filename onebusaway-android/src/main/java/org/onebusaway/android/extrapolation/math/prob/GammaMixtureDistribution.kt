@@ -34,8 +34,14 @@ class GammaMixtureDistribution(
         require(weight in 0.0..1.0) { "weight must be in [0, 1], got $weight" }
     }
 
-    override val mean: Double
-        get() = weight * comp1.mean + (1 - weight) * comp2.mean
+    override val mean: Double =
+            weight * comp1.mean + (1 - weight) * comp2.mean
+
+    private val quantileHi: Double = run {
+        fun secondMoment(g: GammaDistribution) = g.alpha * g.scale * g.scale + g.mean * g.mean
+        val variance = weight * secondMoment(comp1) + (1 - weight) * secondMoment(comp2) - mean * mean
+        mean + 10 * sqrt(variance)
+    }
 
     override fun pdf(x: Double): Double =
             weight * comp1.pdf(x) + (1 - weight) * comp2.pdf(x)
@@ -47,11 +53,7 @@ class GammaMixtureDistribution(
         if (p <= 0.0) return 0.0
         if (p >= 1.0) return Double.MAX_VALUE
 
-        val mixMean = mean
-        val mixVar = weight * (comp1.alpha * comp1.scale * comp1.scale + comp1.mean * comp1.mean) +
-                (1 - weight) * (comp2.alpha * comp2.scale * comp2.scale + comp2.mean * comp2.mean) -
-                mixMean * mixMean
-        var hi = mixMean + 10 * sqrt(mixVar)
+        var hi = quantileHi
         var lo = 0.0
 
         repeat(60) {

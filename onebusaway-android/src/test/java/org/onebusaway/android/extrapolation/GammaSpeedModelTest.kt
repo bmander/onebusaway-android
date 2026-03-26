@@ -19,12 +19,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.onebusaway.android.extrapolation.math.prob.GammaDistribution
-import org.onebusaway.android.extrapolation.math.prob.ZeroInflatedDistribution
 
 class GammaSpeedModelTest {
 
-    private fun gammaDist(sched: Double, prev: Double?, dt: Double = 60.0) =
-            buildSpeedDistributionFactory(sched, prev)(dt)
+    private fun h33Dist(schedMps: Double) = buildH33SpeedDistribution(schedMps)
 
     // m/s test speeds (named for readability)
     private val mps5 = 2.235 // ~5 mph
@@ -35,152 +33,120 @@ class GammaSpeedModelTest {
     private val mps40 = 17.882 // ~40 mph
     private val mps60 = 26.822 // ~60 mph
 
-    // --- fromSpeeds ---
+    // --- buildH33SpeedDistribution ---
 
     @Test(expected = IllegalArgumentException::class)
-    fun `fromSpeeds throws when schedSpeed is zero`() {
-        gammaDist(0.0, mps5, 60.0)
+    fun `throws when schedSpeed is zero`() {
+        h33Dist(0.0)
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun `fromSpeeds throws when schedSpeed is negative`() {
-        gammaDist(-1.0, mps5, 60.0)
+    fun `throws when schedSpeed is negative`() {
+        h33Dist(-1.0)
     }
 
     @Test
-    fun `fromSpeeds falls back to schedSpeed when prevSpeed is zero`() {
-        val withZero = gammaDist(mps20, 0.0, 60.0)
-        val withEqual = gammaDist(mps20, mps20, 60.0)
-        assertEquals(withEqual.mean, withZero.mean, 1e-9)
-        assertEquals(withEqual.median(), withZero.median(), 1e-9)
+    fun `produces positive mean and median across speed range`() {
+        for (sched in listOf(mps5, mps10, mps15, mps20, mps30, mps40, mps60)) {
+            val dist = h33Dist(sched)
+            assertTrue("mean <= 0 at $sched m/s", dist.mean > 0)
+            assertTrue("median <= 0 at $sched m/s", dist.median() > 0)
+        }
     }
 
     @Test
-    fun `fromSpeeds falls back to schedSpeed when prevSpeed is negative`() {
-        val withNeg = gammaDist(mps20, -5.0, 60.0)
-        val withEqual = gammaDist(mps20, mps20, 60.0)
-        assertEquals(withEqual.mean, withNeg.mean, 1e-9)
-        assertEquals(withEqual.median(), withNeg.median(), 1e-9)
-    }
-
-    @Test
-    fun `fromSpeeds produces positive mean and median`() {
+    fun `ensemble mean equals scheduled speed in mph`() {
+        // H33 is ensemble-mean-locked: mixture mean should equal v_sched in mph
+        val mpsToMph = 2.23694
         for (sched in listOf(mps5, mps15, mps30, mps60)) {
-            for (prev in listOf(mps5, mps15, mps30, mps60)) {
-                val dist = gammaDist(sched, prev, 60.0)
-                assertTrue("mean <= 0", dist.mean > 0)
-                assertTrue("median <= 0", dist.median() > 0)
-            }
+            val dist = h33Dist(sched)
+            val expectedMph = sched * mpsToMph
+            assertEquals("mean should equal sched speed at $sched m/s",
+                    expectedMph, dist.mean, expectedMph * 0.01)
         }
     }
 
     @Test
-    fun `fromSpeeds worked example at 20 and 10 mph`() {
-        // mps20 = 8.941, mps10 = 4.470
-        // vEff = 8.941 * 0.9127 + 4.470 * 0.0873 = 8.55 m/s (above KINK)
-        // b0 = END_B0 = 0.3102
-        // alpha = b0 * vEff = 0.3102 * 8.55 ≈ 2.65, scale = 1/b0 = 3.22
-        // gamma mean = alpha * scale ≈ 8.55
-        // p0 at dt=60 = 0.1732 * exp(-0.00462 * 60) ≈ 0.131
-        // zero-inflated mean = (1 - p0) * gamma_mean ≈ 0.869 * 8.55 ≈ 7.43
-        val dist = gammaDist(mps20, mps10, 60.0)
-        assertEquals(7.43, dist.mean, 0.3)
+    fun `worked example at 15 mph`() {
+        // At v=15 mph (6.706 m/s), Python reference gives:
+        //   m = 0.1247, r = 0.6488, cv = 1.8429
+        //   slow: alpha1 = 0.2945, scale1 = 33.053
+        //   fast: alpha2 = 4.978, scale2 = 3.164
+        //   mixture mean = 15.0 mph
+        val dist = h33Dist(mps15)
+        assertEquals(15.0, dist.mean, 0.01)
     }
 
     @Test
-    fun `fromSpeeds at very low speed`() {
-        val dist = gammaDist(0.447, 0.447, 60.0)
+    fun `at very low speed`() {
+        val dist = h33Dist(0.447) // ~1 mph
         assertTrue(dist.mean > 0)
         assertTrue(dist.median() > 0)
     }
 
     @Test
-    fun `fromSpeeds at highway speed`() {
-        val dist = gammaDist(mps60, mps60, 60.0)
+    fun `at highway speed`() {
+        val dist = h33Dist(mps60)
         assertTrue(dist.mean > 0)
         assertTrue(dist.median() > 0)
-    }
-
-    // --- mean / median ---
-
-    @Test
-    fun `mean speed is alpha times scale`() {
-        val dist = GammaDistribution(alpha = 3.0, scale = 5.0)
-        assertEquals(15.0, dist.mean, 1e-9)
-    }
-
-    @Test
-    fun `mean speed is close to input when schedSpeed equals prevSpeed`() {
-        for (inputMps in listOf(mps10, mps20, mps40)) {
-            val dist = gammaDist(inputMps, inputMps, 60.0)
-            assertEquals("mean should be near $inputMps m/s", inputMps, dist.mean, inputMps * 0.2)
-        }
-    }
-
-    @Test
-    fun `median is less than mean for right-skewed gamma`() {
-        val dist = gammaDist(mps15, mps15, 60.0)
-        val median = dist.quantile(0.5)
-        assertTrue("median ($median) should be < mean (${dist.mean})", median < dist.mean)
     }
 
     // --- pdf ---
 
     @Test
     fun `pdf is zero at zero and negative`() {
-        val dist = gammaDist(mps15, mps15, 60.0)
+        val dist = h33Dist(mps15)
         assertEquals(0.0, dist.pdf(0.0), 1e-12)
         assertEquals(0.0, dist.pdf(-5.0), 1e-12)
     }
 
     @Test
     fun `pdf is positive for reasonable speeds`() {
-        val dist = gammaDist(mps15, mps15, 60.0)
-        for (speed in listOf(mps5, mps10, mps15, mps20)) {
-            assertTrue("pdf should be > 0 at $speed m/s", dist.pdf(speed) > 0)
+        val dist = h33Dist(mps15)
+        // Test in mph (the distribution output is in mph)
+        for (speed in listOf(5.0, 10.0, 15.0, 20.0)) {
+            assertTrue("pdf should be > 0 at $speed mph", dist.pdf(speed) > 0)
         }
     }
 
     @Test
-    fun `pdf continuous part integrates to approximately (1 - p0)`() {
-        val dist = gammaDist(mps15, mps15, 60.0) as ZeroInflatedDistribution
-        val dx = 0.005
+    fun `pdf integrates to approximately 1`() {
+        val dist = h33Dist(mps15)
+        val dx = 0.01
         var sum = 0.0
         var x = dx
-        while (x <= 90.0) {
+        while (x <= 100.0) {
             sum += dist.pdf(x) * dx
             x += dx
         }
-        // Continuous part integrates to (1 - p0), point mass at 0 accounts for p0
-        assertEquals("pdf should integrate to ~(1-p0)", 1.0 - dist.p0, sum, 0.01)
+        assertEquals("pdf should integrate to ~1.0", 1.0, sum, 0.02)
     }
 
     // --- cdf ---
 
     @Test
-    fun `cdf at zero equals p0 and is zero for negative`() {
-        val dist = gammaDist(mps15, mps15, 60.0) as ZeroInflatedDistribution
-        assertEquals(dist.p0, dist.cdf(0.0), 1e-12)
-        assertEquals(0.0, dist.cdf(-1.0), 1e-12)
+    fun `cdf at zero is zero`() {
+        val dist = h33Dist(mps15)
+        assertEquals(0.0, dist.cdf(0.0), 1e-12)
     }
 
     @Test
     fun `cdf approaches 1 for large values`() {
-        val dist = gammaDist(mps15, mps15, 60.0)
-        assertTrue(dist.cdf(45.0) > 0.99)
-        assertTrue(dist.cdf(90.0) > 0.999)
+        val dist = h33Dist(mps15)
+        assertTrue(dist.cdf(60.0) > 0.99)
+        assertTrue(dist.cdf(120.0) > 0.999)
     }
 
     @Test
     fun `cdf increases from low to high speeds`() {
-        val dist = gammaDist(mps15, mps15, 60.0)
-        assertTrue("cdf(5mph) < cdf(15mph)", dist.cdf(mps5) < dist.cdf(mps15))
-        assertTrue("cdf(15mph) < cdf(40mph)", dist.cdf(mps15) < dist.cdf(mps40))
+        val dist = h33Dist(mps15)
+        assertTrue("cdf(5) < cdf(15)", dist.cdf(5.0) < dist.cdf(15.0))
+        assertTrue("cdf(15) < cdf(30)", dist.cdf(15.0) < dist.cdf(30.0))
     }
 
     @Test
     fun `cdf at median is approximately 0_5`() {
-        val dist = gammaDist(mps15, mps15, 60.0)
+        val dist = h33Dist(mps15)
         val median = dist.quantile(0.5)
         assertEquals(0.5, dist.cdf(median), 0.01)
     }
@@ -189,21 +155,21 @@ class GammaSpeedModelTest {
 
     @Test
     fun `quantile at 0 returns 0`() {
-        val dist = gammaDist(mps15, mps15, 60.0)
+        val dist = h33Dist(mps15)
         assertEquals(0.0, dist.quantile(0.0), 1e-12)
     }
 
     @Test
-    fun `quantile at 1 returns MAX_VALUE`() {
-        val dist = gammaDist(mps15, mps15, 60.0)
-        assertEquals(Double.MAX_VALUE, dist.quantile(1.0), 0.0)
+    fun `quantile at 1 returns large value`() {
+        // FrozenDistribution returns last table entry (not MAX_VALUE)
+        val dist = h33Dist(mps15)
+        assertTrue(dist.quantile(1.0) > dist.mean * 3)
     }
 
     @Test
     fun `quantile is monotonically non-decreasing`() {
-        val dist = gammaDist(mps15, mps15, 60.0)
+        val dist = h33Dist(mps15)
         var prev = 0.0
-        // Note: quantile returns 0 for p <= p0, then increases for p > p0
         for (p in listOf(0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99)) {
             val q = dist.quantile(p)
             assertTrue("quantile($p) = $q should be >= $prev", q >= prev)
@@ -212,28 +178,25 @@ class GammaSpeedModelTest {
     }
 
     @Test
-    fun `cdf of quantile round-trips for percentiles above p0`() {
-        val dist = gammaDist(mps15, mps15, 60.0)
-        // Only test percentiles > p0 where quantile returns positive values
-        for (p in doubleArrayOf(0.25, 0.50, 0.75, 0.90, 0.95)) {
+    fun `cdf of quantile round-trips`() {
+        val dist = h33Dist(mps15)
+        for (p in doubleArrayOf(0.10, 0.25, 0.50, 0.75, 0.90, 0.95)) {
             val q = dist.quantile(p)
-            assertEquals("CDF(quantile($p)) should ≈ $p", p, dist.cdf(q), 0.01)
+            assertEquals("CDF(quantile($p)) should ~= $p", p, dist.cdf(q), 0.01)
         }
     }
 
     @Test
-    fun `cdf of quantile round-trips across different speed regimes`() {
+    fun `cdf of quantile round-trips across speed regimes`() {
         for (sched in listOf(mps5, mps15, mps40)) {
-            for (prev in listOf(mps5, mps15, mps40)) {
-                val dist = gammaDist(sched, prev, 60.0)
-                val q50 = dist.quantile(0.5)
-                assertEquals(
-                        "round-trip failed for sched=$sched prev=$prev",
-                        0.5,
-                        dist.cdf(q50),
-                        0.01
-                )
-            }
+            val dist = h33Dist(sched)
+            val q50 = dist.quantile(0.5)
+            assertEquals(
+                    "round-trip failed for sched=$sched",
+                    0.5,
+                    dist.cdf(q50),
+                    0.01
+            )
         }
     }
 
@@ -254,37 +217,5 @@ class GammaSpeedModelTest {
     @Test(expected = IllegalArgumentException::class)
     fun `GammaDistribution rejects zero scale`() {
         GammaDistribution(1.0, 0.0)
-    }
-
-    // --- SpeedDistributionFactory (buildSpeedDistributionFactory) ---
-
-    @Test
-    fun `factory produces distributions with consistent median`() {
-        val factory = buildSpeedDistributionFactory(mps15, mps15)
-        val dist1 = factory(10.0)
-        val dist2 = factory(100.0)
-        // Both should have positive median; longer dt = lower p0 = higher median
-        assertTrue("median at dt=10 should be positive", dist1.median() > 0)
-        assertTrue("median at dt=100 should be positive", dist2.median() > 0)
-        assertTrue("longer dt should give higher or equal median",
-                dist2.median() >= dist1.median())
-    }
-
-    @Test
-    fun `factory reuses frozen table across dt values`() {
-        val factory = buildSpeedDistributionFactory(mps20, mps10)
-        // Calling at() many times should not throw or produce NaN
-        val medians = (1..100).map { factory(it.toDouble()).median() }
-        assertTrue("all medians should be finite", medians.all { it.isFinite() })
-        assertTrue("medians should be monotonically non-decreasing",
-                medians.zipWithNext().all { (a, b) -> b >= a })
-    }
-
-    @Test
-    fun `factory at dt=0 has higher zero-inflation than dt=large`() {
-        val factory = buildSpeedDistributionFactory(mps15, mps15)
-        val atZero = factory(0.0) as ZeroInflatedDistribution
-        val atLarge = factory(1000.0) as ZeroInflatedDistribution
-        assertTrue("p0 at dt=0 > p0 at dt=1000", atZero.p0 > atLarge.p0)
     }
 }

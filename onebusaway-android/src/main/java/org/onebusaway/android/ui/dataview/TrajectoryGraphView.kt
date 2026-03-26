@@ -409,8 +409,8 @@ class TrajectoryGraphView @JvmOverloads constructor(
         if (lastDist == null || currentTime <= lastTime) return
 
         val maxHeightPx = 105 * density
-        val posMin = dist.quantile(0.001)
-        val posMax = dist.quantile(0.999)
+        val posMin = dist.quantile(0.0)
+        val posMax = dist.quantile(0.95)
         if (posMax <= posMin) return
 
         val binWidth = (posMax - posMin) / PDF_NUM_BINS

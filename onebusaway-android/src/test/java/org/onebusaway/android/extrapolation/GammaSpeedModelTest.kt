@@ -22,7 +22,7 @@ import org.onebusaway.android.extrapolation.math.prob.GammaDistribution
 
 class GammaSpeedModelTest {
 
-    private fun h33Dist(schedMps: Double) = buildH33SpeedDistribution(schedMps)
+    private fun h34Dist(schedMps: Double) = buildH34SpeedDistribution(schedMps)
 
     // m/s test speeds (named for readability)
     private val mps5 = 2.235 // ~5 mph
@@ -33,22 +33,22 @@ class GammaSpeedModelTest {
     private val mps40 = 17.882 // ~40 mph
     private val mps60 = 26.822 // ~60 mph
 
-    // --- buildH33SpeedDistribution ---
+    // --- buildH34SpeedDistribution ---
 
     @Test(expected = IllegalArgumentException::class)
     fun `throws when schedSpeed is zero`() {
-        h33Dist(0.0)
+        h34Dist(0.0)
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun `throws when schedSpeed is negative`() {
-        h33Dist(-1.0)
+        h34Dist(-1.0)
     }
 
     @Test
     fun `produces positive mean and median across speed range`() {
         for (sched in listOf(mps5, mps10, mps15, mps20, mps30, mps40, mps60)) {
-            val dist = h33Dist(sched)
+            val dist = h34Dist(sched)
             assertTrue("mean <= 0 at $sched m/s", dist.mean > 0)
             assertTrue("median <= 0 at $sched m/s", dist.median() > 0)
         }
@@ -56,9 +56,9 @@ class GammaSpeedModelTest {
 
     @Test
     fun `ensemble mean equals scheduled speed in mph`() {
-        // H33 is ensemble-mean-locked: mixture mean should equal v_sched in mph
+        // H34 is ensemble-mean-locked: mixture mean should equal v_sched in mph
         for (sched in listOf(mps5, mps15, mps30, mps60)) {
-            val dist = h33Dist(sched)
+            val dist = h34Dist(sched)
             val expectedMph = sched * MPS_TO_MPH
             assertEquals("mean should equal sched speed at $sched m/s",
                     expectedMph, dist.mean, expectedMph * 0.01)
@@ -67,25 +67,22 @@ class GammaSpeedModelTest {
 
     @Test
     fun `worked example at 15 mph`() {
-        // At v=15 mph (6.706 m/s), Python reference gives:
-        //   m = 0.1247, r = 0.6488, cv = 1.8429
-        //   slow: alpha1 = 0.2945, scale1 = 33.053
-        //   fast: alpha2 = 4.978, scale2 = 3.164
-        //   mixture mean = 15.0 mph
-        val dist = h33Dist(mps15)
-        assertEquals(15.0, dist.mean, 0.01)
+        // At v=15 mph (6.706 m/s), H34 with constant slow shape:
+        //   alpha1 = exp(-1.3227) ≈ 0.266, mixture mean = 15.0 mph
+        val dist = h34Dist(mps15)
+        assertEquals(15.0, dist.mean, 0.05)
     }
 
     @Test
     fun `at very low speed`() {
-        val dist = h33Dist(0.447) // ~1 mph
+        val dist = h34Dist(0.447) // ~1 mph
         assertTrue(dist.mean > 0)
         assertTrue(dist.median() > 0)
     }
 
     @Test
     fun `at highway speed`() {
-        val dist = h33Dist(mps60)
+        val dist = h34Dist(mps60)
         assertTrue(dist.mean > 0)
         assertTrue(dist.median() > 0)
     }
@@ -94,14 +91,14 @@ class GammaSpeedModelTest {
 
     @Test
     fun `pdf is zero at zero and negative`() {
-        val dist = h33Dist(mps15)
+        val dist = h34Dist(mps15)
         assertEquals(0.0, dist.pdf(0.0), 1e-12)
         assertEquals(0.0, dist.pdf(-5.0), 1e-12)
     }
 
     @Test
     fun `pdf is positive for reasonable speeds`() {
-        val dist = h33Dist(mps15)
+        val dist = h34Dist(mps15)
         // Test in mph (the distribution output is in mph)
         for (speed in listOf(5.0, 10.0, 15.0, 20.0)) {
             assertTrue("pdf should be > 0 at $speed mph", dist.pdf(speed) > 0)
@@ -110,7 +107,7 @@ class GammaSpeedModelTest {
 
     @Test
     fun `pdf integrates to approximately 1`() {
-        val dist = h33Dist(mps15)
+        val dist = h34Dist(mps15)
         val dx = 0.01
         var sum = 0.0
         var x = dx
@@ -125,27 +122,27 @@ class GammaSpeedModelTest {
 
     @Test
     fun `cdf at zero is zero`() {
-        val dist = h33Dist(mps15)
+        val dist = h34Dist(mps15)
         assertEquals(0.0, dist.cdf(0.0), 1e-12)
     }
 
     @Test
     fun `cdf approaches 1 for large values`() {
-        val dist = h33Dist(mps15)
+        val dist = h34Dist(mps15)
         assertTrue(dist.cdf(60.0) > 0.99)
         assertTrue(dist.cdf(120.0) > 0.999)
     }
 
     @Test
     fun `cdf increases from low to high speeds`() {
-        val dist = h33Dist(mps15)
+        val dist = h34Dist(mps15)
         assertTrue("cdf(5) < cdf(15)", dist.cdf(5.0) < dist.cdf(15.0))
         assertTrue("cdf(15) < cdf(30)", dist.cdf(15.0) < dist.cdf(30.0))
     }
 
     @Test
     fun `cdf at median is approximately 0_5`() {
-        val dist = h33Dist(mps15)
+        val dist = h34Dist(mps15)
         val median = dist.quantile(0.5)
         assertEquals(0.5, dist.cdf(median), 0.01)
     }
@@ -154,20 +151,20 @@ class GammaSpeedModelTest {
 
     @Test
     fun `quantile at 0 returns 0`() {
-        val dist = h33Dist(mps15)
+        val dist = h34Dist(mps15)
         assertEquals(0.0, dist.quantile(0.0), 1e-12)
     }
 
     @Test
     fun `quantile at 1 returns large value`() {
         // FrozenDistribution returns last table entry (not MAX_VALUE)
-        val dist = h33Dist(mps15)
+        val dist = h34Dist(mps15)
         assertTrue(dist.quantile(1.0) > dist.mean * 3)
     }
 
     @Test
     fun `quantile is monotonically non-decreasing`() {
-        val dist = h33Dist(mps15)
+        val dist = h34Dist(mps15)
         var prev = 0.0
         for (p in listOf(0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99)) {
             val q = dist.quantile(p)
@@ -178,7 +175,7 @@ class GammaSpeedModelTest {
 
     @Test
     fun `cdf of quantile round-trips`() {
-        val dist = h33Dist(mps15)
+        val dist = h34Dist(mps15)
         for (p in doubleArrayOf(0.10, 0.25, 0.50, 0.75, 0.90, 0.95)) {
             val q = dist.quantile(p)
             assertEquals("CDF(quantile($p)) should ~= $p", p, dist.cdf(q), 0.01)
@@ -188,7 +185,7 @@ class GammaSpeedModelTest {
     @Test
     fun `cdf of quantile round-trips across speed regimes`() {
         for (sched in listOf(mps5, mps15, mps40)) {
-            val dist = h33Dist(sched)
+            val dist = h34Dist(sched)
             val q50 = dist.quantile(0.5)
             assertEquals(
                     "round-trip failed for sched=$sched",

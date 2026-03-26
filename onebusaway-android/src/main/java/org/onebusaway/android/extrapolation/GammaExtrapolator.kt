@@ -18,29 +18,31 @@ package org.onebusaway.android.extrapolation
 import kotlin.math.exp
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.AffineTransformDistribution
-import org.onebusaway.android.extrapolation.math.prob.DiracDistribution
 import org.onebusaway.android.extrapolation.math.prob.FrozenDistribution
 import org.onebusaway.android.extrapolation.math.prob.GammaDistribution
+import org.onebusaway.android.extrapolation.math.prob.GammaMixtureDistribution
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
-import org.onebusaway.android.extrapolation.math.prob.ZeroInflatedDistribution
-import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.io.elements.speedAtDistance
 
-// Fitted parameters expressed in m/s; fit on a single day of King County Metro
-// data from early March 2026. TODO: get more data.
-private const val START_B0 = 0.9455 // s/m
-private const val END_B0 = 0.3102 // s/m
-private const val KINK = 6.087 // m/s
-private const val BLEND_WEIGHT = 0.9127 // unitless
-private const val ZERO_INFLATION_A = 0.1732 // unitless
-private const val ZERO_INFLATION_LAMBDA = 0.00462 // 1/s
+// H33 two-gamma mixture parameters, fitted on multi-span King County Metro data (in mph).
+private const val START_B0 = 0.736731   // 1/mph
+private const val END_B0 = 0.144060     // 1/mph
+private const val KINK = 21.959         // mph
+private const val R_INTERCEPT = -0.004730
+private const val R_SLOPE = 0.041241
+private const val CV_INTERCEPT = 0.588421
+private const val CV_SLOPE = 0.001527
+private const val MW_INTERCEPT = -1.735145
+private const val MW_SLOPE = -0.014205
+
+private const val MPS_TO_MPH = 2.23694
 
 /**
- * Per-trip extrapolator for bus-like routes using the gamma speed distribution model.
- * Combines schedule speed with the most recent AVL-derived speed to produce a
- * zero-inflated gamma distribution over vehicle speed, then transforms it to a
- * distribution over distance via distance = lastDist + speed * dt.
+ * Per-trip extrapolator for bus-like routes using the H33 two-gamma mixture
+ * speed distribution model. Conditioned on scheduled speed only; the slow
+ * component captures delayed/stopped vehicles while the fast component is
+ * ensemble-mean-locked to the schedule speed.
  */
 class GammaExtrapolator(
         private val tripId: String,
@@ -51,12 +53,7 @@ class GammaExtrapolator(
         const val MAX_HORIZON_MS = 15 * 60 * 1000L
     }
 
-    /**
-     * Cached speed distribution factory. Invalidated when lastFixTime changes
-     * (i.e., new AVL data arrives). The factory pre-computes the gamma quantile
-     * table once; evaluating at a new dt is O(1).
-     */
-    private var cachedFactory: Pair<Long, (Double) -> ProbDistribution>? = null
+    private var cachedDistribution: Pair<Long, ProbDistribution>? = null
 
     override fun extrapolate(queryTimeMs: Long): ProbDistribution? {
         val newestValid = dataManager.getNewestValidEntry(tripId) ?: return null
@@ -66,76 +63,68 @@ class GammaExtrapolator(
         val dtMs = queryTimeMs - lastTime
         if (dtMs < 0 || dtMs > MAX_HORIZON_MS) return null
 
-        val factory = resolveFactory(lastTime) ?: return null
-        val speedDistribution = factory(dtMs / 1000.0)
-
-        return AffineTransformDistribution(speedDistribution, lastDist, dtMs / 1000.0)
+        val speedDist = resolveDistribution(lastTime) ?: return null
+        val dtSec = dtMs / 1000.0
+        return AffineTransformDistribution(speedDist, lastDist, dtSec / MPS_TO_MPH)
     }
 
-    private fun resolveFactory(lastFixTime: Long): ((Double) -> ProbDistribution)? {
-        cachedFactory?.let { (cachedTime, factory) ->
-            if (cachedTime == lastFixTime) return factory
+    private fun resolveDistribution(lastFixTime: Long): ProbDistribution? {
+        cachedDistribution?.let { (cachedTime, dist) ->
+            if (cachedTime == lastFixTime) return dist
         }
 
-        val prevSpeed = computeAvlSpeed(dataManager.mostRecentAvlFixes(tripId).take(2).toList())
         val lastState = dataManager.getLastState(tripId) ?: return null
         val schedule = dataManager.getSchedule(tripId)
         val scheduleSpeed = schedule?.speedAtDistance(
                 lastState.scheduledDistanceAlongTrip ?: return null) ?: return null
 
-        return buildSpeedDistributionFactory(scheduleSpeed, prevSpeed).also {
-            cachedFactory = lastFixTime to it
+        return buildH33SpeedDistribution(scheduleSpeed).also {
+            cachedDistribution = lastFixTime to it
         }
     }
-
-    private fun computeAvlSpeed(fixes: List<ObaTripStatus>): Double? {
-        if (fixes.size < 2) return null
-        val (newer, older) = fixes
-        val newerDist = newer.bestDistanceAlongTrip ?: return null
-        val olderDist = older.bestDistanceAlongTrip ?: return null
-        val dtMs = newer.lastLocationUpdateTime - older.lastLocationUpdateTime
-        val dd = newerDist - olderDist
-        return if (dtMs > 0) maxOf(0.0, dd / (dtMs / 1000.0)) else null
-    }
 }
 
-// --- Gamma speed model ---
+// --- H33 two-gamma mixture speed model ---
 
 /**
- * Creates a speed distribution factory from schedule and previous observed speeds.
- * The returned function pre-computes the gamma quantile table once. Each call just
- * computes p0 from dt and wraps it — no gamma CDF math.
+ * Builds a frozen two-gamma mixture speed distribution from H33 parameters.
+ * The returned distribution is over speed in mph.
+ *
+ * @param schedSpeedMps scheduled speed in m/s (must be positive)
  */
-internal fun buildSpeedDistributionFactory(
-        schedSpeedMps: Double,
-        prevSpeedMps: Double?
-): (Double) -> ProbDistribution {
-    var vPrev = prevSpeedMps ?: 0.0
-    if (vPrev <= 0) vPrev = schedSpeedMps
+internal fun buildH33SpeedDistribution(schedSpeedMps: Double): ProbDistribution {
     require(schedSpeedMps > 0) { "schedSpeedMps must be positive" }
 
-    val vEff = schedSpeedMps * BLEND_WEIGHT + (1 - BLEND_WEIGHT) * vPrev
+    val v = schedSpeedMps * MPS_TO_MPH
 
-    // Defensive guard: should not be reachable given the require above
-    if (vEff <= 0) return { DiracDistribution(0.0) }
+    // Mixture weight
+    val m = sigmoid(MW_INTERCEPT + MW_SLOPE * v)
 
-    val b0 = beta0(vEff)
-    require(b0 > 0) { "Computed b0 must be positive" }
+    // Slow component (ratio parameterization)
+    val r = sigmoid(R_INTERCEPT + R_SLOPE * v)
+    val meanSlow = r * v
+    val cv = exp(CV_INTERCEPT + CV_SLOPE * v)
+    val cv2 = cv * cv
+    val alpha1 = 1.0 / cv2
+    val scale1 = meanSlow * cv2
 
-    val alpha = b0 * vEff
-    val scale = 1.0 / b0
-    val frozen = FrozenDistribution(GammaDistribution(alpha, scale))
+    // Fast component (ensemble-mean locked to v_sched)
+    val b0 = beta0(v)
+    val alpha2 = b0 * v
+    val c = (1.0 - m * r) / (1.0 - m)
+    val scale2 = c / b0
 
-    return { dtSec ->
-        val p0 = ZERO_INFLATION_A * exp(-ZERO_INFLATION_LAMBDA * dtSec)
-        ZeroInflatedDistribution(p0, frozen)
-    }
+    val slow = GammaDistribution(alpha1, scale1)
+    val fast = GammaDistribution(alpha2, scale2)
+    return FrozenDistribution(GammaMixtureDistribution(m, slow, fast))
 }
 
+private fun sigmoid(x: Double): Double = 1.0 / (1.0 + exp(-x))
+
 /** Piecewise linear ramp from START_B0 to END_B0, flat after KINK. */
-private fun beta0(vEff: Double): Double =
+private fun beta0(v: Double): Double =
         when {
-            vEff >= KINK -> END_B0
-            vEff <= 0 -> START_B0
-            else -> START_B0 + (END_B0 - START_B0) * (vEff / KINK)
+            v >= KINK -> END_B0
+            v <= 0 -> START_B0
+            else -> START_B0 + (END_B0 - START_B0) * (v / KINK)
         }

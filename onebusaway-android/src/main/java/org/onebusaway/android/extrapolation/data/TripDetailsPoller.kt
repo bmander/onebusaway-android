@@ -42,7 +42,7 @@ class TripDetailsPoller(
         this.tripId = tripId
         if (!active) {
             active = true
-            handler.postDelayed(runnable, intervalMs)
+            handler.post(runnable)
         }
     }
 

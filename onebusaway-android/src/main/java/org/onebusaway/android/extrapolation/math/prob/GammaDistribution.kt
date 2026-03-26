@@ -32,8 +32,7 @@ class GammaDistribution(@JvmField val alpha: Double, @JvmField val scale: Double
         require(scale > 0) { "scale must be positive, got $scale" }
     }
 
-    override val mean: Double
-        get() = alpha * scale
+    override val mean: Double = alpha * scale
 
     override fun pdf(x: Double): Double {
         if (x <= 0) return 0.0

@@ -34,6 +34,7 @@ import androidx.appcompat.widget.Toolbar
 import com.google.android.material.tabs.TabLayout
 import org.onebusaway.android.R
 import org.onebusaway.android.extrapolation.Extrapolator
+import org.onebusaway.android.extrapolation.MPS_TO_MPH
 import org.onebusaway.android.extrapolation.createExtrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
@@ -52,7 +53,6 @@ private const val PAD_V = 6
 private const val TEXT_SIZE = 12f
 private const val UI_REFRESH_MS = 1_000L
 private const val POLL_INTERVAL_MS = 30_000L
-private const val MPS_TO_MPH = 2.23694
 
 /**
  * Debug activity that displays all collected location data for a vehicle's trip

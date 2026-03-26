@@ -57,10 +57,9 @@ class GammaSpeedModelTest {
     @Test
     fun `ensemble mean equals scheduled speed in mph`() {
         // H33 is ensemble-mean-locked: mixture mean should equal v_sched in mph
-        val mpsToMph = 2.23694
         for (sched in listOf(mps5, mps15, mps30, mps60)) {
             val dist = h33Dist(sched)
-            val expectedMph = sched * mpsToMph
+            val expectedMph = sched * MPS_TO_MPH
             assertEquals("mean should equal sched speed at $sched m/s",
                     expectedMph, dist.mean, expectedMph * 0.01)
         }

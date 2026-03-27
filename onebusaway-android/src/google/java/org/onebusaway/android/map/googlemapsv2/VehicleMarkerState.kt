@@ -15,9 +15,16 @@
  */
 package org.onebusaway.android.map.googlemapsv2
 
+import android.content.Context
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
+import org.onebusaway.android.R
 import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.util.UIUtils
 
 /**
  * Consolidated per-vehicle state for a marker on the main map view.
@@ -32,4 +39,51 @@ class VehicleMarkerState(
     var isExtrapolating: Boolean = false
     var lastFixTimeMs: Long = 0
     @JvmField var animating: Boolean = false
+
+    // --- Data-received marker (per-vehicle, shown when selected + extrapolating) ---
+
+    var dataReceivedMarker: Marker? = null
+        private set
+    private var dataReceivedFixTime: Long = 0
+
+    /** True when the user has tapped this vehicle and the info window is open. */
+    @JvmField var selected: Boolean = false
+
+    fun showDataReceivedMarker(map: GoogleMap, icon: BitmapDescriptor, context: Context) {
+        removeDataReceivedMarker()
+        val loc = status.position ?: return
+        if (!status.isPredicted || status.lastLocationUpdateTime <= 0) return
+        val elapsed = System.currentTimeMillis() - status.lastLocationUpdateTime
+        dataReceivedMarker = map.addMarker(MarkerOptions()
+                .position(MapHelpV2.makeLatLng(loc))
+                .icon(icon)
+                .title(context.getString(R.string.marker_most_recent_data))
+                .snippet(UIUtils.formatElapsedTime(elapsed))
+                .anchor(0.5f, 0.5f)
+                .flat(true)
+                .zIndex(3.1f))
+        dataReceivedFixTime = status.lastLocationUpdateTime
+    }
+
+    fun updateDataReceivedMarker(newestValid: ObaTripStatus?, now: Long, animDurationMs: Int) {
+        val drm = dataReceivedMarker ?: return
+        if (newestValid == null) return
+        val fixTime = newestValid.lastLocationUpdateTime
+        if (fixTime == dataReceivedFixTime) return
+        dataReceivedFixTime = fixTime
+        val loc = newestValid.position ?: return
+        AnimationUtil.animateMarkerTo(drm, MapHelpV2.makeLatLng(loc), animDurationMs)
+        drm.snippet = UIUtils.formatElapsedTime(now - fixTime)
+    }
+
+    fun removeDataReceivedMarker() {
+        dataReceivedMarker?.remove()
+        dataReceivedMarker = null
+        dataReceivedFixTime = 0
+    }
+
+    fun destroy() {
+        marker.remove()
+        removeDataReceivedMarker()
+    }
 }

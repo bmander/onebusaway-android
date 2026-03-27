@@ -55,6 +55,7 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
     interface InfoSource {
         ObaTripStatus getStatusFromMarker(Marker marker);
         boolean isDataReceivedMarker(Marker marker);
+        boolean isExtrapolating(Marker marker);
         ObaTripsForRouteResponse getLastResponse();
     }
 
@@ -135,7 +136,10 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
         String lastUpdated = elapsedSec < 60
                 ? r.getString(R.string.vehicle_last_updated_sec, elapsedSec)
                 : r.getString(R.string.vehicle_last_updated_min_and_sec, elapsedMin, secMod60);
-        views.lastUpdatedView.setText(lastUpdated);
+        String prefix = mSource.isExtrapolating(marker)
+                ? mContext.getString(R.string.marker_estimate_from_data) + "\n"
+                : "";
+        views.lastUpdatedView.setText(prefix + lastUpdated);
 
         UIUtils.setOccupancyVisibilityAndColor(views.occupancyView, status.getOccupancyStatus(), OccupancyState.REALTIME);
         UIUtils.setOccupancyContentDescription(views.occupancyView, status.getOccupancyStatus(), OccupancyState.REALTIME);

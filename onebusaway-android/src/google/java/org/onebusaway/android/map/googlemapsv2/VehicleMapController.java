@@ -17,7 +17,6 @@ package org.onebusaway.android.map.googlemapsv2;
 
 import android.app.Activity;
 import android.location.Location;
-import android.util.Log;
 
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.model.BitmapDescriptor;
@@ -52,7 +51,6 @@ import java.util.Map;
  */
 class VehicleMapController {
 
-    private static final String TAG = "VehicleMapController";
     private static final double MAX_VEHICLE_ANIMATION_DISTANCE = 400;
     private static final float VEHICLE_MARKER_Z_INDEX = 1;
     private static final float DATA_RECEIVED_MARKER_Z_INDEX = 3.1f;
@@ -81,15 +79,12 @@ class VehicleMapController {
     // --- Populate from API response ---
 
     synchronized void populate(HashSet<String> routeIds, ObaTripsForRouteResponse response) {
-        int added = 0;
-        int updated = 0;
-        ObaTripDetails[] trips = response.getTrips();
         HashSet<String> activeTripIds = new HashSet<>();
         HashMap<String, String> vehicleToTrip = new HashMap<>();
         long now = System.currentTimeMillis();
         TripDataManager dm = TripDataManager.getInstance();
 
-        for (ObaTripDetails trip : trips) {
+        for (ObaTripDetails trip : response.getTrips()) {
             ObaTripStatus status = trip.getStatus();
             if (status == null) continue;
 
@@ -121,21 +116,15 @@ class VehicleMapController {
 
             VehicleMarkerState state = mStates.get(tripId);
             if (state == null) {
-                state = addVehicle(tripId, l, isRealtime, status, response);
-                added++;
+                addVehicle(tripId, l, isRealtime, status, response);
             } else {
                 updateVehicle(state, l, isRealtime, status, response, now);
-                updated++;
             }
             activeTripIds.add(tripId);
             fetchScheduleAndShapeIfNeeded(dm, status, activeTrip);
         }
 
-        int removed = removeInactiveMarkers(activeTripIds);
-
-        Log.d(TAG, "Added " + added + ", updated " + updated + ", removed " + removed
-                + ", total=" + mStates.size());
-        Log.d(TAG, "Icon cache: " + mIconFactory.getCacheStats());
+        removeInactiveMarkers(activeTripIds);
     }
 
     // --- Vehicle marker lifecycle ---

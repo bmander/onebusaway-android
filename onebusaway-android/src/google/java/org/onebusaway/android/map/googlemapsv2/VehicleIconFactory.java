@@ -206,10 +206,4 @@ public class VehicleIconFactory {
         return vehicleType >= 0 && vehicleType < VEHICLE_ICON_RES.length;
     }
 
-    /** Returns cache stats for logging. */
-    public String getCacheStats() {
-        return String.format("icons: size=%d hits=%d misses=%d, uncolored: size=%d hits=%d misses=%d",
-                sIconCache.size(), sIconCache.hitCount(), sIconCache.missCount(),
-                sUncoloredIcons.size(), sUncoloredIcons.hitCount(), sUncoloredIcons.missCount());
-    }
 }

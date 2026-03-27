@@ -239,10 +239,6 @@ class VehicleMapController {
                         MapHelpV2.makeLatLng(loc), mAnimateDurationMs);
             }
         }
-        if (state.dataReceivedFixTime > 0) {
-            state.dataReceivedMarker.setSnippet(
-                    UIUtils.formatElapsedTime(now - state.dataReceivedFixTime));
-        }
     }
 
     private void removeDataReceivedMarker(VehicleMarkerState state) {

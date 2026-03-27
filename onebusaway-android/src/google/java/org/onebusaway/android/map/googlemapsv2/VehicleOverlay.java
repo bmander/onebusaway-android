@@ -34,6 +34,7 @@ import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.elements.ObaElementExtensionsKt;
 import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
+import org.onebusaway.android.extrapolation.ExtrapolationResult;
 import org.onebusaway.android.extrapolation.Extrapolator;
 import org.onebusaway.android.extrapolation.ExtrapolatorKt;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
@@ -486,8 +487,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             TripDataManager.ShapeData sd = TripDataManager.getInstance()
                     .getShapeWithDistances(tripId);
             if (sd == null || sd.points.isEmpty()) return null;
-            ProbDistribution dist = getOrCreateExtrapolator(tripId).extrapolate(now);
-            if (dist == null) return null;
+            ExtrapolationResult result = getOrCreateExtrapolator(tripId).extrapolate(now);
+            if (!(result instanceof ExtrapolationResult.Success)) return null;
+            ProbDistribution dist = ((ExtrapolationResult.Success) result).getDistribution();
             if (!LocationUtils.interpolateAlongPolyline(
                     sd.points, sd.cumulativeDistances, dist.median(), mReusableLocation))
                 return null;

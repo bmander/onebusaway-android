@@ -22,7 +22,6 @@ import org.onebusaway.android.extrapolation.math.prob.FrozenDistribution
 import org.onebusaway.android.extrapolation.math.prob.GammaDistribution
 import org.onebusaway.android.extrapolation.math.prob.GammaMixtureDistribution
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
-import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.io.elements.speedAtDistance
 
 // H34 two-gamma mixture parameters, fitted on span-weighted King County Metro data (in mph).
@@ -44,27 +43,17 @@ internal const val MPS_TO_MPH = 2.23694
  * component is ensemble-mean-locked to the schedule speed.
  */
 class GammaExtrapolator(
-        private val tripId: String,
-        private val dataManager: TripDataManager
-) : Extrapolator {
-
-    companion object {
-        const val MAX_HORIZON_MS = 15 * 60 * 1000L
-    }
+        tripId: String,
+        dataManager: TripDataManager
+) : Extrapolator(tripId, dataManager) {
 
     private var cachedDistribution: Pair<Long, ProbDistribution>? = null
 
-    override fun extrapolate(queryTimeMs: Long): ProbDistribution? {
-        val newestValid = dataManager.getNewestValidEntry(tripId) ?: return null
-        val lastDist = newestValid.bestDistanceAlongTrip ?: return null
-        val lastTime = newestValid.lastLocationUpdateTime
-        if (lastTime <= 0) return null
-        val dtMs = queryTimeMs - lastTime
-        if (dtMs < 0 || dtMs > MAX_HORIZON_MS) return null
-
-        val speedDist = resolveDistribution(lastTime) ?: return null
-        val dtSec = dtMs / 1000.0
-        return AffineTransformDistribution(speedDist, lastDist, dtSec / MPS_TO_MPH)
+    override fun doExtrapolate(lastDist: Double, dtSec: Double, lastFixTimeMs: Long): ExtrapolationResult {
+        val speedDist = resolveDistribution(lastFixTimeMs)
+                ?: return ExtrapolationResult.MissingSchedule
+        return ExtrapolationResult.Success(
+                AffineTransformDistribution(speedDist, lastDist, dtSec / MPS_TO_MPH))
     }
 
     private fun resolveDistribution(lastFixTime: Long): ProbDistribution? {

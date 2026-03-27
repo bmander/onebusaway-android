@@ -33,6 +33,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import com.google.android.material.tabs.TabLayout
 import org.onebusaway.android.R
+import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.MPS_TO_MPH
 import org.onebusaway.android.extrapolation.createExtrapolator
@@ -200,7 +201,8 @@ class VehicleLocationDataActivity : AppCompatActivity() {
             if (extrapolator == null) {
                 extrapolator = createExtrapolator(tripId)
             }
-            extrapolator?.extrapolate(System.currentTimeMillis())
+            (extrapolator?.extrapolate(System.currentTimeMillis())
+                    as? ExtrapolationResult.Success)?.distribution
         } else null
         graphView.setData(history, schedule, serviceDate, distribution)
     }

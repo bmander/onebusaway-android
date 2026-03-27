@@ -15,14 +15,16 @@
  */
 package org.onebusaway.android.extrapolation.data
 
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 
 /**
- * Polls the trip-details API on a background thread at a fixed interval,
+ * Polls the trip-details API at a fixed interval on a single background thread,
  * recording responses into [TripDataManager]. Start/stop with lifecycle.
  */
 class TripDetailsPoller(
@@ -33,45 +35,34 @@ class TripDetailsPoller(
         private const val DEFAULT_INTERVAL_MS = 10_000L
     }
 
-    private val handler = Handler(Looper.getMainLooper())
-    @Volatile private var active = false
+    private val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+    private var future: ScheduledFuture<*>? = null
     private var tripId: String? = null
-    private val runnable = Runnable { poll() }
 
     fun start(tripId: String) {
         this.tripId = tripId
-        if (!active) {
-            active = true
-            handler.post(runnable)
+        if (future == null) {
+            future = executor.scheduleWithFixedDelay(::poll, 0, intervalMs, TimeUnit.MILLISECONDS)
         }
     }
 
     fun stop() {
-        active = false
-        handler.removeCallbacks(runnable)
+        future?.cancel(false)
+        future = null
     }
 
     private fun poll() {
-        if (!active) return
         val tid = tripId ?: return
-
-        Thread {
-            try {
-                val ctx = Application.get().applicationContext
-                val response = ObaTripDetailsRequest.newRequest(ctx, tid).call()
-                if (response != null) {
-                    TripDataManager.recordTripDetailsResponse(tid, response)
-                } else {
-                    Log.d(TAG, "Null response polling trip details for $tid")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to poll trip details for $tid", e)
+        try {
+            val ctx = Application.get().applicationContext
+            val response = ObaTripDetailsRequest.newRequest(ctx, tid).call()
+            if (response != null) {
+                TripDataManager.recordTripDetailsResponse(tid, response)
+            } else {
+                Log.d(TAG, "Null response polling trip details for $tid")
             }
-            handler.post {
-                if (active) {
-                    handler.postDelayed(runnable, intervalMs)
-                }
-            }
-        }.start()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to poll trip details for $tid", e)
+        }
     }
 }

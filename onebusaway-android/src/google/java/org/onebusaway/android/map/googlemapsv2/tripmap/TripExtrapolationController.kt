@@ -78,6 +78,7 @@ internal constructor(
             }
             renderer.updateEstimateOverlays(distribution)
         } else {
+            renderer.hideVehicleMarker()
             renderer.hideEstimateOverlays()
         }
 

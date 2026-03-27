@@ -225,6 +225,10 @@ class TripMapRenderer internal constructor(
 
     // --- Vehicle marker ---
 
+    fun hideVehicleMarker() {
+        vehicleMarker?.isVisible = false
+    }
+
     fun updateVehiclePosition(location: Location?, newestValid: ObaTripStatus?, now: Long) {
         if (location == null) return
 
@@ -240,6 +244,8 @@ class TripMapRenderer internal constructor(
                     .zIndex(MARKER_Z_INDEX))
             return
         }
+
+        marker.isVisible = true
 
         val target = MapHelpV2.makeLatLng(location)
         val fixTime = newestValid?.lastLocationUpdateTime ?: 0L

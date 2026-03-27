@@ -438,9 +438,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             deselectAll();
             state.selected = true;
             state.getMarker().showInfoWindow();
-            if (state.isExtrapolating()) {
-                state.showDataReceivedMarker(map, icon, activity);
-            }
+            state.showDataReceivedMarker(map, icon, activity);
         }
 
         synchronized void deselectAll() {
@@ -472,11 +470,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     } else {
                         setPositionIfNotAnimating(state, target);
                     }
-                    if (state.selected) {
-                        state.updateDataReceivedMarker(newestValid, now, ANIMATE_DURATION_MS);
-                    }
                 } else {
-                    state.removeDataReceivedMarker();
                     ObaTripStatus lastState = dm.getLastState(state.getTripId());
                     if (lastState != null) {
                         Location loc = lastState.getLastKnownLocation();
@@ -485,6 +479,13 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                             state.getMarker().setPosition(MapHelpV2.makeLatLng(loc));
                         }
                     }
+                }
+                // Update data-received marker for selected vehicles regardless of
+                // extrapolation success — the marker shows where the last real GPS
+                // fix was, which is useful even when extrapolation has failed.
+                if (state.selected) {
+                    ObaTripStatus newestValid = dm.getNewestValidEntry(state.getTripId());
+                    state.updateDataReceivedMarker(newestValid, now, ANIMATE_DURATION_MS);
                 }
             }
         }

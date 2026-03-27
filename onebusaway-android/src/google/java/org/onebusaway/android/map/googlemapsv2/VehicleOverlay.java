@@ -186,7 +186,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         long now = System.currentTimeMillis();
         if (now - mLastFrameTimeMs >= FRAME_INTERVAL_MS) {
             mLastFrameTimeMs = now;
-            mMarkerData.extrapolatePositions(now);
+            mMarkerData.updatePositions(now);
         }
         Choreographer.getInstance().postFrameCallback(mFrameCallback);
     }
@@ -442,23 +442,34 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
         // --- Extrapolation ---
 
-        synchronized void extrapolatePositions(long now) {
+        synchronized void updatePositions(long now) {
             if (mVehicleMarkers == null || mVehicleMarkers.isEmpty()) return;
 
             TripDataManager dm = TripDataManager.getInstance();
 
             for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
                 String tripId = entry.getKey();
-                LatLng target = computeExtrapolatedPosition(tripId, now);
-                if (target == null) continue;
-
                 Marker marker = entry.getValue();
-                ObaTripStatus newestValid = dm.getNewestValidEntry(tripId);
-                if (detectFreshAvlData(tripId, newestValid)) {
-                    startTransitionAnimation(tripId, marker, target, now);
-                    updateDataReceivedMarkerIfNeeded(tripId, newestValid, now);
+                LatLng target = computeExtrapolatedPosition(tripId, now);
+
+                if (target != null) {
+                    ObaTripStatus newestValid = dm.getNewestValidEntry(tripId);
+                    if (detectFreshAvlData(tripId, newestValid)) {
+                        startTransitionAnimation(tripId, marker, target, now);
+                        updateDataReceivedMarkerIfNeeded(tripId, newestValid, now);
+                    } else {
+                        setPositionIfNotAnimating(tripId, marker, target, now);
+                    }
                 } else {
-                    setPositionIfNotAnimating(tripId, marker, target, now);
+                    // Cannot extrapolate — show last API position, non-moving
+                    ObaTripStatus lastState = dm.getLastState(tripId);
+                    if (lastState != null) {
+                        Location loc = lastState.getLastKnownLocation();
+                        if (loc == null) loc = lastState.getPosition();
+                        if (loc != null) {
+                            marker.setPosition(MapHelpV2.makeLatLng(loc));
+                        }
+                    }
                 }
             }
         }

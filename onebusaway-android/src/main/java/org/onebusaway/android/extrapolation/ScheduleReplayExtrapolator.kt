@@ -19,28 +19,22 @@ import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.DiracDistribution
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.elements.ObaTripSchedule
-import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 
 /**
  * Per-trip extrapolator for grade-separated transit (rail, subway) that replays the schedule
  * trajectory forward from the vehicle's current position, including dwell times at stops.
  */
 class ScheduleReplayExtrapolator(
-        private val tripId: String,
-        private val dataManager: TripDataManager
-) : Extrapolator {
+        tripId: String,
+        dataManager: TripDataManager
+) : Extrapolator(tripId, dataManager) {
 
-    override fun extrapolate(queryTimeMs: Long): ProbDistribution? {
-        val newestValid = dataManager.getNewestValidEntry(tripId) ?: return null
-        val lastDist = newestValid.bestDistanceAlongTrip ?: return null
-        val lastTime = newestValid.lastLocationUpdateTime
-        if (lastTime <= 0) return null
-        val dtSec = (queryTimeMs - lastTime) / 1000.0
-        if (dtSec < 0) return null
-
-        val schedule = dataManager.getSchedule(tripId) ?: return null
-        val distance = replaySchedule(schedule, lastDist, dtSec) ?: return null
-        return DiracDistribution(distance)
+    override fun doExtrapolate(lastDist: Double, dtSec: Double, lastFixTimeMs: Long): ExtrapolationResult {
+        val schedule = dataManager.getSchedule(tripId)
+                ?: return ExtrapolationResult.MissingSchedule
+        val distance = replaySchedule(schedule, lastDist, dtSec)
+                ?: return ExtrapolationResult.MissingSchedule
+        return ExtrapolationResult.Success(DiracDistribution(distance))
     }
 }
 

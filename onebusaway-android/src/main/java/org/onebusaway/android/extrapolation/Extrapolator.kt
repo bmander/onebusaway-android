@@ -18,20 +18,62 @@ package org.onebusaway.android.extrapolation
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.elements.ObaRoute
+import org.onebusaway.android.io.elements.bestDistanceAlongTrip
+
+private const val MAX_HORIZON_MS = 15 * 60 * 1000L
+private const val PRE_DEPARTURE_DISTANCE_THRESHOLD = 50.0 // meters
+
+/** Result of an extrapolation attempt. */
+sealed class ExtrapolationResult {
+    /** Extrapolation succeeded. */
+    class Success(val distribution: ProbDistribution) : ExtrapolationResult()
+    /** No valid vehicle data exists for the trip. */
+    object NoData : ExtrapolationResult()
+    /** Vehicle data is older than the extrapolation horizon. */
+    object Stale : ExtrapolationResult()
+    /** Vehicle is at the trip start before scheduled departure. */
+    object BeforeDeparture : ExtrapolationResult()
+    /** Required schedule data is missing. */
+    object MissingSchedule : ExtrapolationResult()
+}
 
 /**
  * Extrapolates a vehicle's position along a trip, returning a distribution over
  * distance along the trip. Each instance is bound to a specific trip.
+ *
+ * Subclasses implement [doExtrapolate] with their model-specific logic.
+ * The base class handles common validation: fetching the newest valid entry,
+ * checking time bounds, and suppressing extrapolation before trip departure.
  */
-interface Extrapolator {
+abstract class Extrapolator(
+        protected val tripId: String,
+        protected val dataManager: TripDataManager
+) {
 
-    /**
-     * Computes a distribution over extrapolated distance along the trip at [queryTimeMs].
-     *
-     * @param queryTimeMs the wall-clock time to extrapolate to
-     * @return a [ProbDistribution] over distance (meters), or null if extrapolation is not possible
-     */
-    fun extrapolate(queryTimeMs: Long): ProbDistribution?
+    fun extrapolate(queryTimeMs: Long): ExtrapolationResult {
+        val newestValid = dataManager.getNewestValidEntry(tripId)
+                ?: return ExtrapolationResult.NoData
+        val lastDist = newestValid.bestDistanceAlongTrip
+                ?: return ExtrapolationResult.NoData
+        val lastTime = newestValid.lastLocationUpdateTime
+        if (lastTime <= 0) return ExtrapolationResult.NoData
+        val dtMs = queryTimeMs - lastTime
+        if (dtMs < 0 || dtMs > MAX_HORIZON_MS) return ExtrapolationResult.Stale
+        if (isBeforeDeparture(lastDist, queryTimeMs)) return ExtrapolationResult.BeforeDeparture
+
+        return doExtrapolate(lastDist, dtMs / 1000.0, lastTime)
+    }
+
+    protected abstract fun doExtrapolate(lastDist: Double, dtSec: Double, lastFixTimeMs: Long): ExtrapolationResult
+
+    private fun isBeforeDeparture(distanceAlongTrip: Double, queryTimeMs: Long): Boolean {
+        if (distanceAlongTrip > PRE_DEPARTURE_DISTANCE_THRESHOLD) return false
+        val stops = dataManager.getSchedule(tripId)?.stopTimes ?: return false
+        if (stops.isEmpty()) return false
+        val serviceDate = dataManager.getServiceDate(tripId) ?: return false
+        if (serviceDate <= 0) return false
+        return queryTimeMs < serviceDate + stops[0].departureTime * 1000
+    }
 }
 
 /** Creates the appropriate [Extrapolator] for a trip based on its route type. */

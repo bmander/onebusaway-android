@@ -88,6 +88,7 @@ import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.nav.NavigationService;
+import org.onebusaway.android.extrapolation.ExtrapolationResult;
 import org.onebusaway.android.extrapolation.Extrapolator;
 import org.onebusaway.android.extrapolation.ExtrapolatorKt;
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
@@ -557,13 +558,13 @@ public class TripDetailsListFragment extends ListFragment {
         if (mExtrapolator == null) {
             mExtrapolator = ExtrapolatorKt.createExtrapolator(activeTripId, dm);
         }
-        ProbDistribution distribution = mExtrapolator.extrapolate(System.currentTimeMillis());
-        if (distribution == null) {
+        ExtrapolationResult result = mExtrapolator.extrapolate(System.currentTimeMillis());
+        if (!(result instanceof ExtrapolationResult.Success)) {
             mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
             return;
         }
 
-        Double extrapolatedDist = distribution.median();
+        Double extrapolatedDist = ((ExtrapolationResult.Success) result).getDistribution().median();
         if (extrapolatedDist == null) {
             mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
             return;

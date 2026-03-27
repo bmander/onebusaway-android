@@ -17,6 +17,7 @@ package org.onebusaway.android.map.googlemapsv2.tripmap
 
 import android.location.Location
 import android.view.Choreographer
+import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.util.LocationUtils
@@ -67,19 +68,23 @@ internal constructor(
 
     private fun doFrame(now: Long) {
         val shapeData = TripDataManager.getShapeWithDistances(tripId) ?: return
-        val distribution = extrapolator.extrapolate(now)
+        val result = extrapolator.extrapolate(now)
 
-        if (distribution != null) {
-            if (LocationUtils.interpolateAlongPolyline(
-                            shapeData.points, shapeData.cumulativeDistances,
-                            distribution.median(), reusableLocation)) {
-                val newestValid = TripDataManager.getNewestValidEntry(tripId)
-                renderer.updateVehiclePosition(reusableLocation, newestValid, now)
+        when (result) {
+            is ExtrapolationResult.Success -> {
+                val distribution = result.distribution
+                if (LocationUtils.interpolateAlongPolyline(
+                                shapeData.points, shapeData.cumulativeDistances,
+                                distribution.median(), reusableLocation)) {
+                    val newestValid = TripDataManager.getNewestValidEntry(tripId)
+                    renderer.updateVehiclePosition(reusableLocation, newestValid, now)
+                }
+                renderer.updateEstimateOverlays(distribution)
             }
-            renderer.updateEstimateOverlays(distribution)
-        } else {
-            renderer.hideVehicleMarker()
-            renderer.hideEstimateOverlays()
+            else -> {
+                renderer.hideVehicleMarker()
+                renderer.hideEstimateOverlays()
+            }
         }
 
         TripDataManager.getLastState(tripId)?.let {

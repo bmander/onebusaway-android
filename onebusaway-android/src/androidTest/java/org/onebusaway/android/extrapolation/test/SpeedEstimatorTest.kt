@@ -25,6 +25,7 @@ import junit.framework.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.GammaExtrapolator
 import org.onebusaway.android.io.elements.Occupancy
@@ -276,13 +277,14 @@ class SpeedEstimatorTest {
         dm.recordStatus(status1)
         dm.recordStatus(status2)
 
-        val dist = extrapolator.extrapolate(queryTime + 5000)
-        assertNotNull(dist)
-        assertTrue("Median distance should be > last distance", dist!!.median() > 400.0)
+        val result = extrapolator.extrapolate(queryTime + 5000)
+        assertTrue("Should succeed", result is ExtrapolationResult.Success)
+        val dist = (result as ExtrapolationResult.Success).distribution
+        assertTrue("Median distance should be > last distance", dist.median() > 400.0)
     }
 
     @Test
-    fun testGammaExtrapolator_noScheduleReturnsNull() {
+    fun testGammaExtrapolator_noScheduleReturnsMissingSchedule() {
         val extrapolator = GammaExtrapolator("trip1", dm)
         val timestamp = 1000L
 
@@ -291,8 +293,8 @@ class SpeedEstimatorTest {
         )
         dm.recordStatus(status)
 
-        val dist = extrapolator.extrapolate(timestamp)
-        assertNull(dist)
+        val result = extrapolator.extrapolate(timestamp)
+        assertTrue("Should be MissingSchedule", result is ExtrapolationResult.MissingSchedule)
     }
 
 
@@ -334,9 +336,10 @@ class SpeedEstimatorTest {
 
         dm.recordStatus(latestStatus)
         val extrapolator = GammaExtrapolator("trip1", dm)
-        val dist = extrapolator.extrapolate(latestTimestamp)
-        assertNotNull(dist)
-        assertTrue("Extrapolated distance should be positive", dist!!.median() > 0)
+        val result = extrapolator.extrapolate(latestTimestamp)
+        assertTrue("Should succeed", result is ExtrapolationResult.Success)
+        val dist = (result as ExtrapolationResult.Success).distribution
+        assertTrue("Extrapolated distance should be positive", dist.median() > 0)
     }
 
     // --- Helper methods ---

@@ -9,6 +9,8 @@ package org.onebusaway.android.map.googlemapsv2;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.animation.TypeEvaluator;
 import android.util.Property;
@@ -23,7 +25,8 @@ public class AnimationUtil {
     /**
      * Animates a marker from its current position to the provided finalPosition.
      */
-    public static void animateMarkerTo(Marker marker, LatLng finalPosition, int durationMs) {
+    public static void animateMarkerTo(Marker marker, LatLng finalPosition, int durationMs,
+                                        Runnable onComplete) {
         TypeEvaluator<LatLng> typeEvaluator = (fraction, a, b) -> {
             double lat = (b.latitude - a.latitude) * fraction + a.latitude;
             double lngDelta = b.longitude - a.longitude;
@@ -37,10 +40,19 @@ public class AnimationUtil {
         ObjectAnimator animator = ObjectAnimator
                 .ofObject(marker, property, typeEvaluator, finalPosition);
         animator.setDuration(durationMs);
+        if (onComplete != null) {
+            animator.addListener(new AnimatorListenerAdapter() {
+                @Override public void onAnimationEnd(Animator animation) { onComplete.run(); }
+            });
+        }
         animator.start();
     }
 
+    public static void animateMarkerTo(Marker marker, LatLng finalPosition, int durationMs) {
+        animateMarkerTo(marker, finalPosition, durationMs, null);
+    }
+
     public static void animateMarkerTo(Marker marker, LatLng finalPosition) {
-        animateMarkerTo(marker, finalPosition, DEFAULT_DURATION_MS);
+        animateMarkerTo(marker, finalPosition, DEFAULT_DURATION_MS, null);
     }
 }

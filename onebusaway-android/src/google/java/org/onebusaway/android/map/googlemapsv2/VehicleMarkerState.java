@@ -121,12 +121,17 @@ class VehicleMarkerState {
     void updateDataReceivedMarker(ObaTripStatus newestValid, long now, int animDurationMs) {
         if (mDataReceivedMarker == null || newestValid == null) return;
         long fixTime = newestValid.getLastLocationUpdateTime();
-        if (fixTime == mDataReceivedFixTime) return;
-        mDataReceivedFixTime = fixTime;
-        Location loc = newestValid.getPosition();
-        if (loc == null) return;
-        AnimationUtil.animateMarkerTo(mDataReceivedMarker, MapHelpV2.makeLatLng(loc), animDurationMs);
-        mDataReceivedMarker.setSnippet(UIUtils.formatElapsedTime(now - fixTime));
+        if (fixTime != mDataReceivedFixTime) {
+            mDataReceivedFixTime = fixTime;
+            Location loc = newestValid.getPosition();
+            if (loc != null) {
+                AnimationUtil.animateMarkerTo(mDataReceivedMarker, MapHelpV2.makeLatLng(loc), animDurationMs);
+            }
+        }
+        // Always refresh the elapsed-time snippet so it stays current
+        if (mDataReceivedFixTime > 0) {
+            mDataReceivedMarker.setSnippet(UIUtils.formatElapsedTime(now - mDataReceivedFixTime));
+        }
     }
 
     void removeDataReceivedMarker() {

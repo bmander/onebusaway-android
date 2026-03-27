@@ -38,7 +38,6 @@ import org.onebusaway.android.extrapolation.ExtrapolationResult;
 import org.onebusaway.android.extrapolation.Extrapolator;
 import org.onebusaway.android.extrapolation.ExtrapolatorKt;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
-import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.ui.TripDetailsActivity;
 import org.onebusaway.android.ui.TripDetailsListFragment;
@@ -102,6 +101,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     @Override
                     public boolean isDataReceivedMarker(Marker marker) {
                         return marker.equals(mDataReceivedMarker);
+                    }
+
+                    @Override
+                    public boolean isExtrapolating(Marker marker) {
+                        return mMarkerData != null && mMarkerData.isExtrapolating(marker);
                     }
 
                     @Override
@@ -290,25 +294,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
     class MarkerData {
 
-        private HashMap<Marker, ObaTripStatus> mVehicles;
-        private HashMap<String, Marker> mVehicleMarkers;
-        private static final int INITIAL_HASHMAP_SIZE = 5;
+        private HashMap<String, VehicleMarkerState> mStates = new HashMap<>();
+        private HashMap<Marker, VehicleMarkerState> mMarkerToState = new HashMap<>();
 
         /** Reusable Location to avoid per-frame allocation in extrapolation. */
         private final Location mReusableLocation = new Location("extrapolated");
-
-        /** Per-trip extrapolator instances. */
-        private final HashMap<String, Extrapolator> mExtrapolators = new HashMap<>();
-
-        /** Tracks last AVL fix time per trip to detect fresh data. */
-        private final HashMap<String, Long> mLastFixTimes = new HashMap<>();
-        /** Tracks when an animation was started, to avoid overriding it with setPosition. */
-        private final HashMap<String, Long> mAnimatingUntil = new HashMap<>();
-
-        MarkerData() {
-            mVehicles = new HashMap<>(INITIAL_HASHMAP_SIZE);
-            mVehicleMarkers = new HashMap<>(INITIAL_HASHMAP_SIZE);
-        }
 
         synchronized void populate(HashSet<String> routeIds, ObaTripsForRouteResponse response) {
             int added = 0;
@@ -337,22 +327,23 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 boolean isRealtime = ObaElementExtensionsKt.isLocationRealtime(status)
                         || ObaElementExtensionsKt.isRealtimeSpeedEstimable(status, now);
 
-                Marker m = mVehicleMarkers.get(status.getActiveTripId());
-                if (m == null) {
-                    addMarkerToMap(l, isRealtime, status, response);
+                String tripId = status.getActiveTripId();
+                VehicleMarkerState state = mStates.get(tripId);
+                if (state == null) {
+                    state = addMarkerToMap(tripId, l, isRealtime, status, response);
                     added++;
                 } else {
-                    updateMarker(m, l, isRealtime, status, response, now);
+                    updateMarker(state, l, isRealtime, status, response, now);
                     updated++;
                 }
-                activeTripIds.add(status.getActiveTripId());
+                activeTripIds.add(tripId);
                 fetchScheduleAndShapeIfNeeded(dm, status, activeTrip);
             }
 
             int removed = removeInactiveMarkers(activeTripIds);
 
             Log.d(TAG, "Added " + added + ", updated " + updated + ", removed " + removed
-                    + ", total=" + mVehicleMarkers.size());
+                    + ", total=" + mStates.size());
             Log.d(TAG, "Icon cache: " + mIconFactory.getCacheStats());
         }
 
@@ -379,28 +370,32 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             }
         }
 
-        private void addMarkerToMap(Location l, boolean isRealtime, ObaTripStatus status,
-                                    ObaTripsForRouteResponse response) {
+        private VehicleMarkerState addMarkerToMap(String tripId, Location l, boolean isRealtime,
+                                                   ObaTripStatus status,
+                                                   ObaTripsForRouteResponse response) {
             Marker m = mMap.addMarker(new MarkerOptions()
                     .position(MapHelpV2.makeLatLng(l))
                     .title(status.getVehicleId())
                     .icon(mIconFactory.getVehicleIcon(isRealtime, status, response))
             );
             ProprietaryMapHelpV2.setZIndex(m, VEHICLE_MARKER_Z_INDEX);
-            mVehicleMarkers.put(status.getActiveTripId(), m);
-            mVehicles.put(m, status);
+            VehicleMarkerState state = new VehicleMarkerState(tripId, m, status);
+            mStates.put(tripId, state);
+            mMarkerToState.put(m, state);
+            return state;
         }
 
-        private void updateMarker(Marker m, Location l, boolean isRealtime, ObaTripStatus status,
-                                  ObaTripsForRouteResponse response, long now) {
+        private void updateMarker(VehicleMarkerState state, Location l, boolean isRealtime,
+                                  ObaTripStatus status, ObaTripsForRouteResponse response,
+                                  long now) {
+            Marker m = state.getMarker();
             boolean showInfo = m.isInfoWindowShown();
             m.setIcon(mIconFactory.getVehicleIcon(isRealtime, status, response));
-            mVehicles.put(m, status);
+            state.setStatus(status);
 
-            String tripId = status.getActiveTripId();
+            String tripId = state.getTripId();
             TripDataManager dm = TripDataManager.getInstance();
-            if (tripId == null || dm.getShape(tripId) == null
-                    || dm.getNewestValidEntry(tripId) == null) {
+            if (dm.getShape(tripId) == null || dm.getNewestValidEntry(tripId) == null) {
                 Location markerLoc = MapHelpV2.makeLocation(m.getPosition());
                 if (l.distanceTo(markerLoc) < MAX_VEHICLE_ANIMATION_DISTANCE) {
                     AnimationUtil.animateMarkerTo(m, MapHelpV2.makeLatLng(l));
@@ -415,17 +410,13 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
         private int removeInactiveMarkers(HashSet<String> activeTripIds) {
             int removed = 0;
-            Iterator<Map.Entry<String, Marker>> iterator = mVehicleMarkers.entrySet().iterator();
+            Iterator<Map.Entry<String, VehicleMarkerState>> iterator =
+                    mStates.entrySet().iterator();
             while (iterator.hasNext()) {
-                Map.Entry<String, Marker> entry = iterator.next();
-                String tripId = entry.getKey();
-                Marker m = entry.getValue();
-                if (!activeTripIds.contains(tripId)) {
-                    m.remove();
-                    mVehicles.remove(m);
-                    mLastFixTimes.remove(tripId);
-                    mAnimatingUntil.remove(tripId);
-                    mExtrapolators.remove(tripId);
+                VehicleMarkerState state = iterator.next().getValue();
+                if (!activeTripIds.contains(state.getTripId())) {
+                    state.getMarker().remove();
+                    mMarkerToState.remove(state.getMarker());
                     iterator.remove();
                     removed++;
                 }
@@ -434,115 +425,115 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         }
 
         synchronized Marker getMarkerForTrip(String tripId) {
-            return mVehicleMarkers.get(tripId);
+            VehicleMarkerState state = mStates.get(tripId);
+            return state != null ? state.getMarker() : null;
         }
 
         synchronized ObaTripStatus getStatusFromMarker(Marker marker) {
-            return mVehicles.get(marker);
+            VehicleMarkerState state = mMarkerToState.get(marker);
+            return state != null ? state.getStatus() : null;
         }
 
-        // --- Extrapolation ---
+        synchronized boolean isExtrapolating(Marker marker) {
+            VehicleMarkerState state = mMarkerToState.get(marker);
+            return state != null && state.isExtrapolating();
+        }
+
+        // --- Per-frame position updates ---
 
         synchronized void updatePositions(long now) {
-            if (mVehicleMarkers == null || mVehicleMarkers.isEmpty()) return;
+            if (mStates.isEmpty()) return;
 
             TripDataManager dm = TripDataManager.getInstance();
 
-            for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
-                String tripId = entry.getKey();
-                Marker marker = entry.getValue();
-                LatLng target = computeExtrapolatedPosition(tripId, now);
+            for (VehicleMarkerState state : mStates.values()) {
+                ExtrapolationResult result = getOrCreateExtrapolator(state).extrapolate(now);
+                state.setExtrapolating(result instanceof ExtrapolationResult.Success);
+
+                LatLng target = (result instanceof ExtrapolationResult.Success)
+                        ? mapToPolyline(state, (ExtrapolationResult.Success) result) : null;
 
                 if (target != null) {
-                    ObaTripStatus newestValid = dm.getNewestValidEntry(tripId);
-                    if (detectFreshAvlData(tripId, newestValid)) {
-                        startTransitionAnimation(tripId, marker, target, now);
-                        updateDataReceivedMarkerIfNeeded(tripId, newestValid, now);
+                    ObaTripStatus newestValid = dm.getNewestValidEntry(state.getTripId());
+                    if (detectFreshAvlData(state, newestValid)) {
+                        startTransitionAnimation(state, target, now);
+                        updateDataReceivedMarkerIfNeeded(state.getTripId(), newestValid, now);
                     } else {
-                        setPositionIfNotAnimating(tripId, marker, target, now);
+                        setPositionIfNotAnimating(state, target, now);
                     }
                 } else {
-                    // Cannot extrapolate — show last API position, non-moving
-                    ObaTripStatus lastState = dm.getLastState(tripId);
+                    ObaTripStatus lastState = dm.getLastState(state.getTripId());
                     if (lastState != null) {
                         Location loc = lastState.getLastKnownLocation();
                         if (loc == null) loc = lastState.getPosition();
                         if (loc != null) {
-                            marker.setPosition(MapHelpV2.makeLatLng(loc));
+                            state.getMarker().setPosition(MapHelpV2.makeLatLng(loc));
                         }
                     }
                 }
             }
         }
 
-        private Extrapolator getOrCreateExtrapolator(String tripId) {
-            Extrapolator ext = mExtrapolators.get(tripId);
+        private Extrapolator getOrCreateExtrapolator(VehicleMarkerState state) {
+            Extrapolator ext = state.getExtrapolator();
             if (ext != null) return ext;
-            ext = ExtrapolatorKt.createExtrapolator(tripId, TripDataManager.getInstance());
-            mExtrapolators.put(tripId, ext);
+            ext = ExtrapolatorKt.createExtrapolator(state.getTripId(),
+                    TripDataManager.getInstance());
+            state.setExtrapolator(ext);
             return ext;
         }
 
-        private LatLng computeExtrapolatedPosition(String tripId, long now) {
+        private LatLng mapToPolyline(VehicleMarkerState state,
+                                      ExtrapolationResult.Success result) {
             TripDataManager.ShapeData sd = TripDataManager.getInstance()
-                    .getShapeWithDistances(tripId);
+                    .getShapeWithDistances(state.getTripId());
             if (sd == null || sd.points.isEmpty()) return null;
-            ExtrapolationResult result = getOrCreateExtrapolator(tripId).extrapolate(now);
-            if (!(result instanceof ExtrapolationResult.Success)) return null;
-            ProbDistribution dist = ((ExtrapolationResult.Success) result).getDistribution();
             if (!LocationUtils.interpolateAlongPolyline(
-                    sd.points, sd.cumulativeDistances, dist.median(), mReusableLocation))
+                    sd.points, sd.cumulativeDistances,
+                    result.getDistribution().median(), mReusableLocation))
                 return null;
             return new LatLng(mReusableLocation.getLatitude(), mReusableLocation.getLongitude());
         }
 
-        private boolean detectFreshAvlData(String tripId, ObaTripStatus newest) {
+        private boolean detectFreshAvlData(VehicleMarkerState state, ObaTripStatus newest) {
             long fixTime = newest != null ? newest.getLastLocationUpdateTime() : 0;
-            Long prevFixTime = mLastFixTimes.put(tripId, fixTime);
-            return prevFixTime != null && fixTime != prevFixTime;
+            long prev = state.getLastFixTimeMs();
+            state.setLastFixTimeMs(fixTime);
+            return prev != 0 && fixTime != prev;
         }
 
-        private void startTransitionAnimation(String tripId, Marker marker,
+        private void startTransitionAnimation(VehicleMarkerState state,
                                                LatLng target, long now) {
+            Marker marker = state.getMarker();
             if (marker.getPosition() != null) {
                 AnimationUtil.animateMarkerTo(marker, target, ANIMATE_DURATION_MS);
             } else {
                 marker.setPosition(target);
             }
-            mAnimatingUntil.put(tripId, now + ANIMATE_DURATION_MS);
+            state.setAnimatingUntilMs(now + ANIMATE_DURATION_MS);
         }
 
-        private void setPositionIfNotAnimating(String tripId, Marker marker,
+        private void setPositionIfNotAnimating(VehicleMarkerState state,
                                                 LatLng target, long now) {
-            Long animEnd = mAnimatingUntil.get(tripId);
-            if (animEnd == null || now >= animEnd) {
-                LatLng current = marker.getPosition();
+            if (now >= state.getAnimatingUntilMs()) {
+                LatLng current = state.getMarker().getPosition();
                 if (current == null || current.latitude != target.latitude
                         || current.longitude != target.longitude) {
-                    marker.setPosition(target);
+                    state.getMarker().setPosition(target);
                 }
             }
         }
 
         synchronized void clear() {
-            if (mVehicleMarkers != null) {
-                for (Map.Entry<String, Marker> entry : mVehicleMarkers.entrySet()) {
-                    entry.getValue().remove();
-                }
-                mVehicleMarkers.clear();
-                mVehicleMarkers = null;
+            for (VehicleMarkerState state : mStates.values()) {
+                state.getMarker().remove();
             }
-            if (mVehicles != null) {
-                mVehicles.clear();
-                mVehicles = null;
-            }
-            mLastFixTimes.clear();
-            mAnimatingUntil.clear();
-            mExtrapolators.clear();
+            mStates.clear();
+            mMarkerToState.clear();
         }
 
         synchronized int size() {
-            return mVehicleMarkers != null ? mVehicleMarkers.size() : 0;
+            return mStates.size();
         }
     }
 }

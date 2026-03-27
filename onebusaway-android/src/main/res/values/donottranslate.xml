@@ -276,6 +276,8 @@
     <string name="marker_most_recent_data">Most recent data</string>
     <string name="marker_best_estimate">Best estimate</string>
     <string name="marker_best_estimate_snippet">50th percentile</string>
+    <string name="marker_estimate_from_data">Estimate from recent data</string>
+    <string name="marker_last_api_position">Last reported position</string>
     <string name="marker_fast_estimate">Fast estimate</string>
     <string name="marker_fast_estimate_snippet">90th percentile speed</string>
 

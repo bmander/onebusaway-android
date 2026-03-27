@@ -305,6 +305,8 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             int updated = 0;
             ObaTripDetails[] trips = response.getTrips();
             HashSet<String> activeTripIds = new HashSet<>();
+            // Track vehicleId → tripId to remove stale markers when a vehicle switches trips
+            HashMap<String, String> vehicleToTrip = new HashMap<>();
             long now = System.currentTimeMillis();
             TripDataManager dm = TripDataManager.getInstance();
 
@@ -328,6 +330,17 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                         || ObaElementExtensionsKt.isRealtimeSpeedEstimable(status, now);
 
                 String tripId = status.getActiveTripId();
+                String vehicleId = status.getVehicleId();
+
+                // If this vehicle previously had a marker on a different trip, remove it
+                if (vehicleId != null) {
+                    String prevTrip = vehicleToTrip.put(vehicleId, tripId);
+                    if (prevTrip != null && !prevTrip.equals(tripId)) {
+                        removeState(prevTrip);
+                        activeTripIds.remove(prevTrip);
+                    }
+                }
+
                 VehicleMarkerState state = mStates.get(tripId);
                 if (state == null) {
                     state = addMarkerToMap(tripId, l, isRealtime, status, response);
@@ -422,6 +435,14 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 }
             }
             return removed;
+        }
+
+        private void removeState(String tripId) {
+            VehicleMarkerState state = mStates.remove(tripId);
+            if (state != null) {
+                state.getMarker().remove();
+                mMarkerToState.remove(state.getMarker());
+            }
         }
 
         synchronized Marker getMarkerForTrip(String tripId) {

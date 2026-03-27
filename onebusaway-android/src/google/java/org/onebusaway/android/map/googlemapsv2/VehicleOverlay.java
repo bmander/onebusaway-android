@@ -41,7 +41,6 @@ import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.ui.TripDetailsActivity;
 import org.onebusaway.android.ui.TripDetailsListFragment;
-import org.onebusaway.android.util.UIUtils;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -70,10 +69,6 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
     private static final int ANIMATE_DURATION_MS = 600;
 
-    /** Data-received marker shown when a vehicle is selected. */
-    private Marker mDataReceivedMarker;
-    private String mDataReceivedTripId;
-    private long mDataReceivedFixTime;
     private BitmapDescriptor mDataReceivedIcon;
 
     private boolean mExtrapolationTicking;
@@ -101,7 +96,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
                     @Override
                     public boolean isDataReceivedMarker(Marker marker) {
-                        return marker.equals(mDataReceivedMarker);
+                        return mMarkerData != null && mMarkerData.isDataReceivedMarker(marker);
                     }
 
                     @Override
@@ -138,7 +133,6 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
     public synchronized void clear() {
         stopExtrapolationTicking();
-        removeDataReceivedMarker();
         mDataReceivedIcon = null;
         if (mMarkerData != null) {
             mMarkerData.clear();
@@ -148,11 +142,13 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
     @Override
     public void onInfoWindowClick(Marker marker) {
-        if (marker.equals(mDataReceivedMarker) && mDataReceivedTripId != null) {
-            navigateToTripDetails(mDataReceivedTripId);
-            return;
-        }
         if (mMarkerData != null) {
+            // Check if this is a data-received marker
+            String tripId = mMarkerData.getTripIdForDataReceivedMarker(marker);
+            if (tripId != null) {
+                navigateToTripDetails(tripId);
+                return;
+            }
             ObaTripStatus status = mMarkerData.getStatusFromMarker(marker);
             if (status != null) {
                 navigateToTripDetails(status.getActiveTripId());
@@ -201,97 +197,26 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
     public void selectTrip(String tripId) {
         if (mMarkerData == null || tripId == null) return;
-        Marker marker = mMarkerData.getMarkerForTrip(tripId);
-        if (marker == null) return;
-        ObaTripStatus status = mMarkerData.getStatusFromMarker(marker);
-        if (status != null) {
-            marker.showInfoWindow();
-            showDataReceivedMarker(status);
-        }
+        mMarkerData.selectVehicle(tripId, mMap, getOrCreateDataReceivedIcon(), mActivity);
     }
 
     @Override
     public boolean markerClicked(Marker marker) {
-        if (marker.equals(mDataReceivedMarker)) {
-            marker.showInfoWindow();
-            return true;
-        }
         if (mMarkerData == null) return false;
-        ObaTripStatus status = mMarkerData.getStatusFromMarker(marker);
-        if (status != null) {
-            marker.showInfoWindow();
-            showDataReceivedMarker(status);
-            return true;
-        }
-        return false;
+        return mMarkerData.handleMarkerClick(marker, mMap, getOrCreateDataReceivedIcon(), mActivity);
     }
 
     @Override
     public void removeMarkerClicked(LatLng latLng) {
-        removeDataReceivedMarker();
+        if (mMarkerData != null) mMarkerData.deselectAll();
     }
 
-    // --- Data-received marker ---
-
-    private void showDataReceivedMarker(ObaTripStatus status) {
-        removeDataReceivedMarker();
-
-        if (!status.isPredicted() || status.getLastLocationUpdateTime() <= 0) return;
-        Location loc = status.getPosition();
-        if (loc == null) return;
-
+    private BitmapDescriptor getOrCreateDataReceivedIcon() {
         if (mDataReceivedIcon == null) {
             mDataReceivedIcon = MapIconUtils.createCircleIcon(
                     mActivity, R.drawable.ic_signal_indicator, 0xFF616161);
         }
-
-        long elapsed = System.currentTimeMillis() - status.getLastLocationUpdateTime();
-        String snippet = UIUtils.formatElapsedTime(elapsed);
-
-        mDataReceivedMarker = mMap.addMarker(new MarkerOptions()
-                .position(MapHelpV2.makeLatLng(loc))
-                .icon(mDataReceivedIcon)
-                .title(mActivity.getString(R.string.marker_most_recent_data))
-                .snippet(snippet)
-                .anchor(0.5f, 0.5f)
-                .flat(true)
-                .zIndex(VEHICLE_MARKER_Z_INDEX + 0.1f)
-        );
-        mDataReceivedTripId = status.getActiveTripId();
-        mDataReceivedFixTime = status.getLastLocationUpdateTime();
-    }
-
-    void updateDataReceivedMarkerIfNeeded(String tripId, ObaTripStatus newestValid, long now) {
-        if (newestValid == null || !newestValid.isPredicted()) return;
-        if (newestValid.getLastLocationUpdateTime() <= 0) return;
-
-        // Create marker if needed, or switch to a different trip
-        if (mDataReceivedMarker == null || !tripId.equals(mDataReceivedTripId)) {
-            showDataReceivedMarker(newestValid);
-            return;
-        }
-
-        // Only update position and snippet when the fix time changes
-        long fixTime = newestValid.getLastLocationUpdateTime();
-        if (fixTime == mDataReceivedFixTime) return;
-        mDataReceivedFixTime = fixTime;
-
-        Location loc = newestValid.getPosition();
-        if (loc == null) return;
-
-        AnimationUtil.animateMarkerTo(mDataReceivedMarker,
-                MapHelpV2.makeLatLng(loc), ANIMATE_DURATION_MS);
-        mDataReceivedMarker.setSnippet(
-                UIUtils.formatElapsedTime(now - fixTime));
-    }
-
-    private void removeDataReceivedMarker() {
-        if (mDataReceivedMarker != null) {
-            mDataReceivedMarker.remove();
-            mDataReceivedMarker = null;
-        }
-        mDataReceivedTripId = null;
-        mDataReceivedFixTime = 0;
+        return mDataReceivedIcon;
     }
 
     private void setupMarkerData() {
@@ -440,7 +365,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             while (iterator.hasNext()) {
                 VehicleMarkerState state = iterator.next().getValue();
                 if (!activeTripIds.contains(state.getTripId())) {
-                    state.getMarker().remove();
+                    state.destroy();
                     mMarkerToState.remove(state.getMarker());
                     iterator.remove();
                     removed++;
@@ -452,7 +377,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         private void removeState(String tripId) {
             VehicleMarkerState state = mStates.remove(tripId);
             if (state != null) {
-                state.getMarker().remove();
+                state.destroy();
                 mMarkerToState.remove(state.getMarker());
             }
         }
@@ -470,6 +395,59 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         synchronized boolean isExtrapolating(Marker marker) {
             VehicleMarkerState state = mMarkerToState.get(marker);
             return state != null && state.isExtrapolating();
+        }
+
+        synchronized boolean isDataReceivedMarker(Marker marker) {
+            for (VehicleMarkerState state : mStates.values()) {
+                if (marker.equals(state.getDataReceivedMarker())) return true;
+            }
+            return false;
+        }
+
+        synchronized String getTripIdForDataReceivedMarker(Marker marker) {
+            for (VehicleMarkerState state : mStates.values()) {
+                if (marker.equals(state.getDataReceivedMarker())) return state.getTripId();
+            }
+            return null;
+        }
+
+        synchronized boolean handleMarkerClick(Marker marker, GoogleMap map,
+                                                BitmapDescriptor icon, Activity activity) {
+            // Check if a data-received marker was clicked
+            for (VehicleMarkerState state : mStates.values()) {
+                if (marker.equals(state.getDataReceivedMarker())) {
+                    marker.showInfoWindow();
+                    return true;
+                }
+            }
+            // Check if a vehicle marker was clicked
+            VehicleMarkerState state = mMarkerToState.get(marker);
+            if (state == null) return false;
+            selectState(state, map, icon, activity);
+            return true;
+        }
+
+        synchronized void selectVehicle(String tripId, GoogleMap map,
+                                         BitmapDescriptor icon, Activity activity) {
+            VehicleMarkerState state = mStates.get(tripId);
+            if (state != null) selectState(state, map, icon, activity);
+        }
+
+        private void selectState(VehicleMarkerState state, GoogleMap map,
+                                  BitmapDescriptor icon, Activity activity) {
+            deselectAll();
+            state.selected = true;
+            state.getMarker().showInfoWindow();
+            if (state.isExtrapolating()) {
+                state.showDataReceivedMarker(map, icon, activity);
+            }
+        }
+
+        synchronized void deselectAll() {
+            for (VehicleMarkerState state : mStates.values()) {
+                state.selected = false;
+                state.removeDataReceivedMarker();
+            }
         }
 
         // --- Per-frame position updates ---
@@ -494,16 +472,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     } else {
                         setPositionIfNotAnimating(state, target);
                     }
-                    // Create the data-received marker on first fresh data;
-                    // update it if already tracking this trip
-                    if (freshData || state.getTripId().equals(mDataReceivedTripId)) {
-                        updateDataReceivedMarkerIfNeeded(
-                                state.getTripId(), newestValid, now);
+                    if (state.selected) {
+                        state.updateDataReceivedMarker(newestValid, now, ANIMATE_DURATION_MS);
                     }
                 } else {
-                    if (state.getTripId().equals(mDataReceivedTripId)) {
-                        removeDataReceivedMarker();
-                    }
+                    state.removeDataReceivedMarker();
                     ObaTripStatus lastState = dm.getLastState(state.getTripId());
                     if (lastState != null) {
                         Location loc = lastState.getLastKnownLocation();
@@ -567,7 +540,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
         synchronized void clear() {
             for (VehicleMarkerState state : mStates.values()) {
-                state.getMarker().remove();
+                state.destroy();
             }
             mStates.clear();
             mMarkerToState.clear();

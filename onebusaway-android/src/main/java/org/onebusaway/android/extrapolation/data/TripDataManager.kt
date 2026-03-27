@@ -33,20 +33,28 @@ import org.onebusaway.android.util.LocationUtils
 /**
  * Singleton that owns all per-trip data storage: vehicle position history, route shapes, schedules,
  * service dates, route types, and active trip ID tracking. Also provides ensure* methods that
- * fetch data from the API in the background if not cached. Thread-safe via synchronized methods
- * and concurrent pending-fetch sets.
+ * fetch data from the API in the background if not cached.
+ *
+ * Thread-safe via a single @Synchronized lock on this object. All mutable state lives here under
+ * one lock to avoid nested locking and contention.
  */
 object TripDataManager {
 
     private const val TAG = "TripDataManager"
+    private const val MAX_ENTRIES_PER_TRIP = 100
 
     @JvmStatic fun getInstance() = this
 
-    private val repository = AvlRepository
     private val fetchExecutor = Executors.newFixedThreadPool(2)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val pendingScheduleFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val pendingShapeFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    // --- AVL history ---
+    private val tripHistory = mutableMapOf<String, MutableList<ObaTripStatus>>()
+    private val newestValidEntry = mutableMapOf<String, ObaTripStatus>()
+
+    // --- Caches ---
     private val tripDetailsCache = HashMap<String, ObaTripDetailsResponse>()
     private val scheduleCache = HashMap<String, ObaTripSchedule>()
     private val serviceDateCache = HashMap<String, Long>()
@@ -59,58 +67,85 @@ object TripDataManager {
     // --- Vehicle history ---
 
     /**
-     * Records a trip status snapshot into the history. Delegates to [AvlRepository] for storage.
+     * Records a trip status snapshot into the history. Deduplicates by lastLocationUpdateTime —
+     * only records when a genuinely new AVL report has arrived, filtering out server
+     * re-extrapolations.
      */
+    @Synchronized
     fun recordStatus(status: ObaTripStatus?) {
         if (status == null) return
-        repository.record(status)
+        val tripId = status.activeTripId ?: return
+        recordStatusInternal(status, tripId)
     }
 
-    /**
-     * Convenience method that extracts trip status, active trip ID, and service date from a trip
-     * details response and records them.
-     *
-     * @param polledTripId the trip ID that was queried
-     * @param response the API response
-     */
-    fun recordTripDetailsResponse(polledTripId: String?, response: ObaTripDetailsResponse?) {
-        if (response == null) return
-        val status = response.status ?: return
-        putLastActiveTripId(polledTripId, status.activeTripId)
-        status.activeTripId?.let { activeTripId ->
-            recordStatus(status)
-            if (status.serviceDate > 0) {
-                putServiceDate(activeTripId, status.serviceDate)
-            }
+    /** Core recording logic. Caller must already hold the lock. */
+    private fun recordStatusInternal(status: ObaTripStatus, tripId: String) {
+        if (!status.isPredicted) return
+
+        val locUpdateTime = status.lastLocationUpdateTime
+        if (locUpdateTime <= 0) return
+
+        val history = tripHistory.getOrPut(tripId) { mutableListOf() }
+
+        if (history.isNotEmpty() && locUpdateTime <= history.last().lastLocationUpdateTime) {
+            return
+        }
+
+        history.add(status)
+
+        if (status.bestDistanceAlongTrip != null) {
+            newestValidEntry[tripId] = status
+        }
+
+        if (history.size > MAX_ENTRIES_PER_TRIP) {
+            history.subList(0, history.size - MAX_ENTRIES_PER_TRIP).clear()
         }
     }
 
-    /** Returns a read-only view of the history for the given trip. */
+    /**
+     * Extracts trip status, active trip ID, and service date from a response and records them
+     * atomically.
+     */
+    @Synchronized
+    fun recordTripDetailsResponse(polledTripId: String?, response: ObaTripDetailsResponse?) {
+        if (response == null) return
+        val status = response.status ?: return
+        if (polledTripId != null) {
+            lastActiveTripId[polledTripId] = status.activeTripId
+        }
+        val activeTripId = status.activeTripId ?: return
+        recordStatusInternal(status, activeTripId)
+        if (status.serviceDate > 0) {
+            serviceDateCache[activeTripId] = status.serviceDate
+        }
+    }
+
+    @Synchronized
     fun getHistory(activeTripId: String?): List<ObaTripStatus> {
         if (activeTripId == null) return emptyList()
-        return repository.getHistoryForTrip(activeTripId)
+        return tripHistory[activeTripId]?.toList().orEmpty()
     }
 
-    /** Returns the number of history entries for the given trip, without copying. */
+    @Synchronized
     fun getHistorySize(activeTripId: String?): Int {
         if (activeTripId == null) return 0
-        return repository.getHistorySizeForTrip(activeTripId)
+        return tripHistory[activeTripId]?.size ?: 0
     }
 
-    /** Returns the last recorded ObaTripStatus for the given trip, or null. */
+    @Synchronized
     fun getLastState(activeTripId: String?): ObaTripStatus? {
         if (activeTripId == null) return null
-        return repository.getLastState(activeTripId)
+        return tripHistory[activeTripId]?.lastOrNull()
     }
 
-    /** Returns the newest entry with valid bestDistanceAlongTrip. O(1) cached lookup. */
+    @Synchronized
     fun getNewestValidEntry(activeTripId: String?): ObaTripStatus? {
         if (activeTripId == null) return null
-        return repository.getNewestValidEntry(activeTripId)
+        return newestValidEntry[activeTripId]
     }
 
-    /** Returns the set of all trip IDs that have recorded AVL history. */
-    fun getTrackedTripIds(): Set<String> = repository.getTrackedTripIds()
+    @Synchronized
+    fun getTrackedTripIds(): Set<String> = tripHistory.keys.toSet()
 
     // --- Trip details response cache ---
 
@@ -122,18 +157,8 @@ object TripDataManager {
     @Synchronized
     fun getTripDetails(tripId: String): ObaTripDetailsResponse? = tripDetailsCache[tripId]
 
-    /**
-     * Returns a sequence of history entries with valid AVL fixes, newest first. Lazily evaluated
-     * for efficient access to just the most recent N fixes.
-     */
-    fun mostRecentAvlFixes(tripId: String): Sequence<ObaTripStatus> =
-            repository.getHistoryForTrip(tripId).asReversed().asSequence().filter {
-                it.bestDistanceAlongTrip != null && it.lastLocationUpdateTime > 0
-            }
-
     // --- Schedule cache ---
 
-    /** Stores a trip schedule in the cache. */
     @Synchronized
     fun putSchedule(tripId: String?, schedule: ObaTripSchedule?) {
         if (tripId != null && schedule != null) {
@@ -141,11 +166,9 @@ object TripDataManager {
         }
     }
 
-    /** Returns the cached schedule for the given trip, or null if not cached. */
     @Synchronized
-    fun getSchedule(tripId: String): ObaTripSchedule? = tripId.let { scheduleCache[it] }
+    fun getSchedule(tripId: String): ObaTripSchedule? = scheduleCache[tripId]
 
-    /** Returns true if a schedule is cached for the given trip. */
     @Synchronized
     fun isScheduleCached(tripId: String?): Boolean =
             tripId != null && scheduleCache.containsKey(tripId)
@@ -178,7 +201,6 @@ object TripDataManager {
 
     // --- Service date cache ---
 
-    /** Stores the service date for a trip. */
     @Synchronized
     fun putServiceDate(tripId: String?, serviceDate: Long) {
         if (tripId != null && serviceDate > 0) {
@@ -186,7 +208,6 @@ object TripDataManager {
         }
     }
 
-    /** Returns the cached service date for the given trip, or null if not cached. */
     @Synchronized fun getServiceDate(tripId: String?): Long? = tripId?.let { serviceDateCache[it] }
 
     // --- Shape cache ---
@@ -196,33 +217,6 @@ object TripDataManager {
             @JvmField val points: List<Location>,
             @JvmField val cumulativeDistances: DoubleArray
     )
-
-    /**
-     * Read-only snapshot of all per-trip data needed for extrapolation, fetched in a single
-     * synchronized call. Avoids multiple separate lock acquisitions per frame.
-     */
-    data class TripSnapshot(
-            @JvmField val shapeData: ShapeData?,
-            @JvmField val routeType: Int?,
-            @JvmField val lastState: ObaTripStatus?,
-            @JvmField val newestValid: ObaTripStatus?,
-            @JvmField val schedule: ObaTripSchedule?
-    )
-
-    /** Fetches all extrapolation-related data for a trip in one synchronized call. */
-    @Synchronized
-    fun getSnapshot(tripId: String): TripSnapshot {
-        val points = shapeCache[tripId]
-        val cumDist = shapeCumDistCache[tripId]
-        val shapeData = if (points != null && cumDist != null) ShapeData(points, cumDist) else null
-        return TripSnapshot(
-                shapeData = shapeData,
-                routeType = routeTypeCache[tripId],
-                lastState = repository.getLastState(tripId),
-                newestValid = repository.getNewestValidEntry(tripId),
-                schedule = scheduleCache[tripId]
-        )
-    }
 
     /**
      * Stores the decoded polyline points for a trip's shape, and precomputes cumulative distances
@@ -236,7 +230,6 @@ object TripDataManager {
         }
     }
 
-    /** Returns the cached shape polyline points for the given trip, or null if not cached. */
     @Synchronized fun getShape(tripId: String?): List<Location>? = tripId?.let { shapeCache[it] }
 
     /**
@@ -265,11 +258,9 @@ object TripDataManager {
      */
     @JvmOverloads
     fun ensureShape(tripId: String, shapeId: String, onReady: ((ShapeData) -> Unit)? = null) {
-        if (getShape(tripId) != null) {
-            if (onReady != null) {
-                val sd = getShapeWithDistances(tripId)
-                if (sd != null) onReady(sd)
-            }
+        val cached = getShapeWithDistances(tripId)
+        if (cached != null) {
+            onReady?.invoke(cached)
             return
         }
         if (!pendingShapeFetches.add(tripId)) return
@@ -297,18 +288,15 @@ object TripDataManager {
 
     // --- Route type cache ---
 
-    /** Stores the route type for a trip ID. */
     @Synchronized
     fun putRouteType(tripId: String, type: Int) {
         routeTypeCache[tripId] = type
     }
 
-    /** Returns the cached route type for the given trip, or null if not cached. */
     @Synchronized fun getRouteType(tripId: String): Int? = routeTypeCache[tripId]
 
     // --- Active trip ID tracking ---
 
-    /** Stores the last active trip ID reported by the server for the given queried trip ID. */
     @Synchronized
     fun putLastActiveTripId(polledTripId: String?, activeTripId: String?) {
         if (polledTripId != null) {
@@ -316,20 +304,16 @@ object TripDataManager {
         }
     }
 
-    /**
-     * Returns the last active trip ID the server reported for a queried trip, or null if no
-     * response has been processed yet.
-     */
     @Synchronized
     fun getLastActiveTripId(polledTripId: String): String? =
             lastActiveTripId[polledTripId]
 
     // --- Clear ---
 
-    /** Clears all data caches. */
     @Synchronized
     fun clearAll() {
-        repository.clearAll()
+        tripHistory.clear()
+        newestValidEntry.clear()
         tripDetailsCache.clear()
         scheduleCache.clear()
         serviceDateCache.clear()

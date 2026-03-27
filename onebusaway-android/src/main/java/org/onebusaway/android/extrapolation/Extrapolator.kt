@@ -22,6 +22,7 @@ import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 
 private const val MAX_HORIZON_MS = 15 * 60 * 1000L
 private const val PRE_DEPARTURE_DISTANCE_THRESHOLD = 50.0 // meters
+private const val TRIP_END_DISTANCE_THRESHOLD = 50.0 // meters from end
 
 /** Result of an extrapolation attempt. */
 sealed class ExtrapolationResult {
@@ -33,6 +34,8 @@ sealed class ExtrapolationResult {
     object Stale : ExtrapolationResult()
     /** Vehicle is at the trip start before scheduled departure. */
     object BeforeDeparture : ExtrapolationResult()
+    /** Vehicle is at or near the end of the trip. */
+    object TripEnded : ExtrapolationResult()
     /** Required schedule data is missing. */
     object MissingSchedule : ExtrapolationResult()
 }
@@ -60,11 +63,17 @@ abstract class Extrapolator(
         val dtMs = queryTimeMs - lastTime
         if (dtMs < 0 || dtMs > MAX_HORIZON_MS) return ExtrapolationResult.Stale
         if (isBeforeDeparture(lastDist, queryTimeMs)) return ExtrapolationResult.BeforeDeparture
+        if (isAtTripEnd(lastDist, newestValid.totalDistanceAlongTrip)) return ExtrapolationResult.TripEnded
 
         return doExtrapolate(lastDist, dtMs / 1000.0, lastTime)
     }
 
     protected abstract fun doExtrapolate(lastDist: Double, dtSec: Double, lastFixTimeMs: Long): ExtrapolationResult
+
+    private fun isAtTripEnd(distanceAlongTrip: Double, totalDistance: Double?): Boolean {
+        if (totalDistance == null || totalDistance <= 0) return false
+        return totalDistance - distanceAlongTrip < TRIP_END_DISTANCE_THRESHOLD
+    }
 
     private fun isBeforeDeparture(distanceAlongTrip: Double, queryTimeMs: Long): Boolean {
         if (distanceAlongTrip > PRE_DEPARTURE_DISTANCE_THRESHOLD) return false

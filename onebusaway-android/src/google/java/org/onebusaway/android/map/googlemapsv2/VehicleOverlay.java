@@ -462,6 +462,9 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                         setPositionIfNotAnimating(state, target);
                     }
                 } else {
+                    if (state.getTripId().equals(mDataReceivedTripId)) {
+                        removeDataReceivedMarker();
+                    }
                     ObaTripStatus lastState = dm.getLastState(state.getTripId());
                     if (lastState != null) {
                         Location loc = lastState.getLastKnownLocation();

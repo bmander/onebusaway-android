@@ -31,5 +31,5 @@ class VehicleMarkerState(
     var extrapolator: Extrapolator? = null
     var isExtrapolating: Boolean = false
     var lastFixTimeMs: Long = 0
-    var animatingUntilMs: Long = 0
+    @JvmField var animating: Boolean = false
 }

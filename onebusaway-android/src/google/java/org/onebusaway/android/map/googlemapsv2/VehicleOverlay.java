@@ -456,10 +456,10 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 if (target != null) {
                     ObaTripStatus newestValid = dm.getNewestValidEntry(state.getTripId());
                     if (detectFreshAvlData(state, newestValid)) {
-                        startTransitionAnimation(state, target, now);
+                        startTransitionAnimation(state, target);
                         updateDataReceivedMarkerIfNeeded(state.getTripId(), newestValid, now);
                     } else {
-                        setPositionIfNotAnimating(state, target, now);
+                        setPositionIfNotAnimating(state, target);
                     }
                 } else {
                     ObaTripStatus lastState = dm.getLastState(state.getTripId());
@@ -502,20 +502,19 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
             return prev != 0 && fixTime != prev;
         }
 
-        private void startTransitionAnimation(VehicleMarkerState state,
-                                               LatLng target, long now) {
+        private void startTransitionAnimation(VehicleMarkerState state, LatLng target) {
             Marker marker = state.getMarker();
             if (marker.getPosition() != null) {
-                AnimationUtil.animateMarkerTo(marker, target, ANIMATE_DURATION_MS);
+                state.animating = true;
+                AnimationUtil.animateMarkerTo(marker, target, ANIMATE_DURATION_MS,
+                        () -> state.animating = false);
             } else {
                 marker.setPosition(target);
             }
-            state.setAnimatingUntilMs(now + ANIMATE_DURATION_MS);
         }
 
-        private void setPositionIfNotAnimating(VehicleMarkerState state,
-                                                LatLng target, long now) {
-            if (now >= state.getAnimatingUntilMs()) {
+        private void setPositionIfNotAnimating(VehicleMarkerState state, LatLng target) {
+            if (!state.animating) {
                 LatLng current = state.getMarker().getPosition();
                 if (current == null || current.latitude != target.latitude
                         || current.longitude != target.longitude) {

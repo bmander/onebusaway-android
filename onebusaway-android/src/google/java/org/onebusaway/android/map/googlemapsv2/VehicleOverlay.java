@@ -478,10 +478,10 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                     ObaTripStatus newestValid = dm.getNewestValidEntry(state.getTripId());
                     if (detectFreshAvlData(state, newestValid)) {
                         startTransitionAnimation(state, target);
-                        updateDataReceivedMarkerIfNeeded(state.getTripId(), newestValid, now);
                     } else {
                         setPositionIfNotAnimating(state, target);
                     }
+                    updateDataReceivedMarkerIfNeeded(state.getTripId(), newestValid, now);
                 } else {
                     if (state.getTripId().equals(mDataReceivedTripId)) {
                         removeDataReceivedMarker();

@@ -37,6 +37,7 @@ import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.elements.bestLocation
 import org.onebusaway.android.map.googlemapsv2.AnimationUtil
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 import org.onebusaway.android.map.googlemapsv2.MapIconUtils
@@ -298,7 +299,7 @@ class TripMapRenderer internal constructor(
         val label = if (updateTime > 0)
             UIUtils.formatElapsedTime(now - updateTime) else ""
 
-        val pos = latest.position ?: latest.lastKnownLocation ?: return
+        val pos = latest.bestLocation ?: return
         val latLng = MapHelpV2.makeLatLng(pos)
 
         val marker = dataReceivedMarker

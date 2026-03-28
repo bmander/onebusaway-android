@@ -93,8 +93,7 @@ class VehicleMapController {
             if (!routeIds.contains(activeRoute) || Status.CANCELED.equals(status.getStatus()))
                 continue;
 
-            Location l = status.getLastKnownLocation();
-            if (l == null) l = status.getPosition();
+            Location l = ObaElementExtensionsKt.getBestLocation(status);
             if (l == null) continue;
 
             boolean isRealtime = ObaElementExtensionsKt.isLocationRealtime(status)
@@ -315,9 +314,7 @@ class VehicleMapController {
                     setPositionIfNotAnimating(state, target);
                 }
             } else {
-                ObaTripStatus status = state.getStatus();
-                Location loc = status.getLastKnownLocation();
-                if (loc == null) loc = status.getPosition();
+                Location loc = ObaElementExtensionsKt.getBestLocation(state.getStatus());
                 if (loc != null) {
                     state.vehicleMarker.setPosition(MapHelpV2.makeLatLng(loc));
                 }

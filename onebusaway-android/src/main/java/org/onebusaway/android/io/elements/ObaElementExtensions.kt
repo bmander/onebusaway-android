@@ -15,7 +15,12 @@
  */
 package org.onebusaway.android.io.elements
 
+import android.location.Location
 import org.onebusaway.android.extrapolation.data.TripDataManager
+
+/** Best available location: prefers lastKnownLocation (raw GPS), falls back to position (server-extrapolated). */
+val ObaTripStatus.bestLocation: Location?
+    get() = lastKnownLocation ?: position
 
 /**
  * The best available distance: prefers lastKnownDistanceAlongTrip (raw), falls back to

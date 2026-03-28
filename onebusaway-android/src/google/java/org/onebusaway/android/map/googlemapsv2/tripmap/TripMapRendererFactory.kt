@@ -25,6 +25,7 @@ import org.onebusaway.android.io.elements.ObaReferences
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.elements.bestLocation
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 
@@ -55,7 +56,8 @@ internal object TripMapRendererFactory {
         cacheResponseData(tripId, schedule, status)
 
         val routeColor = resolveRouteColor(context, route)
-        val vehiclePosition = resolveVehiclePosition(tripId, status)
+        val vehiclePosition = status?.takeIf { it.activeTripId == tripId }
+                ?.bestLocation?.let { MapHelpV2.makeLatLng(it) }
         val scheduleDeviation = resolveScheduleDeviation(tripId, status)
         val stopNames = buildStopNameMap(schedule, refs)
 
@@ -79,12 +81,6 @@ internal object TripMapRendererFactory {
 
     private fun resolveRouteColor(context: Context, route: ObaRoute?): Int =
             route?.color ?: ContextCompat.getColor(context, R.color.route_line_color_default)
-
-    private fun resolveVehiclePosition(tripId: String, status: ObaTripStatus?): LatLng? {
-        if (status == null || tripId != status.activeTripId) return null
-        val loc = status.lastKnownLocation ?: status.position ?: return null
-        return MapHelpV2.makeLatLng(loc)
-    }
 
     private fun resolveScheduleDeviation(tripId: String, status: ObaTripStatus?) =
             if (status != null && tripId == status.activeTripId) status.scheduleDeviation else 0L

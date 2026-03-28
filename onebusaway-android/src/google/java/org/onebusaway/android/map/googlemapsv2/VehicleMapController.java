@@ -29,7 +29,6 @@ import org.onebusaway.android.extrapolation.ExtrapolationResult;
 import org.onebusaway.android.extrapolation.Extrapolator;
 import org.onebusaway.android.extrapolation.ExtrapolatorKt;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
-import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripDetails;
 import org.onebusaway.android.io.elements.ObaTripStatus;
@@ -82,7 +81,6 @@ class VehicleMapController {
         HashSet<String> activeTripIds = new HashSet<>();
         HashMap<String, String> vehicleToTrip = new HashMap<>();
         long now = System.currentTimeMillis();
-        TripDataManager dm = TripDataManager.getInstance();
 
         for (ObaTripDetails trip : response.getTrips()) {
             ObaTripStatus status = trip.getStatus();
@@ -93,8 +91,6 @@ class VehicleMapController {
             String activeRoute = activeTrip.getRouteId();
             if (!routeIds.contains(activeRoute) || Status.CANCELED.equals(status.getStatus()))
                 continue;
-
-            recordTrajectoryState(dm, status, activeTrip, response);
 
             Location l = status.getLastKnownLocation();
             if (l == null) l = status.getPosition();
@@ -124,7 +120,6 @@ class VehicleMapController {
                 updateVehicle(state, l, isRealtime, status, response, now);
             }
             activeTripIds.add(tripId);
-            fetchScheduleAndShapeIfNeeded(dm, status, activeTrip);
         }
 
         removeInactiveMarkers(activeTripIds);
@@ -396,31 +391,6 @@ class VehicleMapController {
                     || current.longitude != target.longitude) {
                 state.vehicleMarker.setPosition(target);
             }
-        }
-    }
-
-    // --- Data recording helpers ---
-
-    private void recordTrajectoryState(TripDataManager dm, ObaTripStatus status,
-                                        ObaTrip activeTrip, ObaTripsForRouteResponse response) {
-        dm.recordStatus(status);
-        if (dm.getRouteType(status.getActiveTripId()) == null) {
-            String routeId = activeTrip.getRouteId();
-            ObaRoute route = routeId != null ? response.getRoute(routeId) : null;
-            if (route != null) {
-                dm.putRouteType(status.getActiveTripId(), route.getType());
-            }
-        }
-    }
-
-    private void fetchScheduleAndShapeIfNeeded(TripDataManager dm, ObaTripStatus status,
-                                                ObaTrip activeTrip) {
-        String tripId = status.getActiveTripId();
-        if (tripId == null) return;
-        dm.ensureSchedule(tripId);
-        String shapeId = activeTrip.getShapeId();
-        if (shapeId != null) {
-            dm.ensureShape(tripId, shapeId);
         }
     }
 

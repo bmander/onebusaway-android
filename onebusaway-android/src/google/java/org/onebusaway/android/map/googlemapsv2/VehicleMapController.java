@@ -150,8 +150,11 @@ class VehicleMapController {
         m.setIcon(mIconFactory.getVehicleIcon(isRealtime, status, response));
         state.setStatus(status);
 
-        String tripId = state.getTripId();
+        // Only move the marker from the API-reported position if the extrapolation
+        // frame loop can't take over yet (shape or AVL data not loaded). Once both
+        // are available, updatePositions() owns marker positioning each frame.
         TripDataManager dm = mDataManager;
+        String tripId = state.getTripId();
         if (dm.getShape(tripId) == null || dm.getNewestValidEntry(tripId) == null) {
             Location markerLoc = MapHelpV2.makeLocation(m.getPosition());
             if (l.distanceTo(markerLoc) < MAX_VEHICLE_ANIMATION_DISTANCE) {

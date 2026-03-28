@@ -129,9 +129,8 @@ class VehicleMapController {
 
     // --- Vehicle marker lifecycle ---
 
-    private VehicleMarkerState addVehicle(String tripId, Location l, boolean isRealtime,
-                                           ObaTripStatus status,
-                                           ObaTripsForRouteResponse response) {
+    private void addVehicle(String tripId, Location l, boolean isRealtime,
+                            ObaTripStatus status, ObaTripsForRouteResponse response) {
         Marker m = mMap.addMarker(new MarkerOptions()
                 .position(MapHelpV2.makeLatLng(l))
                 .title(status.getVehicleId())
@@ -142,7 +141,6 @@ class VehicleMapController {
         state.vehicleMarker = m;
         mStates.put(tripId, state);
         mMarkerToState.put(m, state);
-        return state;
     }
 
     private void updateVehicle(VehicleMarkerState state, Location l, boolean isRealtime,
@@ -168,8 +166,7 @@ class VehicleMapController {
         }
     }
 
-    private int removeInactiveMarkers(HashSet<String> activeTripIds) {
-        int removed = 0;
+    private void removeInactiveMarkers(HashSet<String> activeTripIds) {
         Iterator<Map.Entry<String, VehicleMarkerState>> iterator =
                 mStates.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -177,10 +174,8 @@ class VehicleMapController {
             if (!activeTripIds.contains(state.getTripId())) {
                 destroyState(state);
                 iterator.remove();
-                removed++;
             }
         }
-        return removed;
     }
 
     private void removeState(String tripId) {

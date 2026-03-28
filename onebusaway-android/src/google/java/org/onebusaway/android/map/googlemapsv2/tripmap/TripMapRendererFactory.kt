@@ -18,11 +18,9 @@ package org.onebusaway.android.map.googlemapsv2.tripmap
 import android.content.Context
 import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.LatLng
 import org.onebusaway.android.R
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.io.elements.ObaReferences
-import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestLocation
@@ -32,10 +30,10 @@ import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 /**
  * Creates and activates a [TripMapRenderer] from an API response.
  *
- * Returns without calling [onReady] if the response lacks required data (schedule, refs, trip).
- * If the shape is already cached, [onReady] is called synchronously.
- * If the shape needs fetching, [TripDataManager.ensureShape] handles it
- * and [onReady] is called on the main thread once the shape arrives.
+ * Returns without calling [onReady] if the response lacks required data (schedule, refs, trip). If
+ * the shape is already cached, [onReady] is called synchronously. If the shape needs fetching,
+ * [TripDataManager.ensureShape] handles it and [onReady] is called on the main thread once the
+ * shape arrives.
  */
 internal object TripMapRendererFactory {
 
@@ -55,19 +53,31 @@ internal object TripMapRendererFactory {
 
         cacheResponseData(tripId, schedule, status)
 
-        val routeColor = route?.color
-                ?: ContextCompat.getColor(context, R.color.route_line_color_default)
-        val vehiclePosition = status?.takeIf { it.activeTripId == tripId }
-                ?.bestLocation?.let { MapHelpV2.makeLatLng(it) }
-        val scheduleDeviation = status?.takeIf { it.activeTripId == tripId }
-                ?.scheduleDeviation ?: 0L
+        val routeColor =
+                route?.color ?: ContextCompat.getColor(context, R.color.route_line_color_default)
+        val vehiclePosition =
+                status?.takeIf { it.activeTripId == tripId }?.bestLocation?.let {
+                    MapHelpV2.makeLatLng(it)
+                }
+        val scheduleDeviation =
+                status?.takeIf { it.activeTripId == tripId }?.scheduleDeviation ?: 0L
         val stopNames = buildStopNameMap(schedule, refs)
 
         fun buildRenderer(sd: TripDataManager.ShapeData) {
-            val renderer = TripMapRenderer(map, context, tripId,
-                    sd.points, sd.cumulativeDistances, schedule,
-                    routeColor, route?.type, stopNames, selectedStopId,
-                    scheduleDeviation)
+            val renderer =
+                    TripMapRenderer(
+                            map,
+                            context,
+                            tripId,
+                            sd.points,
+                            sd.cumulativeDistances,
+                            schedule,
+                            routeColor,
+                            route?.type,
+                            stopNames,
+                            selectedStopId,
+                            scheduleDeviation
+                    )
             renderer.activate(vehiclePosition)
             onReady(renderer)
         }
@@ -79,14 +89,21 @@ internal object TripMapRendererFactory {
         }
     }
 
-    private fun cacheResponseData(tripId: String, schedule: ObaTripSchedule, status: ObaTripStatus?) {
+    private fun cacheResponseData(
+            tripId: String,
+            schedule: ObaTripSchedule,
+            status: ObaTripStatus?
+    ) {
         TripDataManager.putSchedule(tripId, schedule)
         if (status != null && status.serviceDate > 0) {
             TripDataManager.putServiceDate(tripId, status.serviceDate)
         }
     }
 
-    private fun buildStopNameMap(schedule: ObaTripSchedule, refs: ObaReferences): Map<String, String> =
+    private fun buildStopNameMap(
+            schedule: ObaTripSchedule,
+            refs: ObaReferences
+    ): Map<String, String> =
             schedule.stopTimes
                     ?.mapNotNull { st -> refs.getStop(st.stopId)?.let { st.stopId to it.name } }
                     ?.toMap()

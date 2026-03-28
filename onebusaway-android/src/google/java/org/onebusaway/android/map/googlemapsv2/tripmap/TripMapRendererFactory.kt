@@ -55,10 +55,12 @@ internal object TripMapRendererFactory {
 
         cacheResponseData(tripId, schedule, status)
 
-        val routeColor = resolveRouteColor(context, route)
+        val routeColor = route?.color
+                ?: ContextCompat.getColor(context, R.color.route_line_color_default)
         val vehiclePosition = status?.takeIf { it.activeTripId == tripId }
                 ?.bestLocation?.let { MapHelpV2.makeLatLng(it) }
-        val scheduleDeviation = resolveScheduleDeviation(tripId, status)
+        val scheduleDeviation = status?.takeIf { it.activeTripId == tripId }
+                ?.scheduleDeviation ?: 0L
         val stopNames = buildStopNameMap(schedule, refs)
 
         fun buildRenderer(sd: TripDataManager.ShapeData) {
@@ -76,14 +78,6 @@ internal object TripMapRendererFactory {
             TripDataManager.ensureShape(tripId, shapeId, ::buildRenderer)
         }
     }
-
-    // --- Response parsing ---
-
-    private fun resolveRouteColor(context: Context, route: ObaRoute?): Int =
-            route?.color ?: ContextCompat.getColor(context, R.color.route_line_color_default)
-
-    private fun resolveScheduleDeviation(tripId: String, status: ObaTripStatus?) =
-            if (status != null && tripId == status.activeTripId) status.scheduleDeviation else 0L
 
     private fun cacheResponseData(tripId: String, schedule: ObaTripSchedule, status: ObaTripStatus?) {
         TripDataManager.putSchedule(tripId, schedule)

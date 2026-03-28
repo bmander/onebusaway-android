@@ -51,6 +51,7 @@ import com.google.firebase.analytics.FirebaseAnalytics;
 import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
+import org.onebusaway.android.ui.dataview.DataViewActivity;
 import org.onebusaway.android.io.ObaAnalytics;
 import org.onebusaway.android.io.PlausibleAnalytics;
 import org.onebusaway.android.io.elements.ObaRegion;
@@ -623,6 +624,7 @@ public class SettingsActivity extends AppCompatActivity
         private Preference mCustomOtpApiUrlPref;
         private Preference mPushFirebaseData;
         private Preference mResetDonationTimestamps;
+        private Preference mDataViewsPref;
         private FirebaseAnalytics mFirebaseAnalytics;
 
         @Override
@@ -653,6 +655,12 @@ public class SettingsActivity extends AppCompatActivity
                     getString(R.string.preference_key_reset_donation_timestamps));
             if (mResetDonationTimestamps != null) {
                 mResetDonationTimestamps.setOnPreferenceClickListener(this);
+            }
+
+            mDataViewsPref = findPreference(
+                    getString(R.string.preference_key_data_views));
+            if (mDataViewsPref != null) {
+                mDataViewsPref.setOnPreferenceClickListener(this);
             }
 
             if (BuildConfig.USE_FIXED_REGION) {
@@ -689,6 +697,8 @@ public class SettingsActivity extends AppCompatActivity
             } else if (pref.equals(mResetDonationTimestamps)) {
                 Application.getDonationsManager().setDonationRequestReminderDate(null);
                 Application.getDonationsManager().setDonationRequestDismissedDate(null);
+            } else if (pref.equals(mDataViewsPref)) {
+                DataViewActivity.start(requireActivity());
             }
             return true;
         }

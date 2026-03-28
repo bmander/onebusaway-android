@@ -23,18 +23,12 @@ import com.google.android.gms.maps.LocationSource;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.UiSettings;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
-import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
-import com.google.android.gms.maps.model.StampStyle;
-import com.google.android.gms.maps.model.StrokeStyle;
-import com.google.android.gms.maps.model.StyleSpan;
-import com.google.android.gms.maps.model.TextureStyle;
 import com.google.android.gms.maps.model.VisibleRegion;
 import com.google.firebase.analytics.FirebaseAnalytics;
 
@@ -78,10 +72,12 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.content.res.Configuration;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
 import android.location.Location;
 import android.os.Bundle;
@@ -106,6 +102,8 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.fragment.app.DialogFragment;
+
+import com.google.android.gms.maps.model.MapStyleOptions;
 
 import static org.onebusaway.android.util.PermissionUtils.LOCATION_PERMISSIONS;
 import static org.onebusaway.android.util.PermissionUtils.LOCATION_PERMISSION_REQUEST;
@@ -142,6 +140,8 @@ public class BaseMapFragment extends SupportMapFragment
     public static final float CAMERA_DEFAULT_ZOOM = 16.0f;
 
     public static final float DEFAULT_MAP_PADDING_DP = 20.0f;
+
+    private static final float ROUTE_POLYLINE_WIDTH_PX = 10f;
 
     // Keep track of current map padding
     private int mMapPaddingLeft = 0;
@@ -293,6 +293,10 @@ public class BaseMapFragment extends SupportMapFragment
     @Override
     public void onMapReady(com.google.android.gms.maps.GoogleMap map) {
         mMap = map;
+        if (mStampFactory == null) {
+            mStampFactory = new StampedPolylineFactory(getResources(),
+                    R.drawable.ic_navigation_expand_more, 1);
+        }
 
         MapClickListeners mapClickListeners = new MapClickListeners();
 
@@ -534,6 +538,8 @@ public class BaseMapFragment extends SupportMapFragment
         mStopOverlay.setOnFocusChangeListener(this);
         return true;
     }
+
+    private StampedPolylineFactory mStampFactory;
 
     public void setupVehicleOverlay() {
         Activity a = getActivity();
@@ -1025,27 +1031,18 @@ public class BaseMapFragment extends SupportMapFragment
             if (clear) {
                 mLineOverlay.clear();
             }
-            PolylineOptions lineOptions;
-            StampStyle polylineArrow = TextureStyle.newBuilder(BitmapDescriptorFactory.fromResource(R.drawable.ic_navigation_expand_more)).build();
-            StyleSpan polylineArrowSpan = new StyleSpan(StrokeStyle.colorBuilder(lineOverlayColor).stamp(polylineArrow).build());
-
             int totalPoints = 0;
-
             for (ObaShape s : shapes) {
-                lineOptions = new PolylineOptions();
-                lineOptions.addSpan(polylineArrowSpan);
-
-                for (Location l : s.getPoints()) {
-                    lineOptions.add(MapHelpV2.makeLatLng(l));
-                }
-                // Add the line to the map, and keep a reference in the ArrayList
-                mLineOverlay.add(mMap.addPolyline(lineOptions));
-
-                totalPoints += lineOptions.getPoints().size();
+                totalPoints += addArrowPolyline(s.getPoints(), lineOverlayColor);
             }
-
             Log.d(TAG, "Total points for route polylines = " + totalPoints);
         }
+    }
+
+    private int addArrowPolyline(List<Location> points, int color) {
+        PolylineOptions opts = mStampFactory.create(points, color, ROUTE_POLYLINE_WIDTH_PX);
+        mLineOverlay.add(mMap.addPolyline(opts));
+        return opts.getPoints().size();
     }
 
     @Override
@@ -1229,6 +1226,13 @@ public class BaseMapFragment extends SupportMapFragment
         if (mListener != null) {
             // Show real-time location on map
             mListener.onLocationChanged(l);
+        }
+    }
+
+    @Override
+    public void selectVehicle(String tripId) {
+        if (mVehicleOverlay != null && tripId != null) {
+            mVehicleOverlay.selectTrip(tripId);
         }
     }
 

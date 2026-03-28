@@ -33,7 +33,7 @@ sealed class ExtrapolationResult {
     /** Vehicle data is older than the extrapolation horizon. */
     object Stale : ExtrapolationResult()
     /** Vehicle is at the trip start before scheduled departure. */
-    object BeforeDeparture : ExtrapolationResult()
+    object TripNotStarted : ExtrapolationResult()
     /** Vehicle is at or near the end of the trip. */
     object TripEnded : ExtrapolationResult()
     /** Required schedule data is missing. */
@@ -62,27 +62,20 @@ abstract class Extrapolator(
         if (lastTime <= 0) return ExtrapolationResult.NoData
         val dtMs = queryTimeMs - lastTime
         if (dtMs < 0 || dtMs > MAX_HORIZON_MS) return ExtrapolationResult.Stale
-        if (isBeforeDeparture(lastDist, queryTimeMs)) return ExtrapolationResult.BeforeDeparture
-        if (isAtTripEnd(lastDist, newestValid.totalDistanceAlongTrip)) return ExtrapolationResult.TripEnded
+        if (isAtTripStart(lastDist)) return ExtrapolationResult.TripNotStarted
+        val totalDist = newestValid.totalDistanceAlongTrip
+        if (totalDist != null && isAtTripEnd(lastDist, totalDist)) return ExtrapolationResult.TripEnded
 
         return doExtrapolate(lastDist, dtMs / 1000.0, lastTime)
     }
 
     protected abstract fun doExtrapolate(lastDist: Double, dtSec: Double, lastFixTimeMs: Long): ExtrapolationResult
 
-    private fun isAtTripEnd(distanceAlongTrip: Double, totalDistance: Double?): Boolean {
-        if (totalDistance == null || totalDistance <= 0) return false
-        return totalDistance - distanceAlongTrip < TRIP_END_DISTANCE_THRESHOLD
-    }
+    private fun isAtTripEnd(distanceAlongTrip: Double, totalDistance: Double) =
+            totalDistance > 0 && totalDistance - distanceAlongTrip < TRIP_END_DISTANCE_THRESHOLD
 
-    private fun isBeforeDeparture(distanceAlongTrip: Double, queryTimeMs: Long): Boolean {
-        if (distanceAlongTrip > PRE_DEPARTURE_DISTANCE_THRESHOLD) return false
-        val stops = dataManager.getSchedule(tripId)?.stopTimes ?: return false
-        if (stops.isEmpty()) return false
-        val serviceDate = dataManager.getServiceDate(tripId) ?: return false
-        if (serviceDate <= 0) return false
-        return queryTimeMs < serviceDate + stops[0].departureTime * 1000
-    }
+    private fun isAtTripStart(distanceAlongTrip: Double) =
+            distanceAlongTrip <= PRE_DEPARTURE_DISTANCE_THRESHOLD
 }
 
 /** Creates the appropriate [Extrapolator] for a trip based on its route type. */

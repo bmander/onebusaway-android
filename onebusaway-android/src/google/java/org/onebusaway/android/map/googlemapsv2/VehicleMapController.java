@@ -118,7 +118,7 @@ class VehicleMapController {
             if (state == null) {
                 addVehicle(tripId, l, isRealtime, status, response);
             } else {
-                updateVehicle(state, l, isRealtime, status, response, now);
+                updateVehicle(state, isRealtime, status, response);
             }
             activeTripIds.add(tripId);
         }
@@ -142,27 +142,12 @@ class VehicleMapController {
         mStates.put(tripId, state);
     }
 
-    private void updateVehicle(VehicleMarkerState state, Location l, boolean isRealtime,
-                               ObaTripStatus status, ObaTripsForRouteResponse response,
-                               long now) {
+    private void updateVehicle(VehicleMarkerState state, boolean isRealtime,
+                               ObaTripStatus status, ObaTripsForRouteResponse response) {
         Marker m = state.vehicleMarker;
         boolean showInfo = m.isInfoWindowShown();
         m.setIcon(mIconFactory.getVehicleIcon(isRealtime, status, response));
         state.setStatus(status);
-
-        // Only move the marker from the API-reported position if the extrapolation
-        // frame loop can't take over yet (shape or AVL data not loaded). Once both
-        // are available, updatePositions() owns marker positioning each frame.
-        TripDataManager dm = mDataManager;
-        String tripId = state.getTripId();
-        if (dm.getShape(tripId) == null || dm.getNewestValidEntry(tripId) == null) {
-            Location markerLoc = MapHelpV2.makeLocation(m.getPosition());
-            if (l.distanceTo(markerLoc) < MAX_VEHICLE_ANIMATION_DISTANCE) {
-                AnimationUtil.animateMarkerTo(m, MapHelpV2.makeLatLng(l));
-            } else {
-                m.setPosition(MapHelpV2.makeLatLng(l));
-            }
-        }
         if (showInfo) {
             m.showInfoWindow();
         }
@@ -328,13 +313,11 @@ class VehicleMapController {
                     setPositionIfNotAnimating(state, target);
                 }
             } else {
-                ObaTripStatus lastState = dm.getLastState(state.getTripId());
-                if (lastState != null) {
-                    Location loc = lastState.getLastKnownLocation();
-                    if (loc == null) loc = lastState.getPosition();
-                    if (loc != null) {
-                        state.vehicleMarker.setPosition(MapHelpV2.makeLatLng(loc));
-                    }
+                ObaTripStatus status = state.getStatus();
+                Location loc = status.getLastKnownLocation();
+                if (loc == null) loc = status.getPosition();
+                if (loc != null) {
+                    state.vehicleMarker.setPosition(MapHelpV2.makeLatLng(loc));
                 }
             }
             if (state.selected) {

@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.map.googlemapsv2;
 
-import android.app.Activity;
+import android.content.Context;
 import android.location.Location;
 
 import com.google.android.gms.maps.GoogleMap;
@@ -55,7 +55,7 @@ class VehicleMapController {
     private static final float DATA_RECEIVED_MARKER_Z_INDEX = 3.1f;
 
     private final GoogleMap mMap;
-    private final Activity mActivity;
+    private final Context mContext;
     private final VehicleIconFactory mIconFactory;
     private final TripDataManager mDataManager;
     private final int mAnimateDurationMs;
@@ -67,10 +67,10 @@ class VehicleMapController {
 
     private BitmapDescriptor mDataReceivedIcon;
 
-    VehicleMapController(GoogleMap map, Activity activity, VehicleIconFactory iconFactory,
+    VehicleMapController(GoogleMap map, Context context, VehicleIconFactory iconFactory,
                          int animateDurationMs) {
         mMap = map;
-        mActivity = activity;
+        mContext = context.getApplicationContext();
         mIconFactory = iconFactory;
         mDataManager = TripDataManager.getInstance();
         mAnimateDurationMs = animateDurationMs;
@@ -201,7 +201,7 @@ class VehicleMapController {
         Marker m = mMap.addMarker(new MarkerOptions()
                 .position(MapHelpV2.makeLatLng(loc))
                 .icon(getOrCreateDataReceivedIcon())
-                .title(mActivity.getString(R.string.marker_most_recent_data))
+                .title(mContext.getString(R.string.marker_most_recent_data))
                 .snippet(UIUtils.formatElapsedTime(elapsed))
                 .anchor(0.5f, 0.5f)
                 .flat(true)
@@ -236,7 +236,7 @@ class VehicleMapController {
     private BitmapDescriptor getOrCreateDataReceivedIcon() {
         if (mDataReceivedIcon == null) {
             mDataReceivedIcon = MapIconUtils.createCircleIcon(
-                    mActivity, R.drawable.ic_signal_indicator, 0xFF616161);
+                    mContext, R.drawable.ic_signal_indicator, 0xFF616161);
         }
         return mDataReceivedIcon;
     }

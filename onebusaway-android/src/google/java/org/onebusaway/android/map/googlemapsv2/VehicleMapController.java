@@ -315,8 +315,9 @@ class VehicleMapController {
             LatLng target = (result instanceof ExtrapolationResult.Success)
                     ? mapToPolyline(state, (ExtrapolationResult.Success) result) : null;
 
+            ObaTripStatus newestValid = dm.getNewestValidEntry(state.getTripId());
+
             if (target != null) {
-                ObaTripStatus newestValid = dm.getNewestValidEntry(state.getTripId());
                 boolean freshData = detectFreshAvlData(state, newestValid);
                 if (freshData) {
                     startTransitionAnimation(state, target);
@@ -334,7 +335,6 @@ class VehicleMapController {
                 }
             }
             if (state.selected) {
-                ObaTripStatus newestValid = dm.getNewestValidEntry(state.getTripId());
                 updateDataReceivedMarker(state, newestValid, now);
             }
         }

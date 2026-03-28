@@ -256,7 +256,9 @@ class VehicleMapController {
         deselectAll();
         state.selected = true;
         state.vehicleMarker.showInfoWindow();
-        showDataReceivedMarker(state);
+        if (state.isExtrapolating()) {
+            showDataReceivedMarker(state);
+        }
     }
 
     synchronized void deselectAll() {
@@ -321,7 +323,11 @@ class VehicleMapController {
                 }
             }
             if (state.selected) {
-                updateDataReceivedMarker(state, newestValid, now);
+                if (target != null) {
+                    updateDataReceivedMarker(state, newestValid, now);
+                } else {
+                    removeDataReceivedMarker(state);
+                }
             }
         }
     }

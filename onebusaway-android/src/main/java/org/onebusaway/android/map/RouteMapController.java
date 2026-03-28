@@ -541,6 +541,7 @@ public class RouteMapController implements MapModeController {
             routes.clear();
             routes.add(mRouteId);
 
+            TripDataManager.getInstance().recordTripsForRouteResponse(response);
             obaMapView.updateVehicles(routes, response);
 
             if (mPendingTripSelection != null) {

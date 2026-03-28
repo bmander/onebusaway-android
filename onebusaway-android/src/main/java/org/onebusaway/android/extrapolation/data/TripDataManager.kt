@@ -26,6 +26,7 @@ import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 import org.onebusaway.android.io.request.ObaShapeRequest
+import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.util.LocationUtils
@@ -117,6 +118,35 @@ object TripDataManager {
         recordStatusInternal(status, activeTripId)
         if (status.serviceDate > 0) {
             serviceDateCache[activeTripId] = status.serviceDate
+        }
+    }
+
+    /**
+     * Records all valid vehicle data from a trips-for-route API response: status snapshots,
+     * route types, and background fetches for schedules and shapes. Records all trips in the
+     * response regardless of which routes are displayed on the map.
+     */
+    fun recordTripsForRouteResponse(response: ObaTripsForRouteResponse) {
+        for (trip in response.trips) {
+            val status = trip.status ?: continue
+            val activeTrip = response.getTrip(status.activeTripId) ?: continue
+            val tripId = status.activeTripId ?: continue
+
+            recordStatus(status)
+
+            if (getRouteType(tripId) == null) {
+                val routeId = activeTrip.routeId
+                val route = if (routeId != null) response.getRoute(routeId) else null
+                if (route != null) {
+                    putRouteType(tripId, route.type)
+                }
+            }
+
+            ensureSchedule(tripId)
+            val shapeId = activeTrip.shapeId
+            if (shapeId != null) {
+                ensureShape(tripId, shapeId)
+            }
         }
     }
 

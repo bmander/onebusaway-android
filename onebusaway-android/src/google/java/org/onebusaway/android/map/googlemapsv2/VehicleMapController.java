@@ -106,6 +106,9 @@ class VehicleMapController {
             String tripId = status.getActiveTripId();
             String vehicleId = status.getVehicleId();
 
+            // A vehicle that switches trips (e.g. finishing one run and starting
+            // the next) keeps the same vehicleId but gets a new tripId. Remove
+            // the stale marker for the old trip so it doesn't linger on the map.
             if (vehicleId != null) {
                 String prevTrip = vehicleToTrip.put(vehicleId, tripId);
                 if (prevTrip != null && !prevTrip.equals(tripId)) {

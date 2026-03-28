@@ -57,6 +57,7 @@ class VehicleMapController {
     private final GoogleMap mMap;
     private final Activity mActivity;
     private final VehicleIconFactory mIconFactory;
+    private final TripDataManager mDataManager;
     private final int mAnimateDurationMs;
 
     private HashMap<String, VehicleMarkerState> mStates = new HashMap<>();
@@ -72,6 +73,7 @@ class VehicleMapController {
         mMap = map;
         mActivity = activity;
         mIconFactory = iconFactory;
+        mDataManager = TripDataManager.getInstance();
         mAnimateDurationMs = animateDurationMs;
     }
 
@@ -152,7 +154,7 @@ class VehicleMapController {
         state.setStatus(status);
 
         String tripId = state.getTripId();
-        TripDataManager dm = TripDataManager.getInstance();
+        TripDataManager dm = mDataManager;
         if (dm.getShape(tripId) == null || dm.getNewestValidEntry(tripId) == null) {
             Location markerLoc = MapHelpV2.makeLocation(m.getPosition());
             if (l.distanceTo(markerLoc) < MAX_VEHICLE_ANIMATION_DISTANCE) {
@@ -309,7 +311,7 @@ class VehicleMapController {
     synchronized void updatePositions(long now) {
         if (mStates.isEmpty()) return;
 
-        TripDataManager dm = TripDataManager.getInstance();
+        TripDataManager dm = mDataManager;
 
         for (VehicleMarkerState state : mStates.values()) {
             ExtrapolationResult result = getOrCreateExtrapolator(state).extrapolate(now);
@@ -349,14 +351,14 @@ class VehicleMapController {
         Extrapolator ext = state.getExtrapolator();
         if (ext != null) return ext;
         ext = ExtrapolatorKt.createExtrapolator(state.getTripId(),
-                TripDataManager.getInstance());
+                mDataManager);
         state.setExtrapolator(ext);
         return ext;
     }
 
     private LatLng mapToPolyline(VehicleMarkerState state,
                                   ExtrapolationResult.Success result) {
-        TripDataManager.ShapeData sd = TripDataManager.getInstance()
+        TripDataManager.ShapeData sd = mDataManager
                 .getShapeWithDistances(state.getTripId());
         if (sd == null || sd.points.isEmpty()) return null;
         if (!LocationUtils.interpolateAlongPolyline(

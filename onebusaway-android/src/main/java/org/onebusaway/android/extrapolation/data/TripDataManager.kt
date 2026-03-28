@@ -133,6 +133,9 @@ object TripDataManager {
             val tripId = status.activeTripId ?: continue
 
             recordStatus(status)
+            if (status.serviceDate > 0) {
+                putServiceDate(tripId, status.serviceDate)
+            }
 
             if (getRouteType(tripId) == null) {
                 val routeId = activeTrip.routeId

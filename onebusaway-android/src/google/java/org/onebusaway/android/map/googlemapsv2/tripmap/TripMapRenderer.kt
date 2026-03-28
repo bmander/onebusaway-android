@@ -73,7 +73,6 @@ class TripMapRenderer internal constructor(
         private val routeType: Int?,
         private val stopNames: Map<String, String>,
         private val selectedStopId: String?,
-        val deviationColor: Int,
         val scheduleDeviation: Long
 ) {
     companion object {

@@ -93,9 +93,14 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
      */
     fun update(distribution: ProbDistribution,
                shapeData: Polyline, baseColor: Int) {
+        updatePdfSegments(distribution, shapeData, baseColor)
+        updateFastEstimateMarker(distribution, shapeData)
+    }
+
+    private fun updatePdfSegments(distribution: ProbDistribution,
+                                   shapeData: Polyline, baseColor: Int) {
         val segs = segments ?: return
 
-        // Space segments uniformly in distance between the 1st and 99th percentile
         val distLo = distribution.quantile(PDF_LOW_QUANTILE)
         val distHi = distribution.quantile(PDF_HIGH_QUANTILE)
         if (distHi <= distLo) return
@@ -124,16 +129,16 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
                 seg.isVisible = false
             }
         }
+    }
 
-        // Update fast-estimate marker
-        val fastLoc = shapeData.interpolate(distribution.quantile(FAST_ESTIMATE_QUANTILE))
-        fastEstimateMarker?.let { m ->
-            if (fastLoc != null) {
-                m.position = LatLng(fastLoc.latitude, fastLoc.longitude)
-                m.isVisible = true
-            } else {
-                m.isVisible = false
-            }
+    private fun updateFastEstimateMarker(distribution: ProbDistribution, shapeData: Polyline) {
+        val marker = fastEstimateMarker ?: return
+        val loc = shapeData.interpolate(distribution.quantile(FAST_ESTIMATE_QUANTILE))
+        if (loc != null) {
+            marker.position = LatLng(loc.latitude, loc.longitude)
+            marker.isVisible = true
+        } else {
+            marker.isVisible = false
         }
     }
 

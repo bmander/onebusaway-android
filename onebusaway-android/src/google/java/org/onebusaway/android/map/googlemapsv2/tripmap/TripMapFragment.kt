@@ -36,10 +36,9 @@ import org.onebusaway.android.map.googlemapsv2.MapHelpV2
  * Standalone map fragment for displaying a single trip's route, stops,
  * vehicle position, and speed estimate overlays within TripDetailsActivity.
  *
- * Self-contained: reads trip data from [TripDataManager] using the tripId
- * passed as a fragment argument. Delegates rendering to [TripMapRenderer],
- * per-frame extrapolation to [TripExtrapolationController], and API polling
- * to [TripDetailsPoller].
+ * Holds two overlay layers: [TripRouteOverlay] (static skeleton) and
+ * [TripVehicleOverlay] (live data). Per-frame extrapolation is driven
+ * by [TripExtrapolationController], and API polling by [TripDetailsPoller].
  */
 class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
 
@@ -69,7 +68,8 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     private val selectedStopId: String? get() = arguments?.getString(ARG_STOP_ID)
 
     private var map: GoogleMap? = null
-    private var tripRenderer: TripMapRenderer? = null
+    private var routeOverlay: TripRouteOverlay? = null
+    private var vehicleOverlay: TripVehicleOverlay? = null
     private var extrapolationController: TripExtrapolationController? = null
     private val poller = TripDetailsPoller()
     private var activated = false
@@ -112,8 +112,10 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         poller.stop()
         extrapolationController?.stop()
         extrapolationController = null
-        tripRenderer?.deactivate()
-        tripRenderer = null
+        routeOverlay?.deactivate()
+        routeOverlay = null
+        vehicleOverlay?.deactivate()
+        vehicleOverlay = null
         map = null
         activated = false
         super.onDestroyView()
@@ -128,29 +130,34 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
             return
         }
 
-        tripRenderer?.deactivate()
+        routeOverlay?.deactivate()
+        vehicleOverlay?.deactivate()
         extrapolationController?.stop()
 
-        TripMapRendererFactory.create(m, requireContext(), tripId,
-                selectedStopId, response, ::onRendererReady)
+        TripMapOverlayFactory.create(m, requireContext(), tripId,
+                selectedStopId, response, ::onOverlaysReady)
     }
 
-    private fun onRendererReady(renderer: TripMapRenderer) {
-        tripRenderer = renderer
+    private fun onOverlaysReady(overlays: TripMapOverlays) {
+        routeOverlay = overlays.route
+        vehicleOverlay = overlays.vehicle
         val extrapolator = createExtrapolator(tripId)
-        extrapolationController = TripExtrapolationController(renderer, tripId, extrapolator).also { it.start() }
+        extrapolationController = TripExtrapolationController(
+                overlays.vehicle, tripId, extrapolator).also { it.start() }
         poller.start(tripId)
         activated = true
-        renderer.fitCameraToShape()
+        overlays.route.fitCameraToShape()
     }
 
     // --- Marker click handling ---
 
     override fun onMarkerClick(marker: Marker): Boolean {
-        val renderer = tripRenderer ?: return false
-        return renderer.handleDataReceivedClick(marker)
-                || renderer.handleEstimateLabelClick(marker)
-                || renderer.handleStopMarkerClick(marker)
+        val vehicle = vehicleOverlay
+        val route = routeOverlay
+        if (vehicle == null || route == null) return false
+        return vehicle.handleDataReceivedClick(marker)
+                || vehicle.handleEstimateLabelClick(marker)
+                || route.handleStopMarkerClick(marker)
     }
 
     private fun hasLocationPermission(): Boolean {

@@ -20,23 +20,29 @@ import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.GoogleMap
 import org.onebusaway.android.R
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.util.Polyline
 import org.onebusaway.android.io.elements.ObaReferences
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestLocation
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
+import org.onebusaway.android.util.Polyline
+
+/** The two overlay layers produced by [TripMapOverlayFactory]. */
+data class TripMapOverlays(
+        val route: TripRouteOverlay,
+        val vehicle: TripVehicleOverlay,
+        val shapeData: Polyline,
+        val tripId: String
+)
 
 /**
- * Creates and activates a [TripMapRenderer] from an API response.
+ * Creates and activates trip map overlays from an API response.
  *
- * Returns without calling [onReady] if the response lacks required data (schedule, refs, trip). If
- * the shape is already cached, [onReady] is called synchronously. If the shape needs fetching,
- * [TripDataManager.ensureShape] handles it and [onReady] is called on the main thread once the
- * shape arrives.
+ * Returns without calling [onReady] if the response lacks required data (schedule, refs, trip).
+ * If the shape needs fetching, [onReady] is called on the main thread once it arrives.
  */
-internal object TripMapRendererFactory {
+internal object TripMapOverlayFactory {
 
     fun create(
             map: GoogleMap,
@@ -44,7 +50,7 @@ internal object TripMapRendererFactory {
             tripId: String,
             selectedStopId: String?,
             response: ObaTripDetailsResponse,
-            onReady: (TripMapRenderer) -> Unit
+            onReady: (TripMapOverlays) -> Unit
     ) {
         val schedule = response.schedule ?: return
         val status = response.status
@@ -64,28 +70,25 @@ internal object TripMapRendererFactory {
                 status?.takeIf { it.activeTripId == tripId }?.scheduleDeviation ?: 0L
         val stopNames = buildStopNameMap(schedule, refs)
 
-        fun buildRenderer(sd: Polyline) {
-            val renderer =
-                    TripMapRenderer(
-                            map,
-                            context,
-                            tripId,
-                            sd,
-                            schedule,
-                            routeColor,
-                            route?.type,
-                            stopNames,
-                            selectedStopId,
-                            scheduleDeviation
-                    )
-            renderer.activate(vehiclePosition)
-            onReady(renderer)
+        fun build(sd: Polyline) {
+            val routeOverlay = TripRouteOverlay(
+                    map, context, tripId, sd, schedule,
+                    routeColor, stopNames, selectedStopId, scheduleDeviation)
+            val vehicleOverlay = TripVehicleOverlay(
+                    map, context, sd, routeColor, route?.type)
+
+            routeOverlay.activate()
+            TripDataManager.getLastState(tripId)?.let {
+                vehicleOverlay.showOrUpdateDataReceivedMarker(it, System.currentTimeMillis())
+            }
+            vehicleOverlay.activate(vehiclePosition)
+
+            onReady(TripMapOverlays(routeOverlay, vehicleOverlay, sd, tripId))
         }
 
-        // Fetch shape if needed; callback fires on main thread when available
         val shapeId = trip.shapeId
         if (shapeId != null) {
-            TripDataManager.ensureShape(tripId, shapeId, ::buildRenderer)
+            TripDataManager.ensureShape(tripId, shapeId, ::build)
         }
     }
 

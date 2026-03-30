@@ -28,7 +28,7 @@ private const val FRAME_INTERVAL_MS = 50L // 20fps
  */
 class TripExtrapolationController
 internal constructor(
-        private val renderer: TripMapRenderer,
+        private val vehicleOverlay: TripVehicleOverlay,
         private val tripId: String,
         private val extrapolator: Extrapolator
 ) {
@@ -73,18 +73,18 @@ internal constructor(
                 val loc = shapeData.interpolate(distribution.median())
                 if (loc != null) {
                     val newestValid = TripDataManager.getNewestValidEntry(tripId)
-                    renderer.updateVehiclePosition(loc, newestValid, now)
+                    vehicleOverlay.updateVehiclePosition(loc, newestValid, now)
                 }
-                renderer.updateEstimateOverlays(distribution)
+                vehicleOverlay.updateEstimateOverlays(distribution)
             }
             else -> {
-                renderer.hideVehicleMarker()
-                renderer.hideEstimateOverlays()
+                vehicleOverlay.hideVehicleMarker()
+                vehicleOverlay.hideEstimateOverlays()
             }
         }
 
         TripDataManager.getLastState(tripId)?.let {
-            renderer.showOrUpdateDataReceivedMarker(it, now)
+            vehicleOverlay.showOrUpdateDataReceivedMarker(it, now)
         }
     }
 }

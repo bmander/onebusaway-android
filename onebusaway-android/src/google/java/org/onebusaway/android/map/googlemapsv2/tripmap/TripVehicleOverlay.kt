@@ -35,6 +35,7 @@ import org.onebusaway.android.util.UIUtils
 
 private const val ANIMATE_DURATION_MS = 600
 private const val MARKER_Z_INDEX = 3f
+private const val POLYLINE_WIDTH_PX = 44f
 
 /** Shifts hue by 180 degrees to produce a color that contrasts with the input. */
 private fun contrastingColor(color: Int): Int {
@@ -83,7 +84,7 @@ class TripVehicleOverlay(
         if (routeType == null || !ObaRoute.isGradeSeparated(routeType)) {
             if (vehiclePosition != null) {
                 estimateOverlay = DistanceEstimateOverlay(shapeData, overlayColor).also {
-                    it.create(map, context, TripMapRenderer.TRIP_BASE_WIDTH_PX, vehiclePosition)
+                    it.create(map, context, POLYLINE_WIDTH_PX, vehiclePosition)
                 }
             }
         }

@@ -25,10 +25,7 @@ import java.util.Arrays
  */
 class Polyline(val points: List<Location>) {
 
-    val totalDistance: Double
-        get() = if (cumulativeDistances.isEmpty()) 0.0 else cumulativeDistances.last()
-
-    internal val cumulativeDistances: DoubleArray = points
+    private val cumulativeDistances: DoubleArray = points
             .zipWithNext { prev, cur ->
                 LocationUtils.haversineDistance(
                         prev.latitude, prev.longitude,
@@ -80,7 +77,7 @@ class Polyline(val points: List<Location>) {
      * [startDist] and [endDist]. Returns a pair (from, to) for use as a half-open range,
      * or null if no vertices fall in range.
      */
-    fun vertexRange(startDist: Double, endDist: Double): Pair<Int, Int>? {
+    private fun vertexRange(startDist: Double, endDist: Double): Pair<Int, Int>? {
         if (cumulativeDistances.isEmpty() || startDist >= endDist) return null
         val rawStart = Arrays.binarySearch(cumulativeDistances, startDist)
         val from = if (rawStart >= 0) rawStart + 1 else -rawStart - 1

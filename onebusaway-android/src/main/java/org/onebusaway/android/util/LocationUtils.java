@@ -595,20 +595,9 @@ public class LocationUtils {
         return addresses;
     }
 
-    // --- Polyline interpolation utilities ---
+    // --- Polyline interpolation (deprecated — use Polyline class directly) ---
 
-    /**
-     * Interpolates a position along a polyline at a given distance from the start.
-     * Uses a precomputed cumulative distance array for O(log n) binary search.
-     *
-     * @param polylinePoints decoded polyline points (lat/lng)
-     * @param cumDist        precomputed cumulative distances
-     * @param distanceMeters target distance along the polyline in meters
-     * @return interpolated Location, or null if the polyline is empty or inputs are invalid
-     */
-    /**
-     * @deprecated Use {@link Polyline#interpolate(double)} instead.
-     */
+    /** @deprecated Use {@link Polyline#interpolate(double)} instead. */
     public static Location interpolateAlongPolyline(
             List<Location> polylinePoints,
             double[] cumDist,
@@ -617,9 +606,7 @@ public class LocationUtils {
         return new Polyline(polylinePoints).interpolate(distanceMeters);
     }
 
-    /**
-     * @deprecated Use {@link Polyline#interpolate(double)} instead.
-     */
+    /** @deprecated Use {@link Polyline#interpolate(double)} instead. */
     public static boolean interpolateAlongPolyline(
             List<Location> polylinePoints,
             double[] cumDist,
@@ -631,23 +618,6 @@ public class LocationUtils {
         out.setLatitude(result.getLatitude());
         out.setLongitude(result.getLongitude());
         return true;
-    }
-
-    /**
-     * @deprecated Use {@link Polyline#vertexRange(double, double)} instead.
-     */
-    public static int[] findVertexRange(double[] cumDist, double startDist, double endDist) {
-        if (cumDist == null || cumDist.length == 0 || startDist >= endDist) {
-            return null;
-        }
-
-        int rawStart = Arrays.binarySearch(cumDist, startDist);
-        int from = (rawStart >= 0) ? rawStart + 1 : -rawStart - 1;
-
-        int rawEnd = Arrays.binarySearch(cumDist, endDist);
-        int to = (rawEnd >= 0) ? rawEnd : -rawEnd - 1;
-
-        return (from < to) ? new int[]{from, to} : null;
     }
 
     /**

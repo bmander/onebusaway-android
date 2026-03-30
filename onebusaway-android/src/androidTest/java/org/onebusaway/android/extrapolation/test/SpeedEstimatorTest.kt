@@ -184,33 +184,36 @@ class SpeedEstimatorTest {
         assertNull(dm.getSchedule("trip1"))
     }
 
-    // --- Shape cumulative distance tests ---
+    // --- Polyline interpolation tests ---
 
     @Test
-    fun testBuildCumulativeDistancesSinglePoint() {
+    fun testPolylineSinglePoint() {
         val points = listOf(createLocation(47.0, -122.0))
         dm.putShape("trip1", points)
-        val cumDist = dm.getPolyline("trip1")!!.cumulativeDistances
-        assertEquals(1, cumDist.size)
-        assertEquals(0.0, cumDist[0], 0.001)
+        val poly = dm.getPolyline("trip1")!!
+        val result = poly.interpolate(50.0)!!
+        assertEquals(47.0, result.latitude, 1e-12)
+        assertEquals(-122.0, result.longitude, 1e-12)
     }
 
     @Test
-    fun testBuildCumulativeDistancesTwoPoints() {
+    fun testPolylineTwoPoints() {
         val points = listOf(
             createLocation(47.0, -122.0),
             createLocation(47.001, -122.0)  // ~111 meters north
         )
         dm.putShape("trip1", points)
-        val cumDist = dm.getPolyline("trip1")!!.cumulativeDistances
-        assertEquals(2, cumDist.size)
-        assertEquals(0.0, cumDist[0], 0.001)
-        assertTrue("Second point should have positive distance", cumDist[1] > 100)
-        assertTrue("Second point should be ~111m", cumDist[1] < 120)
+        val poly = dm.getPolyline("trip1")!!
+        // Interpolate at 0 — should return first point
+        val start = poly.interpolate(0.0)!!
+        assertEquals(47.0, start.latitude, 1e-12)
+        // Interpolate beyond end — should return last point
+        val end = poly.interpolate(1000.0)!!
+        assertEquals(47.001, end.latitude, 1e-6)
     }
 
     @Test
-    fun testBuildCumulativeDistancesMultiplePoints() {
+    fun testPolylineMultiplePointsMidInterpolation() {
         val points = listOf(
             createLocation(47.0, -122.0),
             createLocation(47.001, -122.0),  // ~111m
@@ -218,15 +221,10 @@ class SpeedEstimatorTest {
             createLocation(47.003, -122.0)   // ~333m total
         )
         dm.putShape("trip1", points)
-        val cumDist = dm.getPolyline("trip1")!!.cumulativeDistances
-        assertEquals(4, cumDist.size)
-        assertEquals(0.0, cumDist[0], 0.001)
-        // Each segment is ~111m, so cumulative should be monotonically increasing
-        assertTrue(cumDist[1] > cumDist[0])
-        assertTrue(cumDist[2] > cumDist[1])
-        assertTrue(cumDist[3] > cumDist[2])
-        // Total should be ~333m
-        assertTrue("Total distance should be ~333m", cumDist[3] > 320 && cumDist[3] < 350)
+        val poly = dm.getPolyline("trip1")!!
+        // Interpolate at ~166m — should be between second and third point
+        val mid = poly.interpolate(166.0)!!
+        assertTrue("Should be between 47.001 and 47.002", mid.latitude > 47.001 && mid.latitude < 47.002)
     }
 
     // --- Schedule-only filtering tests ---

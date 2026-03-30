@@ -26,7 +26,7 @@ import org.onebusaway.android.R;
 import org.onebusaway.android.ui.dataview.VehicleLocationDataActivity;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
-import org.onebusaway.android.map.googlemapsv2.tripmap.TripMapFragment;
+import org.onebusaway.android.map.TripMapFragmentFactory;
 import org.onebusaway.android.util.FragmentUtils;
 import org.onebusaway.android.util.UIUtils;
 
@@ -125,7 +125,7 @@ public class TripDetailsActivity extends AppCompatActivity
         // If the map fragment was showing, replace it with the list so the
         // loader repopulates the response via onTripDataLoaded().
         if (savedInstanceState != null
-                && fm.findFragmentByTag(TripMapFragment.TAG) != null) {
+                && fm.findFragmentByTag(TripMapFragmentFactory.TAG) != null) {
             fm.beginTransaction()
                     .replace(R.id.fragment_container,
                             newListFragment(), TripDetailsListFragment.TAG)
@@ -240,9 +240,9 @@ public class TripDetailsActivity extends AppCompatActivity
     public void showMap() {
         if (mCachedResponse == null || mTripId == null) return;
 
-        TripMapFragment mapFragment = TripMapFragment.newInstance(mTripId, mStopId);
+        Fragment mapFragment = TripMapFragmentFactory.newInstance(mTripId, mStopId);
         getSupportFragmentManager().beginTransaction()
-                .replace(R.id.fragment_container, mapFragment, TripMapFragment.TAG)
+                .replace(R.id.fragment_container, mapFragment, TripMapFragmentFactory.TAG)
                 .commit();
 
         mShowingMap = true;

@@ -50,7 +50,6 @@ import java.util.Map;
  */
 class VehicleMapController {
 
-    private static final double MAX_VEHICLE_ANIMATION_DISTANCE = 400;
     private static final float VEHICLE_MARKER_Z_INDEX = 1;
     private static final float DATA_RECEIVED_MARKER_Z_INDEX = 3.1f;
 
@@ -75,7 +74,7 @@ class VehicleMapController {
 
     // --- Populate from API response ---
 
-    synchronized void populate(HashSet<String> routeIds, ObaTripsForRouteResponse response) {
+    void populate(HashSet<String> routeIds, ObaTripsForRouteResponse response) {
         HashSet<String> activeTripIds = new HashSet<>();
         HashMap<String, String> vehicleToTrip = new HashMap<>();
         long now = System.currentTimeMillis();
@@ -195,8 +194,7 @@ class VehicleMapController {
         m.setTag(state);
     }
 
-    private void updateDataReceivedMarker(VehicleMarkerState state, ObaTripStatus newestValid,
-                                           long now) {
+    private void updateDataReceivedMarker(VehicleMarkerState state, ObaTripStatus newestValid) {
         if (state.dataReceivedMarker == null || newestValid == null) return;
         long fixTime = newestValid.getLastLocationUpdateTime();
         if (fixTime != state.dataReceivedFixTime) {
@@ -232,7 +230,7 @@ class VehicleMapController {
 
     // --- Selection ---
 
-    synchronized boolean handleMarkerClick(Marker marker) {
+    boolean handleMarkerClick(Marker marker) {
         VehicleMarkerState state = stateOf(marker);
         if (state == null) return false;
         if (marker.equals(state.dataReceivedMarker)) {
@@ -243,7 +241,7 @@ class VehicleMapController {
         return true;
     }
 
-    synchronized void selectVehicle(String tripId) {
+    void selectVehicle(String tripId) {
         VehicleMarkerState state = mStates.get(tripId);
         if (state != null) selectState(state);
     }
@@ -257,7 +255,7 @@ class VehicleMapController {
         }
     }
 
-    synchronized void deselectAll() {
+    void deselectAll() {
         for (VehicleMarkerState state : mStates.values()) {
             state.selected = false;
             removeDataReceivedMarker(state);
@@ -266,22 +264,22 @@ class VehicleMapController {
 
     // --- Queries ---
 
-    synchronized ObaTripStatus getStatusFromMarker(Marker marker) {
+    ObaTripStatus getStatusFromMarker(Marker marker) {
         VehicleMarkerState state = stateOf(marker);
         return state != null ? state.getStatus() : null;
     }
 
-    synchronized boolean isExtrapolating(Marker marker) {
+    boolean isExtrapolating(Marker marker) {
         VehicleMarkerState state = stateOf(marker);
         return state != null && state.isExtrapolating();
     }
 
-    synchronized boolean isDataReceivedMarker(Marker marker) {
+    boolean isDataReceivedMarker(Marker marker) {
         VehicleMarkerState state = stateOf(marker);
         return state != null && marker.equals(state.dataReceivedMarker);
     }
 
-    synchronized String getTripIdForDataReceivedMarker(Marker marker) {
+    String getTripIdForDataReceivedMarker(Marker marker) {
         VehicleMarkerState state = stateOf(marker);
         if (state != null && marker.equals(state.dataReceivedMarker)) return state.getTripId();
         return null;
@@ -289,7 +287,7 @@ class VehicleMapController {
 
     // --- Per-frame position updates ---
 
-    synchronized void updatePositions(long now) {
+    void updatePositions(long now) {
         if (mStates.isEmpty()) return;
 
         TripDataManager dm = mDataManager;
@@ -318,7 +316,7 @@ class VehicleMapController {
             }
             if (state.selected) {
                 if (target != null) {
-                    updateDataReceivedMarker(state, newestValid, now);
+                    updateDataReceivedMarker(state, newestValid);
                 } else {
                     removeDataReceivedMarker(state);
                 }
@@ -343,7 +341,7 @@ class VehicleMapController {
         if (sd == null) return null;
         Location loc = sd.interpolate(result.getDistribution().median());
         if (loc == null) return null;
-        return new LatLng(loc.getLatitude(), loc.getLongitude());
+        return MapHelpV2.makeLatLng(loc);
     }
 
     private boolean detectFreshAvlData(VehicleMarkerState state, ObaTripStatus newest) {
@@ -376,7 +374,7 @@ class VehicleMapController {
 
     // --- Lifecycle ---
 
-    synchronized void clear() {
+    void clear() {
         for (VehicleMarkerState state : mStates.values()) {
             destroyState(state);
         }
@@ -384,7 +382,7 @@ class VehicleMapController {
         mDataReceivedIcon = null;
     }
 
-    synchronized int size() {
+    int size() {
         return mStates.size();
     }
 }

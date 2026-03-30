@@ -94,11 +94,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         startExtrapolationTicking();
     }
 
-    public synchronized int size() {
+    public int size() {
         return mController != null ? mController.size() : 0;
     }
 
-    public synchronized void clear() {
+    public void clear() {
         stopExtrapolationTicking();
         if (mController != null) {
             mController.clear();

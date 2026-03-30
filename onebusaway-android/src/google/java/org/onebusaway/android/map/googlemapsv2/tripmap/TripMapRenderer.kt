@@ -281,8 +281,8 @@ class TripMapRenderer internal constructor(
     private fun createEstimateOverlays(vehiclePosition: LatLng?) {
         if (routeType != null && ObaRoute.isGradeSeparated(routeType)) return
         if (vehiclePosition == null) return
-        estimateOverlay = DistanceEstimateOverlay(map, context, TRIP_BASE_WIDTH_PX).also {
-            it.create(vehiclePosition)
+        estimateOverlay = DistanceEstimateOverlay().also {
+            it.create(map, context, TRIP_BASE_WIDTH_PX, vehiclePosition)
         }
     }
 

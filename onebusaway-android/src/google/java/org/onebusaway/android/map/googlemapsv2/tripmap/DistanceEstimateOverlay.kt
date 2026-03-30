@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
-import org.onebusaway.android.map.googlemapsv2.MapIconUtils
 import android.content.Context
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
@@ -24,8 +23,10 @@ import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.Polyline as MapPolyline
 import com.google.android.gms.maps.model.PolylineOptions
 import org.onebusaway.android.R
-import org.onebusaway.android.util.Polyline
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
+import org.onebusaway.android.map.googlemapsv2.MapHelpV2
+import org.onebusaway.android.map.googlemapsv2.MapIconUtils
+import org.onebusaway.android.util.Polyline
 
 private const val MARKER_Z_INDEX = 3f
 private const val SEGMENT_Z_INDEX = 2f
@@ -39,23 +40,18 @@ private const val DEFAULT_SEGMENT_COUNT = 15
  * polyline segments showing the PDF over distance, plus a fast-estimate icon marker at
  * the 90th percentile position. Takes a [ProbDistribution] over distance each frame.
  */
-class DistanceEstimateOverlay @JvmOverloads constructor(
-        private val map: GoogleMap,
-        private val context: Context,
-        private val polylineWidth: Float,
+class DistanceEstimateOverlay(
         private val segmentCount: Int = DEFAULT_SEGMENT_COUNT
 ) {
     private val edgeDistances = DoubleArray(segmentCount + 1)
     private val pdfValues = DoubleArray(segmentCount)
 
-    // --- Map objects ---
     private var segments: Array<MapPolyline>? = null
     private var fastEstimateMarker: Marker? = null
-    private val fastEstimateIcon = MapIconUtils.createCircleIcon(context, R.drawable.ic_fast_estimate)
 
-    // --- Lifecycle ---
-
-    fun create(initialPosition: LatLng) {
+    fun create(map: GoogleMap, context: Context, polylineWidth: Float,
+               initialPosition: LatLng) {
+        val icon = MapIconUtils.createCircleIcon(context, R.drawable.ic_fast_estimate)
         segments = Array(segmentCount) {
             map.addPolyline(PolylineOptions()
                     .width(polylineWidth)
@@ -64,7 +60,7 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
         }
         fastEstimateMarker = map.addMarker(MarkerOptions()
                 .position(initialPosition)
-                .icon(fastEstimateIcon)
+                .icon(icon)
                 .title(context.getString(R.string.marker_fast_estimate))
                 .snippet(context.getString(R.string.marker_fast_estimate_snippet))
                 .anchor(0.5f, 0.5f)
@@ -119,7 +115,7 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
         val rgb = baseColor and 0x00FFFFFF
         segs.forEachIndexed { i, seg ->
             val pts = shapeData.subPolyline(edgeDistances[i], edgeDistances[i + 1])
-                    ?.map { LatLng(it.latitude, it.longitude) }
+                    ?.map { MapHelpV2.makeLatLng(it) }
             if (pts != null) {
                 val alpha = if (maxPdf > 0) (255 * pdfValues[i] / maxPdf).toInt() else 0
                 seg.points = pts
@@ -135,7 +131,7 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
         val marker = fastEstimateMarker ?: return
         val loc = shapeData.interpolate(distribution.quantile(FAST_ESTIMATE_QUANTILE))
         if (loc != null) {
-            marker.position = LatLng(loc.latitude, loc.longitude)
+            marker.position = MapHelpV2.makeLatLng(loc)
             marker.isVisible = true
         } else {
             marker.isVisible = false

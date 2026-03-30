@@ -46,14 +46,11 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
         private val polylineWidth: Float,
         private val segmentCount: Int = DEFAULT_SEGMENT_COUNT
 ) {
-    // --- Pre-allocated per-frame arrays ---
     private val edgeDistances = DoubleArray(segmentCount + 1)
     private val pdfValues = DoubleArray(segmentCount)
-    private val reusableLoc = Location("overlay")
 
     // --- Map objects ---
     private var segments: Array<Polyline>? = null
-    private val segmentPoints = List(segmentCount) { mutableListOf<LatLng>() }
     private var fastEstimateMarker: Marker? = null
     private val fastEstimateIcon = MapIconUtils.createCircleIcon(context, R.drawable.ic_fast_estimate)
 
@@ -115,16 +112,31 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
             if (pdfValues[i] > maxPdf) maxPdf = pdfValues[i]
         }
 
-        // Update polyline segments
         val rgb = baseColor and 0x00FFFFFF
         for (i in 0 until segmentCount) {
-            updateSegment(segs[i], segmentPoints[i],
-                    edgeDistances[i], edgeDistances[i + 1],
-                    pdfValues[i], maxPdf, rgb, shape, cumDist)
+            val pts = segmentPoints(edgeDistances[i], edgeDistances[i + 1], shape, cumDist)
+            val seg = segs[i]
+            if (pts != null) {
+                val alpha = if (maxPdf > 0) (255 * pdfValues[i] / maxPdf).toInt() else 0
+                seg.points = pts
+                seg.color = (alpha shl 24) or rgb
+                seg.isVisible = true
+            } else {
+                seg.isVisible = false
+            }
         }
 
         // Update fast-estimate marker
-        updateMarkerPosition(distribution.quantile(FAST_ESTIMATE_QUANTILE), shape, cumDist)
+        val fastLoc = LocationUtils.interpolateAlongPolyline(
+                shape, cumDist, distribution.quantile(FAST_ESTIMATE_QUANTILE))
+        fastEstimateMarker?.let { m ->
+            if (fastLoc != null) {
+                m.position = LatLng(fastLoc.latitude, fastLoc.longitude)
+                m.isVisible = true
+            } else {
+                m.isVisible = false
+            }
+        }
     }
 
     /** Returns true if the clicked marker was the fast estimate icon. */
@@ -135,48 +147,20 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
         return true
     }
 
-    // --- Segment rendering ---
+    // --- Segment geometry ---
 
-    private fun updateSegment(polyline: Polyline, pts: MutableList<LatLng>,
-                               segStart: Double, segEnd: Double,
-                               pdfValue: Double, maxPdf: Double, rgb: Int,
-                               shape: List<Location>, cumDist: DoubleArray) {
-        pts.clear()
-
-        if (!LocationUtils.interpolateAlongPolyline(shape, cumDist, segStart, reusableLoc)) {
-            polyline.isVisible = false; return
-        }
-        pts.add(LatLng(reusableLoc.latitude, reusableLoc.longitude))
-
-        val range = LocationUtils.findVertexRange(cumDist, segStart, segEnd)
-        if (range != null) {
-            for (j in range[0] until range[1]) {
-                val v = shape[j]
-                pts.add(LatLng(v.latitude, v.longitude))
+    private fun segmentPoints(segStart: Double, segEnd: Double,
+                               shape: List<Location>, cumDist: DoubleArray): List<LatLng>? {
+        val start = LocationUtils.interpolateAlongPolyline(shape, cumDist, segStart) ?: return null
+        val end = LocationUtils.interpolateAlongPolyline(shape, cumDist, segEnd) ?: return null
+        return buildList {
+            add(LatLng(start.latitude, start.longitude))
+            LocationUtils.findVertexRange(cumDist, segStart, segEnd)?.let { range ->
+                for (j in range[0] until range[1]) {
+                    add(LatLng(shape[j].latitude, shape[j].longitude))
+                }
             }
+            add(LatLng(end.latitude, end.longitude))
         }
-
-        if (!LocationUtils.interpolateAlongPolyline(shape, cumDist, segEnd, reusableLoc)) {
-            polyline.isVisible = false; return
-        }
-        pts.add(LatLng(reusableLoc.latitude, reusableLoc.longitude))
-
-        val alpha = if (maxPdf > 0) (255 * pdfValue / maxPdf).toInt() else 0
-        polyline.points = pts
-        polyline.color = (alpha shl 24) or rgb
-        polyline.isVisible = true
-    }
-
-    // --- Marker positioning ---
-
-    private fun updateMarkerPosition(distance: Double,
-                                      shape: List<Location>, cumDist: DoubleArray) {
-        val marker = fastEstimateMarker ?: return
-        if (!LocationUtils.interpolateAlongPolyline(shape, cumDist, distance, reusableLoc)) {
-            marker.isVisible = false
-            return
-        }
-        marker.position = LatLng(reusableLoc.latitude, reusableLoc.longitude)
-        marker.isVisible = true
     }
 }

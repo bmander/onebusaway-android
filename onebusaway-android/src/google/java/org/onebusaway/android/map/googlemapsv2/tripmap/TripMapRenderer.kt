@@ -42,7 +42,6 @@ import org.onebusaway.android.map.googlemapsv2.AnimationUtil
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 import org.onebusaway.android.map.googlemapsv2.MapIconUtils
 import org.onebusaway.android.map.googlemapsv2.StampedPolylineFactory
-import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.UIUtils
 
 /** Shifts hue by 180 degrees to produce a color that contrasts with the input. */
@@ -67,8 +66,7 @@ class TripMapRenderer internal constructor(
         private val map: GoogleMap,
         private val context: Context,
         val tripId: String,
-        val shape: List<Location>,
-        private val cumDist: DoubleArray,
+        val shapeData: TripDataManager.ShapeData,
         private val schedule: ObaTripSchedule,
         private val routeColor: Int,
         private val routeType: Int?,
@@ -123,7 +121,7 @@ class TripMapRenderer internal constructor(
     }
 
     fun fitCameraToShape() {
-        val bounds = MapHelpV2.getBounds(shape) ?: return
+        val bounds = MapHelpV2.getBounds(shapeData.points) ?: return
         try {
             map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
         } catch (e: IllegalStateException) {
@@ -148,7 +146,7 @@ class TripMapRenderer internal constructor(
 
     private fun showTripPolyline() {
         tripPolylines.add(map.addPolyline(
-                stampFactory.create(shape, routeColor, TRIP_BASE_WIDTH_PX)))
+                stampFactory.create(shapeData.points, routeColor, TRIP_BASE_WIDTH_PX)))
     }
 
     // --- Stop circles ---
@@ -156,8 +154,7 @@ class TripMapRenderer internal constructor(
     private fun showTripStopCircles() {
         val stopTimes = schedule.stopTimes ?: return
         for (st in stopTimes) {
-            val loc = LocationUtils.interpolateAlongPolyline(
-                    shape, cumDist, st.distanceAlongTrip) ?: continue
+            val loc = shapeData.interpolate(st.distanceAlongTrip) ?: continue
             val isSelected = st.stopId == selectedStopId
             map.addMarker(MarkerOptions()
                     .position(LatLng(loc.latitude, loc.longitude))
@@ -266,7 +263,7 @@ class TripMapRenderer internal constructor(
     fun updateEstimateOverlays(distribution: ProbDistribution?) {
         val overlay = estimateOverlay ?: return
         if (distribution == null) { overlay.hide(); return }
-        overlay.update(distribution, shape, cumDist, overlayColor)
+        overlay.update(distribution, shapeData, overlayColor)
     }
 
     fun hideEstimateOverlays() { estimateOverlay?.hide() }

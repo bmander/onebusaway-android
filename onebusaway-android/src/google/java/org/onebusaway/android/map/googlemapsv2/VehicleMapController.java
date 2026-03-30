@@ -35,7 +35,6 @@ import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.elements.ObaElementExtensionsKt;
 import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
-import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.UIUtils;
 
 import java.util.HashMap;
@@ -61,9 +60,6 @@ class VehicleMapController {
     private final int mAnimateDurationMs;
 
     private HashMap<String, VehicleMarkerState> mStates = new HashMap<>();
-
-    /** Reusable Location to avoid per-frame allocation in extrapolation. */
-    private final Location mReusableLocation = new Location("extrapolated");
 
     private BitmapDescriptor mDataReceivedIcon;
 
@@ -343,13 +339,11 @@ class VehicleMapController {
     private LatLng mapToPolyline(VehicleMarkerState state,
                                   ExtrapolationResult.Success result) {
         TripDataManager.ShapeData sd = mDataManager
-                .getShapeWithDistances(state.getTripId());
+                .getShapeData(state.getTripId());
         if (sd == null || sd.points.isEmpty()) return null;
-        if (!LocationUtils.interpolateAlongPolyline(
-                sd.points, sd.cumulativeDistances,
-                result.getDistribution().median(), mReusableLocation))
-            return null;
-        return new LatLng(mReusableLocation.getLatitude(), mReusableLocation.getLongitude());
+        Location loc = sd.interpolate(result.getDistribution().median());
+        if (loc == null) return null;
+        return new LatLng(loc.getLatitude(), loc.getLongitude());
     }
 
     private boolean detectFreshAvlData(VehicleMarkerState state, ObaTripStatus newest) {

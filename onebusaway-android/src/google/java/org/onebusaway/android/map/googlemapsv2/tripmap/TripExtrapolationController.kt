@@ -15,12 +15,10 @@
  */
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
-import android.location.Location
 import android.view.Choreographer
 import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.util.LocationUtils
 
 private const val FRAME_INTERVAL_MS = 50L // 20fps
 
@@ -35,7 +33,6 @@ internal constructor(
         private val extrapolator: Extrapolator
 ) {
     private val choreographer: Choreographer = Choreographer.getInstance()
-    private val reusableLocation = Location("extrapolated")
     @Volatile private var ticking = false
     private var lastFrameTimeMs = 0L
     private val frameCallback = Choreographer.FrameCallback { onFrame() }
@@ -67,17 +64,16 @@ internal constructor(
     }
 
     private fun doFrame(now: Long) {
-        val shapeData = TripDataManager.getShapeWithDistances(tripId) ?: return
+        val shapeData = TripDataManager.getShapeData(tripId) ?: return
         val result = extrapolator.extrapolate(now)
 
         when (result) {
             is ExtrapolationResult.Success -> {
                 val distribution = result.distribution
-                if (LocationUtils.interpolateAlongPolyline(
-                                shapeData.points, shapeData.cumulativeDistances,
-                                distribution.median(), reusableLocation)) {
+                val loc = shapeData.interpolate(distribution.median())
+                if (loc != null) {
                     val newestValid = TripDataManager.getNewestValidEntry(tripId)
-                    renderer.updateVehiclePosition(reusableLocation, newestValid, now)
+                    renderer.updateVehiclePosition(loc, newestValid, now)
                 }
                 renderer.updateEstimateOverlays(distribution)
             }

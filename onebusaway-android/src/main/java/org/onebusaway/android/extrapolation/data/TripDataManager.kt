@@ -59,8 +59,7 @@ object TripDataManager {
     private val tripDetailsCache = HashMap<String, ObaTripDetailsResponse>()
     private val scheduleCache = HashMap<String, ObaTripSchedule>()
     private val serviceDateCache = HashMap<String, Long>()
-    private val shapeCache = HashMap<String, List<Location>>()
-    private val shapeCumDistCache = HashMap<String, DoubleArray>()
+    private val shapeDataCache = HashMap<String, ShapeData>()
     private val routeTypeCache = HashMap<String, Int>()
     /** Last active trip ID reported by the server for each queried trip. */
     private val lastActiveTripId = HashMap<String, String?>()
@@ -245,11 +244,14 @@ object TripDataManager {
 
     // --- Shape cache ---
 
-    /** Atomically readable shape data: polyline points and precomputed cumulative distances. */
+    /** Polyline points with precomputed cumulative distances for interpolation. */
     data class ShapeData(
             @JvmField val points: List<Location>,
             @JvmField val cumulativeDistances: DoubleArray
-    )
+    ) {
+        fun interpolate(distanceMeters: Double): Location? =
+                LocationUtils.interpolateAlongPolyline(points, cumulativeDistances, distanceMeters)
+    }
 
     /**
      * Stores the decoded polyline points for a trip's shape, and precomputes cumulative distances
@@ -258,31 +260,14 @@ object TripDataManager {
     @Synchronized
     fun putShape(tripId: String?, points: List<Location>?) {
         if (tripId != null && points != null && points.isNotEmpty()) {
-            shapeCache[tripId] = points
-            shapeCumDistCache[tripId] = buildCumulativeDistances(points)
+            shapeDataCache[tripId] = ShapeData(points, buildCumulativeDistances(points))
         }
     }
 
-    @Synchronized fun getShape(tripId: String?): List<Location>? = tripId?.let { shapeCache[it] }
+    @Synchronized fun getShape(tripId: String?): List<Location>? =
+            tripId?.let { shapeDataCache[it]?.points }
 
-    /**
-     * Returns the precomputed cumulative distance array for the trip's shape, or null if not
-     * cached.
-     */
-    @Synchronized
-    fun getShapeCumulativeDistances(tripId: String?): DoubleArray? =
-            tripId?.let { shapeCumDistCache[it] }
-
-    /**
-     * Returns both the shape points and cumulative distances atomically, or null if neither is
-     * cached.
-     */
-    @Synchronized
-    fun getShapeWithDistances(tripId: String): ShapeData? {
-        val points = shapeCache[tripId] ?: return null
-        val cumDist = shapeCumDistCache[tripId] ?: return null
-        return ShapeData(points, cumDist)
-    }
+    @Synchronized fun getShapeData(tripId: String): ShapeData? = shapeDataCache[tripId]
 
     /**
      * Fetches and caches the shape in the background if not already cached or in-flight.
@@ -291,7 +276,7 @@ object TripDataManager {
      */
     @JvmOverloads
     fun ensureShape(tripId: String, shapeId: String, onReady: ((ShapeData) -> Unit)? = null) {
-        val cached = getShapeWithDistances(tripId)
+        val cached = getShapeData(tripId)
         if (cached != null) {
             onReady?.invoke(cached)
             return
@@ -305,7 +290,7 @@ object TripDataManager {
                 if (points != null && points.isNotEmpty()) {
                     putShape(tripId, points)
                     if (onReady != null) {
-                        val sd = getShapeWithDistances(tripId)
+                        val sd = getShapeData(tripId)
                         if (sd != null) mainHandler.post { onReady(sd) }
                     }
                 } else {
@@ -350,8 +335,7 @@ object TripDataManager {
         tripDetailsCache.clear()
         scheduleCache.clear()
         serviceDateCache.clear()
-        shapeCache.clear()
-        shapeCumDistCache.clear()
+        shapeDataCache.clear()
         routeTypeCache.clear()
         lastActiveTripId.clear()
         pendingScheduleFetches.clear()

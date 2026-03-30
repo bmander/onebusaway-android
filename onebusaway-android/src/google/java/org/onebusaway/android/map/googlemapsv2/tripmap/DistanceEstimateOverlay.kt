@@ -17,7 +17,6 @@ package org.onebusaway.android.map.googlemapsv2.tripmap
 
 import org.onebusaway.android.map.googlemapsv2.MapIconUtils
 import android.content.Context
-import android.location.Location
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
@@ -25,6 +24,7 @@ import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.Polyline
 import com.google.android.gms.maps.model.PolylineOptions
 import org.onebusaway.android.R
+import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.util.LocationUtils
 
@@ -93,7 +93,7 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
      * along the trip; PDF values determine segment opacity.
      */
     fun update(distribution: ProbDistribution,
-               shape: List<Location>, cumDist: DoubleArray, baseColor: Int) {
+               shapeData: TripDataManager.ShapeData, baseColor: Int) {
         val segs = segments ?: return
 
         // Space segments uniformly in distance between the 1st and 99th percentile
@@ -114,7 +114,7 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
 
         val rgb = baseColor and 0x00FFFFFF
         for (i in 0 until segmentCount) {
-            val pts = segmentPoints(edgeDistances[i], edgeDistances[i + 1], shape, cumDist)
+            val pts = segmentPoints(edgeDistances[i], edgeDistances[i + 1], shapeData)
             val seg = segs[i]
             if (pts != null) {
                 val alpha = if (maxPdf > 0) (255 * pdfValues[i] / maxPdf).toInt() else 0
@@ -127,8 +127,7 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
         }
 
         // Update fast-estimate marker
-        val fastLoc = LocationUtils.interpolateAlongPolyline(
-                shape, cumDist, distribution.quantile(FAST_ESTIMATE_QUANTILE))
+        val fastLoc = shapeData.interpolate(distribution.quantile(FAST_ESTIMATE_QUANTILE))
         fastEstimateMarker?.let { m ->
             if (fastLoc != null) {
                 m.position = LatLng(fastLoc.latitude, fastLoc.longitude)
@@ -150,14 +149,14 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
     // --- Segment geometry ---
 
     private fun segmentPoints(segStart: Double, segEnd: Double,
-                               shape: List<Location>, cumDist: DoubleArray): List<LatLng>? {
-        val start = LocationUtils.interpolateAlongPolyline(shape, cumDist, segStart) ?: return null
-        val end = LocationUtils.interpolateAlongPolyline(shape, cumDist, segEnd) ?: return null
+                               sd: TripDataManager.ShapeData): List<LatLng>? {
+        val start = sd.interpolate(segStart) ?: return null
+        val end = sd.interpolate(segEnd) ?: return null
         return buildList {
             add(LatLng(start.latitude, start.longitude))
-            LocationUtils.findVertexRange(cumDist, segStart, segEnd)?.let { range ->
+            LocationUtils.findVertexRange(sd.cumulativeDistances, segStart, segEnd)?.let { range ->
                 for (j in range[0] until range[1]) {
-                    add(LatLng(shape[j].latitude, shape[j].longitude))
+                    add(LatLng(sd.points[j].latitude, sd.points[j].longitude))
                 }
             }
             add(LatLng(end.latitude, end.longitude))

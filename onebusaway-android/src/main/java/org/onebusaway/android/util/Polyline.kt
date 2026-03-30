@@ -35,11 +35,11 @@ class Polyline(val points: List<Location>) {
             .toDoubleArray()
 
     /** Returns the interpolated position at the given distance along the polyline. */
-    fun interpolate(distanceMeters: Double): Location? {
+    fun interpolate(distance: Double): Location? {
         if (points.isEmpty()) return null
-        if (distanceMeters <= 0) return copyLocation(points.first())
+        if (distance <= 0) return copyLocation(points.first())
 
-        val idx = Arrays.binarySearch(cumulativeDistances, distanceMeters)
+        val idx = Arrays.binarySearch(cumulativeDistances, distance)
         if (idx >= 0) return copyLocation(points[idx])
 
         val insertionPoint = -idx - 1
@@ -51,7 +51,7 @@ class Polyline(val points: List<Location>) {
         val segLen = cumulativeDistances[insertionPoint] - cumulativeDistances[segStart]
         if (segLen <= 0) return copyLocation(points[segStart])
 
-        val fraction = (distanceMeters - cumulativeDistances[segStart]) / segLen
+        val fraction = (distance - cumulativeDistances[segStart]) / segLen
         val p0 = points[segStart]
         val p1 = points[insertionPoint]
         return LocationUtils.makeLocation(

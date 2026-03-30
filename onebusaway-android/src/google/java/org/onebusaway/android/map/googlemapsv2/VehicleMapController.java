@@ -35,6 +35,7 @@ import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.elements.ObaElementExtensionsKt;
 import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
+import org.onebusaway.android.util.Polyline;
 import org.onebusaway.android.util.UIUtils;
 
 import java.util.HashMap;
@@ -338,9 +339,8 @@ class VehicleMapController {
 
     private LatLng mapToPolyline(VehicleMarkerState state,
                                   ExtrapolationResult.Success result) {
-        TripDataManager.ShapeData sd = mDataManager
-                .getShapeData(state.getTripId());
-        if (sd == null || sd.points.isEmpty()) return null;
+        Polyline sd = mDataManager.getPolyline(state.getTripId());
+        if (sd == null) return null;
         Location loc = sd.interpolate(result.getDistribution().median());
         if (loc == null) return null;
         return new LatLng(loc.getLatitude(), loc.getLongitude());

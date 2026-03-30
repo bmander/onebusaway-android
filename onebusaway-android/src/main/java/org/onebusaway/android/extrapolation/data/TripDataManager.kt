@@ -30,6 +30,7 @@ import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.util.LocationUtils
+import org.onebusaway.android.util.Polyline
 
 /**
  * Singleton that owns all per-trip data storage: vehicle position history, route shapes, schedules,
@@ -59,7 +60,7 @@ object TripDataManager {
     private val tripDetailsCache = HashMap<String, ObaTripDetailsResponse>()
     private val scheduleCache = HashMap<String, ObaTripSchedule>()
     private val serviceDateCache = HashMap<String, Long>()
-    private val shapeDataCache = HashMap<String, ShapeData>()
+    private val shapeDataCache = HashMap<String, Polyline>()
     private val routeTypeCache = HashMap<String, Int>()
     /** Last active trip ID reported by the server for each queried trip. */
     private val lastActiveTripId = HashMap<String, String?>()
@@ -244,52 +245,26 @@ object TripDataManager {
 
     // --- Shape cache ---
 
-    /** Polyline points with precomputed cumulative distances for interpolation. */
-    data class ShapeData(
-            @JvmField val points: List<Location>,
-            @JvmField val cumulativeDistances: DoubleArray
-    ) {
-        fun interpolate(distanceMeters: Double): Location? =
-                LocationUtils.interpolateAlongPolyline(points, cumulativeDistances, distanceMeters)
-
-        /** Returns the sub-polyline between two distances, with interpolated endpoints. */
-        fun subPolyline(startDist: Double, endDist: Double): List<Location>? {
-            val start = interpolate(startDist) ?: return null
-            val end = interpolate(endDist) ?: return null
-            return buildList {
-                add(start)
-                LocationUtils.findVertexRange(cumulativeDistances, startDist, endDist)?.let { range ->
-                    for (i in range[0] until range[1]) add(points[i])
-                }
-                add(end)
-            }
-        }
-    }
-
-    /**
-     * Stores the decoded polyline points for a trip's shape, and precomputes cumulative distances
-     * for fast interpolation.
-     */
     @Synchronized
     fun putShape(tripId: String?, points: List<Location>?) {
         if (tripId != null && points != null && points.isNotEmpty()) {
-            shapeDataCache[tripId] = ShapeData(points, buildCumulativeDistances(points))
+            shapeDataCache[tripId] = Polyline(points)
         }
     }
 
     @Synchronized fun getShape(tripId: String?): List<Location>? =
             tripId?.let { shapeDataCache[it]?.points }
 
-    @Synchronized fun getShapeData(tripId: String): ShapeData? = shapeDataCache[tripId]
+    @Synchronized fun getPolyline(tripId: String): Polyline? = shapeDataCache[tripId]
 
     /**
      * Fetches and caches the shape in the background if not already cached or in-flight.
-     * If [onReady] is provided, it is invoked on the main thread with the [ShapeData] once
+     * If [onReady] is provided, it is invoked on the main thread with the [Polyline] once
      * the shape is available. If the shape is already cached, [onReady] is called immediately.
      */
     @JvmOverloads
-    fun ensureShape(tripId: String, shapeId: String, onReady: ((ShapeData) -> Unit)? = null) {
-        val cached = getShapeData(tripId)
+    fun ensureShape(tripId: String, shapeId: String, onReady: ((Polyline) -> Unit)? = null) {
+        val cached = getPolyline(tripId)
         if (cached != null) {
             onReady?.invoke(cached)
             return
@@ -303,7 +278,7 @@ object TripDataManager {
                 if (points != null && points.isNotEmpty()) {
                     putShape(tripId, points)
                     if (onReady != null) {
-                        val sd = getShapeData(tripId)
+                        val sd = getPolyline(tripId)
                         if (sd != null) mainHandler.post { onReady(sd) }
                     }
                 } else {
@@ -355,28 +330,4 @@ object TripDataManager {
         pendingShapeFetches.clear()
     }
 
-    // --- Private helpers ---
-
-    /**
-     * Builds a cumulative distance array for a polyline. Entry i holds the total distance from the
-     * first point to point i. Entry 0 is always 0.
-     *
-     * Uses the same Haversine formula and Earth radius as the OBA server (SphericalGeometryLibrary)
-     * so that distance values are consistent with the server's distanceAlongTrip values.
-     *
-     * @param polylinePoints decoded polyline points
-     * @return cumulative distance array (same length as polylinePoints), or null
-     */
-    private fun buildCumulativeDistances(polylinePoints: List<Location>) =
-            polylinePoints
-                    .zipWithNext { prev, cur ->
-                        LocationUtils.haversineDistance(
-                                prev.latitude,
-                                prev.longitude,
-                                cur.latitude,
-                                cur.longitude
-                        )
-                    }
-                    .runningFold(0.0) { acc, dist -> acc + dist }
-                    .toDoubleArray()
 }

@@ -606,103 +606,44 @@ public class LocationUtils {
      * @param distanceMeters target distance along the polyline in meters
      * @return interpolated Location, or null if the polyline is empty or inputs are invalid
      */
+    /**
+     * @deprecated Use {@link Polyline#interpolate(double)} instead.
+     */
     public static Location interpolateAlongPolyline(
             List<Location> polylinePoints,
             double[] cumDist,
             double distanceMeters) {
-        Location result = makeLocation(0.0, 0.0);
-        if (interpolateAlongPolyline(polylinePoints, cumDist, distanceMeters, result)) {
-            return result;
-        } else {
-            return null;
-        }
+        if (polylinePoints == null || polylinePoints.isEmpty()) return null;
+        return new Polyline(polylinePoints).interpolate(distanceMeters);
     }
 
     /**
-     * Interpolates a position along a polyline, writing into a reusable Location
-     * to avoid allocation on the hot path. Returns true if successful.
-     *
-     * @param polylinePoints decoded polyline points (lat/lng)
-     * @param cumDist        precomputed cumulative distances
-     * @param distanceMeters target distance along the polyline in meters
-     * @param out            reusable Location to write the result into
-     * @return true if interpolation succeeded, false if inputs were invalid
+     * @deprecated Use {@link Polyline#interpolate(double)} instead.
      */
     public static boolean interpolateAlongPolyline(
             List<Location> polylinePoints,
             double[] cumDist,
             double distanceMeters,
             Location out) {
-        if (polylinePoints == null || polylinePoints.isEmpty() || cumDist == null || out == null) {
-            return false;
-        }
-        if (distanceMeters <= 0) {
-            Location first = polylinePoints.get(0);
-            out.setLatitude(first.getLatitude());
-            out.setLongitude(first.getLongitude());
-            return true;
-        }
-
-        int idx = Arrays.binarySearch(cumDist, distanceMeters);
-        if (idx >= 0) {
-            Location exact = polylinePoints.get(idx);
-            out.setLatitude(exact.getLatitude());
-            out.setLongitude(exact.getLongitude());
-            return true;
-        }
-        // binarySearch returns -(insertion point) - 1
-        int insertionPoint = -idx - 1;
-        if (insertionPoint >= polylinePoints.size()) {
-            Location last = polylinePoints.get(polylinePoints.size() - 1);
-            out.setLatitude(last.getLatitude());
-            out.setLongitude(last.getLongitude());
-            return true;
-        }
-
-        int segStart = insertionPoint - 1;
-        if (segStart < 0) {
-            Location first = polylinePoints.get(0);
-            out.setLatitude(first.getLatitude());
-            out.setLongitude(first.getLongitude());
-            return true;
-        }
-
-        double segLen = cumDist[insertionPoint] - cumDist[segStart];
-        if (segLen <= 0) {
-            Location p = polylinePoints.get(segStart);
-            out.setLatitude(p.getLatitude());
-            out.setLongitude(p.getLongitude());
-            return true;
-        }
-
-        double fraction = (distanceMeters - cumDist[segStart]) / segLen;
-        Location p0 = polylinePoints.get(segStart);
-        Location p1 = polylinePoints.get(insertionPoint);
-        out.setLatitude(p0.getLatitude() + fraction * (p1.getLatitude() - p0.getLatitude()));
-        out.setLongitude(p0.getLongitude() + fraction * (p1.getLongitude() - p0.getLongitude()));
+        if (polylinePoints == null || polylinePoints.isEmpty() || out == null) return false;
+        Location result = new Polyline(polylinePoints).interpolate(distanceMeters);
+        if (result == null) return false;
+        out.setLatitude(result.getLatitude());
+        out.setLongitude(result.getLongitude());
         return true;
     }
 
     /**
-     * Finds the range of polyline vertex indices whose cumulative distances fall
-     * strictly between startDist and endDist. Uses binary search for O(log n).
-     *
-     * @param cumDist   sorted cumulative distance array
-     * @param startDist start distance in meters
-     * @param endDist   end distance in meters
-     * @return int array {startIndex, endIndex} for use with a for loop (exclusive end),
-     *         or null if no vertices fall in range
+     * @deprecated Use {@link Polyline#vertexRange(double, double)} instead.
      */
     public static int[] findVertexRange(double[] cumDist, double startDist, double endDist) {
         if (cumDist == null || cumDist.length == 0 || startDist >= endDist) {
             return null;
         }
 
-        // Find first index where cumDist[i] > startDist
         int rawStart = Arrays.binarySearch(cumDist, startDist);
         int from = (rawStart >= 0) ? rawStart + 1 : -rawStart - 1;
 
-        // Find first index where cumDist[i] >= endDist
         int rawEnd = Arrays.binarySearch(cumDist, endDist);
         int to = (rawEnd >= 0) ? rawEnd : -rawEnd - 1;
 

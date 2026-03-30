@@ -21,10 +21,10 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
-import com.google.android.gms.maps.model.Polyline
+import com.google.android.gms.maps.model.Polyline as MapPolyline
 import com.google.android.gms.maps.model.PolylineOptions
 import org.onebusaway.android.R
-import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.util.Polyline
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 
 private const val MARKER_Z_INDEX = 3f
@@ -49,7 +49,7 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
     private val pdfValues = DoubleArray(segmentCount)
 
     // --- Map objects ---
-    private var segments: Array<Polyline>? = null
+    private var segments: Array<MapPolyline>? = null
     private var fastEstimateMarker: Marker? = null
     private val fastEstimateIcon = MapIconUtils.createCircleIcon(context, R.drawable.ic_fast_estimate)
 
@@ -92,7 +92,7 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
      * along the trip; PDF values determine segment opacity.
      */
     fun update(distribution: ProbDistribution,
-               shapeData: TripDataManager.ShapeData, baseColor: Int) {
+               shapeData: Polyline, baseColor: Int) {
         val segs = segments ?: return
 
         // Space segments uniformly in distance between the 1st and 99th percentile
@@ -148,6 +148,6 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
     // --- Segment geometry ---
 
     private fun segmentPoints(segStart: Double, segEnd: Double,
-                               sd: TripDataManager.ShapeData): List<LatLng>? =
+                               sd: Polyline): List<LatLng>? =
             sd.subPolyline(segStart, segEnd)?.map { LatLng(it.latitude, it.longitude) }
 }

@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.GoogleMap
 import org.onebusaway.android.R
 import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.util.Polyline
 import org.onebusaway.android.io.elements.ObaReferences
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
@@ -63,7 +64,7 @@ internal object TripMapRendererFactory {
                 status?.takeIf { it.activeTripId == tripId }?.scheduleDeviation ?: 0L
         val stopNames = buildStopNameMap(schedule, refs)
 
-        fun buildRenderer(sd: TripDataManager.ShapeData) {
+        fun buildRenderer(sd: Polyline) {
             val renderer =
                     TripMapRenderer(
                             map,

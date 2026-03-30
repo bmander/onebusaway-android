@@ -29,11 +29,12 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
-import com.google.android.gms.maps.model.Polyline
+import com.google.android.gms.maps.model.Polyline as MapPolyline
 import java.util.concurrent.TimeUnit
 import org.onebusaway.android.R
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
+import org.onebusaway.android.util.Polyline
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
@@ -66,7 +67,7 @@ class TripMapRenderer internal constructor(
         private val map: GoogleMap,
         private val context: Context,
         val tripId: String,
-        val shapeData: TripDataManager.ShapeData,
+        val shapeData: Polyline,
         private val schedule: ObaTripSchedule,
         private val routeColor: Int,
         private val routeType: Int?,
@@ -85,7 +86,7 @@ class TripMapRenderer internal constructor(
 
     // --- Map objects (mutable rendering state) ---
 
-    private val tripPolylines = mutableListOf<Polyline>()
+    private val tripPolylines = mutableListOf<MapPolyline>()
     private val tripStopMarkers = mutableListOf<Marker>()
     private val stopInfoMap = mutableMapOf<Marker, StopInfo>()
     private var estimateOverlay: DistanceEstimateOverlay? = null

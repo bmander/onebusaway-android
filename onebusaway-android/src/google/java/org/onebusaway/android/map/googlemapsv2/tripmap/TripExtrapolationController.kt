@@ -64,7 +64,7 @@ internal constructor(
     }
 
     private fun doFrame(now: Long) {
-        val shapeData = TripDataManager.getShapeData(tripId) ?: return
+        val shapeData = TripDataManager.getPolyline(tripId) ?: return
         val result = extrapolator.extrapolate(now)
 
         when (result) {

@@ -113,7 +113,8 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
 
         val rgb = baseColor and 0x00FFFFFF
         for (i in 0 until segmentCount) {
-            val pts = segmentPoints(edgeDistances[i], edgeDistances[i + 1], shapeData)
+            val pts = shapeData.subPolyline(edgeDistances[i], edgeDistances[i + 1])
+                    ?.map { LatLng(it.latitude, it.longitude) }
             val seg = segs[i]
             if (pts != null) {
                 val alpha = if (maxPdf > 0) (255 * pdfValues[i] / maxPdf).toInt() else 0
@@ -145,9 +146,4 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
         return true
     }
 
-    // --- Segment geometry ---
-
-    private fun segmentPoints(segStart: Double, segEnd: Double,
-                               sd: Polyline): List<LatLng>? =
-            sd.subPolyline(segStart, segEnd)?.map { LatLng(it.latitude, it.longitude) }
 }

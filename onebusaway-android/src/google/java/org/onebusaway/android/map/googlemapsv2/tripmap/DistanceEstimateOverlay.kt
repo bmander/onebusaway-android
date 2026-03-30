@@ -41,10 +41,13 @@ private const val DEFAULT_SEGMENT_COUNT = 15
  * the 90th percentile position. Takes a [ProbDistribution] over distance each frame.
  */
 class DistanceEstimateOverlay(
+        private val shape: Polyline,
+        private val baseColor: Int,
         private val segmentCount: Int = DEFAULT_SEGMENT_COUNT
 ) {
     private val edgeDistances = DoubleArray(segmentCount + 1)
     private val pdfValues = DoubleArray(segmentCount)
+    private val rgb = baseColor and 0x00FFFFFF
 
     private var segments: Array<MapPolyline>? = null
     private var fastEstimateMarker: Marker? = null
@@ -87,14 +90,12 @@ class DistanceEstimateOverlay(
      * Updates all overlay geometry from the distance distribution. Quantiles are distances
      * along the trip; PDF values determine segment opacity.
      */
-    fun update(distribution: ProbDistribution,
-               shapeData: Polyline, baseColor: Int) {
-        updatePdfSegments(distribution, shapeData, baseColor)
-        updateFastEstimateMarker(distribution, shapeData)
+    fun update(distribution: ProbDistribution) {
+        updatePdfSegments(distribution)
+        updateFastEstimateMarker(distribution)
     }
 
-    private fun updatePdfSegments(distribution: ProbDistribution,
-                                   shapeData: Polyline, baseColor: Int) {
+    private fun updatePdfSegments(distribution: ProbDistribution) {
         val segs = segments ?: return
 
         val distLo = distribution.quantile(PDF_LOW_QUANTILE)
@@ -112,9 +113,8 @@ class DistanceEstimateOverlay(
             if (pdfValues[i] > maxPdf) maxPdf = pdfValues[i]
         }
 
-        val rgb = baseColor and 0x00FFFFFF
         segs.forEachIndexed { i, seg ->
-            val pts = shapeData.subPolyline(edgeDistances[i], edgeDistances[i + 1])
+            val pts = shape.subPolyline(edgeDistances[i], edgeDistances[i + 1])
                     ?.map { MapHelpV2.makeLatLng(it) }
             if (pts != null) {
                 val alpha = if (maxPdf > 0) (255 * pdfValues[i] / maxPdf).toInt() else 0
@@ -127,9 +127,9 @@ class DistanceEstimateOverlay(
         }
     }
 
-    private fun updateFastEstimateMarker(distribution: ProbDistribution, shapeData: Polyline) {
+    private fun updateFastEstimateMarker(distribution: ProbDistribution) {
         val marker = fastEstimateMarker ?: return
-        val loc = shapeData.interpolate(distribution.quantile(FAST_ESTIMATE_QUANTILE))
+        val loc = shape.interpolate(distribution.quantile(FAST_ESTIMATE_QUANTILE))
         if (loc != null) {
             marker.position = MapHelpV2.makeLatLng(loc)
             marker.isVisible = true

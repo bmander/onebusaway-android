@@ -264,7 +264,7 @@ class TripMapRenderer internal constructor(
     fun updateEstimateOverlays(distribution: ProbDistribution?) {
         val overlay = estimateOverlay ?: return
         if (distribution == null) { overlay.hide(); return }
-        overlay.update(distribution, shapeData, overlayColor)
+        overlay.update(distribution)
     }
 
     fun hideEstimateOverlays() { estimateOverlay?.hide() }
@@ -281,7 +281,7 @@ class TripMapRenderer internal constructor(
     private fun createEstimateOverlays(vehiclePosition: LatLng?) {
         if (routeType != null && ObaRoute.isGradeSeparated(routeType)) return
         if (vehiclePosition == null) return
-        estimateOverlay = DistanceEstimateOverlay().also {
+        estimateOverlay = DistanceEstimateOverlay(shapeData, overlayColor).also {
             it.create(map, context, TRIP_BASE_WIDTH_PX, vehiclePosition)
         }
     }

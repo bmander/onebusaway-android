@@ -21,43 +21,25 @@ import org.onebusaway.android.extrapolation.Extrapolator;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 
 /**
- * Pure data container for per-vehicle state on the main map view.
- * One instance per tracked trip. Contains no map rendering logic — all marker
- * creation and animation is handled by {@link VehicleMapController}.
+ * Per-vehicle state on the main map view. One instance per tracked trip.
+ * All fields are package-private — owned and managed by {@link VehicleMapController}.
  */
 class VehicleMarkerState {
 
-    private final String mTripId;
-    private ObaTripStatus mStatus;
-
-    private Extrapolator mExtrapolator;
-    private boolean mIsExtrapolating;
-    private long mLastFixTimeMs;
+    final String tripId;
+    ObaTripStatus status;
+    Extrapolator extrapolator;
+    boolean extrapolating;
+    long lastFixTimeMs;
     boolean animating;
+    boolean selected;
 
-    // Marker references — created and managed by VehicleMapController
     Marker vehicleMarker;
     Marker dataReceivedMarker;
     long dataReceivedFixTime;
 
-    boolean selected;
-
     VehicleMarkerState(String tripId, ObaTripStatus status) {
-        mTripId = tripId;
-        mStatus = status;
+        this.tripId = tripId;
+        this.status = status;
     }
-
-    String getTripId() { return mTripId; }
-
-    ObaTripStatus getStatus() { return mStatus; }
-    void setStatus(ObaTripStatus status) { mStatus = status; }
-
-    Extrapolator getExtrapolator() { return mExtrapolator; }
-    void setExtrapolator(Extrapolator extrapolator) { mExtrapolator = extrapolator; }
-
-    boolean isExtrapolating() { return mIsExtrapolating; }
-    void setExtrapolating(boolean extrapolating) { mIsExtrapolating = extrapolating; }
-
-    long getLastFixTimeMs() { return mLastFixTimeMs; }
-    void setLastFixTimeMs(long lastFixTimeMs) { mLastFixTimeMs = lastFixTimeMs; }
 }

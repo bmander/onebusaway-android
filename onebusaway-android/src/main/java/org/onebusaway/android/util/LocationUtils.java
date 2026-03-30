@@ -595,31 +595,6 @@ public class LocationUtils {
         return addresses;
     }
 
-    // --- Polyline interpolation (deprecated — use Polyline class directly) ---
-
-    /** @deprecated Use {@link Polyline#interpolate(double)} instead. */
-    public static Location interpolateAlongPolyline(
-            List<Location> polylinePoints,
-            double[] cumDist,
-            double distanceMeters) {
-        if (polylinePoints == null || polylinePoints.isEmpty()) return null;
-        return new Polyline(polylinePoints).interpolate(distanceMeters);
-    }
-
-    /** @deprecated Use {@link Polyline#interpolate(double)} instead. */
-    public static boolean interpolateAlongPolyline(
-            List<Location> polylinePoints,
-            double[] cumDist,
-            double distanceMeters,
-            Location out) {
-        if (polylinePoints == null || polylinePoints.isEmpty() || out == null) return false;
-        Location result = new Polyline(polylinePoints).interpolate(distanceMeters);
-        if (result == null) return false;
-        out.setLatitude(result.getLatitude());
-        out.setLongitude(result.getLongitude());
-        return true;
-    }
-
     /**
      * Returns the bearing (in degrees clockwise from north) of the polyline segment
      * at the given distance along the polyline. Returns NaN if inputs are invalid.

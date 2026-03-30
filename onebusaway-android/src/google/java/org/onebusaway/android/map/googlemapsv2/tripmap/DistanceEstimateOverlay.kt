@@ -26,7 +26,6 @@ import com.google.android.gms.maps.model.PolylineOptions
 import org.onebusaway.android.R
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
-import org.onebusaway.android.util.LocationUtils
 
 private const val MARKER_Z_INDEX = 3f
 private const val SEGMENT_Z_INDEX = 2f
@@ -149,17 +148,6 @@ class DistanceEstimateOverlay @JvmOverloads constructor(
     // --- Segment geometry ---
 
     private fun segmentPoints(segStart: Double, segEnd: Double,
-                               sd: TripDataManager.ShapeData): List<LatLng>? {
-        val start = sd.interpolate(segStart) ?: return null
-        val end = sd.interpolate(segEnd) ?: return null
-        return buildList {
-            add(LatLng(start.latitude, start.longitude))
-            LocationUtils.findVertexRange(sd.cumulativeDistances, segStart, segEnd)?.let { range ->
-                for (j in range[0] until range[1]) {
-                    add(LatLng(sd.points[j].latitude, sd.points[j].longitude))
-                }
-            }
-            add(LatLng(end.latitude, end.longitude))
-        }
-    }
+                               sd: TripDataManager.ShapeData): List<LatLng>? =
+            sd.subPolyline(segStart, segEnd)?.map { LatLng(it.latitude, it.longitude) }
 }

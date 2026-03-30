@@ -251,6 +251,19 @@ object TripDataManager {
     ) {
         fun interpolate(distanceMeters: Double): Location? =
                 LocationUtils.interpolateAlongPolyline(points, cumulativeDistances, distanceMeters)
+
+        /** Returns the sub-polyline between two distances, with interpolated endpoints. */
+        fun subPolyline(startDist: Double, endDist: Double): List<Location>? {
+            val start = interpolate(startDist) ?: return null
+            val end = interpolate(endDist) ?: return null
+            return buildList {
+                add(start)
+                LocationUtils.findVertexRange(cumulativeDistances, startDist, endDist)?.let { range ->
+                    for (i in range[0] until range[1]) add(points[i])
+                }
+                add(end)
+            }
+        }
     }
 
     /**

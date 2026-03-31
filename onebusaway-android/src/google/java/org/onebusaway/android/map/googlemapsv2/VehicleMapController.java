@@ -89,7 +89,7 @@ class VehicleMapController {
             if (!routeIds.contains(activeRoute) || Status.CANCELED.equals(status.getStatus()))
                 continue;
 
-            if (ObaElementExtensionsKt.getBestLocation(status) == null) continue;
+            if (status.getPosition() == null) continue;
 
             boolean isRealtime = ObaElementExtensionsKt.isLocationRealtime(status)
                     || ObaElementExtensionsKt.isRealtimeSpeedEstimable(status, now);
@@ -124,7 +124,7 @@ class VehicleMapController {
 
     private void addVehicle(String tripId, boolean isRealtime,
                             ObaTripStatus status, ObaTripsForRouteResponse response) {
-        Location location = ObaElementExtensionsKt.getBestLocation(status);
+        Location location = status.getPosition();
         if (location == null) return;
         Marker m = mMap.addMarker(new MarkerOptions()
                 .position(MapHelpV2.makeLatLng(location))
@@ -308,7 +308,7 @@ class VehicleMapController {
                     setPositionIfNotAnimating(state, target);
                 }
             } else {
-                Location loc = ObaElementExtensionsKt.getBestLocation(state.status);
+                Location loc = state.status.getPosition();
                 if (loc != null) {
                     state.vehicleMarker.setPosition(MapHelpV2.makeLatLng(loc));
                 }

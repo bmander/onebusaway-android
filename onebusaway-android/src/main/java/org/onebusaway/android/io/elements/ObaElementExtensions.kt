@@ -15,12 +15,14 @@
  */
 package org.onebusaway.android.io.elements
 
-import android.location.Location
 import org.onebusaway.android.extrapolation.data.TripDataManager
 
-/** Best available location: prefers lastKnownLocation (raw GPS), falls back to position (server-extrapolated). */
-val ObaTripStatus.bestLocation: Location?
-    get() = lastKnownLocation ?: position
+/**
+ * For display we always use [ObaTripStatus.getPosition] (the server-extrapolated location)
+ * because it aligns with the polyline distance fraction (PDF) calculations exactly.
+ * Do NOT substitute lastKnownLocation here — it has slightly different semantics
+ * (raw GPS fix) and will disagree with the PDF overlay.
+ */
 
 /**
  * The best available distance: prefers lastKnownDistanceAlongTrip (raw), falls back to

@@ -26,7 +26,6 @@ import org.onebusaway.android.R
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.bestLocation
 import org.onebusaway.android.map.googlemapsv2.AnimationUtil
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 import org.onebusaway.android.map.googlemapsv2.MapIconUtils
@@ -158,7 +157,7 @@ class TripVehicleOverlay(
         val label = if (updateTime > 0)
             UIUtils.formatElapsedTime(now - updateTime) else ""
 
-        val pos = latest.bestLocation ?: return
+        val pos = latest.position ?: return
         val latLng = MapHelpV2.makeLatLng(pos)
 
         val marker = dataReceivedMarker

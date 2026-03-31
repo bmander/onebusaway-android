@@ -23,7 +23,6 @@ import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.io.elements.ObaReferences
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.bestLocation
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 import org.onebusaway.android.util.Polyline
@@ -63,7 +62,7 @@ internal object TripMapOverlayFactory {
         val routeColor =
                 route?.color ?: ContextCompat.getColor(context, R.color.route_line_color_default)
         val vehiclePosition =
-                status?.takeIf { it.activeTripId == tripId }?.bestLocation?.let {
+                status?.takeIf { it.activeTripId == tripId }?.position?.let {
                     MapHelpV2.makeLatLng(it)
                 }
         val scheduleDeviation =

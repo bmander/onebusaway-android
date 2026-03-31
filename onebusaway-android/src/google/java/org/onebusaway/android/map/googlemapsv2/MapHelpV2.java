@@ -225,12 +225,7 @@ public class MapHelpV2 {
                 || (AppCompatDelegate.getDefaultNightMode() != AppCompatDelegate.MODE_NIGHT_NO
                 && (context.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES);
-        if (dark) {
-            map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, R.raw.dark_map));
-        } else {
-            String removePOI = "[{\"featureType\":\"poi\",\"elementType\":\"all\","
-                    + "\"stylers\":[{\"visibility\":\"off\"}]}]";
-            map.setMapStyle(new MapStyleOptions(removePOI));
-        }
+        int styleRes = dark ? R.raw.dark_map : R.raw.light_map;
+        map.setMapStyle(MapStyleOptions.loadRawResourceStyle(context, styleRes));
     }
 }

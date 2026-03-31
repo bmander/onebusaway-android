@@ -55,6 +55,7 @@ public final class StampedPolylineFactory {
         }
         mStamp = TextureStyle.newBuilder(
                 BitmapDescriptorFactory.fromBitmap(stamp)).build();
+        stamp.recycle();
     }
 
     /**

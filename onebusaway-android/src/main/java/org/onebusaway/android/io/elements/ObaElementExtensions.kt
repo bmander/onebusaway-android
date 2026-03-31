@@ -25,16 +25,10 @@ import org.onebusaway.android.extrapolation.data.TripDataManager
  */
 
 /**
- * The best available distance: prefers lastKnownDistanceAlongTrip (raw), falls back to
- * distanceAlongTrip (extrapolated).
+ * The server's current best estimate of distance along the trip.
  */
 val ObaTripStatus.bestDistanceAlongTrip: Double?
-    get() =
-            if (lastKnownDistanceAlongTrip != null && lastKnownDistanceAlongTrip != 0.0) {
-                lastKnownDistanceAlongTrip
-            } else {
-                distanceAlongTrip
-            }
+    get() = distanceAlongTrip
 
 /**
  * True if the server provided a real-time location for this vehicle —

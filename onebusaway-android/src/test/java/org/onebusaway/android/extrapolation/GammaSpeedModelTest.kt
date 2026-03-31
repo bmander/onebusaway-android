@@ -196,6 +196,55 @@ class GammaSpeedModelTest {
         }
     }
 
+    // --- Degenerate / extreme schedule speeds ---
+
+    @Test
+    fun `extremely low speed does not crash`() {
+        // 0.01 m/s ≈ 0.02 mph — pushes m very close to 1.0,
+        // which can overflow the fast component scale
+        val dist = h34Dist(0.01)
+        assertTrue("mean should be finite and positive", dist.mean.isFinite() && dist.mean > 0)
+        assertTrue("median should be finite and positive", dist.median().isFinite() && dist.median() > 0)
+    }
+
+    @Test
+    fun `very small speed produces valid distribution`() {
+        // 0.001 m/s — extreme case, sigmoid(MW_INTERCEPT + MW_SLOPE * v) ≈ sigmoid(-1.35) ≈ 0.79
+        // but as v → 0, scale1 → 0, so we hit the slow-only fallback
+        val dist = h34Dist(0.001)
+        assertTrue("mean should be finite", dist.mean.isFinite())
+        assertTrue("median should be finite", dist.median().isFinite())
+    }
+
+    @Test
+    fun `extremely high speed does not crash`() {
+        // 100 m/s ≈ 224 mph — extreme high end
+        val dist = h34Dist(100.0)
+        assertTrue("mean should be finite and positive", dist.mean.isFinite() && dist.mean > 0)
+        assertTrue("median should be finite and positive", dist.median().isFinite() && dist.median() > 0)
+    }
+
+    @Test
+    fun `speed near epsilon does not crash`() {
+        // Just above zero — smallest reasonable positive value
+        val dist = h34Dist(1e-10)
+        assertTrue("mean should be finite", dist.mean.isFinite())
+        assertTrue("median should be finite", dist.median().isFinite())
+    }
+
+    @Test
+    fun `distribution is valid across wide speed range`() {
+        // Sweep from very slow to very fast, verify no crashes or NaN
+        val speeds = listOf(0.01, 0.1, 0.5, 1.0, 5.0, 10.0, 20.0, 50.0, 100.0)
+        for (s in speeds) {
+            val dist = h34Dist(s)
+            assertTrue("mean NaN at $s m/s", dist.mean.isFinite())
+            assertTrue("median NaN at $s m/s", dist.median().isFinite())
+            assertTrue("pdf(mean) NaN at $s m/s", dist.pdf(dist.mean).isFinite())
+            assertTrue("cdf(mean) NaN at $s m/s", dist.cdf(dist.mean).isFinite())
+        }
+    }
+
     // --- GammaDistribution ---
 
     @Test

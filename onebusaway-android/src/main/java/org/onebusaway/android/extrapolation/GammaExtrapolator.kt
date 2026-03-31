@@ -78,6 +78,11 @@ class GammaExtrapolator(
  * Builds a frozen two-gamma mixture speed distribution from H34 parameters.
  * The returned distribution is over speed in mph.
  *
+ * Guards against degenerate parameters: when the mixture weight [m] is very
+ * close to 1.0, the fast-component scale can overflow to Infinity. In that
+ * regime the slow component dominates, so we fall back to a single-component
+ * Gamma distribution.
+ *
  * @param schedSpeedMps scheduled speed in m/s (must be positive)
  */
 internal fun buildH34SpeedDistribution(schedSpeedMps: Double): ProbDistribution {
@@ -96,10 +101,18 @@ internal fun buildH34SpeedDistribution(schedSpeedMps: Double): ProbDistribution 
     // Fast component (ensemble-mean locked to v_sched)
     val b0 = beta0(v)
     val alpha2 = b0 * v
-    val c = (1.0 - m * r) / (1.0 - m)
+    val denom = 1.0 - m
+    val c = if (denom > 1e-12) (1.0 - m * r) / denom else 1.0
     val scale2 = c / b0
 
     val slow = GammaDistribution(SLOW_ALPHA, scale1)
+
+    // When m ≈ 1 the fast component parameters can overflow; fall back to
+    // the slow component alone which dominates in this regime anyway.
+    if (!alpha2.isFinite() || alpha2 <= 0 || !scale2.isFinite() || scale2 <= 0) {
+        return FrozenDistribution(slow)
+    }
+
     val fast = GammaDistribution(alpha2, scale2)
     return FrozenDistribution(GammaMixtureDistribution(m, slow, fast))
 }

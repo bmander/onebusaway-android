@@ -74,10 +74,9 @@ class VehicleMapController {
 
     // --- Populate from API response ---
 
-    void populate(HashSet<String> routeIds, ObaTripsForRouteResponse response) {
+    void populate(HashSet<String> routeIds, ObaTripsForRouteResponse response, long now) {
         HashSet<String> activeTripIds = new HashSet<>();
         HashMap<String, String> vehicleToTrip = new HashMap<>();
-        long now = System.currentTimeMillis();
 
         for (ObaTripDetails trip : response.getTrips()) {
             ObaTripStatus status = trip.getStatus();
@@ -175,13 +174,13 @@ class VehicleMapController {
 
     // --- Data-received marker lifecycle ---
 
-    private void showDataReceivedMarker(VehicleMarkerState state) {
+    private void showDataReceivedMarker(VehicleMarkerState state, long now) {
         removeDataReceivedMarker(state);
         ObaTripStatus status = state.status;
         Location loc = status.getPosition();
         if (loc == null) return;
         if (!status.isPredicted() || status.getLastLocationUpdateTime() <= 0) return;
-        long elapsed = System.currentTimeMillis() - status.getLastLocationUpdateTime();
+        long elapsed = now - status.getLastLocationUpdateTime();
         Marker m = mMap.addMarker(new MarkerOptions()
                 .position(MapHelpV2.makeLatLng(loc))
                 .icon(getOrCreateDataReceivedIcon())
@@ -237,22 +236,22 @@ class VehicleMapController {
         if (marker.equals(state.dataReceivedMarker)) {
             marker.showInfoWindow();
         } else {
-            selectState(state);
+            selectState(state, System.currentTimeMillis());
         }
         return true;
     }
 
     void selectVehicle(String tripId) {
         VehicleMarkerState state = mStates.get(tripId);
-        if (state != null) selectState(state);
+        if (state != null) selectState(state, System.currentTimeMillis());
     }
 
-    private void selectState(VehicleMarkerState state) {
+    private void selectState(VehicleMarkerState state, long now) {
         deselectAll();
         state.selected = true;
         state.vehicleMarker.showInfoWindow();
         if (state.extrapolating) {
-            showDataReceivedMarker(state);
+            showDataReceivedMarker(state, now);
         }
     }
 

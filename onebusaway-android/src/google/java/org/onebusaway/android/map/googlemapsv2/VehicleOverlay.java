@@ -90,7 +90,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
     public void updateVehicles(HashSet<String> routeIds, ObaTripsForRouteResponse response) {
         mLastResponse = response;
-        mController.populate(routeIds, response);
+        mController.populate(routeIds, response, System.currentTimeMillis());
         startExtrapolationTicking();
     }
 

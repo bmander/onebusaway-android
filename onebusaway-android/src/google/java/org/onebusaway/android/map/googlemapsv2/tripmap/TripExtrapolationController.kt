@@ -16,13 +16,12 @@
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
 import android.util.Log
-import android.view.Choreographer
 import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.map.googlemapsv2.ThrottledFrameLoop
 
 private const val TAG = "TripExtrapController"
-private const val FRAME_INTERVAL_MS = 50L // 20fps
 
 /**
  * Owns the per-frame extrapolation loop for a single trip on the trip map view. Computes positions
@@ -34,39 +33,15 @@ internal constructor(
         private val tripId: String,
         private val extrapolator: Extrapolator
 ) {
-    private val choreographer: Choreographer = Choreographer.getInstance()
-    private var ticking = false
-    private var lastFrameTimeMs = 0L
-    private val frameCallback = Choreographer.FrameCallback { onFrame() }
+    private val frameLoop = ThrottledFrameLoop(::doFrame)
 
-    fun start() {
-        if (!ticking) {
-            ticking = true
-            choreographer.postFrameCallback(frameCallback)
-        }
-    }
+    fun start() = frameLoop.start()
 
-    fun stop() {
-        ticking = false
-        choreographer.removeFrameCallback(frameCallback)
-    }
+    fun stop() = frameLoop.stop()
 
-    // --- Frame callback ---
-
-    private fun onFrame() {
-        if (!ticking) return
-
-        val now = System.currentTimeMillis()
-        if (now - lastFrameTimeMs >= FRAME_INTERVAL_MS) {
-            lastFrameTimeMs = now
-            doFrame(now)
-        }
-
-        if (ticking) choreographer.postFrameCallback(frameCallback)
-    }
-
-    private fun doFrame(now: Long) {
+    private fun doFrame() {
         try {
+            val now = System.currentTimeMillis()
             val shapeData = TripDataManager.getPolyline(tripId) ?: return
             val result = extrapolator.extrapolate(now)
 

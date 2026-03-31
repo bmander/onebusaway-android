@@ -16,7 +16,6 @@
 package org.onebusaway.android.map.googlemapsv2;
 
 import android.app.Activity;
-import android.view.Choreographer;
 
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.model.LatLng;
@@ -41,21 +40,18 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
     }
 
     private static final int ANIMATE_DURATION_MS = 600;
-    private static final long FRAME_INTERVAL_MS = 50; // 20fps
 
     private final Activity mActivity;
     private final GoogleMap mMap;
     private VehicleMapController mController;
     private ObaTripsForRouteResponse mLastResponse;
     private Controller mAppController;
-
-    private boolean mExtrapolationTicking;
-    private long mLastFrameTimeMs;
-    private final Choreographer.FrameCallback mFrameCallback = this::onExtrapolationFrame;
+    private final ThrottledFrameLoop mFrameLoop;
 
     public VehicleOverlay(Activity activity, GoogleMap map) {
         mActivity = activity;
         mMap = map;
+        mFrameLoop = new ThrottledFrameLoop(this::onExtrapolationTick);
         VehicleIconFactory iconFactory = new VehicleIconFactory(activity);
         VehicleInfoWindowAdapter adapter = new VehicleInfoWindowAdapter(activity,
                 new VehicleInfoWindowAdapter.InfoSource() {
@@ -91,7 +87,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
     public void updateVehicles(HashSet<String> routeIds, ObaTripsForRouteResponse response) {
         mLastResponse = response;
         mController.populate(routeIds, response, System.currentTimeMillis());
-        startExtrapolationTicking();
+        mFrameLoop.start();
     }
 
     public int size() {
@@ -99,7 +95,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
     }
 
     public void clear() {
-        stopExtrapolationTicking();
+        mFrameLoop.stop();
         if (mController != null) {
             mController.clear();
         }
@@ -150,31 +146,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         if (mController != null) mController.deselectAll();
     }
 
-    // --- Choreographer frame loop ---
-
-    private void startExtrapolationTicking() {
-        if (!mExtrapolationTicking) {
-            mExtrapolationTicking = true;
-            Choreographer.getInstance().postFrameCallback(mFrameCallback);
-        }
-    }
-
-    private void stopExtrapolationTicking() {
-        mExtrapolationTicking = false;
-        Choreographer.getInstance().removeFrameCallback(mFrameCallback);
-    }
-
-    private void onExtrapolationFrame(long frameTimeNanos) {
-        if (!mExtrapolationTicking || mController == null || mActivity.isDestroyed()) {
-            mExtrapolationTicking = false;
-            Choreographer.getInstance().removeFrameCallback(mFrameCallback);
+    private void onExtrapolationTick() {
+        if (mController == null || mActivity.isDestroyed()) {
+            mFrameLoop.stop();
             return;
         }
-        long now = System.currentTimeMillis();
-        if (now - mLastFrameTimeMs >= FRAME_INTERVAL_MS) {
-            mLastFrameTimeMs = now;
-            mController.updatePositions(now);
-        }
-        Choreographer.getInstance().postFrameCallback(mFrameCallback);
+        mController.updatePositions(System.currentTimeMillis());
     }
 }

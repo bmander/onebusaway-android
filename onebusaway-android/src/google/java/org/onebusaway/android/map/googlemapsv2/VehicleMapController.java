@@ -232,20 +232,20 @@ class VehicleMapController {
 
     // --- Selection ---
 
-    boolean handleMarkerClick(Marker marker) {
+    boolean handleMarkerClick(Marker marker, long now) {
         VehicleMarkerState state = stateOf(marker);
         if (state == null) return false;
         if (marker.equals(state.dataReceivedMarker)) {
             marker.showInfoWindow();
         } else {
-            selectState(state, System.currentTimeMillis());
+            selectState(state, now);
         }
         return true;
     }
 
-    void selectVehicle(String tripId) {
+    void selectVehicle(String tripId, long now) {
         VehicleMarkerState state = mStates.get(tripId);
-        if (state != null) selectState(state, System.currentTimeMillis());
+        if (state != null) selectState(state, now);
     }
 
     private void selectState(VehicleMarkerState state, long now) {

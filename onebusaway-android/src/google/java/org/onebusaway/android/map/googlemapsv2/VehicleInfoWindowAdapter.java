@@ -154,7 +154,13 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
 
         views.routeView.setText(marker.getTitle());
         views.statusView.setVisibility(View.GONE);
-        views.lastUpdatedView.setText(marker.getSnippet());
+
+        Object tag = marker.getTag();
+        if (tag instanceof VehicleMarkerState) {
+            long fixTime = ((VehicleMarkerState) tag).dataReceivedFixTime;
+            views.lastUpdatedView.setText(UIUtils.formatElapsedTime(
+                    System.currentTimeMillis() - fixTime));
+        }
         views.occupancyView.setVisibility(View.GONE);
 
         return views.root;

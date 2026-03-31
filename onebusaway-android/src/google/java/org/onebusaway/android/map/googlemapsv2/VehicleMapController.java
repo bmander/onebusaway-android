@@ -192,18 +192,16 @@ class VehicleMapController {
 
     // --- Data-received marker lifecycle ---
 
-    private void showDataReceivedMarker(VehicleMarkerState vehicle, long now) {
+    private void showDataReceivedMarker(VehicleMarkerState vehicle) {
         removeDataReceivedMarker(vehicle);
         ObaTripStatus status = vehicle.status;
         Location loc = status.getPosition();
         if (loc == null) return;
         if (!status.isPredicted() || status.getLastLocationUpdateTime() <= 0) return;
-        long elapsed = now - status.getLastLocationUpdateTime();
         Marker m = mMap.addMarker(new MarkerOptions()
                 .position(MapHelpV2.makeLatLng(loc))
                 .icon(getOrCreateDataReceivedIcon())
                 .title(mContext.getString(R.string.marker_most_recent_data))
-                .snippet(UIUtils.formatElapsedTime(elapsed))
                 .anchor(0.5f, 0.5f)
                 .flat(true)
                 .zIndex(DATA_RECEIVED_MARKER_Z_INDEX));
@@ -215,7 +213,7 @@ class VehicleMapController {
     private void updateDataReceivedMarker(VehicleMarkerState vehicle, ObaTripStatus newestValid) {
         if (newestValid == null) return;
         if (vehicle.dataReceivedMarker == null) {
-            showDataReceivedMarker(vehicle, System.currentTimeMillis());
+            showDataReceivedMarker(vehicle);
             return;
         }
         long fixTime = newestValid.getLastLocationUpdateTime();
@@ -268,7 +266,12 @@ class VehicleMapController {
     }
 
     private void selectVehicleMarker(VehicleMarkerState vehicle) {
-        deselectAll();
+        for (VehicleMarkerState other : mStates.values()) {
+            if (other != vehicle) {
+                other.selected = false;
+                removeDataReceivedMarker(other);
+            }
+        }
         vehicle.selected = true;
         vehicle.vehicleMarker.showInfoWindow();
     }

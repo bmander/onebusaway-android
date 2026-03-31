@@ -58,7 +58,7 @@ object TripDataManager {
 
     // --- AVL history ---
     private val tripHistory = LinkedHashMap<String, MutableList<ObaTripStatus>>()
-    private val lastRealtimePosition = mutableMapOf<String, ObaTripStatus>()
+    private val extrapolationAnchor = mutableMapOf<String, ObaTripStatus>()
 
     // --- Caches ---
     private val tripDetailsCache = HashMap<String, ObaTripDetailsResponse>()
@@ -71,7 +71,7 @@ object TripDataManager {
 
     /** Single source of truth for all per-trip caches. Used by evictTrip and clearAll. */
     private val perTripCaches: List<MutableMap<String, *>> = listOf(
-            tripHistory, lastRealtimePosition, tripDetailsCache,
+            tripHistory, extrapolationAnchor, tripDetailsCache,
             scheduleCache, serviceDateCache, shapeDataCache,
             routeTypeCache, lastActiveTripId,
             scheduleFailures, shapeFailures
@@ -93,16 +93,8 @@ object TripDataManager {
 
     /** Core recording logic. Caller must already hold the lock. */
     private fun recordStatusInternal(status: ObaTripStatus, tripId: String) {
-        if (!status.isPredicted) {
-            lastRealtimePosition.remove(tripId)
-            return
-        }
-
-        // Always update the extrapolation anchor with the latest predicted position,
-        // even if the underlying AVL fix hasn't changed. The server may have re-extrapolated
-        // a better position from the same fix.
         if (status.bestDistanceAlongTrip != null) {
-            lastRealtimePosition[tripId] = status
+            extrapolationAnchor[tripId] = status
         }
 
         val locUpdateTime = status.lastLocationUpdateTime
@@ -208,9 +200,9 @@ object TripDataManager {
     }
 
     @Synchronized
-    fun getLastRealtimePosition(activeTripId: String?): ObaTripStatus? {
+    fun getExtrapolationAnchor(activeTripId: String?): ObaTripStatus? {
         if (activeTripId == null) return null
-        return lastRealtimePosition[activeTripId]
+        return extrapolationAnchor[activeTripId]
     }
 
     @Synchronized

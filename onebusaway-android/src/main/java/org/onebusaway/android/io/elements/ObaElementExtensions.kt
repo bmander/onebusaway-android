@@ -48,7 +48,7 @@ val ObaTripStatus.isLocationRealtime: Boolean
  */
 val ObaTripStatus.isRealtimeSpeedEstimable: Boolean
     get() = activeTripId != null
-                && TripDataManager.getLastRealtimePosition(activeTripId) != null
+                && TripDataManager.getExtrapolationAnchor(activeTripId) != null
 
 /**
  * Computes the scheduled segment speed (m/s) at a given distance along the trip.

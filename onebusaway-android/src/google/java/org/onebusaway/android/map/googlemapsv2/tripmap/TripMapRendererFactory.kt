@@ -88,7 +88,9 @@ internal object TripMapOverlayFactory {
 
         val shapeId = trip.shapeId
         if (shapeId != null) {
-            TripDataManager.ensureShape(tripId, shapeId, ::build)
+            TripDataManager.ensureShape(tripId, shapeId, ::build) {
+                onError?.invoke()
+            }
         } else {
             onError?.invoke()
         }

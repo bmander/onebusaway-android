@@ -45,6 +45,7 @@ object TripDataManager {
     private const val TAG = "TripDataManager"
     private const val MAX_ENTRIES_PER_TRIP = 100
     private const val MAX_TRACKED_TRIPS = 100
+    private const val MAX_FETCH_FAILURES = 3
 
     @JvmStatic fun getInstance() = this
 
@@ -52,6 +53,8 @@ object TripDataManager {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val pendingScheduleFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val pendingShapeFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val scheduleFailures = ConcurrentHashMap<String, Int>()
+    private val shapeFailures = ConcurrentHashMap<String, Int>()
 
     // --- AVL history ---
     private val tripHistory = LinkedHashMap<String, MutableList<ObaTripStatus>>()
@@ -70,7 +73,8 @@ object TripDataManager {
     private val perTripCaches: List<MutableMap<String, *>> = listOf(
             tripHistory, newestValidEntry, tripDetailsCache,
             scheduleCache, serviceDateCache, shapeDataCache,
-            routeTypeCache, lastActiveTripId
+            routeTypeCache, lastActiveTripId,
+            scheduleFailures, shapeFailures
     )
 
     // --- Vehicle history ---
@@ -234,6 +238,7 @@ object TripDataManager {
     /** Fetches and caches the schedule in the background if not already cached or in-flight. */
     fun ensureSchedule(tripId: String) {
         if (isScheduleCached(tripId) || !pendingScheduleFetches.add(tripId)) return
+        if ((scheduleFailures[tripId] ?: 0) >= MAX_FETCH_FAILURES) return
         fetchExecutor.execute {
             try {
                 val ctx = Application.get().applicationContext
@@ -246,11 +251,14 @@ object TripDataManager {
                 val schedule = response?.schedule
                 if (schedule != null) {
                     putSchedule(tripId, schedule)
+                    scheduleFailures.remove(tripId)
                 } else {
                     Log.d(TAG, "Schedule fetch for $tripId returned no schedule data")
+                    scheduleFailures.merge(tripId, 1, Int::plus)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch schedule for $tripId", e)
+                scheduleFailures.merge(tripId, 1, Int::plus)
             } finally {
                 pendingScheduleFetches.remove(tripId)
             }
@@ -285,16 +293,25 @@ object TripDataManager {
     /**
      * Fetches and caches the shape in the background if not already cached or in-flight.
      * If [onReady] is provided, it is always invoked on the main thread with the [Polyline]
-     * once the shape is available.
+     * once the shape is available. If the fetch fails, [onError] is invoked on the main thread.
      */
     @JvmOverloads
-    fun ensureShape(tripId: String, shapeId: String, onReady: ((Polyline) -> Unit)? = null) {
+    fun ensureShape(
+            tripId: String,
+            shapeId: String,
+            onReady: ((Polyline) -> Unit)? = null,
+            onError: (() -> Unit)? = null
+    ) {
         val cached = getPolyline(tripId)
         if (cached != null) {
             if (onReady != null) mainHandler.post { onReady(cached) }
             return
         }
         if (!pendingShapeFetches.add(tripId)) return
+        if ((shapeFailures[tripId] ?: 0) >= MAX_FETCH_FAILURES) {
+            if (onError != null) mainHandler.post { onError() }
+            return
+        }
         fetchExecutor.execute {
             try {
                 val ctx = Application.get().applicationContext
@@ -302,15 +319,20 @@ object TripDataManager {
                 val points = response?.points
                 if (points != null && points.isNotEmpty()) {
                     putShape(tripId, points)
+                    shapeFailures.remove(tripId)
                     if (onReady != null) {
                         val sd = getPolyline(tripId)
                         if (sd != null) mainHandler.post { onReady(sd) }
                     }
                 } else {
                     Log.d(TAG, "Shape fetch for $tripId returned no points")
+                    shapeFailures.merge(tripId, 1, Int::plus)
+                    if (onError != null) mainHandler.post { onError() }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch shape for $tripId", e)
+                shapeFailures.merge(tripId, 1, Int::plus)
+                if (onError != null) mainHandler.post { onError() }
             } finally {
                 pendingShapeFetches.remove(tripId)
             }

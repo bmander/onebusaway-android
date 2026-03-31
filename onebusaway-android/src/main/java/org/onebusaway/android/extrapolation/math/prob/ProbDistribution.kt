@@ -25,17 +25,28 @@ interface ProbDistribution {
 }
 
 private const val BISECT_REL_TOL = 1e-9
+private const val BRACKET_MAX_ITER = 100
+private const val REFINE_MAX_ITER = 200
 
 /**
  * Finds x such that [f](x) = [target] by bisection, starting from [initialHi].
  * If [f]([initialHi]) < [target], doubles [initialHi] until it brackets.
+ *
+ * Guards against degenerate inputs: if [initialHi] is non-positive, NaN, or
+ * infinite, falls back to 1.0. Both loops are iteration-capped to prevent
+ * hangs from pathological CDFs.
  */
 internal fun bisect(f: (Double) -> Double, target: Double, initialHi: Double): Double {
-    var hi = initialHi
-    while (f(hi) < target) hi *= 2
+    var hi = if (initialHi > 0 && initialHi.isFinite()) initialHi else 1.0
+    var iter = 0
+    while (f(hi) < target) {
+        hi *= 2
+        if (++iter >= BRACKET_MAX_ITER || !hi.isFinite()) return hi
+    }
 
     var lo = 0.0
-    while (hi - lo > BISECT_REL_TOL * (hi + lo)) {
+    iter = 0
+    while (hi - lo > BISECT_REL_TOL * (hi + lo) && ++iter < REFINE_MAX_ITER) {
         val mid = (lo + hi) / 2
         if (f(mid) < target) lo = mid else hi = mid
     }

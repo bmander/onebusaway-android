@@ -39,7 +39,8 @@ class GammaMixtureDistribution(
 
     private val quantileHi: Double = run {
         fun secondMoment(g: GammaDistribution) = g.alpha * g.scale * g.scale + g.mean * g.mean
-        val variance = weight * secondMoment(comp1) + (1 - weight) * secondMoment(comp2) - mean * mean
+        val variance = (weight * secondMoment(comp1) + (1 - weight) * secondMoment(comp2) - mean * mean)
+                .coerceAtLeast(0.0)
         mean + 10 * sqrt(variance)
     }
 

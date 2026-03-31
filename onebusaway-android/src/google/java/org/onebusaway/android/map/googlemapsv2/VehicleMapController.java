@@ -28,6 +28,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import org.onebusaway.android.R;
 import org.onebusaway.android.extrapolation.ExtrapolationResult;
 import org.onebusaway.android.extrapolation.Extrapolator;
+import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
 import org.onebusaway.android.extrapolation.ExtrapolatorKt;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.io.elements.ObaTrip;
@@ -298,7 +299,7 @@ class VehicleMapController {
                 state.extrapolating = (result instanceof ExtrapolationResult.Success);
 
                 LatLng target = (result instanceof ExtrapolationResult.Success)
-                        ? mapToPolyline(state, (ExtrapolationResult.Success) result) : null;
+                        ? mapToPolyline(state, ((ExtrapolationResult.Success) result).getDistribution()) : null;
 
                 ObaTripStatus newestValid = ext.getLastUsedEntry();
 
@@ -310,7 +311,7 @@ class VehicleMapController {
                         setPositionIfNotAnimating(state, target);
                     }
                 } else {
-                    fallbackToRawPosition(state);
+                    animateToRawPosition(state);
                 }
                 if (state.selected) {
                     if (target != null) {
@@ -321,7 +322,7 @@ class VehicleMapController {
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Failed to update position for trip " + state.tripId, e);
-                fallbackToRawPosition(state);
+                animateToRawPosition(state);
             }
         }
     }
@@ -337,11 +338,10 @@ class VehicleMapController {
         return ext;
     }
 
-    private LatLng mapToPolyline(VehicleMarkerState state,
-                                  ExtrapolationResult.Success result) {
+    private LatLng mapToPolyline(VehicleMarkerState state, ProbDistribution distribution) {
         Polyline polyline = mDataManager.getPolyline(state.tripId);
         if (polyline == null) return null;
-        Location loc = polyline.interpolate(result.getDistribution().median());
+        Location loc = polyline.interpolate(distribution.median());
         if (loc == null) return null;
         return MapHelpV2.makeLatLng(loc);
     }
@@ -359,21 +359,24 @@ class VehicleMapController {
                 () -> state.animating = false);
     }
 
-    private void fallbackToRawPosition(VehicleMarkerState state) {
+    private void animateToRawPosition(VehicleMarkerState state) {
         Location loc = state.status.getPosition();
-        if (loc != null) {
-            state.vehicleMarker.setPosition(MapHelpV2.makeLatLng(loc));
+        if (loc == null || state.animating) return;
+        LatLng target = MapHelpV2.makeLatLng(loc);
+        if (positionChanged(state, target)) {
+            startTransitionAnimation(state, target);
         }
     }
 
     private void setPositionIfNotAnimating(VehicleMarkerState state, LatLng target) {
-        if (!state.animating) {
-            LatLng current = state.vehicleMarker.getPosition();
-            if (current.latitude != target.latitude
-                    || current.longitude != target.longitude) {
-                state.vehicleMarker.setPosition(target);
-            }
+        if (!state.animating && positionChanged(state, target)) {
+            state.vehicleMarker.setPosition(target);
         }
+    }
+
+    private static boolean positionChanged(VehicleMarkerState state, LatLng target) {
+        LatLng current = state.vehicleMarker.getPosition();
+        return current.latitude != target.latitude || current.longitude != target.longitude;
     }
 
     // --- Lifecycle ---

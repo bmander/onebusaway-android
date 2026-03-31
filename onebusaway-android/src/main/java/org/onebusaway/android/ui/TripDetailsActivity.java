@@ -21,6 +21,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Toast;
 
 import org.onebusaway.android.R;
 import org.onebusaway.android.ui.dataview.VehicleLocationDataActivity;
@@ -240,9 +241,9 @@ public class TripDetailsActivity extends AppCompatActivity
 
     @Override
     public void onTripMapActivationFailed() {
-        android.widget.Toast.makeText(this,
+        Toast.makeText(this,
                 R.string.trip_map_data_unavailable,
-                android.widget.Toast.LENGTH_SHORT).show();
+                Toast.LENGTH_SHORT).show();
         showList();
     }
 

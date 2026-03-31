@@ -59,17 +59,17 @@ abstract class Extrapolator(
         private set
 
     fun extrapolate(queryTimeMs: Long): ExtrapolationResult {
-        val newestValid = dataManager.getNewestValidEntry(tripId)
-        lastUsedEntry = newestValid
-        if (newestValid == null) return ExtrapolationResult.NoData
-        val lastDist = newestValid.bestDistanceAlongTrip
+        val lastRealtime = dataManager.getLastRealtimePosition(tripId)
+        lastUsedEntry = lastRealtime
+        if (lastRealtime == null) return ExtrapolationResult.NoData
+        val lastDist = lastRealtime.bestDistanceAlongTrip
                 ?: return ExtrapolationResult.NoData
-        val lastTime = newestValid.lastLocationUpdateTime
+        val lastTime = lastRealtime.lastLocationUpdateTime
         if (lastTime <= 0) return ExtrapolationResult.NoData
         val dtMs = queryTimeMs - lastTime
         if (dtMs < 0 || dtMs > MAX_HORIZON_MS) return ExtrapolationResult.Stale
         if (isAtTripStart(lastDist)) return ExtrapolationResult.TripNotStarted
-        val totalDist = newestValid.totalDistanceAlongTrip
+        val totalDist = lastRealtime.totalDistanceAlongTrip
         if (totalDist != null && isAtTripEnd(lastDist, totalDist)) return ExtrapolationResult.TripEnded
 
         return doExtrapolate(lastDist, dtMs / 1000.0, lastTime)

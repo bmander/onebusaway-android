@@ -192,9 +192,9 @@ class VehicleMapController {
 
     // --- Data-received marker lifecycle ---
 
-    private void showDataReceivedMarker(VehicleMarkerState vehicle, ObaTripStatus newestValid) {
+    private void showDataReceivedMarker(VehicleMarkerState vehicle, ObaTripStatus lastRealtime) {
         removeDataReceivedMarker(vehicle);
-        Location loc = newestValid.getPosition();
+        Location loc = lastRealtime.getPosition();
         if (loc == null) return;
         Marker m = mMap.addMarker(new MarkerOptions()
                 .position(MapHelpV2.makeLatLng(loc))
@@ -204,20 +204,20 @@ class VehicleMapController {
                 .flat(true)
                 .zIndex(DATA_RECEIVED_MARKER_Z_INDEX));
         vehicle.dataReceivedMarker = m;
-        vehicle.dataReceivedFixTime = newestValid.getLastLocationUpdateTime();
+        vehicle.dataReceivedFixTime = lastRealtime.getLastLocationUpdateTime();
         m.setTag(vehicle);
     }
 
-    private void updateDataReceivedMarker(VehicleMarkerState vehicle, ObaTripStatus newestValid) {
-        if (newestValid == null) return;
+    private void updateDataReceivedMarker(VehicleMarkerState vehicle, ObaTripStatus lastRealtime) {
+        if (lastRealtime == null) return;
         if (vehicle.dataReceivedMarker == null) {
-            showDataReceivedMarker(vehicle, newestValid);
+            showDataReceivedMarker(vehicle, lastRealtime);
             return;
         }
-        long fixTime = newestValid.getLastLocationUpdateTime();
+        long fixTime = lastRealtime.getLastLocationUpdateTime();
         if (fixTime != vehicle.dataReceivedFixTime) {
             vehicle.dataReceivedFixTime = fixTime;
-            Location loc = newestValid.getPosition();
+            Location loc = lastRealtime.getPosition();
             if (loc != null) {
                 AnimationUtil.animateMarkerTo(vehicle.dataReceivedMarker,
                         MapHelpV2.makeLatLng(loc), mAnimateDurationMs);
@@ -324,10 +324,10 @@ class VehicleMapController {
 
         LatLng target = extrapolateTarget(vehicle, result);
 
-        ObaTripStatus newestValid = null;
+        ObaTripStatus lastRealtime = null;
         if (target != null) {
-            newestValid = ext.getLastUsedEntry();
-            boolean freshData = checkAndUpdateFixTime(vehicle, newestValid);
+            lastRealtime = ext.getLastUsedEntry();
+            boolean freshData = checkAndUpdateFixTime(vehicle, lastRealtime);
             if (freshData) {
                 startTransitionAnimation(vehicle, target);
             } else {
@@ -337,7 +337,7 @@ class VehicleMapController {
             animateToRawPosition(vehicle);
         }
 
-        updateSelectedMarker(vehicle, target != null, newestValid);
+        updateSelectedMarker(vehicle, target != null, lastRealtime);
     }
 
     /** Resolves the extrapolated position and updates the direction icon. */
@@ -361,10 +361,10 @@ class VehicleMapController {
     }
 
     private void updateSelectedMarker(VehicleMarkerState vehicle, boolean hasTarget,
-                                      ObaTripStatus newestValid) {
+                                      ObaTripStatus lastRealtime) {
         if (!vehicle.selected) return;
         if (hasTarget) {
-            updateDataReceivedMarker(vehicle, newestValid);
+            updateDataReceivedMarker(vehicle, lastRealtime);
         } else {
             removeDataReceivedMarker(vehicle);
         }

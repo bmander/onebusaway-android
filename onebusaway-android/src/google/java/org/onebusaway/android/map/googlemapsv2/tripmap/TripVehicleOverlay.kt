@@ -103,7 +103,7 @@ class TripVehicleOverlay(
         vehicleMarker?.isVisible = false
     }
 
-    fun updateVehiclePosition(location: Location?, newestValid: ObaTripStatus?, now: Long) {
+    fun updateVehiclePosition(location: Location?, lastRealtime: ObaTripStatus?, now: Long) {
         if (location == null) return
 
         val marker = vehicleMarker
@@ -121,7 +121,7 @@ class TripVehicleOverlay(
 
         marker.isVisible = true
         val target = MapHelpV2.makeLatLng(location)
-        val fixTime = newestValid?.lastLocationUpdateTime ?: 0L
+        val fixTime = lastRealtime?.lastLocationUpdateTime ?: 0L
         val freshData = lastFixTime != 0L && fixTime != lastFixTime
         lastFixTime = fixTime
 

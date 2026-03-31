@@ -58,7 +58,7 @@ object TripDataManager {
 
     // --- AVL history ---
     private val tripHistory = LinkedHashMap<String, MutableList<ObaTripStatus>>()
-    private val newestValidEntry = mutableMapOf<String, ObaTripStatus>()
+    private val lastRealtimePosition = mutableMapOf<String, ObaTripStatus>()
 
     // --- Caches ---
     private val tripDetailsCache = HashMap<String, ObaTripDetailsResponse>()
@@ -71,7 +71,7 @@ object TripDataManager {
 
     /** Single source of truth for all per-trip caches. Used by evictTrip and clearAll. */
     private val perTripCaches: List<MutableMap<String, *>> = listOf(
-            tripHistory, newestValidEntry, tripDetailsCache,
+            tripHistory, lastRealtimePosition, tripDetailsCache,
             scheduleCache, serviceDateCache, shapeDataCache,
             routeTypeCache, lastActiveTripId,
             scheduleFailures, shapeFailures
@@ -94,7 +94,7 @@ object TripDataManager {
     /** Core recording logic. Caller must already hold the lock. */
     private fun recordStatusInternal(status: ObaTripStatus, tripId: String) {
         if (!status.isPredicted) {
-            newestValidEntry.remove(tripId)
+            lastRealtimePosition.remove(tripId)
             return
         }
 
@@ -110,7 +110,7 @@ object TripDataManager {
         history.add(status)
 
         if (status.bestDistanceAlongTrip != null) {
-            newestValidEntry[tripId] = status
+            lastRealtimePosition[tripId] = status
         }
 
         if (history.size > MAX_ENTRIES_PER_TRIP) {
@@ -204,9 +204,9 @@ object TripDataManager {
     }
 
     @Synchronized
-    fun getNewestValidEntry(activeTripId: String?): ObaTripStatus? {
+    fun getLastRealtimePosition(activeTripId: String?): ObaTripStatus? {
         if (activeTripId == null) return null
-        return newestValidEntry[activeTripId]
+        return lastRealtimePosition[activeTripId]
     }
 
     @Synchronized

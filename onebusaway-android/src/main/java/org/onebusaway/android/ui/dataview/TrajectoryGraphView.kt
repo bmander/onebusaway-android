@@ -57,7 +57,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
 
     // Data state
     private var history: List<ObaTripStatus> = emptyList()
-    private var newestValidEntry: ObaTripStatus? = null
+    private var lastRealtimePosition: ObaTripStatus? = null
     private var schedule: ObaTripSchedule? = null
     private var serviceDate = 0L
     private var currentTime = System.currentTimeMillis()
@@ -154,7 +154,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
     fun setData(history: List<ObaTripStatus>?, schedule: ObaTripSchedule?,
                 serviceDate: Long, distribution: ProbDistribution?) {
         this.history = history?.toList() ?: emptyList()
-        newestValidEntry = findNewestValidEntry(this.history)
+        lastRealtimePosition = findLastRealtimePosition(this.history)
         this.schedule = schedule
         this.serviceDate = serviceDate
         this.distribution = distribution
@@ -237,8 +237,8 @@ class TrajectoryGraphView @JvmOverloads constructor(
         drawScheduleLine(canvas)
         drawTrajectoryDots(canvas)
 
-        val lastDist = newestValidEntry?.bestDistanceAlongTrip
-        val lastTime = newestValidEntry?.lastLocationUpdateTime ?: 0
+        val lastDist = lastRealtimePosition?.bestDistanceAlongTrip
+        val lastTime = lastRealtimePosition?.lastLocationUpdateTime ?: 0
 
         drawExtrapolationAndDeviation(canvas, lastDist, lastTime)
         drawGammaPdfAndBands(canvas, lastDist, lastTime)
@@ -561,7 +561,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
             return magnitude + if (devSeconds > 0) " late" else " early"
         }
 
-        private fun findNewestValidEntry(history: List<ObaTripStatus>): ObaTripStatus? {
+        private fun findLastRealtimePosition(history: List<ObaTripStatus>): ObaTripStatus? {
             for (i in history.indices.reversed()) {
                 val s = history[i]
                 if (s.bestDistanceAlongTrip != null && s.lastLocationUpdateTime > 0) return s

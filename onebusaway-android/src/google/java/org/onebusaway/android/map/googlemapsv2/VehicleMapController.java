@@ -17,6 +17,7 @@ package org.onebusaway.android.map.googlemapsv2;
 
 import android.content.Context;
 import android.location.Location;
+import android.util.Log;
 
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.model.BitmapDescriptor;
@@ -50,6 +51,7 @@ import java.util.Map;
  */
 class VehicleMapController {
 
+    private static final String TAG = "VehicleMapController";
     private static final float VEHICLE_MARKER_Z_INDEX = 1;
     private static final float DATA_RECEIVED_MARKER_Z_INDEX = 3.1f;
 
@@ -291,32 +293,40 @@ class VehicleMapController {
         if (mStates.isEmpty()) return;
 
         for (VehicleMarkerState state : mStates.values()) {
-            ExtrapolationResult result = getOrCreateExtrapolator(state).extrapolate(now);
-            state.extrapolating = (result instanceof ExtrapolationResult.Success);
+            try {
+                ExtrapolationResult result = getOrCreateExtrapolator(state).extrapolate(now);
+                state.extrapolating = (result instanceof ExtrapolationResult.Success);
 
-            LatLng target = (result instanceof ExtrapolationResult.Success)
-                    ? mapToPolyline(state, (ExtrapolationResult.Success) result) : null;
+                LatLng target = (result instanceof ExtrapolationResult.Success)
+                        ? mapToPolyline(state, (ExtrapolationResult.Success) result) : null;
 
-            ObaTripStatus newestValid = mDataManager.getNewestValidEntry(state.tripId);
+                ObaTripStatus newestValid = mDataManager.getNewestValidEntry(state.tripId);
 
-            if (target != null) {
-                boolean freshData = checkAndUpdateFixTime(state, newestValid);
-                if (freshData) {
-                    startTransitionAnimation(state, target);
+                if (target != null) {
+                    boolean freshData = checkAndUpdateFixTime(state, newestValid);
+                    if (freshData) {
+                        startTransitionAnimation(state, target);
+                    } else {
+                        setPositionIfNotAnimating(state, target);
+                    }
                 } else {
-                    setPositionIfNotAnimating(state, target);
+                    Location loc = state.status.getPosition();
+                    if (loc != null) {
+                        state.vehicleMarker.setPosition(MapHelpV2.makeLatLng(loc));
+                    }
                 }
-            } else {
+                if (state.selected) {
+                    if (target != null) {
+                        updateDataReceivedMarker(state, newestValid);
+                    } else {
+                        removeDataReceivedMarker(state);
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to update position for trip " + state.tripId, e);
                 Location loc = state.status.getPosition();
                 if (loc != null) {
                     state.vehicleMarker.setPosition(MapHelpV2.makeLatLng(loc));
-                }
-            }
-            if (state.selected) {
-                if (target != null) {
-                    updateDataReceivedMarker(state, newestValid);
-                } else {
-                    removeDataReceivedMarker(state);
                 }
             }
         }

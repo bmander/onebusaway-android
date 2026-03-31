@@ -15,11 +15,13 @@
  */
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
+import android.util.Log
 import android.view.Choreographer
 import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
 
+private const val TAG = "TripExtrapController"
 private const val FRAME_INTERVAL_MS = 50L // 20fps
 
 /**
@@ -64,27 +66,31 @@ internal constructor(
     }
 
     private fun doFrame(now: Long) {
-        val shapeData = TripDataManager.getPolyline(tripId) ?: return
-        val result = extrapolator.extrapolate(now)
+        try {
+            val shapeData = TripDataManager.getPolyline(tripId) ?: return
+            val result = extrapolator.extrapolate(now)
 
-        when (result) {
-            is ExtrapolationResult.Success -> {
-                val distribution = result.distribution
-                val loc = shapeData.interpolate(distribution.median())
-                if (loc != null) {
-                    val newestValid = TripDataManager.getNewestValidEntry(tripId)
-                    vehicleOverlay.updateVehiclePosition(loc, newestValid, now)
+            when (result) {
+                is ExtrapolationResult.Success -> {
+                    val distribution = result.distribution
+                    val loc = shapeData.interpolate(distribution.median())
+                    if (loc != null) {
+                        val newestValid = TripDataManager.getNewestValidEntry(tripId)
+                        vehicleOverlay.updateVehiclePosition(loc, newestValid, now)
+                    }
+                    vehicleOverlay.updateEstimateOverlays(distribution)
                 }
-                vehicleOverlay.updateEstimateOverlays(distribution)
+                else -> {
+                    vehicleOverlay.hideVehicleMarker()
+                    vehicleOverlay.hideEstimateOverlays()
+                }
             }
-            else -> {
-                vehicleOverlay.hideVehicleMarker()
-                vehicleOverlay.hideEstimateOverlays()
-            }
-        }
 
-        TripDataManager.getLastState(tripId)?.let {
-            vehicleOverlay.showOrUpdateDataReceivedMarker(it, now)
+            TripDataManager.getLastState(tripId)?.let {
+                vehicleOverlay.showOrUpdateDataReceivedMarker(it, now)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Extrapolation frame failed for trip $tripId", e)
         }
     }
 }

@@ -259,14 +259,14 @@ object TripDataManager {
 
     /**
      * Fetches and caches the shape in the background if not already cached or in-flight.
-     * If [onReady] is provided, it is invoked on the main thread with the [Polyline] once
-     * the shape is available. If the shape is already cached, [onReady] is called immediately.
+     * If [onReady] is provided, it is always invoked on the main thread with the [Polyline]
+     * once the shape is available.
      */
     @JvmOverloads
     fun ensureShape(tripId: String, shapeId: String, onReady: ((Polyline) -> Unit)? = null) {
         val cached = getPolyline(tripId)
         if (cached != null) {
-            onReady?.invoke(cached)
+            if (onReady != null) mainHandler.post { onReady(cached) }
             return
         }
         if (!pendingShapeFetches.add(tripId)) return

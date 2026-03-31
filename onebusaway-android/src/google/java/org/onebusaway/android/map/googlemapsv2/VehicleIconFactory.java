@@ -28,11 +28,8 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.elements.ObaRoute;
-import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripStatus;
-import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.util.ArrivalInfoUtils;
-import org.onebusaway.android.util.MathUtils;
 import org.onebusaway.android.util.UIUtils;
 
 import java.util.concurrent.TimeUnit;
@@ -52,7 +49,7 @@ public class VehicleIconFactory {
     private static final int WEST = 6;
     private static final int NORTH_WEST = 7;
     private static final int NO_DIRECTION = 8;
-    private static final int NUM_DIRECTIONS = 9;
+    static final int NUM_DIRECTIONS = 9;
 
     private static final int DEFAULT_VEHICLE_TYPE = ObaRoute.TYPE_BUS;
 
@@ -145,21 +142,6 @@ public class VehicleIconFactory {
     }
 
     /**
-     * Returns the icon for a vehicle based on its status, route type, and heading.
-     */
-    public BitmapDescriptor getVehicleIcon(boolean isRealtime, ObaTripStatus status,
-                                           ObaTripsForRouteResponse response) {
-        ObaTrip trip = response.getTrip(status.getActiveTripId());
-        ObaRoute route = trip != null ? response.getRoute(trip.getRouteId()) : null;
-        int vehicleType = route != null ? route.getType() : DEFAULT_VEHICLE_TYPE;
-        int colorResource = getDeviationColorResource(isRealtime, status);
-        double direction = MathUtils.toDirection(status.getOrientation());
-        int halfWind = MathUtils.getHalfWindIndex((float) direction, NUM_DIRECTIONS - 1);
-
-        return getCachedIcon(vehicleType, colorResource, halfWind);
-    }
-
-    /**
      * Returns the color resource for a vehicle's schedule deviation status.
      */
     public static int getDeviationColorResource(boolean isRealtime, ObaTripStatus status) {
@@ -170,7 +152,13 @@ public class VehicleIconFactory {
         return R.color.stop_info_scheduled_time;
     }
 
-    private BitmapDescriptor getCachedIcon(int vehicleType, int colorResource, int halfWind) {
+    /**
+     * Returns the cached icon for the given icon parameters.
+     */
+    BitmapDescriptor getIcon(VehicleIconParams params) {
+        int vehicleType = params.vehicleType;
+        int colorResource = params.colorResource;
+        int halfWind = params.halfWind;
         if (vehicleType == ObaRoute.TYPE_CABLECAR) {
             vehicleType = ObaRoute.TYPE_TRAM;
         }

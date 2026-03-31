@@ -18,8 +18,9 @@ package org.onebusaway.android.extrapolation.test
 import android.location.Location
 import androidx.test.runner.AndroidJUnit4
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.onebusaway.android.util.LocationUtils
@@ -94,5 +95,101 @@ class InterpolateAlongPolylineTest {
         assertNotNull(sub)
         assertEquals(0.25, sub!!.first().longitude, 0.01)
         assertEquals(0.75, sub.last().longitude, 0.01)
+    }
+
+    // --- segmentIndex tests ---
+
+    @Test
+    fun segmentIndexEmptyPolyline() {
+        assertEquals(-1, Polyline(emptyList()).segmentIndex(0.0))
+    }
+
+    @Test
+    fun segmentIndexSinglePoint() {
+        assertEquals(-1, Polyline(listOf(loc(0.0, 0.0))).segmentIndex(0.0))
+    }
+
+    @Test
+    fun segmentIndexAtStart() {
+        assertEquals(0, poly.segmentIndex(0.0))
+    }
+
+    @Test
+    fun segmentIndexBeyondEnd() {
+        // Should clamp to last segment
+        assertEquals(1, poly.segmentIndex(999_999.0))
+    }
+
+    @Test
+    fun segmentIndexMidFirstSegment() {
+        val segLen = loc(0.0, 0.0).distanceTo(loc(0.0, 1.0)).toDouble()
+        assertEquals(0, poly.segmentIndex(segLen / 2))
+    }
+
+    @Test
+    fun segmentIndexMidSecondSegment() {
+        val segLen = loc(0.0, 0.0).distanceTo(loc(0.0, 1.0)).toDouble()
+        assertEquals(1, poly.segmentIndex(segLen * 1.5))
+    }
+
+    // --- bearingAt tests ---
+
+    @Test
+    fun bearingAtEmptyPolyline() {
+        assertTrue(Polyline(emptyList()).bearingAt(0.0).isNaN())
+    }
+
+    @Test
+    fun bearingAtSinglePoint() {
+        assertTrue(Polyline(listOf(loc(0.0, 0.0))).bearingAt(0.0).isNaN())
+    }
+
+    @Test
+    fun bearingAtEastward() {
+        // Points along the equator heading east → bearing ~90
+        val bearing = poly.bearingAt(0.0)
+        assertEquals(90.0, bearing.toDouble(), 1.0)
+    }
+
+    @Test
+    fun bearingAtNorthward() {
+        // Two points heading due north
+        val northPoly = Polyline(listOf(loc(0.0, 0.0), loc(1.0, 0.0)))
+        val bearing = northPoly.bearingAt(0.0)
+        assertEquals(0.0, bearing.toDouble(), 1.0)
+    }
+
+    @Test
+    fun bearingAtSecondSegment() {
+        // L-shaped polyline: east then north
+        val turn = Polyline(listOf(loc(0.0, 0.0), loc(0.0, 1.0), loc(1.0, 1.0)))
+        val segLen = loc(0.0, 0.0).distanceTo(loc(0.0, 1.0)).toDouble()
+        val bearingFirst = turn.bearingAt(segLen * 0.5)
+        val bearingSecond = turn.bearingAt(segLen * 1.5)
+        assertEquals(90.0, bearingFirst.toDouble(), 1.0)
+        assertEquals(0.0, bearingSecond.toDouble(), 1.0)
+    }
+
+    // --- segment-indexed overloads ---
+
+    @Test
+    fun interpolateWithSegmentMatchesDirect() {
+        val segLen = loc(0.0, 0.0).distanceTo(loc(0.0, 1.0)).toDouble()
+        val dist = segLen * 0.75
+        val direct = poly.interpolate(dist)!!
+        val seg = poly.segmentIndex(dist)
+        val indexed = poly.interpolate(dist, seg)!!
+        assertEquals(direct.latitude, indexed.latitude, 1e-12)
+        assertEquals(direct.longitude, indexed.longitude, 1e-12)
+    }
+
+    @Test
+    fun bearingWithSegmentMatchesDirect() {
+        val segLen = loc(0.0, 0.0).distanceTo(loc(0.0, 1.0)).toDouble()
+        val dist = segLen * 0.5
+        val direct = poly.bearingAt(dist)
+        val seg = poly.segmentIndex(dist)
+        val indexed = poly.bearingAt(seg)
+        assertEquals(direct, indexed, 1e-6f)
     }
 }

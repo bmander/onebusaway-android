@@ -31,12 +31,14 @@ import org.onebusaway.android.extrapolation.Extrapolator;
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
 import org.onebusaway.android.extrapolation.ExtrapolatorKt;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
+import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaTrip;
 import org.onebusaway.android.io.elements.ObaTripDetails;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.elements.ObaElementExtensionsKt;
 import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
+import org.onebusaway.android.util.MathUtils;
 import org.onebusaway.android.util.Polyline;
 import org.onebusaway.android.util.UIUtils;
 
@@ -128,14 +130,16 @@ class VehicleMapController {
                             ObaTripStatus status, ObaTripsForRouteResponse response) {
         Location location = status.getPosition();
         if (location == null) return;
+        VehicleIconParams params = buildIconParams(isRealtime, status, response);
         Marker m = mMap.addMarker(new MarkerOptions()
                 .position(MapHelpV2.makeLatLng(location))
                 .title(status.getVehicleId())
-                .icon(mIconFactory.getVehicleIcon(isRealtime, status, response))
+                .icon(mIconFactory.getIcon(params))
                 .zIndex(VEHICLE_MARKER_Z_INDEX)
         );
         VehicleMarkerState state = new VehicleMarkerState(tripId, status);
         state.vehicleMarker = m;
+        state.iconParams = params;
         m.setTag(state);
         mStates.put(tripId, state);
     }
@@ -144,11 +148,25 @@ class VehicleMapController {
                                ObaTripStatus status, ObaTripsForRouteResponse response) {
         Marker m = state.vehicleMarker;
         boolean showInfo = m.isInfoWindowShown();
-        m.setIcon(mIconFactory.getVehicleIcon(isRealtime, status, response));
+        VehicleIconParams params = buildIconParams(isRealtime, status, response);
+        m.setIcon(mIconFactory.getIcon(params));
         state.status = status;
+        state.iconParams = params;
         if (showInfo) {
             m.showInfoWindow();
         }
+    }
+
+    private static VehicleIconParams buildIconParams(boolean isRealtime, ObaTripStatus status,
+                                                       ObaTripsForRouteResponse response) {
+        ObaTrip trip = response.getTrip(status.getActiveTripId());
+        ObaRoute route = trip != null ? response.getRoute(trip.getRouteId()) : null;
+        int vehicleType = route != null ? route.getType() : ObaRoute.TYPE_BUS;
+        int colorResource = VehicleIconFactory.getDeviationColorResource(isRealtime, status);
+        int halfWind = MathUtils.getHalfWindIndex(
+                (float) MathUtils.toDirection(status.getOrientation()),
+                VehicleIconFactory.NUM_DIRECTIONS - 1);
+        return new VehicleIconParams(vehicleType, colorResource, halfWind);
     }
 
     private void removeInactiveMarkers(HashSet<String> activeTripIds) {
@@ -298,12 +316,26 @@ class VehicleMapController {
                 ExtrapolationResult result = ext.extrapolate(now);
                 state.extrapolating = (result instanceof ExtrapolationResult.Success);
 
-                LatLng target = (result instanceof ExtrapolationResult.Success)
-                        ? mapToPolyline(state, ((ExtrapolationResult.Success) result).getDistribution()) : null;
+                ProbDistribution dist = (result instanceof ExtrapolationResult.Success)
+                        ? ((ExtrapolationResult.Success) result).getDistribution() : null;
+                Polyline polyline = dist != null
+                        ? mDataManager.getPolyline(state.tripId) : null;
+                LatLng target = null;
+                int seg = -1;
+                if (polyline != null) {
+                    double medianDist = dist.median();
+                    seg = polyline.segmentIndex(medianDist);
+                    target = mapToPolyline(polyline, medianDist, seg);
+                }
 
                 ObaTripStatus newestValid = ext.getLastUsedEntry();
 
                 if (target != null) {
+                    int hw = halfWindAt(polyline, seg);
+                    if (hw >= 0 && hw != state.iconParams.halfWind) {
+                        state.iconParams.halfWind = hw;
+                        state.vehicleMarker.setIcon(mIconFactory.getIcon(state.iconParams));
+                    }
                     boolean freshData = checkAndUpdateFixTime(state, newestValid);
                     if (freshData) {
                         startTransitionAnimation(state, target);
@@ -338,12 +370,17 @@ class VehicleMapController {
         return ext;
     }
 
-    private LatLng mapToPolyline(VehicleMarkerState state, ProbDistribution distribution) {
-        Polyline polyline = mDataManager.getPolyline(state.tripId);
-        if (polyline == null) return null;
-        Location loc = polyline.interpolate(distribution.median());
+    private static LatLng mapToPolyline(Polyline polyline, double medianDist, int seg) {
+        Location loc = polyline.interpolate(medianDist, seg);
         if (loc == null) return null;
         return MapHelpV2.makeLatLng(loc);
+    }
+
+    /** Returns the half-wind direction index for the given segment, or -1 if unavailable. */
+    private static int halfWindAt(Polyline polyline, int seg) {
+        float bearing = polyline.bearingAt(seg);
+        if (Float.isNaN(bearing)) return -1;
+        return MathUtils.getHalfWindIndex(bearing, VehicleIconFactory.NUM_DIRECTIONS - 1);
     }
 
     private boolean checkAndUpdateFixTime(VehicleMarkerState state, ObaTripStatus newest) {

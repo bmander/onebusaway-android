@@ -34,6 +34,8 @@ class VehicleMarkerState {
     boolean animating;
     boolean selected;
 
+    VehicleIconParams iconParams;
+
     Marker vehicleMarker;
     Marker dataReceivedMarker;
     long dataReceivedFixTime;

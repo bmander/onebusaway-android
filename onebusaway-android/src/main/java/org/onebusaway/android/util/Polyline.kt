@@ -34,29 +34,50 @@ class Polyline(val points: List<Location>) {
             .runningFold(0.0) { acc, dist -> acc + dist }
             .toDoubleArray()
 
+    /**
+     * Returns the index of the segment start for the given distance, or -1 if the
+     * polyline has fewer than 2 points. The distance is clamped to the polyline bounds.
+     * Reuse the result across [interpolate] and [bearingAt] to avoid repeated binary searches.
+     */
+    fun segmentIndex(distance: Double): Int {
+        if (points.size < 2) return -1
+        val d = distance.coerceIn(0.0, cumulativeDistances.last())
+        val idx = Arrays.binarySearch(cumulativeDistances, d)
+        return when {
+            idx >= 0 -> idx.coerceAtMost(points.size - 2)
+            else -> (-idx - 2).coerceIn(0, points.size - 2)
+        }
+    }
+
     /** Returns the interpolated position at the given distance along the polyline. */
     fun interpolate(distance: Double): Location? {
         if (points.isEmpty()) return null
-        if (distance <= 0) return copyLocation(points.first())
+        if (points.size < 2 || distance <= 0) return copyLocation(points.first())
+        return interpolate(distance, segmentIndex(distance))
+    }
 
-        val idx = Arrays.binarySearch(cumulativeDistances, distance)
-        if (idx >= 0) return copyLocation(points[idx])
+    /** Interpolates using a pre-computed [seg] from [segmentIndex]. */
+    fun interpolate(distance: Double, seg: Int): Location? {
+        if (seg < 0) return if (points.isEmpty()) null else copyLocation(points.first())
 
-        val insertionPoint = -idx - 1
-        if (insertionPoint >= points.size) return copyLocation(points.last())
+        val segLen = cumulativeDistances[seg + 1] - cumulativeDistances[seg]
+        if (segLen <= 0) return copyLocation(points[seg])
 
-        val segStart = insertionPoint - 1
-        if (segStart < 0) return copyLocation(points.first())
-
-        val segLen = cumulativeDistances[insertionPoint] - cumulativeDistances[segStart]
-        if (segLen <= 0) return copyLocation(points[segStart])
-
-        val fraction = (distance - cumulativeDistances[segStart]) / segLen
-        val p0 = points[segStart]
-        val p1 = points[insertionPoint]
+        val fraction = ((distance - cumulativeDistances[seg]) / segLen).coerceIn(0.0, 1.0)
+        val p0 = points[seg]
+        val p1 = points[seg + 1]
         return LocationUtils.makeLocation(
                 p0.latitude + fraction * (p1.latitude - p0.latitude),
                 p0.longitude + fraction * (p1.longitude - p0.longitude))
+    }
+
+    /** Returns the bearing (0-360) of the polyline segment at the given distance, or NaN. */
+    fun bearingAt(distance: Double): Float = bearingAt(segmentIndex(distance))
+
+    /** Returns the bearing using a pre-computed [seg] from [segmentIndex]. */
+    fun bearingAt(seg: Int): Float {
+        if (seg < 0) return Float.NaN
+        return (points[seg].bearingTo(points[seg + 1]) + 360) % 360
     }
 
     /** Returns the sub-polyline between two distances, with interpolated endpoints. */

@@ -91,6 +91,9 @@ class VehicleLocationDataActivity : AppCompatActivity() {
 
     private lateinit var tableContainer: View
     private lateinit var graphView: TrajectoryGraphView
+    private val dataRows = mutableListOf<TableRow>()
+    private var selectedIndex: Int? = null
+    private val selectedRowColor = 0xFF444400.toInt()
 
     private val refreshRunnable = object : Runnable {
         override fun run() { refreshData(); refreshHandler.postDelayed(this, UI_REFRESH_MS) }
@@ -115,6 +118,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         tableContainer = findViewById(R.id.location_data_table_container)
         graphView = findViewById(R.id.location_data_graph)
         graphView.setHighlightedStopId(stopId)
+        graphView.onDataPointSelected = { index -> selectDataPoint(index) }
 
         tableContainer.visibility = View.GONE
         graphView.visibility = View.VISIBLE
@@ -207,6 +211,23 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         graphView.setData(history, schedule, serviceDate, distribution)
     }
 
+    private fun selectDataPoint(index: Int?) {
+        val prev = selectedIndex
+        selectedIndex = index
+        graphView.selectedIndex = index
+
+        // Update table row highlights
+        if (prev != null && prev < dataRows.size) {
+            dataRows[prev].setBackgroundColor(rowBgColor(prev))
+        }
+        if (index != null && index < dataRows.size) {
+            dataRows[index].setBackgroundColor(selectedRowColor)
+            // Scroll to the selected row
+            val scrollView = tableContainer.parent as? android.widget.ScrollView
+            scrollView?.post { scrollView.smoothScrollTo(0, dataRows[index].top) }
+        }
+    }
+
     // --- Polling ---
 
     private fun pollTrip() {
@@ -229,6 +250,8 @@ class VehicleLocationDataActivity : AppCompatActivity() {
     private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
 
     private fun buildTable(table: TableLayout, history: List<ObaTripStatus>) {
+        dataRows.clear()
+        selectedIndex = null
         addHeaderRow(table)
         addDivider(table)
 
@@ -265,10 +288,15 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         table.addView(row)
     }
 
+    private fun rowBgColor(index: Int) =
+            if (index % 2 == 0) 0xFF1A1A1A.toInt() else 0xFF262626.toInt()
+
     private fun addDataRow(table: TableLayout, index: Int, entry: ObaTripStatus, prev: ObaTripStatus?) {
         val row = TableRow(this).apply {
-            setBackgroundColor(if (index % 2 == 0) 0xFF1A1A1A.toInt() else 0xFF262626.toInt())
+            setBackgroundColor(rowBgColor(index))
+            setOnClickListener { selectDataPoint(index) }
         }
+        dataRows.add(row)
         val pos = entry.lastKnownLocation
         val entryDist = entry.distanceAlongTrip
         val avlTime = entry.lastLocationUpdateTime

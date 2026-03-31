@@ -66,6 +66,13 @@ class TrajectoryGraphView @JvmOverloads constructor(
     private var cachedCiHiDist = 0.0
     private var highlightedStopId: String? = null
 
+    /** Index of the selected history point, or null. */
+    var selectedIndex: Int? = null
+        set(value) { if (field != value) { field = value; invalidate() } }
+
+    /** Called when the user taps a data point (index) or empty space (null). */
+    var onDataPointSelected: ((Int?) -> Unit)? = null
+
     private val density = context.resources.displayMetrics.density
     private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
     private val useImperial = !PreferenceUtils.getUnitsAreMetricFromPreferences(context)
@@ -109,6 +116,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
     }
     private val trajectoryPaint = strokePaint("#44CC44", 3f)
     private val trajectoryDotPaint = fillPaint("#44CC44")
+    private val selectedDotPaint = fillPaint("#FFFFFF")
     private val nowLinePaint = strokePaint("#FF4444", 1f, dashDp = floatArrayOf(8f, 4f))
     private val nowLabelPaint = textPaint("#FF4444", 10f)
     private val axisPaint = strokePaint("#888888", 1f)
@@ -364,7 +372,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
         if (history.isEmpty()) return
         trajectoryPath.reset()
         var first = true
-        for (e in history) {
+        for ((i, e) in history.withIndex()) {
             val d = e.distanceAlongTrip ?: continue
             val t = e.lastUpdateTime
             if (t <= 0) continue
@@ -372,7 +380,10 @@ class TrajectoryGraphView @JvmOverloads constructor(
             val y = viewport.toPixelY(t)
             if (first) { trajectoryPath.moveTo(x, y); first = false }
             else trajectoryPath.lineTo(x, y)
-            canvas.drawCircle(x, y, 3 * density, trajectoryDotPaint)
+            val selected = i == selectedIndex
+            val radius = if (selected) 6 * density else 3 * density
+            val paint = if (selected) selectedDotPaint else trajectoryDotPaint
+            canvas.drawCircle(x, y, radius, paint)
         }
         canvas.drawPath(trajectoryPath, trajectoryPaint)
     }
@@ -537,6 +548,27 @@ class TrajectoryGraphView @JvmOverloads constructor(
                               distanceX: Float, distanceY: Float): Boolean {
             viewport.applyPan(distanceX, distanceY, width.toFloat(), height.toFloat())
             invalidate()
+            return true
+        }
+
+        override fun onSingleTapUp(e: MotionEvent): Boolean {
+            val hitRadius = 20 * density
+            var bestIndex: Int? = null
+            var bestDistSq = hitRadius * hitRadius
+            for ((i, entry) in history.withIndex()) {
+                val d = entry.distanceAlongTrip ?: continue
+                val t = entry.lastUpdateTime
+                if (t <= 0) continue
+                val dx = e.x - viewport.toPixelX(d)
+                val dy = e.y - viewport.toPixelY(t)
+                val distSq = dx * dx + dy * dy
+                if (distSq < bestDistSq) {
+                    bestDistSq = distSq
+                    bestIndex = i
+                }
+            }
+            selectedIndex = bestIndex
+            onDataPointSelected?.invoke(bestIndex)
             return true
         }
 

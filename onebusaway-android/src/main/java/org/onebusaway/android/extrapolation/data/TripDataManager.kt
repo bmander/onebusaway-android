@@ -66,6 +66,13 @@ object TripDataManager {
     /** Last active trip ID reported by the server for each queried trip. */
     private val lastActiveTripId = HashMap<String, String?>()
 
+    /** Single source of truth for all per-trip caches. Used by evictTrip and clearAll. */
+    private val perTripCaches: List<MutableMap<String, *>> = listOf(
+            tripHistory, newestValidEntry, tripDetailsCache,
+            scheduleCache, serviceDateCache, shapeDataCache,
+            routeTypeCache, lastActiveTripId
+    )
+
     // --- Vehicle history ---
 
     /**
@@ -116,14 +123,9 @@ object TripDataManager {
 
     /** Removes all cached data for a single trip. Caller must hold the lock. */
     private fun evictTrip(tripId: String) {
-        tripHistory.remove(tripId)
-        newestValidEntry.remove(tripId)
-        tripDetailsCache.remove(tripId)
-        scheduleCache.remove(tripId)
-        serviceDateCache.remove(tripId)
-        shapeDataCache.remove(tripId)
-        routeTypeCache.remove(tripId)
-        lastActiveTripId.remove(tripId)
+        perTripCaches.forEach { it.remove(tripId) }
+        pendingScheduleFetches.remove(tripId)
+        pendingShapeFetches.remove(tripId)
     }
 
     /**
@@ -341,14 +343,7 @@ object TripDataManager {
 
     @Synchronized
     fun clearAll() {
-        tripHistory.clear()
-        newestValidEntry.clear()
-        tripDetailsCache.clear()
-        scheduleCache.clear()
-        serviceDateCache.clear()
-        shapeDataCache.clear()
-        routeTypeCache.clear()
-        lastActiveTripId.clear()
+        perTripCaches.forEach { it.clear() }
         pendingScheduleFetches.clear()
         pendingShapeFetches.clear()
     }

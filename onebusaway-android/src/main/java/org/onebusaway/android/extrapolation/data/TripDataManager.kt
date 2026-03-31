@@ -44,6 +44,7 @@ object TripDataManager {
 
     private const val TAG = "TripDataManager"
     private const val MAX_ENTRIES_PER_TRIP = 100
+    private const val MAX_TRACKED_TRIPS = 100
 
     @JvmStatic fun getInstance() = this
 
@@ -53,7 +54,7 @@ object TripDataManager {
     private val pendingShapeFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     // --- AVL history ---
-    private val tripHistory = mutableMapOf<String, MutableList<ObaTripStatus>>()
+    private val tripHistory = LinkedHashMap<String, MutableList<ObaTripStatus>>()
     private val newestValidEntry = mutableMapOf<String, ObaTripStatus>()
 
     // --- Caches ---
@@ -101,6 +102,28 @@ object TripDataManager {
         if (history.size > MAX_ENTRIES_PER_TRIP) {
             history.subList(0, history.size - MAX_ENTRIES_PER_TRIP).clear()
         }
+
+        evictOldTripsIfNeeded()
+    }
+
+    /** Removes the oldest tracked trips (by insertion order) when over the cap. */
+    private fun evictOldTripsIfNeeded() {
+        while (tripHistory.size > MAX_TRACKED_TRIPS) {
+            val oldest = tripHistory.keys.iterator().next()
+            evictTrip(oldest)
+        }
+    }
+
+    /** Removes all cached data for a single trip. Caller must hold the lock. */
+    private fun evictTrip(tripId: String) {
+        tripHistory.remove(tripId)
+        newestValidEntry.remove(tripId)
+        tripDetailsCache.remove(tripId)
+        scheduleCache.remove(tripId)
+        serviceDateCache.remove(tripId)
+        shapeDataCache.remove(tripId)
+        routeTypeCache.remove(tripId)
+        lastActiveTripId.remove(tripId)
     }
 
     /**

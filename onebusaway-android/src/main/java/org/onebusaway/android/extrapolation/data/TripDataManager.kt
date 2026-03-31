@@ -98,20 +98,24 @@ object TripDataManager {
             return
         }
 
+        // Always update the extrapolation anchor with the latest predicted position,
+        // even if the underlying AVL fix hasn't changed. The server may have re-extrapolated
+        // a better position from the same fix.
+        if (status.bestDistanceAlongTrip != null) {
+            lastRealtimePosition[tripId] = status
+        }
+
         val locUpdateTime = status.lastLocationUpdateTime
         if (locUpdateTime <= 0) return
 
         val history = tripHistory.getOrPut(tripId) { mutableListOf() }
 
+        // Only add to history when a genuinely new AVL fix arrives (for speed estimation)
         if (history.isNotEmpty() && locUpdateTime <= history.last().lastLocationUpdateTime) {
             return
         }
 
         history.add(status)
-
-        if (status.bestDistanceAlongTrip != null) {
-            lastRealtimePosition[tripId] = status
-        }
 
         if (history.size > MAX_ENTRIES_PER_TRIP) {
             history.subList(0, history.size - MAX_ENTRIES_PER_TRIP).clear()

@@ -131,14 +131,14 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
 
     public void selectTrip(String tripId) {
         if (mController != null && tripId != null) {
-            mController.selectVehicle(tripId, System.currentTimeMillis());
+            mController.selectVehicle(tripId);
         }
     }
 
     @Override
     public boolean markerClicked(Marker marker) {
         if (mController == null) return false;
-        return mController.handleMarkerClick(marker, System.currentTimeMillis());
+        return mController.handleMarkerClick(marker);
     }
 
     @Override

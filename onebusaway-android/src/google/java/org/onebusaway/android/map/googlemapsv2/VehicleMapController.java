@@ -104,16 +104,16 @@ class VehicleMapController {
             if (vehicleId != null) {
                 String prevTrip = vehicleToTrip.put(vehicleId, tripId);
                 if (prevTrip != null && !prevTrip.equals(tripId)) {
-                    removeState(prevTrip);
+                    removeVehicleMarker(prevTrip);
                     activeTripIds.remove(prevTrip);
                 }
             }
 
-            VehicleMarkerState state = mStates.get(tripId);
-            if (state == null) {
+            VehicleMarkerState existing = mStates.get(tripId);
+            if (existing == null) {
                 addVehicle(tripId, isRealtime, status, response);
             } else {
-                updateVehicle(state, isRealtime, status, response);
+                updateVehicle(existing, isRealtime, status, response);
             }
             activeTripIds.add(tripId);
         }
@@ -134,21 +134,21 @@ class VehicleMapController {
                 .icon(mIconFactory.getIcon(params))
                 .zIndex(VEHICLE_MARKER_Z_INDEX)
         );
-        VehicleMarkerState state = new VehicleMarkerState(tripId, status);
-        state.vehicleMarker = m;
-        state.iconParams = params;
-        m.setTag(state);
-        mStates.put(tripId, state);
+        VehicleMarkerState vehicle = new VehicleMarkerState(tripId, status);
+        vehicle.vehicleMarker = m;
+        vehicle.iconParams = params;
+        m.setTag(vehicle);
+        mStates.put(tripId, vehicle);
     }
 
-    private void updateVehicle(VehicleMarkerState state, boolean isRealtime,
+    private void updateVehicle(VehicleMarkerState vehicle, boolean isRealtime,
                                ObaTripStatus status, ObaTripsForRouteResponse response) {
-        Marker m = state.vehicleMarker;
+        Marker m = vehicle.vehicleMarker;
         boolean showInfo = m.isInfoWindowShown();
         VehicleIconParams params = buildIconParams(isRealtime, status, response);
         m.setIcon(mIconFactory.getIcon(params));
-        state.status = status;
-        state.iconParams = params;
+        vehicle.status = status;
+        vehicle.iconParams = params;
         if (showInfo) {
             m.showInfoWindow();
         }
@@ -170,31 +170,31 @@ class VehicleMapController {
         Iterator<Map.Entry<String, VehicleMarkerState>> iterator =
                 mStates.entrySet().iterator();
         while (iterator.hasNext()) {
-            VehicleMarkerState state = iterator.next().getValue();
-            if (!activeTripIds.contains(state.tripId)) {
-                destroyState(state);
+            VehicleMarkerState vehicle = iterator.next().getValue();
+            if (!activeTripIds.contains(vehicle.tripId)) {
+                destroyVehicleMarker(vehicle);
                 iterator.remove();
             }
         }
     }
 
-    private void removeState(String tripId) {
-        VehicleMarkerState state = mStates.remove(tripId);
-        if (state != null) {
-            destroyState(state);
+    private void removeVehicleMarker(String tripId) {
+        VehicleMarkerState vehicle = mStates.remove(tripId);
+        if (vehicle != null) {
+            destroyVehicleMarker(vehicle);
         }
     }
 
-    private void destroyState(VehicleMarkerState state) {
-        state.vehicleMarker.remove();
-        removeDataReceivedMarker(state);
+    private void destroyVehicleMarker(VehicleMarkerState vehicle) {
+        vehicle.vehicleMarker.remove();
+        removeDataReceivedMarker(vehicle);
     }
 
     // --- Data-received marker lifecycle ---
 
-    private void showDataReceivedMarker(VehicleMarkerState state, long now) {
-        removeDataReceivedMarker(state);
-        ObaTripStatus status = state.status;
+    private void showDataReceivedMarker(VehicleMarkerState vehicle, long now) {
+        removeDataReceivedMarker(vehicle);
+        ObaTripStatus status = vehicle.status;
         Location loc = status.getPosition();
         if (loc == null) return;
         if (!status.isPredicted() || status.getLastLocationUpdateTime() <= 0) return;
@@ -207,30 +207,34 @@ class VehicleMapController {
                 .anchor(0.5f, 0.5f)
                 .flat(true)
                 .zIndex(DATA_RECEIVED_MARKER_Z_INDEX));
-        state.dataReceivedMarker = m;
-        state.dataReceivedFixTime = status.getLastLocationUpdateTime();
-        m.setTag(state);
+        vehicle.dataReceivedMarker = m;
+        vehicle.dataReceivedFixTime = status.getLastLocationUpdateTime();
+        m.setTag(vehicle);
     }
 
-    private void updateDataReceivedMarker(VehicleMarkerState state, ObaTripStatus newestValid) {
-        if (state.dataReceivedMarker == null || newestValid == null) return;
+    private void updateDataReceivedMarker(VehicleMarkerState vehicle, ObaTripStatus newestValid) {
+        if (newestValid == null) return;
+        if (vehicle.dataReceivedMarker == null) {
+            showDataReceivedMarker(vehicle, System.currentTimeMillis());
+            return;
+        }
         long fixTime = newestValid.getLastLocationUpdateTime();
-        if (fixTime != state.dataReceivedFixTime) {
-            state.dataReceivedFixTime = fixTime;
+        if (fixTime != vehicle.dataReceivedFixTime) {
+            vehicle.dataReceivedFixTime = fixTime;
             Location loc = newestValid.getPosition();
             if (loc != null) {
-                AnimationUtil.animateMarkerTo(state.dataReceivedMarker,
+                AnimationUtil.animateMarkerTo(vehicle.dataReceivedMarker,
                         MapHelpV2.makeLatLng(loc), mAnimateDurationMs);
             }
         }
     }
 
-    private void removeDataReceivedMarker(VehicleMarkerState state) {
-        if (state.dataReceivedMarker != null) {
-            state.dataReceivedMarker.remove();
-            state.dataReceivedMarker = null;
+    private void removeDataReceivedMarker(VehicleMarkerState vehicle) {
+        if (vehicle.dataReceivedMarker != null) {
+            vehicle.dataReceivedMarker.remove();
+            vehicle.dataReceivedMarker = null;
         }
-        state.dataReceivedFixTime = 0;
+        vehicle.dataReceivedFixTime = 0;
     }
 
     private BitmapDescriptor getOrCreateDataReceivedIcon() {
@@ -247,58 +251,55 @@ class VehicleMapController {
 
     // --- Selection ---
 
-    boolean handleMarkerClick(Marker marker, long now) {
-        VehicleMarkerState state = stateOf(marker);
-        if (state == null) return false;
-        if (marker.equals(state.dataReceivedMarker)) {
+    boolean handleMarkerClick(Marker marker) {
+        VehicleMarkerState vehicle = stateOf(marker);
+        if (vehicle == null) return false;
+        if (marker.equals(vehicle.dataReceivedMarker)) {
             marker.showInfoWindow();
         } else {
-            selectState(state, now);
+            selectVehicleMarker(vehicle);
         }
         return true;
     }
 
-    void selectVehicle(String tripId, long now) {
-        VehicleMarkerState state = mStates.get(tripId);
-        if (state != null) selectState(state, now);
+    void selectVehicle(String tripId) {
+        VehicleMarkerState vehicle = mStates.get(tripId);
+        if (vehicle != null) selectVehicleMarker(vehicle);
     }
 
-    private void selectState(VehicleMarkerState state, long now) {
+    private void selectVehicleMarker(VehicleMarkerState vehicle) {
         deselectAll();
-        state.selected = true;
-        state.vehicleMarker.showInfoWindow();
-        if (state.extrapolating) {
-            showDataReceivedMarker(state, now);
-        }
+        vehicle.selected = true;
+        vehicle.vehicleMarker.showInfoWindow();
     }
 
     void deselectAll() {
-        for (VehicleMarkerState state : mStates.values()) {
-            state.selected = false;
-            removeDataReceivedMarker(state);
+        for (VehicleMarkerState vehicle : mStates.values()) {
+            vehicle.selected = false;
+            removeDataReceivedMarker(vehicle);
         }
     }
 
     // --- Queries ---
 
     ObaTripStatus getStatusFromMarker(Marker marker) {
-        VehicleMarkerState state = stateOf(marker);
-        return state != null ? state.status : null;
+        VehicleMarkerState vs = stateOf(marker);
+        return vs != null ? vs.status : null;
     }
 
     boolean isExtrapolating(Marker marker) {
-        VehicleMarkerState state = stateOf(marker);
-        return state != null && state.extrapolating;
+        VehicleMarkerState vs = stateOf(marker);
+        return vs != null && vs.extrapolating;
     }
 
     boolean isDataReceivedMarker(Marker marker) {
-        VehicleMarkerState state = stateOf(marker);
-        return state != null && marker.equals(state.dataReceivedMarker);
+        VehicleMarkerState vs = stateOf(marker);
+        return vs != null && marker.equals(vs.dataReceivedMarker);
     }
 
     String getTripIdForDataReceivedMarker(Marker marker) {
-        VehicleMarkerState state = stateOf(marker);
-        if (state != null && marker.equals(state.dataReceivedMarker)) return state.tripId;
+        VehicleMarkerState vs = stateOf(marker);
+        if (vs != null && marker.equals(vs.dataReceivedMarker)) return vs.tripId;
         return null;
     }
 
@@ -306,76 +307,76 @@ class VehicleMapController {
 
     void updatePositions(long now) {
         if (mStates.isEmpty()) return;
-        for (VehicleMarkerState state : mStates.values()) {
+        for (VehicleMarkerState vehicle : mStates.values()) {
             try {
-                updatePosition(state, now);
+                updatePosition(vehicle, now);
             } catch (Exception e) {
-                animateToRawPosition(state);
+                animateToRawPosition(vehicle);
             }
         }
     }
 
-    private void updatePosition(VehicleMarkerState state, long now) {
-        Extrapolator ext = getOrCreateExtrapolator(state);
+    private void updatePosition(VehicleMarkerState vehicle, long now) {
+        Extrapolator ext = getOrCreateExtrapolator(vehicle);
         ExtrapolationResult result = ext.extrapolate(now);
-        state.extrapolating = (result instanceof ExtrapolationResult.Success);
+        vehicle.extrapolating = (result instanceof ExtrapolationResult.Success);
 
-        LatLng target = extrapolateTarget(state, result);
+        LatLng target = extrapolateTarget(vehicle, result);
 
         ObaTripStatus newestValid = null;
         if (target != null) {
             newestValid = ext.getLastUsedEntry();
-            boolean freshData = checkAndUpdateFixTime(state, newestValid);
+            boolean freshData = checkAndUpdateFixTime(vehicle, newestValid);
             if (freshData) {
-                startTransitionAnimation(state, target);
+                startTransitionAnimation(vehicle, target);
             } else {
-                setPositionIfNotAnimating(state, target);
+                setPositionIfNotAnimating(vehicle, target);
             }
         } else {
-            animateToRawPosition(state);
+            animateToRawPosition(vehicle);
         }
 
-        updateSelectedMarker(state, target != null, newestValid);
+        updateSelectedMarker(vehicle, target != null, newestValid);
     }
 
     /** Resolves the extrapolated position and updates the direction icon. */
-    private LatLng extrapolateTarget(VehicleMarkerState state, ExtrapolationResult result) {
+    private LatLng extrapolateTarget(VehicleMarkerState vehicle, ExtrapolationResult result) {
         if (!(result instanceof ExtrapolationResult.Success)) return null;
         ProbDistribution dist = ((ExtrapolationResult.Success) result).getDistribution();
-        Polyline polyline = mDataManager.getPolyline(state.tripId);
+        Polyline polyline = mDataManager.getPolyline(vehicle.tripId);
         if (polyline == null) return null;
 
         double medianDist = dist.median();
         int seg = polyline.segmentIndex(medianDist);
 
         int hw = halfWindAt(polyline, seg);
-        if (hw >= 0 && hw != state.iconParams.halfWind) {
-            state.iconParams.halfWind = hw;
-            state.vehicleMarker.setIcon(mIconFactory.getIcon(state.iconParams));
+        if (hw >= 0 && hw != vehicle.iconParams.halfWind) {
+            vehicle.iconParams.halfWind = hw;
+            vehicle.vehicleMarker.setIcon(mIconFactory.getIcon(vehicle.iconParams));
         }
 
         Location loc = polyline.interpolate(medianDist, seg);
         return loc != null ? MapHelpV2.makeLatLng(loc) : null;
     }
 
-    private void updateSelectedMarker(VehicleMarkerState state, boolean hasTarget,
+    private void updateSelectedMarker(VehicleMarkerState vehicle, boolean hasTarget,
                                       ObaTripStatus newestValid) {
-        if (!state.selected) return;
+        if (!vehicle.selected) return;
         if (hasTarget) {
-            updateDataReceivedMarker(state, newestValid);
+            updateDataReceivedMarker(vehicle, newestValid);
         } else {
-            removeDataReceivedMarker(state);
+            removeDataReceivedMarker(vehicle);
         }
     }
 
     // --- Extrapolation helpers ---
 
-    private Extrapolator getOrCreateExtrapolator(VehicleMarkerState state) {
-        Extrapolator ext = state.extrapolator;
+    private Extrapolator getOrCreateExtrapolator(VehicleMarkerState vehicle) {
+        Extrapolator ext = vehicle.extrapolator;
         if (ext != null) return ext;
-        ext = ExtrapolatorKt.createExtrapolator(state.tripId,
+        ext = ExtrapolatorKt.createExtrapolator(vehicle.tripId,
                 mDataManager);
-        state.extrapolator = ext;
+        vehicle.extrapolator = ext;
         return ext;
     }
 
@@ -386,44 +387,44 @@ class VehicleMapController {
         return MathUtils.getHalfWindIndex(bearing, VehicleIconFactory.NUM_DIRECTIONS - 1);
     }
 
-    private boolean checkAndUpdateFixTime(VehicleMarkerState state, ObaTripStatus newest) {
+    private boolean checkAndUpdateFixTime(VehicleMarkerState vehicle, ObaTripStatus newest) {
         long fixTime = newest != null ? newest.getLastLocationUpdateTime() : 0;
-        long prev = state.lastFixTimeMs;
-        state.lastFixTimeMs = fixTime;
+        long prev = vehicle.lastFixTimeMs;
+        vehicle.lastFixTimeMs = fixTime;
         return prev != 0 && fixTime != prev;
     }
 
-    private void startTransitionAnimation(VehicleMarkerState state, LatLng target) {
-        state.animating = true;
-        AnimationUtil.animateMarkerTo(state.vehicleMarker, target, mAnimateDurationMs,
-                () -> state.animating = false);
+    private void startTransitionAnimation(VehicleMarkerState vehicle, LatLng target) {
+        vehicle.animating = true;
+        AnimationUtil.animateMarkerTo(vehicle.vehicleMarker, target, mAnimateDurationMs,
+                () -> vehicle.animating = false);
     }
 
-    private void animateToRawPosition(VehicleMarkerState state) {
-        Location loc = state.status.getPosition();
-        if (loc == null || state.animating) return;
+    private void animateToRawPosition(VehicleMarkerState vehicle) {
+        Location loc = vehicle.status.getPosition();
+        if (loc == null || vehicle.animating) return;
         LatLng target = MapHelpV2.makeLatLng(loc);
-        if (positionChanged(state, target)) {
-            startTransitionAnimation(state, target);
+        if (positionChanged(vehicle, target)) {
+            startTransitionAnimation(vehicle, target);
         }
     }
 
-    private void setPositionIfNotAnimating(VehicleMarkerState state, LatLng target) {
-        if (!state.animating && positionChanged(state, target)) {
-            state.vehicleMarker.setPosition(target);
+    private void setPositionIfNotAnimating(VehicleMarkerState vehicle, LatLng target) {
+        if (!vehicle.animating && positionChanged(vehicle, target)) {
+            vehicle.vehicleMarker.setPosition(target);
         }
     }
 
-    private static boolean positionChanged(VehicleMarkerState state, LatLng target) {
-        LatLng current = state.vehicleMarker.getPosition();
+    private static boolean positionChanged(VehicleMarkerState vehicle, LatLng target) {
+        LatLng current = vehicle.vehicleMarker.getPosition();
         return current.latitude != target.latitude || current.longitude != target.longitude;
     }
 
     // --- Lifecycle ---
 
     void clear() {
-        for (VehicleMarkerState state : mStates.values()) {
-            destroyState(state);
+        for (VehicleMarkerState vehicle : mStates.values()) {
+            destroyVehicleMarker(vehicle);
         }
         mStates.clear();
         mDataReceivedIcon = null;

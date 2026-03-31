@@ -15,13 +15,10 @@
  */
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
-import android.util.Log
 import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.map.googlemapsv2.ThrottledFrameLoop
-
-private const val TAG = "TripExtrapController"
 
 /**
  * Owns the per-frame extrapolation loop for a single trip on the trip map view. Computes positions
@@ -63,8 +60,7 @@ internal constructor(
             TripDataManager.getLastState(tripId)?.let {
                 vehicleOverlay.showOrUpdateDataReceivedMarker(it, now)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Extrapolation frame failed for trip $tripId", e)
+        } catch (_: Exception) {
         }
     }
 }

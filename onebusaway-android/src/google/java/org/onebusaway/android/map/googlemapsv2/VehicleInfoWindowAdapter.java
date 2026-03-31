@@ -133,13 +133,15 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
         long elapsedMin = TimeUnit.SECONDS.toMinutes(elapsedSec);
         long secMod60 = elapsedSec % 60;
 
+        boolean extrapolating = mSource.isExtrapolating(marker);
         String lastUpdated = elapsedSec < 60
-                ? r.getString(R.string.vehicle_last_updated_sec, elapsedSec)
-                : r.getString(R.string.vehicle_last_updated_min_and_sec, elapsedMin, secMod60);
-        String prefix = mSource.isExtrapolating(marker)
-                ? mContext.getString(R.string.marker_estimate_from_data) + "\n"
-                : "";
-        views.lastUpdatedView.setText(prefix + lastUpdated);
+                ? r.getString(extrapolating
+                        ? R.string.vehicle_estimate_from_update_sec
+                        : R.string.vehicle_last_updated_sec, elapsedSec)
+                : r.getString(extrapolating
+                        ? R.string.vehicle_estimate_from_update_min_and_sec
+                        : R.string.vehicle_last_updated_min_and_sec, elapsedMin, secMod60);
+        views.lastUpdatedView.setText(lastUpdated);
 
         UIUtils.setOccupancyVisibilityAndColor(views.occupancyView, status.getOccupancyStatus(), OccupancyState.REALTIME);
         UIUtils.setOccupancyContentDescription(views.occupancyView, status.getOccupancyStatus(), OccupancyState.REALTIME);

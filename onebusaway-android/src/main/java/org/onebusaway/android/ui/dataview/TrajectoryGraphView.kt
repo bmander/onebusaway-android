@@ -238,7 +238,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
         drawTrajectoryDots(canvas)
 
         val lastDist = extrapolationAnchor?.bestDistanceAlongTrip
-        val lastTime = extrapolationAnchor?.lastLocationUpdateTime ?: 0
+        val lastTime = extrapolationAnchor?.lastUpdateTime ?: 0
 
         drawExtrapolationAndDeviation(canvas, lastDist, lastTime)
         drawGammaPdfAndBands(canvas, lastDist, lastTime)
@@ -272,7 +272,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
                 if (d > maxDist) maxDist = d
                 if (d < minDist) minDist = d
             }
-            val t = e.lastLocationUpdateTime
+            val t = e.lastUpdateTime
             if (t > 0) {
                 if (t < minTime) minTime = t
                 if (t > maxTime) maxTime = t
@@ -366,7 +366,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
         var first = true
         for (e in history) {
             val d = e.bestDistanceAlongTrip ?: continue
-            val t = e.lastLocationUpdateTime
+            val t = e.lastUpdateTime
             if (t <= 0) continue
             val x = viewport.toPixelX(d)
             val y = viewport.toPixelY(t)
@@ -564,7 +564,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
         private fun findExtrapolationAnchor(history: List<ObaTripStatus>): ObaTripStatus? {
             for (i in history.indices.reversed()) {
                 val s = history[i]
-                if (s.bestDistanceAlongTrip != null && s.lastLocationUpdateTime > 0) return s
+                if (s.bestDistanceAlongTrip != null && s.lastUpdateTime > 0) return s
             }
             return null
         }

@@ -126,10 +126,7 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
         d.setColor(ContextCompat.getColor(mContext, colorRes));
         views.statusView.setPadding(mPaddingSides, mPaddingTopBottom, mPaddingSides, mPaddingTopBottom);
 
-        long lastUpdateTime = status.getLastLocationUpdateTime() != 0
-                ? status.getLastLocationUpdateTime()
-                : status.getLastUpdateTime();
-        long elapsedSec = TimeUnit.MILLISECONDS.toSeconds(now - lastUpdateTime);
+        long elapsedSec = TimeUnit.MILLISECONDS.toSeconds(now - status.getLastUpdateTime());
         long elapsedMin = TimeUnit.SECONDS.toMinutes(elapsedSec);
         long secMod60 = elapsedSec % 60;
 

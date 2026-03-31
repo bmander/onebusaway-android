@@ -121,7 +121,7 @@ class TripVehicleOverlay(
 
         marker.isVisible = true
         val target = MapHelpV2.makeLatLng(location)
-        val fixTime = anchor?.lastLocationUpdateTime ?: 0L
+        val fixTime = anchor?.lastUpdateTime ?: 0L
         val freshData = lastFixTime != 0L && fixTime != lastFixTime
         lastFixTime = fixTime
 
@@ -149,7 +149,7 @@ class TripVehicleOverlay(
     // --- Data-received marker ---
 
     fun showOrUpdateDataReceivedMarker(latest: ObaTripStatus, now: Long) {
-        val updateTime = latest.lastLocationUpdateTime
+        val updateTime = latest.lastUpdateTime
         val newData = updateTime != lastDataReceivedUpdateTime
         if (!newData && dataReceivedMarker != null) return
         lastDataReceivedUpdateTime = updateTime

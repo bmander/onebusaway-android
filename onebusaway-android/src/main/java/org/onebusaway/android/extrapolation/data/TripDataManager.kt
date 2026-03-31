@@ -80,9 +80,8 @@ object TripDataManager {
     // --- Vehicle history ---
 
     /**
-     * Records a trip status snapshot into the history. Deduplicates by lastLocationUpdateTime —
-     * only records when a genuinely new AVL report has arrived, filtering out server
-     * re-extrapolations.
+     * Records a trip status snapshot. Always updates the extrapolation anchor.
+     * Deduplicates history by distance — only adds an entry when the vehicle has moved.
      */
     @Synchronized
     fun recordStatus(status: ObaTripStatus?) {
@@ -97,13 +96,11 @@ object TripDataManager {
             extrapolationAnchor[tripId] = status
         }
 
-        val locUpdateTime = status.lastLocationUpdateTime
-        if (locUpdateTime <= 0) return
+        val dist = status.bestDistanceAlongTrip ?: return
 
         val history = tripHistory.getOrPut(tripId) { mutableListOf() }
 
-        // Only add to history when a genuinely new AVL fix arrives (for speed estimation)
-        if (history.isNotEmpty() && locUpdateTime <= history.last().lastLocationUpdateTime) {
+        if (history.isNotEmpty() && dist == history.last().bestDistanceAlongTrip) {
             return
         }
 

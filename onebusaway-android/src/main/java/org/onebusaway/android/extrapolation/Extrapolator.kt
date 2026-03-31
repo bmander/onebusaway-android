@@ -64,7 +64,7 @@ abstract class Extrapolator(
         if (anchor == null) return ExtrapolationResult.NoData
         val lastDist = anchor.bestDistanceAlongTrip
                 ?: return ExtrapolationResult.NoData
-        val lastTime = anchor.lastLocationUpdateTime
+        val lastTime = anchor.lastUpdateTime
         if (lastTime <= 0) return ExtrapolationResult.NoData
         val dtMs = queryTimeMs - lastTime
         if (dtMs < 0 || dtMs > MAX_HORIZON_MS) return ExtrapolationResult.Stale

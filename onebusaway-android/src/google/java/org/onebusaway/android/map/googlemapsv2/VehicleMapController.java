@@ -204,7 +204,7 @@ class VehicleMapController {
                 .flat(true)
                 .zIndex(DATA_RECEIVED_MARKER_Z_INDEX));
         vehicle.dataReceivedMarker = m;
-        vehicle.dataReceivedFixTime = anchor.getLastLocationUpdateTime();
+        vehicle.dataReceivedFixTime = anchor.getLastUpdateTime();
         m.setTag(vehicle);
     }
 
@@ -214,7 +214,7 @@ class VehicleMapController {
             showDataReceivedMarker(vehicle, anchor);
             return;
         }
-        long fixTime = anchor.getLastLocationUpdateTime();
+        long fixTime = anchor.getLastUpdateTime();
         if (fixTime != vehicle.dataReceivedFixTime) {
             vehicle.dataReceivedFixTime = fixTime;
             Location loc = anchor.getPosition();
@@ -389,7 +389,7 @@ class VehicleMapController {
     }
 
     private boolean checkAndUpdateFixTime(VehicleMarkerState vehicle, ObaTripStatus newest) {
-        long fixTime = newest != null ? newest.getLastLocationUpdateTime() : 0;
+        long fixTime = newest != null ? newest.getLastUpdateTime() : 0;
         long prev = vehicle.lastFixTimeMs;
         vehicle.lastFixTimeMs = fixTime;
         return prev != 0 && fixTime != prev;

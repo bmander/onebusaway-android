@@ -192,12 +192,10 @@ class VehicleMapController {
 
     // --- Data-received marker lifecycle ---
 
-    private void showDataReceivedMarker(VehicleMarkerState vehicle) {
+    private void showDataReceivedMarker(VehicleMarkerState vehicle, ObaTripStatus newestValid) {
         removeDataReceivedMarker(vehicle);
-        ObaTripStatus status = vehicle.status;
-        Location loc = status.getPosition();
+        Location loc = newestValid.getPosition();
         if (loc == null) return;
-        if (!status.isPredicted() || status.getLastLocationUpdateTime() <= 0) return;
         Marker m = mMap.addMarker(new MarkerOptions()
                 .position(MapHelpV2.makeLatLng(loc))
                 .icon(getOrCreateDataReceivedIcon())
@@ -206,14 +204,14 @@ class VehicleMapController {
                 .flat(true)
                 .zIndex(DATA_RECEIVED_MARKER_Z_INDEX));
         vehicle.dataReceivedMarker = m;
-        vehicle.dataReceivedFixTime = status.getLastLocationUpdateTime();
+        vehicle.dataReceivedFixTime = newestValid.getLastLocationUpdateTime();
         m.setTag(vehicle);
     }
 
     private void updateDataReceivedMarker(VehicleMarkerState vehicle, ObaTripStatus newestValid) {
         if (newestValid == null) return;
         if (vehicle.dataReceivedMarker == null) {
-            showDataReceivedMarker(vehicle);
+            showDataReceivedMarker(vehicle, newestValid);
             return;
         }
         long fixTime = newestValid.getLastLocationUpdateTime();

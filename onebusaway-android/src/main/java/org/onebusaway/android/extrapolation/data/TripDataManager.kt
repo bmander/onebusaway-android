@@ -93,7 +93,10 @@ object TripDataManager {
 
     /** Core recording logic. Caller must already hold the lock. */
     private fun recordStatusInternal(status: ObaTripStatus, tripId: String) {
-        if (!status.isPredicted) return
+        if (!status.isPredicted) {
+            newestValidEntry.remove(tripId)
+            return
+        }
 
         val locUpdateTime = status.lastLocationUpdateTime
         if (locUpdateTime <= 0) return

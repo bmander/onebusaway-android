@@ -144,6 +144,8 @@ public class BaseMapFragment extends SupportMapFragment
 
     private static final float ROUTE_POLYLINE_WIDTH_PX = 10f;
 
+    private StampedPolylineFactory mStampFactory;
+
     // Keep track of current map padding
     private int mMapPaddingLeft = 0;
 
@@ -539,8 +541,6 @@ public class BaseMapFragment extends SupportMapFragment
         mStopOverlay.setOnFocusChangeListener(this);
         return true;
     }
-
-    private StampedPolylineFactory mStampFactory;
 
     public void setupVehicleOverlay() {
         Activity a = getActivity();

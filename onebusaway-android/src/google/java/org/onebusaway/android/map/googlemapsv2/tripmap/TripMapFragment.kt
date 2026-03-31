@@ -28,6 +28,7 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.Marker
 import org.onebusaway.android.extrapolation.createExtrapolator
+import org.onebusaway.android.ui.TripMapCallback
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.TripDetailsPoller
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
@@ -39,6 +40,10 @@ import org.onebusaway.android.map.googlemapsv2.MapHelpV2
  * Holds two overlay layers: [TripRouteOverlay] (static skeleton) and
  * [TripVehicleOverlay] (live data). Per-frame extrapolation is driven
  * by [TripExtrapolationController], and API polling by [TripDetailsPoller].
+ *
+ * If the fragment cannot activate (missing trip data), it notifies the host
+ * activity via [TripMapCallback] so it can fall back to
+ * the list view.
  */
 class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
 
@@ -73,8 +78,21 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     private var extrapolationController: TripExtrapolationController? = null
     private val poller = TripDetailsPoller()
     private var activated = false
+    private var mapCallback: TripMapCallback? = null
 
     // --- Lifecycle ---
+
+    override fun onAttach(context: android.content.Context) {
+        super.onAttach(context)
+        if (context is TripMapCallback) {
+            mapCallback = context
+        }
+    }
+
+    override fun onDetach() {
+        mapCallback = null
+        super.onDetach()
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -127,6 +145,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         val m = map ?: return
         val response = TripDataManager.getTripDetails(tripId) ?: run {
             Log.w(TAG, "No cached trip details for $tripId")
+            mapCallback?.onTripMapActivationFailed()
             return
         }
 
@@ -135,7 +154,10 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         extrapolationController?.stop()
 
         TripMapOverlayFactory.create(m, requireContext(), tripId,
-                selectedStopId, response, ::onOverlaysReady)
+                selectedStopId, response, ::onOverlaysReady) {
+            Log.w(TAG, "Overlay creation failed for $tripId")
+            mapCallback?.onTripMapActivationFailed()
+        }
     }
 
     private fun onOverlaysReady(overlays: TripMapOverlays) {

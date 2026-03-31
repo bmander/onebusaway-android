@@ -38,8 +38,8 @@ data class TripMapOverlays(
 /**
  * Creates and activates trip map overlays from an API response.
  *
- * Returns without calling [onReady] if the response lacks required data (schedule, refs, trip).
- * If the shape needs fetching, [onReady] is called on the main thread once it arrives.
+ * Calls [onReady] on the main thread once overlays are created, or [onError] if the
+ * response lacks required data (schedule, refs, trip, or shape).
  */
 internal object TripMapOverlayFactory {
 
@@ -49,12 +49,13 @@ internal object TripMapOverlayFactory {
             tripId: String,
             selectedStopId: String?,
             response: ObaTripDetailsResponse,
-            onReady: (TripMapOverlays) -> Unit
+            onReady: (TripMapOverlays) -> Unit,
+            onError: (() -> Unit)? = null
     ) {
-        val schedule = response.schedule ?: return
+        val schedule = response.schedule ?: run { onError?.invoke(); return }
         val status = response.status
-        val refs = response.refs ?: return
-        val trip = refs.getTrip(tripId) ?: return
+        val refs = response.refs ?: run { onError?.invoke(); return }
+        val trip = refs.getTrip(tripId) ?: run { onError?.invoke(); return }
         val route = refs.getRoute(trip.routeId)
 
         cacheResponseData(tripId, schedule, status)
@@ -88,6 +89,8 @@ internal object TripMapOverlayFactory {
         val shapeId = trip.shapeId
         if (shapeId != null) {
             TripDataManager.ensureShape(tripId, shapeId, ::build)
+        } else {
+            onError?.invoke()
         }
     }
 

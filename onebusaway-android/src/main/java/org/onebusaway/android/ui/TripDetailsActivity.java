@@ -36,7 +36,8 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
 public class TripDetailsActivity extends AppCompatActivity
-        implements TripDetailsListFragment.TripDataCallback {
+        implements TripDetailsListFragment.TripDataCallback,
+        TripMapCallback {
 
     private static final String TAG = "TripDetailsActivity";
 
@@ -233,6 +234,16 @@ public class TripDetailsActivity extends AppCompatActivity
         mCachedResponse = response;
         updateToggleIcon();
         updateLocationDataVisibility();
+    }
+
+    // --- TripMapCallback ---
+
+    @Override
+    public void onTripMapActivationFailed() {
+        android.widget.Toast.makeText(this,
+                R.string.trip_map_data_unavailable,
+                android.widget.Toast.LENGTH_SHORT).show();
+        showList();
     }
 
     // --- Fragment swapping ---

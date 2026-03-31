@@ -167,6 +167,7 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
     private void onExtrapolationFrame(long frameTimeNanos) {
         if (!mExtrapolationTicking || mController == null || mActivity.isDestroyed()) {
             mExtrapolationTicking = false;
+            Choreographer.getInstance().removeFrameCallback(mFrameCallback);
             return;
         }
         long now = System.currentTimeMillis();

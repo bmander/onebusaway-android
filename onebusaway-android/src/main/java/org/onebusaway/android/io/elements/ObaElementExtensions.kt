@@ -46,8 +46,8 @@ val ObaTripStatus.isLocationRealtime: Boolean
 /**
  * True if the trip has valid AVL data that an extrapolator could use.
  */
-fun ObaTripStatus.isRealtimeSpeedEstimable(queryTimeMs: Long): Boolean =
-        activeTripId != null
+val ObaTripStatus.isRealtimeSpeedEstimable: Boolean
+    get() = activeTripId != null
                 && TripDataManager.getNewestValidEntry(activeTripId) != null
 
 /**

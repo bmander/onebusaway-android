@@ -16,6 +16,7 @@
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
 import android.content.Context
+import android.util.Log
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -37,6 +38,7 @@ import org.onebusaway.android.map.googlemapsv2.StampedPolylineFactory
 import org.onebusaway.android.util.Polyline
 import org.onebusaway.android.util.UIUtils
 
+private const val TAG = "TripRouteOverlay"
 private const val STOP_STROKE_WIDTH = 4f
 private const val STOP_STROKE_COLOR = 0xFF242424.toInt()
 private const val POLYLINE_WIDTH_PX = 44f
@@ -101,7 +103,9 @@ class TripRouteOverlay(
         val bounds = MapHelpV2.getBounds(shapeData.points) ?: return
         try {
             map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 80))
-        } catch (_: IllegalStateException) { }
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "Map layout not ready for camera bounds update", e)
+        }
     }
 
     fun handleStopMarkerClick(marker: Marker): Boolean {

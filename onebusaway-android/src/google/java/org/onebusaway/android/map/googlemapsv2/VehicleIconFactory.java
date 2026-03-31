@@ -135,7 +135,7 @@ public class VehicleIconFactory {
         ensureCachesInitialized();
     }
 
-    private static void ensureCachesInitialized() {
+    private static synchronized void ensureCachesInitialized() {
         if (sUncoloredIcons == null) {
             sUncoloredIcons = new LruCache<>(MAX_CACHE_SIZE);
         }

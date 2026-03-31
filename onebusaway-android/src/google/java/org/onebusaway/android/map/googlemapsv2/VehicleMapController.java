@@ -93,7 +93,7 @@ class VehicleMapController {
             if (status.getPosition() == null) continue;
 
             boolean isRealtime = ObaElementExtensionsKt.isLocationRealtime(status)
-                    || ObaElementExtensionsKt.isRealtimeSpeedEstimable(status, now);
+                    || ObaElementExtensionsKt.isRealtimeSpeedEstimable(status);
 
             String tripId = status.getActiveTripId();
             String vehicleId = status.getVehicleId();

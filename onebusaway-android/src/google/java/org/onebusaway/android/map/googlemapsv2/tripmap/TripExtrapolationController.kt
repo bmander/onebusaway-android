@@ -35,7 +35,7 @@ internal constructor(
         private val extrapolator: Extrapolator
 ) {
     private val choreographer: Choreographer = Choreographer.getInstance()
-    @Volatile private var ticking = false
+    private var ticking = false
     private var lastFrameTimeMs = 0L
     private val frameCallback = Choreographer.FrameCallback { onFrame() }
 

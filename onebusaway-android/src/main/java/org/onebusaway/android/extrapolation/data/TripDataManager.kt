@@ -58,6 +58,7 @@ object TripDataManager {
 
     // --- AVL history ---
     private val tripHistory = LinkedHashMap<String, MutableList<ObaTripStatus>>()
+    private val fetchTimes = LinkedHashMap<String, MutableList<Long>>()
     private val extrapolationAnchor = mutableMapOf<String, ObaTripStatus>()
 
     // --- Caches ---
@@ -71,7 +72,7 @@ object TripDataManager {
 
     /** Single source of truth for all per-trip caches. Used by evictTrip and clearAll. */
     private val perTripCaches: List<MutableMap<String, *>> = listOf(
-            tripHistory, extrapolationAnchor, tripDetailsCache,
+            tripHistory, fetchTimes, extrapolationAnchor, tripDetailsCache,
             scheduleCache, serviceDateCache, shapeDataCache,
             routeTypeCache, lastActiveTripId,
             scheduleFailures, shapeFailures
@@ -99,15 +100,18 @@ object TripDataManager {
         val dist = status.distanceAlongTrip ?: return
 
         val history = tripHistory.getOrPut(tripId) { mutableListOf() }
+        val times = fetchTimes.getOrPut(tripId) { mutableListOf() }
 
         if (history.isNotEmpty() && dist == history.last().distanceAlongTrip) {
             return
         }
 
         history.add(status)
+        times.add(System.currentTimeMillis())
 
         if (history.size > MAX_ENTRIES_PER_TRIP) {
             history.subList(0, history.size - MAX_ENTRIES_PER_TRIP).clear()
+            times.subList(0, times.size - MAX_ENTRIES_PER_TRIP).clear()
         }
 
         evictOldTripsIfNeeded()
@@ -188,6 +192,12 @@ object TripDataManager {
     fun getHistorySize(activeTripId: String?): Int {
         if (activeTripId == null) return 0
         return tripHistory[activeTripId]?.size ?: 0
+    }
+
+    @Synchronized
+    fun getFetchTimes(activeTripId: String?): List<Long> {
+        if (activeTripId == null) return emptyList()
+        return fetchTimes[activeTripId]?.toList().orEmpty()
     }
 
     @Synchronized

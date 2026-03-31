@@ -29,7 +29,9 @@ import android.view.View
 import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import org.json.JSONObject
 import androidx.appcompat.widget.Toolbar
 import com.google.android.material.tabs.TabLayout
 import org.onebusaway.android.R
@@ -52,6 +54,7 @@ private const val TAG = "VehicleLocationDataAct"
 private const val PAD_H = 12
 private const val PAD_V = 6
 private const val TEXT_SIZE = 12f
+private const val DASH = "\u2014"
 private const val UI_REFRESH_MS = 1_000L
 private const val POLL_INTERVAL_MS = 30_000L
 
@@ -92,6 +95,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
     private lateinit var tableContainer: View
     private lateinit var graphView: TrajectoryGraphView
     private val dataRows = mutableListOf<TableRow>()
+    private var currentHistory: List<ObaTripStatus> = emptyList()
     private var selectedIndex: Int? = null
     private val selectedRowColor = 0xFF444400.toInt()
 
@@ -171,6 +175,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
 
     private fun refreshData() {
         val history = TripDataManager.getHistory(tripId)
+        val times = TripDataManager.getFetchTimes(tripId)
         val activeTripId = TripDataManager.getLastActiveTripId(tripId)
         val tripEnded = activeTripId != null && tripId != activeTripId
 
@@ -180,7 +185,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
             lastRowCount = history.size
             val table: TableLayout = findViewById(R.id.location_data_table)
             table.removeAllViews()
-            buildTable(table, history)
+            buildTable(table, history, times)
         }
 
         if (graphView.visibility == View.VISIBLE) {
@@ -245,11 +250,25 @@ class VehicleLocationDataActivity : AppCompatActivity() {
 
     // --- Table rendering ---
 
-    private val tableHeaders = arrayOf("#", "AVL time", "Lat", "Lon",
-            "Dist (m)", "\u0394t (s)", "\u0394dist (m)", "Speed (mph)", "Geo \u0394 (m)")
+    private val tableHeaders = arrayOf(
+            "#",
+            // Timestamps
+            "Fetched", "Update time", "AVL time",
+            // Raw GPS
+            "Lat", "Lon", "Last dist (m)", "Orientation",
+            // Server estimate
+            "Pos lat", "Pos lon", "Dist (m)", "Sched dist (m)",
+            // Trip info
+            "Predicted", "Deviation (s)", "Phase", "Status",
+            "Next stop", "Next stop \u0394t (s)",
+            // Derived deltas
+            "\u0394t (s)", "\u0394dist (m)", "Speed (mph)", "Geo \u0394 (m)"
+    )
     private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
 
-    private fun buildTable(table: TableLayout, history: List<ObaTripStatus>) {
+    private fun buildTable(table: TableLayout, history: List<ObaTripStatus>,
+                           fetchTimes: List<Long>) {
+        currentHistory = history
         dataRows.clear()
         selectedIndex = null
         addHeaderRow(table)
@@ -262,7 +281,8 @@ class VehicleLocationDataActivity : AppCompatActivity() {
 
         var prev: ObaTripStatus? = null
         for ((i, entry) in history.withIndex()) {
-            addDataRow(table, i, entry, prev)
+            val fetchTime = fetchTimes.getOrElse(i) { 0L }
+            addDataRow(table, i, entry, prev, fetchTime)
             prev = entry
         }
     }
@@ -291,24 +311,48 @@ class VehicleLocationDataActivity : AppCompatActivity() {
     private fun rowBgColor(index: Int) =
             if (index % 2 == 0) 0xFF1A1A1A.toInt() else 0xFF262626.toInt()
 
-    private fun addDataRow(table: TableLayout, index: Int, entry: ObaTripStatus, prev: ObaTripStatus?) {
+    private fun addDataRow(table: TableLayout, index: Int, entry: ObaTripStatus,
+                           prev: ObaTripStatus?, fetchTime: Long) {
         val row = TableRow(this).apply {
             setBackgroundColor(rowBgColor(index))
-            setOnClickListener { selectDataPoint(index) }
+            setOnClickListener {
+                if (selectedIndex == index) showStatusJson(index)
+                else selectDataPoint(index)
+            }
         }
         dataRows.add(row)
-        val pos = entry.lastKnownLocation
+        val raw = entry.lastKnownLocation
+        val pos = entry.position
         val entryDist = entry.distanceAlongTrip
+        val updateTime = entry.lastUpdateTime
         val avlTime = entry.lastLocationUpdateTime
 
+        // #
         row.addView(cell("${index + 1}"))
-        row.addView(cell(if (avlTime > 0) timeFmt.format(Date(avlTime)) else "\u2014"))
-        row.addView(cell(pos?.let { "%.6f".format(it.latitude) } ?: "\u2014"))
-        row.addView(cell(pos?.let { "%.6f".format(it.longitude) } ?: "\u2014"))
-        row.addView(cell(entryDist?.let { "%.1f".format(it) } ?: "\u2014"))
-
+        // Timestamps
+        row.addView(cell(fmtTime(fetchTime)))
+        row.addView(cell(fmtTime(updateTime)))
+        row.addView(cell(fmtTime(avlTime)))
+        // Raw GPS
+        row.addView(cell(raw?.let { "%.6f".format(it.latitude) } ?: DASH))
+        row.addView(cell(raw?.let { "%.6f".format(it.longitude) } ?: DASH))
+        row.addView(cell(entry.lastKnownDistanceAlongTrip?.let { "%.1f".format(it) } ?: DASH))
+        row.addView(cell(entry.lastKnownOrientation?.let { "%.0f\u00B0".format(it) } ?: DASH))
+        // Server estimate
+        row.addView(cell(pos?.let { "%.6f".format(it.latitude) } ?: DASH))
+        row.addView(cell(pos?.let { "%.6f".format(it.longitude) } ?: DASH))
+        row.addView(cell(entryDist?.let { "%.1f".format(it) } ?: DASH))
+        row.addView(cell(entry.scheduledDistanceAlongTrip?.let { "%.1f".format(it) } ?: DASH))
+        // Trip info
+        row.addView(cell(if (entry.isPredicted) "Y" else "N"))
+        row.addView(cell("${entry.scheduleDeviation}"))
+        row.addView(cell(entry.phase ?: DASH))
+        row.addView(cell(entry.status?.toString() ?: DASH))
+        row.addView(cell(entry.nextStop ?: DASH))
+        row.addView(cell(entry.nextStopTimeOffset?.let { "$it" } ?: DASH))
+        // Derived deltas
         if (prev != null) {
-            addDeltaCells(row, entry, prev, avlTime, entryDist, pos)
+            addDeltaCells(row, entry, prev)
         } else {
             repeat(4) { row.addView(cell("")) }
         }
@@ -316,28 +360,75 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         table.addView(row)
     }
 
-    private fun addDeltaCells(row: TableRow, entry: ObaTripStatus, prev: ObaTripStatus,
-                               avlTime: Long, entryDist: Double?,
-                               pos: android.location.Location?) {
-        val prevAvl = prev.lastLocationUpdateTime
-        val dtMs = if (avlTime > 0 && prevAvl > 0) avlTime - prevAvl
-                   else entry.lastUpdateTime - prev.lastUpdateTime
+    private fun addDeltaCells(row: TableRow, entry: ObaTripStatus, prev: ObaTripStatus) {
+        val dtMs = entry.lastUpdateTime - prev.lastUpdateTime
         row.addView(cell("%.1f".format(dtMs / 1000.0)))
 
         val prevDist = prev.distanceAlongTrip
+        val entryDist = entry.distanceAlongTrip
         if (prevDist != null && entryDist != null) {
             val dd = entryDist - prevDist
             row.addView(cell("%.1f".format(dd)))
-            row.addView(cell(if (dtMs > 0) "%.1f".format(maxOf(0.0, dd) / (dtMs / 1000.0) * MPS_TO_MPH) else "\u2014"))
+            row.addView(cell(if (dtMs > 0) "%.1f".format(maxOf(0.0, dd) / (dtMs / 1000.0) * MPS_TO_MPH) else DASH))
         } else {
-            row.addView(cell("\u2014"))
-            row.addView(cell("\u2014"))
+            row.addView(cell(DASH))
+            row.addView(cell(DASH))
         }
 
+        val rawPrev = prev.lastKnownLocation
+        val rawCur = entry.lastKnownLocation
         row.addView(cell(
-                if (prev.lastKnownLocation != null && pos != null)
-                    "%.1f".format(prev.lastKnownLocation.distanceTo(pos))
-                else "\u2014"))
+                if (rawPrev != null && rawCur != null)
+                    "%.1f".format(rawPrev.distanceTo(rawCur))
+                else DASH))
+    }
+
+    private fun fmtTime(millis: Long) = if (millis > 0) timeFmt.format(Date(millis)) else DASH
+
+    private fun showStatusJson(index: Int) {
+        if (index >= currentHistory.size) return
+        val status = currentHistory[index]
+        val json = JSONObject().apply {
+            put("serviceDate", status.serviceDate)
+            put("predicted", status.isPredicted)
+            put("scheduleDeviation", status.scheduleDeviation)
+            put("vehicleId", status.vehicleId)
+            put("activeTripId", status.activeTripId)
+            put("closestStop", status.closestStop)
+            put("closestStopTimeOffset", status.closestStopTimeOffset)
+            put("nextStop", status.nextStop)
+            put("nextStopTimeOffset", status.nextStopTimeOffset)
+            put("phase", status.phase)
+            put("status", status.status?.toString())
+            put("distanceAlongTrip", status.distanceAlongTrip)
+            put("scheduledDistanceAlongTrip", status.scheduledDistanceAlongTrip)
+            put("totalDistanceAlongTrip", status.totalDistanceAlongTrip)
+            put("orientation", status.orientation)
+            put("lastUpdateTime", status.lastUpdateTime)
+            put("lastLocationUpdateTime", status.lastLocationUpdateTime)
+            put("lastKnownDistanceAlongTrip", status.lastKnownDistanceAlongTrip)
+            put("lastKnownOrientation", status.lastKnownOrientation)
+            put("blockTripSequence", status.blockTripSequence)
+            put("occupancyStatus", status.occupancyStatus?.toString())
+            status.position?.let {
+                put("position", JSONObject().put("lat", it.latitude).put("lon", it.longitude))
+            }
+            status.lastKnownLocation?.let {
+                put("lastKnownLocation", JSONObject().put("lat", it.latitude).put("lon", it.longitude))
+            }
+        }
+        val tv = TextView(this).apply {
+            text = json.toString(2)
+            setPadding(32, 24, 32, 24)
+            textSize = 11f
+            setTextIsSelectable(true)
+            typeface = Typeface.MONOSPACE
+        }
+        AlertDialog.Builder(this)
+                .setTitle("Entry #${index + 1}")
+                .setView(tv)
+                .setPositiveButton("Close", null)
+                .show()
     }
 
     private fun cell(text: String) = createCell(text, isHeader = false)

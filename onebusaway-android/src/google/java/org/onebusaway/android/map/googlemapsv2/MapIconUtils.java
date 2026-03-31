@@ -24,6 +24,8 @@ import android.graphics.drawable.Drawable;
 import androidx.annotation.DrawableRes;
 import androidx.core.content.ContextCompat;
 
+import org.onebusaway.android.R;
+
 import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 
@@ -85,5 +87,12 @@ public final class MapIconUtils {
         }
 
         return BitmapDescriptorFactory.fromBitmap(bmp);
+    }
+
+    /**
+     * Creates the standard data-received marker icon (signal indicator in stroke color).
+     */
+    public static BitmapDescriptor createDataReceivedIcon(Context context) {
+        return createCircleIcon(context, R.drawable.ic_signal_indicator, STROKE_COLOR);
     }
 }

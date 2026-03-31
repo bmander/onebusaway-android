@@ -28,7 +28,6 @@ import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 import org.onebusaway.android.map.googlemapsv2.MapIconUtils
 import org.onebusaway.android.util.Polyline
 
-private const val MARKER_Z_INDEX = 3f
 private const val SEGMENT_Z_INDEX = 2f
 private const val FAST_ESTIMATE_QUANTILE = 0.90
 private const val PDF_LOW_QUANTILE = 0.01

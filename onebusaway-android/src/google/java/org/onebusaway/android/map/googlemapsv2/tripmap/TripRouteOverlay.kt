@@ -41,7 +41,6 @@ import org.onebusaway.android.util.UIUtils
 private const val TAG = "TripRouteOverlay"
 private const val STOP_STROKE_WIDTH = 4f
 private const val STOP_STROKE_COLOR = 0xFF242424.toInt()
-private const val POLYLINE_WIDTH_PX = 44f
 
 /**
  * Renders the static route skeleton on the trip map: the stamped route polyline
@@ -123,9 +122,9 @@ class TripRouteOverlay(
         val diffMin = TimeUnit.MILLISECONDS.toMinutes(diffMs)
         val clockTime = UIUtils.formatTime(context, predictedMs)
         return when {
-            diffMs <= 0 -> "$clockTime (departed)"
-            diffMin < 1 -> "$clockTime (< 1 min)"
-            else -> "$clockTime ($diffMin min)"
+            diffMs <= 0 -> context.getString(R.string.eta_departed, clockTime)
+            diffMin < 1 -> context.getString(R.string.eta_less_than_one_min, clockTime)
+            else -> context.getString(R.string.eta_minutes, clockTime, diffMin)
         }
     }
 

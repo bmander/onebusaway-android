@@ -33,8 +33,8 @@ import org.onebusaway.android.util.Polyline
 import org.onebusaway.android.util.UIUtils
 
 private const val ANIMATE_DURATION_MS = 600
-private const val MARKER_Z_INDEX = 3f
-private const val POLYLINE_WIDTH_PX = 44f
+internal const val MARKER_Z_INDEX = 3f
+internal const val POLYLINE_WIDTH_PX = 44f
 
 /** Shifts hue by 180 degrees to produce a color that contrasts with the input. */
 private fun contrastingColor(color: Int): Int {
@@ -73,7 +73,7 @@ class TripVehicleOverlay(
     private var lastDataReceivedUpdateTime = 0L
 
     private val dataReceivedIcon by lazy {
-        MapIconUtils.createCircleIcon(context, R.drawable.ic_signal_indicator, 0xFF616161.toInt())
+        MapIconUtils.createDataReceivedIcon(context)
     }
 
     // --- Estimate overlay ---

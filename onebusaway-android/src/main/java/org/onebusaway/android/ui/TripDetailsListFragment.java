@@ -536,47 +536,40 @@ public class TripDetailsListFragment extends ListFragment {
     }
 
     private void updateVehiclePosition() {
-        if (mAdapter == null || mTripInfo == null) return;
-        ObaTripSchedule schedule = mTripInfo.getSchedule();
-        if (schedule == null || schedule.getStopTimes() == null) return;
+        try {
+            if (mAdapter == null || mTripInfo == null) return;
+            ObaTripSchedule schedule = mTripInfo.getSchedule();
+            if (schedule == null || schedule.getStopTimes() == null) return;
 
-        ObaTripStatus status = mTripInfo.getStatus();
-        if (status == null) return;
+            ObaTripStatus status = mTripInfo.getStatus();
+            if (status == null) return;
 
-        // Determine the active trip ID
-        TripDataManager dm = TripDataManager.getInstance();
-        String activeTripId = dm.getLastActiveTripId(mTripId);
-        if (activeTripId == null) {
-            activeTripId = status.getActiveTripId();
-        }
+            // Determine the active trip ID
+            TripDataManager dm = TripDataManager.getInstance();
+            String activeTripId = dm.getLastActiveTripId(mTripId);
+            if (activeTripId == null) {
+                activeTripId = status.getActiveTripId();
+            }
 
-        // Only extrapolate if this is the active trip
-        if (activeTripId == null || !activeTripId.equals(mTripId)) {
+            // Only extrapolate if this is the active trip
+            if (activeTripId == null || !activeTripId.equals(mTripId)) return;
+
+            if (mExtrapolator == null) {
+                mExtrapolator = ExtrapolatorKt.createExtrapolator(activeTripId, dm);
+            }
+            ExtrapolationResult result = mExtrapolator.extrapolate(System.currentTimeMillis());
+            if (!(result instanceof ExtrapolationResult.Success)) return;
+
+            Double extrapolatedDist = ((ExtrapolationResult.Success) result).getDistribution().median();
+            if (extrapolatedDist == null) return;
+
+            Integer newNextStopIndex = schedule.findNextStopIndex(extrapolatedDist);
+            if (newNextStopIndex != null && !newNextStopIndex.equals(mAdapter.mNextStopIndex)) {
+                mAdapter.updateExtrapolatedPosition(newNextStopIndex);
+            }
+        } finally {
             mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
-            return;
         }
-
-        if (mExtrapolator == null) {
-            mExtrapolator = ExtrapolatorKt.createExtrapolator(activeTripId, dm);
-        }
-        ExtrapolationResult result = mExtrapolator.extrapolate(System.currentTimeMillis());
-        if (!(result instanceof ExtrapolationResult.Success)) {
-            mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
-            return;
-        }
-
-        Double extrapolatedDist = ((ExtrapolationResult.Success) result).getDistribution().median();
-        if (extrapolatedDist == null) {
-            mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
-            return;
-        }
-
-        Integer newNextStopIndex = schedule.findNextStopIndex(extrapolatedDist);
-        if (newNextStopIndex != null && !newNextStopIndex.equals(mAdapter.mNextStopIndex)) {
-            mAdapter.updateExtrapolatedPosition(newNextStopIndex);
-        }
-
-        mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
     }
 
     private void updateLocationDataMenuState(ObaTripStatus status) {

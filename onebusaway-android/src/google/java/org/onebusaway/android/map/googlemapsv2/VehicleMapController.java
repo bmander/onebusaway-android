@@ -219,8 +219,7 @@ class VehicleMapController {
 
     private BitmapDescriptor getOrCreateDataReceivedIcon() {
         if (mDataReceivedIcon == null) {
-            mDataReceivedIcon = MapIconUtils.createCircleIcon(
-                    mContext, R.drawable.ic_signal_indicator, 0xFF616161);
+            mDataReceivedIcon = MapIconUtils.createDataReceivedIcon(mContext);
         }
         return mDataReceivedIcon;
     }
@@ -310,10 +309,7 @@ class VehicleMapController {
                         setPositionIfNotAnimating(state, target);
                     }
                 } else {
-                    Location loc = state.status.getPosition();
-                    if (loc != null) {
-                        state.vehicleMarker.setPosition(MapHelpV2.makeLatLng(loc));
-                    }
+                    fallbackToRawPosition(state);
                 }
                 if (state.selected) {
                     if (target != null) {
@@ -324,10 +320,7 @@ class VehicleMapController {
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Failed to update position for trip " + state.tripId, e);
-                Location loc = state.status.getPosition();
-                if (loc != null) {
-                    state.vehicleMarker.setPosition(MapHelpV2.makeLatLng(loc));
-                }
+                fallbackToRawPosition(state);
             }
         }
     }
@@ -363,6 +356,13 @@ class VehicleMapController {
         state.animating = true;
         AnimationUtil.animateMarkerTo(state.vehicleMarker, target, mAnimateDurationMs,
                 () -> state.animating = false);
+    }
+
+    private void fallbackToRawPosition(VehicleMarkerState state) {
+        Location loc = state.status.getPosition();
+        if (loc != null) {
+            state.vehicleMarker.setPosition(MapHelpV2.makeLatLng(loc));
+        }
     }
 
     private void setPositionIfNotAnimating(VehicleMarkerState state, LatLng target) {

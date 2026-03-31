@@ -284,6 +284,11 @@
     <string name="marker_fast_estimate">Fast estimate</string>
     <string name="marker_fast_estimate_snippet">90th percentile speed</string>
 
+    <!-- Stop ETA snippets -->
+    <string name="eta_departed">%1$s (departed)</string>
+    <string name="eta_less_than_one_min">%1$s (&lt; 1 min)</string>
+    <string name="eta_minutes">%1$s (%2$d min)</string>
+
     <!-- Debug data views -->
     <string name="debug_trip_data_title">Trip Data</string>
     <string name="debug_tab_graph">Graph</string>

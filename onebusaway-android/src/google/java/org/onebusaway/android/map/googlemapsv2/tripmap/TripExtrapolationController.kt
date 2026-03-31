@@ -50,8 +50,7 @@ internal constructor(
                     val distribution = result.distribution
                     val loc = shapeData.interpolate(distribution.median())
                     if (loc != null) {
-                        val newestValid = TripDataManager.getNewestValidEntry(tripId)
-                        vehicleOverlay.updateVehiclePosition(loc, newestValid, now)
+                        vehicleOverlay.updateVehiclePosition(loc, extrapolator.lastUsedEntry, now)
                     }
                     vehicleOverlay.updateEstimateOverlays(distribution)
                 }

@@ -18,6 +18,7 @@ package org.onebusaway.android.extrapolation
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.elements.ObaRoute
+import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.bestDistanceAlongTrip
 
 private const val MAX_HORIZON_MS = 15 * 60 * 1000L
@@ -53,9 +54,14 @@ abstract class Extrapolator(
         protected val dataManager: TripDataManager
 ) {
 
+    /** The newest valid entry consumed by the most recent [extrapolate] call, or null. */
+    var lastUsedEntry: ObaTripStatus? = null
+        private set
+
     fun extrapolate(queryTimeMs: Long): ExtrapolationResult {
         val newestValid = dataManager.getNewestValidEntry(tripId)
-                ?: return ExtrapolationResult.NoData
+        lastUsedEntry = newestValid
+        if (newestValid == null) return ExtrapolationResult.NoData
         val lastDist = newestValid.bestDistanceAlongTrip
                 ?: return ExtrapolationResult.NoData
         val lastTime = newestValid.lastLocationUpdateTime

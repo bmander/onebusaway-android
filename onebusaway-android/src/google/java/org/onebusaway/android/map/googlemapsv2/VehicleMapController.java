@@ -293,13 +293,14 @@ class VehicleMapController {
 
         for (VehicleMarkerState state : mStates.values()) {
             try {
-                ExtrapolationResult result = getOrCreateExtrapolator(state).extrapolate(now);
+                Extrapolator ext = getOrCreateExtrapolator(state);
+                ExtrapolationResult result = ext.extrapolate(now);
                 state.extrapolating = (result instanceof ExtrapolationResult.Success);
 
                 LatLng target = (result instanceof ExtrapolationResult.Success)
                         ? mapToPolyline(state, (ExtrapolationResult.Success) result) : null;
 
-                ObaTripStatus newestValid = mDataManager.getNewestValidEntry(state.tripId);
+                ObaTripStatus newestValid = ext.getLastUsedEntry();
 
                 if (target != null) {
                     boolean freshData = checkAndUpdateFixTime(state, newestValid);

@@ -35,20 +35,24 @@ class TripDetailsPoller(
         private const val DEFAULT_INTERVAL_MS = 10_000L
     }
 
-    private val executor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
-    private var future: ScheduledFuture<*>? = null
-    private var tripId: String? = null
+    private var executor: ScheduledExecutorService? = null
+    @Volatile private var future: ScheduledFuture<*>? = null
+    @Volatile private var tripId: String? = null
 
     fun start(tripId: String) {
         this.tripId = tripId
         if (future == null) {
-            future = executor.scheduleWithFixedDelay(::poll, 0, intervalMs, TimeUnit.MILLISECONDS)
+            val exec = Executors.newSingleThreadScheduledExecutor()
+            executor = exec
+            future = exec.scheduleWithFixedDelay(::poll, 0, intervalMs, TimeUnit.MILLISECONDS)
         }
     }
 
     fun stop() {
         future?.cancel(false)
         future = null
+        executor?.shutdown()
+        executor = null
     }
 
     private fun poll() {

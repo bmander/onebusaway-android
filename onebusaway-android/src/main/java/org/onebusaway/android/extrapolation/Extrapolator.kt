@@ -19,7 +19,7 @@ import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.bestDistanceAlongTrip
+
 
 private const val MAX_HORIZON_MS = 15 * 60 * 1000L
 private const val PRE_DEPARTURE_DISTANCE_THRESHOLD = 50.0 // meters
@@ -62,7 +62,7 @@ abstract class Extrapolator(
         val anchor = dataManager.getExtrapolationAnchor(tripId)
         lastUsedEntry = anchor
         if (anchor == null) return ExtrapolationResult.NoData
-        val lastDist = anchor.bestDistanceAlongTrip
+        val lastDist = anchor.distanceAlongTrip
                 ?: return ExtrapolationResult.NoData
         val lastTime = anchor.lastUpdateTime
         if (lastTime <= 0) return ExtrapolationResult.NoData

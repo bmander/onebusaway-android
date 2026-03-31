@@ -25,12 +25,6 @@ import org.onebusaway.android.extrapolation.data.TripDataManager
  */
 
 /**
- * The server's current best estimate of distance along the trip.
- */
-val ObaTripStatus.bestDistanceAlongTrip: Double?
-    get() = distanceAlongTrip
-
-/**
  * True if the server provided a real-time location for this vehicle —
  * i.e. it has a last-known location *and* the trip is predicted.
  */

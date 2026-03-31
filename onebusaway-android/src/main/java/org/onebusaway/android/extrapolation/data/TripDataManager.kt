@@ -24,7 +24,7 @@ import java.util.concurrent.Executors
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.bestDistanceAlongTrip
+
 import org.onebusaway.android.io.request.ObaShapeRequest
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
@@ -92,15 +92,15 @@ object TripDataManager {
 
     /** Core recording logic. Caller must already hold the lock. */
     private fun recordStatusInternal(status: ObaTripStatus, tripId: String) {
-        if (status.bestDistanceAlongTrip != null) {
+        if (status.distanceAlongTrip != null) {
             extrapolationAnchor[tripId] = status
         }
 
-        val dist = status.bestDistanceAlongTrip ?: return
+        val dist = status.distanceAlongTrip ?: return
 
         val history = tripHistory.getOrPut(tripId) { mutableListOf() }
 
-        if (history.isNotEmpty() && dist == history.last().bestDistanceAlongTrip) {
+        if (history.isNotEmpty() && dist == history.last().distanceAlongTrip) {
             return
         }
 

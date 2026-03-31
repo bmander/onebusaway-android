@@ -30,7 +30,7 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
-import org.onebusaway.android.io.elements.bestDistanceAlongTrip
+
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.util.PreferenceUtils
@@ -237,7 +237,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
         drawScheduleLine(canvas)
         drawTrajectoryDots(canvas)
 
-        val lastDist = extrapolationAnchor?.bestDistanceAlongTrip
+        val lastDist = extrapolationAnchor?.distanceAlongTrip
         val lastTime = extrapolationAnchor?.lastUpdateTime ?: 0
 
         drawExtrapolationAndDeviation(canvas, lastDist, lastTime)
@@ -268,7 +268,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
         }
 
         for (e in history) {
-            e.bestDistanceAlongTrip?.let { d ->
+            e.distanceAlongTrip?.let { d ->
                 if (d > maxDist) maxDist = d
                 if (d < minDist) minDist = d
             }
@@ -365,7 +365,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
         trajectoryPath.reset()
         var first = true
         for (e in history) {
-            val d = e.bestDistanceAlongTrip ?: continue
+            val d = e.distanceAlongTrip ?: continue
             val t = e.lastUpdateTime
             if (t <= 0) continue
             val x = viewport.toPixelX(d)
@@ -564,7 +564,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
         private fun findExtrapolationAnchor(history: List<ObaTripStatus>): ObaTripStatus? {
             for (i in history.indices.reversed()) {
                 val s = history[i]
-                if (s.bestDistanceAlongTrip != null && s.lastUpdateTime > 0) return s
+                if (s.distanceAlongTrip != null && s.lastUpdateTime > 0) return s
             }
             return null
         }

@@ -41,7 +41,7 @@ import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.bestDistanceAlongTrip
+
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.util.UIUtils
 import java.text.SimpleDateFormat
@@ -270,7 +270,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
             setBackgroundColor(if (index % 2 == 0) 0xFF1A1A1A.toInt() else 0xFF262626.toInt())
         }
         val pos = entry.lastKnownLocation
-        val entryDist = entry.bestDistanceAlongTrip
+        val entryDist = entry.distanceAlongTrip
         val avlTime = entry.lastLocationUpdateTime
 
         row.addView(cell("${index + 1}"))
@@ -296,7 +296,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
                    else entry.lastUpdateTime - prev.lastUpdateTime
         row.addView(cell("%.1f".format(dtMs / 1000.0)))
 
-        val prevDist = prev.bestDistanceAlongTrip
+        val prevDist = prev.distanceAlongTrip
         if (prevDist != null && entryDist != null) {
             val dd = entryDist - prevDist
             row.addView(cell("%.1f".format(dd)))

@@ -264,12 +264,7 @@ class VehicleMapController {
     }
 
     private void selectVehicleMarker(VehicleMarkerState vehicle) {
-        for (VehicleMarkerState other : mStates.values()) {
-            if (other != vehicle) {
-                other.selected = false;
-                removeDataReceivedMarker(other);
-            }
-        }
+        deselectAll();
         vehicle.selected = true;
         vehicle.vehicleMarker.showInfoWindow();
     }

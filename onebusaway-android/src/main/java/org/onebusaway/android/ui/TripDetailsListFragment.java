@@ -938,6 +938,7 @@ public class TripDetailsListFragment extends ListFragment {
             mLastResponseTime = System.currentTimeMillis();
             if (data.getCode() == ObaApi.OBA_OK) {
                 mLastGoodResponse = data;
+                TripDataManager.getInstance().recordTripDetailsResponse(mTripId, data);
                 mLastGoodResponseTime = mLastResponseTime;
             }
             super.deliverResult(data);

@@ -284,7 +284,7 @@ class VehicleMapController {
 
     boolean isExtrapolating(Marker marker) {
         VehicleMarkerState vs = stateOf(marker);
-        return vs != null && vs.trip.getAnchor() != null && !vs.trip.isScheduleOnly();
+        return vs != null && vs.trip.getAnchor() != null;
     }
 
     boolean isDataReceivedMarker(Marker marker) {
@@ -345,7 +345,7 @@ class VehicleMapController {
 
     private void updateSelectedMarker(VehicleMarkerState vehicle, ObaTripStatus anchor) {
         if (!vehicle.selected) return;
-        if (anchor != null && !vehicle.trip.isScheduleOnly()) {
+        if (anchor != null) {
             updateDataReceivedMarker(vehicle, anchor);
         } else {
             removeDataReceivedMarker(vehicle);

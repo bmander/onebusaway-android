@@ -19,8 +19,7 @@ import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.GammaExtrapolator
 import org.onebusaway.android.extrapolation.ScheduleReplayExtrapolator
-import org.onebusaway.android.extrapolation.math.prob.DiracDistribution
-import org.onebusaway.android.extrapolation.replaySchedule
+
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
@@ -44,10 +43,8 @@ class Trip(val tripId: String) {
     // --- Vehicle history ---
     val history = mutableListOf<ObaTripStatus>()
     val fetchTimes = mutableListOf<Long>()
-    var anchor: ObaTripStatus? = null
-        private set
-    var anchorFetchTime: Long = 0
-        private set
+    /** The most recent status with valid distance data, or null. */
+    val anchor: ObaTripStatus? get() = history.lastOrNull()
 
     // --- Caches ---
     var schedule: ObaTripSchedule? = null
@@ -57,29 +54,15 @@ class Trip(val tripId: String) {
     var lastActiveTripId: String? = null
     var tripDetailsResponse: ObaTripDetailsResponse? = null
 
-    // --- Extrapolation state (set by extrapolate()) ---
-    var isScheduleOnly: Boolean = false
-        private set
+    // --- Extrapolation ---
 
     private var extrapolator: Extrapolator? = null
 
     // --- Recording ---
 
-    /**
-     * Records a status snapshot. Updates the extrapolation anchor for any entry with
-     * valid distance data. Adds to history when the vehicle has moved (distance-based dedup).
-     */
+    /** Records a status snapshot. Skips entries without valid distance data. */
     fun recordStatus(status: ObaTripStatus) {
-        if (status.distanceAlongTrip != null) {
-            anchor = status
-            anchorFetchTime = System.currentTimeMillis()
-        }
-
-        val dist = status.distanceAlongTrip ?: return
-
-        if (history.isNotEmpty() && dist == history.last().distanceAlongTrip) {
-            return
-        }
+        if (status.distanceAlongTrip == null) return
 
         history.add(status)
         fetchTimes.add(System.currentTimeMillis())
@@ -97,10 +80,7 @@ class Trip(val tripId: String) {
         val lastDist = currentAnchor.distanceAlongTrip
                 ?: return ExtrapolationResult.NoData
 
-        val lastTime = currentAnchor.lastUpdateTime.let {
-            if (it > 0) it else anchorFetchTime
-        }
-        isScheduleOnly = currentAnchor.lastUpdateTime <= 0
+        val lastTime = try { currentAnchor.lastUpdateTime } catch (_: NullPointerException) { 0L }
         if (lastTime <= 0) return ExtrapolationResult.NoData
 
         val dtMs = queryTimeMs - lastTime
@@ -110,13 +90,6 @@ class Trip(val tripId: String) {
         if (totalDist != null && totalDist > 0
                 && totalDist - lastDist < TRIP_END_DISTANCE_THRESHOLD) {
             return ExtrapolationResult.TripEnded
-        }
-
-        if (isScheduleOnly) {
-            val sched = schedule ?: return ExtrapolationResult.MissingSchedule
-            val distance = replaySchedule(sched, lastDist, lastTime, queryTimeMs)
-                    ?: return ExtrapolationResult.MissingSchedule
-            return ExtrapolationResult.Success(DiracDistribution(distance))
         }
 
         return getOrCreateExtrapolator().doExtrapolate(lastDist, lastTime, queryTimeMs)

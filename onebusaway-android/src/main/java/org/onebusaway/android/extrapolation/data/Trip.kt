@@ -80,7 +80,8 @@ class Trip(val tripId: String) {
         val lastDist = currentAnchor.distanceAlongTrip
                 ?: return ExtrapolationResult.NoData
 
-        val lastTime = try { currentAnchor.lastUpdateTime } catch (_: NullPointerException) { 0L }
+        val serverTime = try { currentAnchor.lastUpdateTime } catch (_: NullPointerException) { 0L }
+        val lastTime = if (serverTime > 0) serverTime else fetchTimes.lastOrNull() ?: 0L
         if (lastTime <= 0) return ExtrapolationResult.NoData
 
         val dtMs = queryTimeMs - lastTime

@@ -259,7 +259,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
             // Server estimate
             "Pos lat", "Pos lon", "Dist (m)", "Sched dist (m)",
             // Trip info
-            "Predicted", "Deviation (s)", "Phase", "Status",
+            "Vehicle", "Predicted", "Deviation (s)", "Phase", "Status",
             "Next stop", "Next stop \u0394t (s)",
             // Derived deltas
             "\u0394t (s)", "\u0394dist (m)", "Speed (mph)", "Geo \u0394 (m)"
@@ -344,6 +344,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         row.addView(cell(entryDist?.let { "%.1f".format(it) } ?: DASH))
         row.addView(cell(entry.scheduledDistanceAlongTrip?.let { "%.1f".format(it) } ?: DASH))
         // Trip info
+        row.addView(cell(entry.vehicleId ?: DASH))
         row.addView(cell(if (entry.isPredicted) "Y" else "N"))
         row.addView(cell("${entry.scheduleDeviation}"))
         row.addView(cell(entry.phase ?: DASH))

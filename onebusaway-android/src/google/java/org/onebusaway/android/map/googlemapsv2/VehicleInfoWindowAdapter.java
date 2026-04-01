@@ -102,8 +102,7 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
                 UIUtils.formatDisplayText(trip.getHeadsign()));
 
         long now = System.currentTimeMillis();
-        boolean isRealtime = ObaElementExtensionsKt.isLocationRealtime(status)
-                || ObaElementExtensionsKt.isRealtimeSpeedEstimable(status);
+        boolean isRealtime = ObaElementExtensionsKt.isLocationRealtime(status);
 
         views.statusView.setBackgroundResource(R.drawable.round_corners_style_b_status);
         GradientDrawable d = (GradientDrawable) views.statusView.getBackground();

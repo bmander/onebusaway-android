@@ -15,8 +15,6 @@
  */
 package org.onebusaway.android.io.elements
 
-import org.onebusaway.android.extrapolation.data.TripDataManager
-
 /**
  * For display we always use [ObaTripStatus.getPosition] (the server-extrapolated location)
  * because it aligns with the polyline distance fraction (PDF) calculations exactly.
@@ -30,13 +28,6 @@ import org.onebusaway.android.extrapolation.data.TripDataManager
  */
 val ObaTripStatus.isLocationRealtime: Boolean
     get() = lastKnownLocation != null && isPredicted
-
-/**
- * True if the trip has valid AVL data that an extrapolator could use.
- */
-val ObaTripStatus.isRealtimeSpeedEstimable: Boolean
-    get() = activeTripId != null
-                && TripDataManager.getExtrapolationAnchor(activeTripId) != null
 
 /**
  * Computes the scheduled segment speed (m/s) at a given distance along the trip.

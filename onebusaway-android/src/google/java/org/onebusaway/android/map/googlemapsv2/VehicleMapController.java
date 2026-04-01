@@ -330,8 +330,16 @@ class VehicleMapController {
         if (loc == null) { animateToRawPosition(vehicle); return; }
 
         LatLng target = MapHelpV2.makeLatLng(loc);
+        int anchorIndex = trip.getHistory().size();
+        boolean freshData = anchorIndex != vehicle.lastAnchorIndex;
+        vehicle.lastAnchorIndex = anchorIndex;
+
         if (!vehicle.animating && positionChanged(vehicle, target)) {
-            vehicle.vehicleMarker.setPosition(target);
+            if (freshData) {
+                startTransitionAnimation(vehicle, target);
+            } else {
+                vehicle.vehicleMarker.setPosition(target);
+            }
         }
     }
 

@@ -16,6 +16,7 @@
 package org.onebusaway.android.extrapolation
 
 import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.extrapolation.math.prob.DiracDistribution
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripStatus
@@ -58,21 +59,43 @@ abstract class Extrapolator(
     var lastUsedEntry: ObaTripStatus? = null
         private set
 
+    /** Whether the most recent extrapolation used schedule-only data (no real timestamp). */
+    var isScheduleOnly: Boolean = false
+        private set
+
     fun extrapolate(queryTimeMs: Long): ExtrapolationResult {
         val anchor = dataManager.getExtrapolationAnchor(tripId)
         lastUsedEntry = anchor
         if (anchor == null) return ExtrapolationResult.NoData
         val lastDist = anchor.distanceAlongTrip
                 ?: return ExtrapolationResult.NoData
-        val lastTime = anchor.lastUpdateTime
+
+        // Use the server's update time if available, otherwise fall back to
+        // the local fetch time so schedule-only vehicles can still extrapolate.
+        val lastTime = anchor.lastUpdateTime.let {
+            if (it > 0) it else dataManager.getAnchorFetchTime(tripId)
+        }
+        isScheduleOnly = anchor.lastUpdateTime <= 0
         if (lastTime <= 0) return ExtrapolationResult.NoData
+
         val dtMs = queryTimeMs - lastTime
         if (dtMs < 0 || dtMs > MAX_HORIZON_MS) return ExtrapolationResult.Stale
         if (isAtTripStart(lastDist)) return ExtrapolationResult.TripNotStarted
         val totalDist = anchor.totalDistanceAlongTrip
         if (totalDist != null && isAtTripEnd(lastDist, totalDist)) return ExtrapolationResult.TripEnded
 
+        if (isScheduleOnly) {
+            return scheduleReplay(lastDist, dtMs / 1000.0)
+        }
         return doExtrapolate(lastDist, dtMs / 1000.0, lastTime)
+    }
+
+    private fun scheduleReplay(lastDist: Double, dtSec: Double): ExtrapolationResult {
+        val schedule = dataManager.getSchedule(tripId)
+                ?: return ExtrapolationResult.MissingSchedule
+        val distance = replaySchedule(schedule, lastDist, dtSec)
+                ?: return ExtrapolationResult.MissingSchedule
+        return ExtrapolationResult.Success(DiracDistribution(distance))
     }
 
     protected abstract fun doExtrapolate(lastDist: Double, dtSec: Double, lastFixTimeMs: Long): ExtrapolationResult

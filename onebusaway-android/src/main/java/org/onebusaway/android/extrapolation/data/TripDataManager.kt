@@ -60,6 +60,7 @@ object TripDataManager {
     private val tripHistory = LinkedHashMap<String, MutableList<ObaTripStatus>>()
     private val fetchTimes = LinkedHashMap<String, MutableList<Long>>()
     private val extrapolationAnchor = mutableMapOf<String, ObaTripStatus>()
+    private val anchorFetchTime = mutableMapOf<String, Long>()
 
     // --- Caches ---
     private val tripDetailsCache = HashMap<String, ObaTripDetailsResponse>()
@@ -72,7 +73,7 @@ object TripDataManager {
 
     /** Single source of truth for all per-trip caches. Used by evictTrip and clearAll. */
     private val perTripCaches: List<MutableMap<String, *>> = listOf(
-            tripHistory, fetchTimes, extrapolationAnchor, tripDetailsCache,
+            tripHistory, fetchTimes, extrapolationAnchor, anchorFetchTime, tripDetailsCache,
             scheduleCache, serviceDateCache, shapeDataCache,
             routeTypeCache, lastActiveTripId,
             scheduleFailures, shapeFailures
@@ -95,6 +96,7 @@ object TripDataManager {
     private fun recordStatusInternal(status: ObaTripStatus, tripId: String) {
         if (status.distanceAlongTrip != null) {
             extrapolationAnchor[tripId] = status
+            anchorFetchTime[tripId] = System.currentTimeMillis()
         }
 
         val dist = status.distanceAlongTrip ?: return
@@ -210,6 +212,12 @@ object TripDataManager {
     fun getExtrapolationAnchor(activeTripId: String?): ObaTripStatus? {
         if (activeTripId == null) return null
         return extrapolationAnchor[activeTripId]
+    }
+
+    @Synchronized
+    fun getAnchorFetchTime(activeTripId: String?): Long {
+        if (activeTripId == null) return 0
+        return anchorFetchTime[activeTripId] ?: 0
     }
 
     @Synchronized

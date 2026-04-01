@@ -331,7 +331,8 @@ class VehicleMapController {
             animateToRawPosition(vehicle);
         }
 
-        updateSelectedMarker(vehicle, target != null, anchor);
+        boolean showDataMarker = target != null && !ext.isScheduleOnly();
+        updateSelectedMarker(vehicle, showDataMarker, anchor);
     }
 
     /** Resolves the extrapolated position and updates the direction icon. */

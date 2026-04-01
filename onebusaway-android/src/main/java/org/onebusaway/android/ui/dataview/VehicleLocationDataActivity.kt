@@ -36,9 +36,8 @@ import androidx.appcompat.widget.Toolbar
 import com.google.android.material.tabs.TabLayout
 import org.onebusaway.android.R
 import org.onebusaway.android.extrapolation.ExtrapolationResult
-import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.MPS_TO_MPH
-import org.onebusaway.android.extrapolation.createExtrapolator
+import org.onebusaway.android.extrapolation.data.Trip
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.ObaApi
@@ -86,7 +85,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
     private lateinit var tripId: String
     private var vehicleId: String? = null
     private var stopId: String? = null
-    private var extrapolator: Extrapolator? = null
+    private var trip: Trip? = null
 
     private val refreshHandler = Handler(Looper.getMainLooper())
     private val pollHandler = Handler(Looper.getMainLooper())
@@ -207,10 +206,10 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         val schedule = TripDataManager.getSchedule(tripId)
         val serviceDate = TripDataManager.getServiceDate(tripId) ?: 0L
         val distribution: ProbDistribution? = if (!tripEnded) {
-            if (extrapolator == null) {
-                extrapolator = createExtrapolator(tripId)
+            if (trip == null) {
+                trip = TripDataManager.getOrCreateTrip(tripId)
             }
-            (extrapolator?.extrapolate(System.currentTimeMillis())
+            (trip?.extrapolate(System.currentTimeMillis())
                     as? ExtrapolationResult.Success)?.distribution
         } else null
         graphView.setData(history, schedule, serviceDate, distribution)

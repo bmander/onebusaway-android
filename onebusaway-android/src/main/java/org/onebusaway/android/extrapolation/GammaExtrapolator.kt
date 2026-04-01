@@ -16,7 +16,7 @@
 package org.onebusaway.android.extrapolation
 
 import kotlin.math.exp
-import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.extrapolation.data.Trip
 import org.onebusaway.android.extrapolation.math.prob.AffineTransformDistribution
 import org.onebusaway.android.extrapolation.math.prob.FrozenDistribution
 import org.onebusaway.android.extrapolation.math.prob.GammaDistribution
@@ -42,15 +42,13 @@ internal const val MPS_TO_MPH = 2.23694
  * component (constant shape) captures delayed/stopped vehicles while the fast
  * component is ensemble-mean-locked to the schedule speed.
  */
-class GammaExtrapolator(
-        tripId: String,
-        dataManager: TripDataManager
-) : Extrapolator(tripId, dataManager) {
+class GammaExtrapolator(trip: Trip) : Extrapolator(trip) {
 
     private var cachedDistribution: Pair<Long, ProbDistribution>? = null
 
-    override fun doExtrapolate(lastDist: Double, dtSec: Double, lastFixTimeMs: Long): ExtrapolationResult {
-        val speedDist = resolveDistribution(lastFixTimeMs)
+    override fun doExtrapolate(lastDist: Double, lastTimeMs: Long, queryTimeMs: Long): ExtrapolationResult {
+        val dtSec = (queryTimeMs - lastTimeMs) / 1000.0
+        val speedDist = resolveDistribution(lastTimeMs)
                 ?: return ExtrapolationResult.MissingSchedule
         return ExtrapolationResult.Success(
                 AffineTransformDistribution(speedDist, lastDist, dtSec / MPS_TO_MPH))
@@ -61,8 +59,8 @@ class GammaExtrapolator(
             if (cachedTime == lastFixTime) return dist
         }
 
-        val lastState = dataManager.getLastState(tripId) ?: return null
-        val schedule = dataManager.getSchedule(tripId)
+        val lastState = trip.history.lastOrNull() ?: return null
+        val schedule = trip.schedule
         val scheduleSpeed = schedule?.speedAtDistance(
                 lastState.scheduledDistanceAlongTrip ?: return null) ?: return null
 

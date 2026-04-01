@@ -25,9 +25,8 @@ import com.google.android.gms.maps.model.MarkerOptions;
 
 import org.onebusaway.android.R;
 import org.onebusaway.android.extrapolation.ExtrapolationResult;
-import org.onebusaway.android.extrapolation.Extrapolator;
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
-import org.onebusaway.android.extrapolation.ExtrapolatorKt;
+import org.onebusaway.android.extrapolation.data.Trip;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaTrip;
@@ -133,7 +132,8 @@ class VehicleMapController {
                 .icon(mIconFactory.getIcon(params))
                 .zIndex(VEHICLE_MARKER_Z_INDEX)
         );
-        VehicleMarkerState vehicle = new VehicleMarkerState(tripId, status);
+        VehicleMarkerState vehicle = new VehicleMarkerState(
+                mDataManager.getOrCreateTrip(tripId), status);
         vehicle.vehicleMarker = m;
         vehicle.iconParams = params;
         m.setTag(vehicle);
@@ -170,7 +170,7 @@ class VehicleMapController {
                 mStates.entrySet().iterator();
         while (iterator.hasNext()) {
             VehicleMarkerState vehicle = iterator.next().getValue();
-            if (!activeTripIds.contains(vehicle.tripId)) {
+            if (!activeTripIds.contains(vehicle.trip.getTripId())) {
                 destroyVehicleMarker(vehicle);
                 iterator.remove();
             }
@@ -284,7 +284,7 @@ class VehicleMapController {
 
     boolean isExtrapolating(Marker marker) {
         VehicleMarkerState vs = stateOf(marker);
-        return vs != null && vs.extrapolating;
+        return vs != null && vs.trip.getAnchor() != null && !vs.trip.isScheduleOnly();
     }
 
     boolean isDataReceivedMarker(Marker marker) {
@@ -294,7 +294,7 @@ class VehicleMapController {
 
     String getTripIdForDataReceivedMarker(Marker marker) {
         VehicleMarkerState vs = stateOf(marker);
-        if (vs != null && marker.equals(vs.dataReceivedMarker)) return vs.tripId;
+        if (vs != null && marker.equals(vs.dataReceivedMarker)) return vs.trip.getTripId();
         return null;
     }
 
@@ -308,57 +308,44 @@ class VehicleMapController {
             } catch (Exception e) {
                 animateToRawPosition(vehicle);
             }
+            Trip trip = vehicle.trip;
+            updateSelectedMarker(vehicle, trip.getAnchor());
         }
     }
 
     private void updatePosition(VehicleMarkerState vehicle, long now) {
-        Extrapolator ext = getOrCreateExtrapolator(vehicle);
-        ExtrapolationResult result = ext.extrapolate(now);
-        vehicle.extrapolating = (result instanceof ExtrapolationResult.Success);
+        Trip trip = vehicle.trip;
+        ExtrapolationResult result = trip.extrapolate(now);
+        if (!(result instanceof ExtrapolationResult.Success)) { animateToRawPosition(vehicle); return; }
 
-        LatLng target = extrapolateTarget(vehicle, result);
-
-        ObaTripStatus anchor = null;
-        if (target != null) {
-            anchor = ext.getLastUsedEntry();
-            boolean freshData = checkAndUpdateFixTime(vehicle, anchor);
-            if (freshData) {
-                startTransitionAnimation(vehicle, target);
-            } else {
-                setPositionIfNotAnimating(vehicle, target);
-            }
-        } else {
-            animateToRawPosition(vehicle);
-        }
-
-        boolean showDataMarker = target != null && !ext.isScheduleOnly();
-        updateSelectedMarker(vehicle, showDataMarker, anchor);
-    }
-
-    /** Resolves the extrapolated position and updates the direction icon. */
-    private LatLng extrapolateTarget(VehicleMarkerState vehicle, ExtrapolationResult result) {
-        if (!(result instanceof ExtrapolationResult.Success)) return null;
         ProbDistribution dist = ((ExtrapolationResult.Success) result).getDistribution();
-        Polyline polyline = mDataManager.getPolyline(vehicle.tripId);
-        if (polyline == null) return null;
+        Polyline polyline = trip.getPolyline();
+        if (polyline == null) { animateToRawPosition(vehicle); return; }
 
         double medianDist = dist.median();
         int seg = polyline.segmentIndex(medianDist);
+        updateDirectionIcon(vehicle, polyline, seg);
 
+        Location loc = polyline.interpolate(medianDist, seg);
+        if (loc == null) { animateToRawPosition(vehicle); return; }
+
+        LatLng target = MapHelpV2.makeLatLng(loc);
+        if (!vehicle.animating && positionChanged(vehicle, target)) {
+            vehicle.vehicleMarker.setPosition(target);
+        }
+    }
+
+    private void updateDirectionIcon(VehicleMarkerState vehicle, Polyline polyline, int seg) {
         int hw = halfWindAt(polyline, seg);
         if (hw >= 0 && hw != vehicle.iconParams.halfWind) {
             vehicle.iconParams.halfWind = hw;
             vehicle.vehicleMarker.setIcon(mIconFactory.getIcon(vehicle.iconParams));
         }
-
-        Location loc = polyline.interpolate(medianDist, seg);
-        return loc != null ? MapHelpV2.makeLatLng(loc) : null;
     }
 
-    private void updateSelectedMarker(VehicleMarkerState vehicle, boolean hasTarget,
-                                      ObaTripStatus anchor) {
+    private void updateSelectedMarker(VehicleMarkerState vehicle, ObaTripStatus anchor) {
         if (!vehicle.selected) return;
-        if (hasTarget) {
+        if (anchor != null && !vehicle.trip.isScheduleOnly()) {
             updateDataReceivedMarker(vehicle, anchor);
         } else {
             removeDataReceivedMarker(vehicle);
@@ -367,27 +354,11 @@ class VehicleMapController {
 
     // --- Extrapolation helpers ---
 
-    private Extrapolator getOrCreateExtrapolator(VehicleMarkerState vehicle) {
-        Extrapolator ext = vehicle.extrapolator;
-        if (ext != null) return ext;
-        ext = ExtrapolatorKt.createExtrapolator(vehicle.tripId,
-                mDataManager);
-        vehicle.extrapolator = ext;
-        return ext;
-    }
-
     /** Returns the half-wind direction index for the given segment, or -1 if unavailable. */
     private static int halfWindAt(Polyline polyline, int seg) {
         float bearing = polyline.bearingAt(seg);
         if (Float.isNaN(bearing)) return -1;
         return MathUtils.getHalfWindIndex(bearing, VehicleIconFactory.NUM_DIRECTIONS - 1);
-    }
-
-    private boolean checkAndUpdateFixTime(VehicleMarkerState vehicle, ObaTripStatus newest) {
-        long fixTime = newest != null ? newest.getLastUpdateTime() : 0;
-        long prev = vehicle.lastFixTimeMs;
-        vehicle.lastFixTimeMs = fixTime;
-        return prev != 0 && fixTime != prev;
     }
 
     private void startTransitionAnimation(VehicleMarkerState vehicle, LatLng target) {
@@ -405,11 +376,7 @@ class VehicleMapController {
         }
     }
 
-    private void setPositionIfNotAnimating(VehicleMarkerState vehicle, LatLng target) {
-        if (!vehicle.animating && positionChanged(vehicle, target)) {
-            vehicle.vehicleMarker.setPosition(target);
-        }
-    }
+
 
     private static boolean positionChanged(VehicleMarkerState vehicle, LatLng target) {
         LatLng current = vehicle.vehicleMarker.getPosition();

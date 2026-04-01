@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.extrapolation
 
-import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.extrapolation.data.Trip
 import org.onebusaway.android.extrapolation.math.prob.DiracDistribution
 import org.onebusaway.android.io.elements.ObaTripSchedule
 
@@ -23,37 +23,39 @@ import org.onebusaway.android.io.elements.ObaTripSchedule
  * Per-trip extrapolator for grade-separated transit (rail, subway) that replays the schedule
  * trajectory forward from the vehicle's current position, including dwell times at stops.
  */
-class ScheduleReplayExtrapolator(
-        tripId: String,
-        dataManager: TripDataManager
-) : Extrapolator(tripId, dataManager) {
+class ScheduleReplayExtrapolator(trip: Trip) : Extrapolator(trip) {
 
-    override fun doExtrapolate(lastDist: Double, dtSec: Double, lastFixTimeMs: Long): ExtrapolationResult {
-        val schedule = dataManager.getSchedule(tripId)
+    override fun doExtrapolate(lastDist: Double, lastTimeMs: Long, queryTimeMs: Long): ExtrapolationResult {
+        val schedule = trip.schedule
                 ?: return ExtrapolationResult.MissingSchedule
-        val distance = replaySchedule(schedule, lastDist, dtSec)
+        val distance = replaySchedule(schedule, lastDist, lastTimeMs, queryTimeMs)
                 ?: return ExtrapolationResult.MissingSchedule
         return ExtrapolationResult.Success(DiracDistribution(distance))
     }
 }
 
 /**
- * Replays the schedule forward from [startDist] by [dtSec] seconds.
+ * Replays the schedule forward from [startDist] by the elapsed time between
+ * [lastTimeMs] and [queryTimeMs].
  *
  * Finds the schedule segment bracketing startDist, computes the corresponding
- * schedule time, adds dtSec, then walks forward through stops — traveling at
- * segment speeds between stops and dwelling at stops for scheduled dwell times.
+ * schedule time, adds the elapsed time, then walks forward through stops —
+ * traveling at segment speeds between stops and dwelling at stops for
+ * scheduled dwell times.
  *
  * @param schedule the trip schedule containing stop times
  * @param startDist the starting distance along the trip in meters
- * @param dtSec the time to advance in seconds (must be >= 0)
+ * @param lastTimeMs the timestamp of the starting position in milliseconds
+ * @param queryTimeMs the target time in milliseconds
  * @return the extrapolated distance in meters, or null if out of bounds
  */
 fun replaySchedule(
         schedule: ObaTripSchedule,
         startDist: Double,
-        dtSec: Double
+        lastTimeMs: Long,
+        queryTimeMs: Long
 ): Double? {
+    val dtSec = (queryTimeMs - lastTimeMs) / 1000.0
     val stopTimes = schedule.stopTimes ?: return null
     if (stopTimes.size < 2 || dtSec < 0) return null
 

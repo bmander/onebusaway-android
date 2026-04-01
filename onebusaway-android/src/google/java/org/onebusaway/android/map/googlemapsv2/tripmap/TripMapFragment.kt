@@ -27,9 +27,8 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.Marker
-import org.onebusaway.android.extrapolation.createExtrapolator
-import org.onebusaway.android.ui.TripMapCallback
 import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.ui.TripMapCallback
 import org.onebusaway.android.extrapolation.data.TripDetailsPoller
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 
@@ -163,9 +162,9 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     private fun onOverlaysReady(overlays: TripMapOverlays) {
         routeOverlay = overlays.route
         vehicleOverlay = overlays.vehicle
-        val extrapolator = createExtrapolator(tripId)
+        val trip = TripDataManager.getOrCreateTrip(tripId)
         extrapolationController = TripExtrapolationController(
-                overlays.vehicle, tripId, extrapolator).also { it.start() }
+                overlays.vehicle, trip).also { it.start() }
         poller.start(tripId)
         activated = true
         overlays.route.fitCameraToShape()

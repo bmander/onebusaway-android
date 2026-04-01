@@ -16,19 +16,17 @@
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
 import org.onebusaway.android.extrapolation.ExtrapolationResult
-import org.onebusaway.android.extrapolation.Extrapolator
-import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.extrapolation.data.Trip
 import org.onebusaway.android.map.googlemapsv2.ThrottledFrameLoop
 
 /**
  * Owns the per-frame extrapolation loop for a single trip on the trip map view. Computes positions
- * and distributions each frame, then delegates all rendering to [TripMapRenderer].
+ * and distributions each frame, then delegates all rendering to [TripVehicleOverlay].
  */
 class TripExtrapolationController
 internal constructor(
         private val vehicleOverlay: TripVehicleOverlay,
-        private val tripId: String,
-        private val extrapolator: Extrapolator
+        private val trip: Trip
 ) {
     private val frameLoop = ThrottledFrameLoop(::doFrame)
 
@@ -39,15 +37,15 @@ internal constructor(
     private fun doFrame() {
         try {
             val now = System.currentTimeMillis()
-            val shapeData = TripDataManager.getPolyline(tripId) ?: return
-            val result = extrapolator.extrapolate(now)
+            val shapeData = trip.polyline ?: return
+            val result = trip.extrapolate(now)
 
             when (result) {
                 is ExtrapolationResult.Success -> {
                     val distribution = result.distribution
                     val loc = shapeData.interpolate(distribution.median())
                     if (loc != null) {
-                        vehicleOverlay.updateVehiclePosition(loc, extrapolator.lastUsedEntry, now)
+                        vehicleOverlay.updateVehiclePosition(loc, trip.anchor, now)
                     }
                     vehicleOverlay.updateEstimateOverlays(distribution)
                 }
@@ -57,7 +55,7 @@ internal constructor(
                 }
             }
 
-            TripDataManager.getLastState(tripId)?.let {
+            trip.history.lastOrNull()?.let {
                 vehicleOverlay.showOrUpdateDataReceivedMarker(it, now)
             }
         } catch (_: Exception) {

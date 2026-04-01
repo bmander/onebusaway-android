@@ -24,7 +24,6 @@ import java.util.concurrent.Executors
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
-
 import org.onebusaway.android.io.request.ObaShapeRequest
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
@@ -33,17 +32,15 @@ import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.Polyline
 
 /**
- * Singleton that owns all per-trip data storage: vehicle position history, route shapes, schedules,
- * service dates, route types, and active trip ID tracking. Also provides ensure* methods that
- * fetch data from the API in the background if not cached.
+ * Registry of [Trip] objects with background fetch support.
+ * All per-trip data lives on Trip; this singleton manages the registry, eviction, and
+ * background fetches for schedules and shapes.
  *
- * Thread-safe via a single @Synchronized lock on this object. All mutable state lives here under
- * one lock to avoid nested locking and contention.
+ * Thread-safe via a single @Synchronized lock on this object.
  */
 object TripDataManager {
 
     private const val TAG = "TripDataManager"
-    private const val MAX_ENTRIES_PER_TRIP = 100
     private const val MAX_TRACKED_TRIPS = 100
     private const val MAX_FETCH_FAILURES = 3
 
@@ -56,30 +53,19 @@ object TripDataManager {
     private val scheduleFailures = ConcurrentHashMap<String, Int>()
     private val shapeFailures = ConcurrentHashMap<String, Int>()
 
-    // --- AVL history ---
-    private val tripHistory = LinkedHashMap<String, MutableList<ObaTripStatus>>()
-    private val fetchTimes = LinkedHashMap<String, MutableList<Long>>()
-    private val extrapolationAnchor = mutableMapOf<String, ObaTripStatus>()
-    private val anchorFetchTime = mutableMapOf<String, Long>()
+    private val trips = LinkedHashMap<String, Trip>()
 
-    // --- Caches ---
-    private val tripDetailsCache = HashMap<String, ObaTripDetailsResponse>()
-    private val scheduleCache = HashMap<String, ObaTripSchedule>()
-    private val serviceDateCache = HashMap<String, Long>()
-    private val shapeDataCache = HashMap<String, Polyline>()
-    private val routeTypeCache = HashMap<String, Int>()
-    /** Last active trip ID reported by the server for each queried trip. */
-    private val lastActiveTripId = HashMap<String, String?>()
+    // --- Trip registry ---
 
-    /** Single source of truth for all per-trip caches. Used by evictTrip and clearAll. */
-    private val perTripCaches: List<MutableMap<String, *>> = listOf(
-            tripHistory, fetchTimes, extrapolationAnchor, anchorFetchTime, tripDetailsCache,
-            scheduleCache, serviceDateCache, shapeDataCache,
-            routeTypeCache, lastActiveTripId,
-            scheduleFailures, shapeFailures
-    )
+    @Synchronized
+    fun getOrCreateTrip(tripId: String): Trip =
+            trips.getOrPut(tripId) { Trip(tripId) }
 
-    // --- Vehicle history ---
+    @Synchronized
+    fun getTrip(tripId: String?): Trip? =
+            if (tripId != null) trips[tripId] else null
+
+    // --- Recording ---
 
     /**
      * Records a trip status snapshot. Always updates the extrapolation anchor.
@@ -89,91 +75,42 @@ object TripDataManager {
     fun recordStatus(status: ObaTripStatus?) {
         if (status == null) return
         val tripId = status.activeTripId ?: return
-        recordStatusInternal(status, tripId)
-    }
-
-    /** Core recording logic. Caller must already hold the lock. */
-    private fun recordStatusInternal(status: ObaTripStatus, tripId: String) {
-        if (status.distanceAlongTrip != null) {
-            extrapolationAnchor[tripId] = status
-            anchorFetchTime[tripId] = System.currentTimeMillis()
-        }
-
-        val dist = status.distanceAlongTrip ?: return
-
-        val history = tripHistory.getOrPut(tripId) { mutableListOf() }
-        val times = fetchTimes.getOrPut(tripId) { mutableListOf() }
-
-        if (history.isNotEmpty() && dist == history.last().distanceAlongTrip) {
-            return
-        }
-
-        history.add(status)
-        times.add(System.currentTimeMillis())
-
-        if (history.size > MAX_ENTRIES_PER_TRIP) {
-            history.subList(0, history.size - MAX_ENTRIES_PER_TRIP).clear()
-            times.subList(0, times.size - MAX_ENTRIES_PER_TRIP).clear()
-        }
-
+        getOrCreateTrip(tripId).recordStatus(status)
         evictOldTripsIfNeeded()
     }
 
-    /** Removes the oldest tracked trips (by insertion order) when over the cap. */
-    private fun evictOldTripsIfNeeded() {
-        while (tripHistory.size > MAX_TRACKED_TRIPS) {
-            val oldest = tripHistory.keys.iterator().next()
-            evictTrip(oldest)
-        }
-    }
-
-    /** Removes all cached data for a single trip. Caller must hold the lock. */
-    private fun evictTrip(tripId: String) {
-        perTripCaches.forEach { it.remove(tripId) }
-        pendingScheduleFetches.remove(tripId)
-        pendingShapeFetches.remove(tripId)
-    }
-
-    /**
-     * Extracts trip status, active trip ID, and service date from a response and records them
-     * atomically.
-     */
     @Synchronized
     fun recordTripDetailsResponse(polledTripId: String?, response: ObaTripDetailsResponse?) {
         if (response == null) return
         val status = response.status ?: return
         if (polledTripId != null) {
-            lastActiveTripId[polledTripId] = status.activeTripId
+            getOrCreateTrip(polledTripId).lastActiveTripId = status.activeTripId
         }
         val activeTripId = status.activeTripId ?: return
-        recordStatusInternal(status, activeTripId)
+        val trip = getOrCreateTrip(activeTripId)
+        trip.recordStatus(status)
         if (status.serviceDate > 0) {
-            serviceDateCache[activeTripId] = status.serviceDate
+            trip.serviceDate = status.serviceDate
         }
+        evictOldTripsIfNeeded()
     }
 
-    /**
-     * Records all valid vehicle data from a trips-for-route API response: status snapshots,
-     * route types, and background fetches for schedules and shapes. Records all trips in the
-     * response regardless of which routes are displayed on the map.
-     */
     fun recordTripsForRouteResponse(response: ObaTripsForRouteResponse) {
-        for (trip in response.trips) {
-            val status = trip.status ?: continue
+        for (tripDetails in response.trips) {
+            val status = tripDetails.status ?: continue
             val activeTrip = response.getTrip(status.activeTripId) ?: continue
             val tripId = status.activeTripId ?: continue
 
-            recordStatus(status)
-            if (status.serviceDate > 0) {
-                putServiceDate(tripId, status.serviceDate)
-            }
-
-            if (getRouteType(tripId) == null) {
-                val routeId = activeTrip.routeId
-                val route = if (routeId != null) response.getRoute(routeId) else null
-                if (route != null) {
-                    putRouteType(tripId, route.type)
+            synchronized(this) {
+                val trip = getOrCreateTrip(tripId)
+                trip.recordStatus(status)
+                if (status.serviceDate > 0) trip.serviceDate = status.serviceDate
+                if (trip.routeType == null) {
+                    val routeId = activeTrip.routeId
+                    val route = if (routeId != null) response.getRoute(routeId) else null
+                    if (route != null) trip.routeType = route.type
                 }
+                evictOldTripsIfNeeded()
             }
 
             ensureSchedule(tripId)
@@ -184,72 +121,54 @@ object TripDataManager {
         }
     }
 
-    @Synchronized
-    fun getHistory(activeTripId: String?): List<ObaTripStatus> {
-        if (activeTripId == null) return emptyList()
-        return tripHistory[activeTripId]?.toList().orEmpty()
-    }
+    // --- Delegating accessors (for callers not yet using Trip directly) ---
 
     @Synchronized
-    fun getHistorySize(activeTripId: String?): Int {
-        if (activeTripId == null) return 0
-        return tripHistory[activeTripId]?.size ?: 0
-    }
+    fun getHistory(activeTripId: String?): List<ObaTripStatus> =
+            getTrip(activeTripId)?.history?.toList().orEmpty()
 
     @Synchronized
-    fun getFetchTimes(activeTripId: String?): List<Long> {
-        if (activeTripId == null) return emptyList()
-        return fetchTimes[activeTripId]?.toList().orEmpty()
-    }
+    fun getHistorySize(activeTripId: String?): Int =
+            getTrip(activeTripId)?.history?.size ?: 0
 
     @Synchronized
-    fun getLastState(activeTripId: String?): ObaTripStatus? {
-        if (activeTripId == null) return null
-        return tripHistory[activeTripId]?.lastOrNull()
-    }
+    fun getFetchTimes(activeTripId: String?): List<Long> =
+            getTrip(activeTripId)?.fetchTimes?.toList().orEmpty()
 
     @Synchronized
-    fun getExtrapolationAnchor(activeTripId: String?): ObaTripStatus? {
-        if (activeTripId == null) return null
-        return extrapolationAnchor[activeTripId]
-    }
+    fun getLastState(activeTripId: String?): ObaTripStatus? =
+            getTrip(activeTripId)?.history?.lastOrNull()
 
     @Synchronized
-    fun getAnchorFetchTime(activeTripId: String?): Long {
-        if (activeTripId == null) return 0
-        return anchorFetchTime[activeTripId] ?: 0
-    }
-
-    @Synchronized
-    fun getTrackedTripIds(): Set<String> = tripHistory.keys.toSet()
+    fun getTrackedTripIds(): Set<String> = trips.keys.toSet()
 
     // --- Trip details response cache ---
 
     @Synchronized
     fun putTripDetails(tripId: String, response: ObaTripDetailsResponse) {
-        tripDetailsCache[tripId] = response
+        getOrCreateTrip(tripId).tripDetailsResponse = response
     }
 
     @Synchronized
-    fun getTripDetails(tripId: String): ObaTripDetailsResponse? = tripDetailsCache[tripId]
+    fun getTripDetails(tripId: String): ObaTripDetailsResponse? =
+            getTrip(tripId)?.tripDetailsResponse
 
-    // --- Schedule cache ---
+    // --- Schedule ---
 
     @Synchronized
     fun putSchedule(tripId: String?, schedule: ObaTripSchedule?) {
         if (tripId != null && schedule != null) {
-            scheduleCache[tripId] = schedule
+            getOrCreateTrip(tripId).schedule = schedule
         }
     }
 
     @Synchronized
-    fun getSchedule(tripId: String): ObaTripSchedule? = scheduleCache[tripId]
+    fun getSchedule(tripId: String): ObaTripSchedule? = getTrip(tripId)?.schedule
 
     @Synchronized
     fun isScheduleCached(tripId: String?): Boolean =
-            tripId != null && scheduleCache.containsKey(tripId)
+            tripId != null && getTrip(tripId)?.schedule != null
 
-    /** Fetches and caches the schedule in the background if not already cached or in-flight. */
     fun ensureSchedule(tripId: String) {
         if (isScheduleCached(tripId) || !pendingScheduleFetches.add(tripId)) return
         if ((scheduleFailures[tripId] ?: 0) >= MAX_FETCH_FAILURES) return
@@ -279,36 +198,33 @@ object TripDataManager {
         }
     }
 
-    // --- Service date cache ---
+    // --- Service date ---
 
     @Synchronized
     fun putServiceDate(tripId: String?, serviceDate: Long) {
         if (tripId != null && serviceDate > 0) {
-            serviceDateCache[tripId] = serviceDate
+            getOrCreateTrip(tripId).serviceDate = serviceDate
         }
     }
 
-    @Synchronized fun getServiceDate(tripId: String?): Long? = tripId?.let { serviceDateCache[it] }
+    @Synchronized
+    fun getServiceDate(tripId: String?): Long? =
+            getTrip(tripId)?.serviceDate?.let { if (it > 0) it else null }
 
-    // --- Shape cache ---
+    // --- Shape ---
 
     @Synchronized
     fun putShape(tripId: String?, points: List<Location>?) {
         if (tripId != null && points != null && points.isNotEmpty()) {
-            shapeDataCache[tripId] = Polyline(points)
+            getOrCreateTrip(tripId).polyline = Polyline(points)
         }
     }
 
     @Synchronized fun getShape(tripId: String?): List<Location>? =
-            tripId?.let { shapeDataCache[it]?.points }
+            getTrip(tripId)?.polyline?.points
 
-    @Synchronized fun getPolyline(tripId: String): Polyline? = shapeDataCache[tripId]
+    @Synchronized fun getPolyline(tripId: String): Polyline? = getTrip(tripId)?.polyline
 
-    /**
-     * Fetches and caches the shape in the background if not already cached or in-flight.
-     * If [onReady] is provided, it is always invoked on the main thread with the [Polyline]
-     * once the shape is available. If the fetch fails, [onError] is invoked on the main thread.
-     */
     @JvmOverloads
     fun ensureShape(
             tripId: String,
@@ -353,35 +269,43 @@ object TripDataManager {
         }
     }
 
-    // --- Route type cache ---
+    // --- Route type ---
 
     @Synchronized
     fun putRouteType(tripId: String, type: Int) {
-        routeTypeCache[tripId] = type
+        getOrCreateTrip(tripId).routeType = type
     }
 
-    @Synchronized fun getRouteType(tripId: String): Int? = routeTypeCache[tripId]
+    @Synchronized fun getRouteType(tripId: String): Int? = getTrip(tripId)?.routeType
 
     // --- Active trip ID tracking ---
 
     @Synchronized
     fun putLastActiveTripId(polledTripId: String?, activeTripId: String?) {
         if (polledTripId != null) {
-            lastActiveTripId[polledTripId] = activeTripId
+            getOrCreateTrip(polledTripId).lastActiveTripId = activeTripId
         }
     }
 
     @Synchronized
     fun getLastActiveTripId(polledTripId: String): String? =
-            lastActiveTripId[polledTripId]
+            getTrip(polledTripId)?.lastActiveTripId
 
-    // --- Clear ---
+    // --- Eviction and cleanup ---
+
+    private fun evictOldTripsIfNeeded() {
+        while (trips.size > MAX_TRACKED_TRIPS) {
+            val oldest = trips.keys.iterator().next()
+            trips.remove(oldest)
+            pendingScheduleFetches.remove(oldest)
+            pendingShapeFetches.remove(oldest)
+        }
+    }
 
     @Synchronized
     fun clearAll() {
-        perTripCaches.forEach { it.clear() }
+        trips.clear()
         pendingScheduleFetches.clear()
         pendingShapeFetches.clear()
     }
-
 }

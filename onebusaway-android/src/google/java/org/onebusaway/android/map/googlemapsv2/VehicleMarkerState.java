@@ -17,20 +17,18 @@ package org.onebusaway.android.map.googlemapsv2;
 
 import com.google.android.gms.maps.model.Marker;
 
-import org.onebusaway.android.extrapolation.Extrapolator;
+import org.onebusaway.android.extrapolation.data.Trip;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 
 /**
- * Per-vehicle state on the main map view. One instance per tracked trip.
- * All fields are package-private — owned and managed by {@link VehicleMapController}.
+ * Per-vehicle display state on the main map view. One instance per tracked trip.
+ * Trip-level data (history, schedule, extrapolation) lives on {@link Trip};
+ * this holds only display/animation state.
  */
 class VehicleMarkerState {
 
-    final String tripId;
+    final Trip trip;
     ObaTripStatus status;
-    Extrapolator extrapolator;
-    boolean extrapolating;
-    long lastFixTimeMs;
     boolean animating;
     boolean selected;
 
@@ -40,8 +38,8 @@ class VehicleMarkerState {
     Marker dataReceivedMarker;
     long dataReceivedFixTime;
 
-    VehicleMarkerState(String tripId, ObaTripStatus status) {
-        this.tripId = tripId;
+    VehicleMarkerState(Trip trip, ObaTripStatus status) {
+        this.trip = trip;
         this.status = status;
     }
 }

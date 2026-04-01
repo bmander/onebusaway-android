@@ -90,9 +90,8 @@ import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.nav.NavigationService;
 import org.onebusaway.android.extrapolation.ExtrapolationResult;
-import org.onebusaway.android.extrapolation.Extrapolator;
-import org.onebusaway.android.extrapolation.ExtrapolatorKt;
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
+import org.onebusaway.android.extrapolation.data.Trip;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.ArrivalInfoUtils;
@@ -144,7 +143,7 @@ public class TripDetailsListFragment extends ListFragment {
     public static final int REQUEST_ENABLE_LOCATION = 1;
 
     private String mTripId;
-    private Extrapolator mExtrapolator;
+    private Trip mTrip;
 
     private String mRouteId;
 
@@ -554,10 +553,10 @@ public class TripDetailsListFragment extends ListFragment {
             // Only extrapolate if this is the active trip
             if (activeTripId == null || !activeTripId.equals(mTripId)) return;
 
-            if (mExtrapolator == null) {
-                mExtrapolator = ExtrapolatorKt.createExtrapolator(activeTripId, dm);
+            if (mTrip == null) {
+                mTrip = dm.getOrCreateTrip(activeTripId);
             }
-            ExtrapolationResult result = mExtrapolator.extrapolate(System.currentTimeMillis());
+            ExtrapolationResult result = mTrip.extrapolate(System.currentTimeMillis());
             if (!(result instanceof ExtrapolationResult.Success)) return;
 
             Double extrapolatedDist = ((ExtrapolationResult.Success) result).getDistribution().median();

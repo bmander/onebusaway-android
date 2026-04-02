@@ -22,7 +22,6 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.Gravity
 import android.view.MenuItem
 import android.view.View
@@ -39,11 +38,12 @@ import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.MPS_TO_MPH
 import org.onebusaway.android.extrapolation.data.Trip
 import org.onebusaway.android.extrapolation.data.TripDataManager
+
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
-import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.elements.ObaTripStatus
 
-import org.onebusaway.android.io.request.ObaTripDetailsRequest
+
+
 import org.onebusaway.android.util.UIUtils
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -55,7 +55,6 @@ private const val PAD_V = 6
 private const val TEXT_SIZE = 12f
 private const val DASH = "\u2014"
 private const val UI_REFRESH_MS = 1_000L
-private const val POLL_INTERVAL_MS = 30_000L
 
 /**
  * Debug activity that displays all collected location data for a vehicle's trip
@@ -88,7 +87,6 @@ class VehicleLocationDataActivity : AppCompatActivity() {
     private var trip: Trip? = null
 
     private val refreshHandler = Handler(Looper.getMainLooper())
-    private val pollHandler = Handler(Looper.getMainLooper())
     private var lastRowCount = -1
 
     private lateinit var tableContainer: View
@@ -100,9 +98,6 @@ class VehicleLocationDataActivity : AppCompatActivity() {
 
     private val refreshRunnable = object : Runnable {
         override fun run() { refreshData(); refreshHandler.postDelayed(this, UI_REFRESH_MS) }
-    }
-    private val pollRunnable = object : Runnable {
-        override fun run() { pollTrip(); pollHandler.postDelayed(this, POLL_INTERVAL_MS) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -132,15 +127,12 @@ class VehicleLocationDataActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        pollTrip()
-        pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
         refreshData()
         refreshHandler.postDelayed(refreshRunnable, UI_REFRESH_MS)
     }
 
     override fun onPause() {
         refreshHandler.removeCallbacks(refreshRunnable)
-        pollHandler.removeCallbacks(pollRunnable)
         super.onPause()
     }
 
@@ -230,21 +222,6 @@ class VehicleLocationDataActivity : AppCompatActivity() {
             val scrollView = tableContainer.parent as? android.widget.ScrollView
             scrollView?.post { scrollView.smoothScrollTo(0, dataRows[index].top) }
         }
-    }
-
-    // --- Polling ---
-
-    private fun pollTrip() {
-        Thread {
-            try {
-                val response = ObaTripDetailsRequest.newRequest(applicationContext, tripId).call()
-                if (response != null && response.code == ObaApi.OBA_OK) {
-                    TripDataManager.recordTripDetailsResponse(tripId, response)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to poll trip details for $tripId", e)
-            }
-        }.start()
     }
 
     // --- Table rendering ---

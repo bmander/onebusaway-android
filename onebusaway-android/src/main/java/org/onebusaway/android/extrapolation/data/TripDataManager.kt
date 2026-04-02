@@ -289,6 +289,9 @@ object TripDataManager {
     }
 
     @Synchronized
+    // TODO: Rename — "get trip id for trip id returning a different trip id" is confusing.
+    //  This tracks when a vehicle switches trips (e.g. finishes one run, starts the next).
+    //  The parameter is the trip we're watching; the return is what the vehicle is actually running.
     fun getLastActiveTripId(polledTripId: String): String? =
             getTrip(polledTripId)?.lastActiveTripId
 
@@ -308,5 +311,6 @@ object TripDataManager {
         trips.clear()
         pendingScheduleFetches.clear()
         pendingShapeFetches.clear()
+        TripDetailsPoller.clearPollState()
     }
 }

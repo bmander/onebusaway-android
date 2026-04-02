@@ -27,6 +27,7 @@ import org.onebusaway.android.io.request.ObaTripsForRouteRequest;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.MapUtils;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
+import org.onebusaway.android.extrapolation.data.TripDetailsPoller;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.UIUtils;
 
@@ -540,7 +541,7 @@ public class RouteMapController implements MapModeController {
             routes.clear();
             routes.add(mRouteId);
 
-            TripDataManager.getInstance().recordTripsForRouteResponse(response);
+            TripDetailsPoller.recordBatchResponse(response);
             obaMapView.updateVehicles(routes, response);
 
             if (mPendingTripSelection != null) {

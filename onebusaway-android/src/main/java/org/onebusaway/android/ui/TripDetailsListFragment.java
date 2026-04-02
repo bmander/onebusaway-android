@@ -56,9 +56,6 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.ActivityCompat;
 import androidx.core.graphics.drawable.DrawableCompat;
-import androidx.loader.app.LoaderManager;
-import androidx.loader.content.AsyncTaskLoader;
-import androidx.loader.content.Loader;
 
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.common.api.ResolvableApiException;
@@ -86,13 +83,13 @@ import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.elements.OccupancyState;
 import org.onebusaway.android.io.elements.Status;
-import org.onebusaway.android.io.request.ObaTripDetailsRequest;
 import org.onebusaway.android.io.request.ObaTripDetailsResponse;
 import org.onebusaway.android.nav.NavigationService;
 import org.onebusaway.android.extrapolation.ExtrapolationResult;
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
 import org.onebusaway.android.extrapolation.data.Trip;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
+import org.onebusaway.android.extrapolation.data.TripDetailsPoller;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.DBUtil;
@@ -134,13 +131,11 @@ public class TripDetailsListFragment extends ListFragment {
 
     public static final String ACTION_SERVICE_DESTROYED = "NavigationServiceDestroyed";
 
-    private static final long REFRESH_PERIOD = 60 * 1000;
-
     private static final long POSITION_TICK_MS = 1000;
 
-    private static final int TRIP_DETAILS_LOADER = 0;
-
     public static final int REQUEST_ENABLE_LOCATION = 1;
+
+    private final TripDataManager mDataManager = TripDataManager.getInstance();
 
     private String mTripId;
     private Trip mTrip;
@@ -162,8 +157,6 @@ public class TripDetailsListFragment extends ListFragment {
     private ObaTripDetailsResponse mTripInfo;
 
     private TripDetailsAdapter mAdapter;
-
-    private final TripDetailsLoaderCallback mTripDetailsCallback = new TripDetailsLoaderCallback();
 
     private LocationRequest mLocationRequest;
     private Task<LocationSettingsResponse> mResult;
@@ -246,7 +239,8 @@ public class TripDetailsListFragment extends ListFragment {
 
         mDestinationId = args.getString(DEST_ID);
 
-        getLoaderManager().initLoader(TRIP_DETAILS_LOADER, null, mTripDetailsCallback);
+        // Kick off initial fetch
+        TripDetailsPoller.fetchIfNeeded(mTripId);
     }
 
     @Override
@@ -271,36 +265,19 @@ public class TripDetailsListFragment extends ListFragment {
 
     @Override
     public void onPause() {
-        mRefreshHandler.removeCallbacks(mRefresh);
         mPositionTickHandler.removeCallbacks(mPositionTick);
         super.onPause();
     }
 
     @Override
     public void onResume() {
-        // Try to show any old data just in case we're coming out of sleep
-        TripDetailsLoader loader = getTripDetailsLoader();
-        if (loader != null) {
-            ObaTripDetailsResponse lastGood = loader.getLastGoodResponse();
-            if (lastGood != null) {
-                setTripDetails(lastGood);
-            }
+        // Show cached data if available
+        ObaTripDetailsResponse cached = mDataManager.getTripDetails(mTripId);
+        if (cached != null) {
+            setTripDetails(cached);
         }
 
-        getLoaderManager().restartLoader(TRIP_DETAILS_LOADER, null, mTripDetailsCallback);
-
-        // If our timer would have gone off, then refresh.
-        long lastResponseTime = getTripDetailsLoader().getLastResponseTime();
-        long newPeriod = Math.min(REFRESH_PERIOD, (lastResponseTime + REFRESH_PERIOD)
-                - System.currentTimeMillis());
-        // Wait at least one second at least, and the full minute at most.
-        //Log.d(TAG, "Refresh period:" + newPeriod);
-        if (newPeriod <= 0) {
-            refresh();
-        } else {
-            mRefreshHandler.postDelayed(mRefresh, newPeriod);
-        }
-
+        TripDetailsPoller.fetchIfNeeded(mTripId);
         mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
 
         super.onResume();
@@ -311,7 +288,7 @@ public class TripDetailsListFragment extends ListFragment {
 
         // Cache the full response so the map fragment can read it by tripId
         if (mTripId != null) {
-            TripDataManager.getInstance().putTripDetails(mTripId, data);
+            mDataManager.putTripDetails(mTripId, data);
         }
 
         final int code = mTripInfo.getCode();
@@ -324,7 +301,7 @@ public class TripDetailsListFragment extends ListFragment {
 
         // Push vehicle state into the trip data manager so speed estimation
         // and the trajectory debug view can use it
-        TripDataManager.getInstance().recordTripDetailsResponse(mTripId, data);
+        mDataManager.recordTripDetailsResponse(mTripId, data);
 
         setUpHeader();
         final ListView listView = getListView();
@@ -536,6 +513,15 @@ public class TripDetailsListFragment extends ListFragment {
 
     private void updateVehiclePosition() {
         try {
+            // Pick up fresh data from poller
+            ObaTripDetailsResponse fresh = mDataManager.getTripDetails(mTripId);
+            if (fresh != null && fresh != mTripInfo) {
+                setTripDetails(fresh);
+                if (mTripDataCallback != null) {
+                    mTripDataCallback.onTripDataLoaded(fresh);
+                }
+                if (isResumed()) setListShown(true);
+            }
             if (mAdapter == null || mTripInfo == null) return;
             ObaTripSchedule schedule = mTripInfo.getSchedule();
             if (schedule == null || schedule.getStopTimes() == null) return;
@@ -544,8 +530,7 @@ public class TripDetailsListFragment extends ListFragment {
             if (status == null) return;
 
             // Determine the active trip ID
-            TripDataManager dm = TripDataManager.getInstance();
-            String activeTripId = dm.getLastActiveTripId(mTripId);
+            String activeTripId = mDataManager.getLastActiveTripId(mTripId);
             if (activeTripId == null) {
                 activeTripId = status.getActiveTripId();
             }
@@ -554,7 +539,7 @@ public class TripDetailsListFragment extends ListFragment {
             if (activeTripId == null || !activeTripId.equals(mTripId)) return;
 
             if (mTrip == null) {
-                mTrip = dm.getOrCreateTrip(activeTripId);
+                mTrip = mDataManager.getOrCreateTrip(activeTripId);
             }
             ExtrapolationResult result = mTrip.extrapolate(System.currentTimeMillis());
             if (!(result instanceof ExtrapolationResult.Success)) return;
@@ -583,16 +568,15 @@ public class TripDetailsListFragment extends ListFragment {
         }
 
         // Cache schedule and service date so the trajectory graph can use them
-        TripDataManager dm = TripDataManager.getInstance();
         ObaTripSchedule schedule = mTripInfo.getSchedule();
         if (schedule != null) {
-            dm.putSchedule(activeTripId, schedule);
+            mDataManager.putSchedule(activeTripId, schedule);
         }
         if (status.getServiceDate() > 0) {
-            dm.putServiceDate(activeTripId, status.getServiceDate());
+            mDataManager.putServiceDate(activeTripId, status.getServiceDate());
         }
 
-        boolean newHasData = dm.getHistorySize(activeTripId) > 0;
+        boolean newHasData = mDataManager.getHistorySize(activeTripId) > 0;
         String newVehicleId = status.getVehicleId();
         if (newHasData != mHasLocationData || !TextUtils.equals(newVehicleId, mActiveVehicleId)) {
             mHasLocationData = newHasData;
@@ -848,113 +832,7 @@ public class TripDetailsListFragment extends ListFragment {
         return builder.create();
     }
 
-    private final Handler mRefreshHandler = new Handler();
 
-    private final Runnable mRefresh = new Runnable() {
-        public void run() {
-            refresh();
-        }
-    };
-
-    private TripDetailsLoader getTripDetailsLoader() {
-        // If the Fragment hasn't been attached to an Activity yet, return null
-        if (!isAdded()) {
-            return null;
-        }
-
-        Loader<ObaTripDetailsResponse> l =
-                getLoaderManager().getLoader(TRIP_DETAILS_LOADER);
-        return (TripDetailsLoader) l;
-    }
-
-    void refresh() {
-        if (isAdded()) {
-            UIUtils.showProgress(this, true);
-            getTripDetailsLoader().onContentChanged();
-        }
-    }
-
-    private final class TripDetailsLoaderCallback
-            implements LoaderManager.LoaderCallbacks<ObaTripDetailsResponse> {
-
-        @Override
-        public Loader<ObaTripDetailsResponse> onCreateLoader(int id, Bundle args) {
-            return new TripDetailsLoader(getActivity(), mTripId);
-        }
-
-        @Override
-        public void onLoadFinished(Loader<ObaTripDetailsResponse> loader,
-                                   ObaTripDetailsResponse data) {
-            setTripDetails(data);
-
-            // Notify the activity that trip data is available
-            if (mTripDataCallback != null) {
-                mTripDataCallback.onTripDataLoaded(data);
-            }
-
-            // The list should now be shown.
-            if (isResumed()) {
-                setListShown(true);
-            } else {
-                setListShownNoAnimation(true);
-            }
-
-            // Clear any pending refreshes
-            mRefreshHandler.removeCallbacks(mRefresh);
-
-            // Post an update
-            mRefreshHandler.postDelayed(mRefresh, REFRESH_PERIOD);
-        }
-
-        @Override
-        public void onLoaderReset(Loader<ObaTripDetailsResponse> loader) {
-            // Nothing to do right here...
-        }
-    }
-
-    private final static class TripDetailsLoader extends AsyncTaskLoader<ObaTripDetailsResponse> {
-
-        private final String mTripId;
-
-        private ObaTripDetailsResponse mLastGoodResponse;
-
-        private long mLastResponseTime = 0;
-
-        private long mLastGoodResponseTime = 0;
-
-        TripDetailsLoader(Context context, String tripId) {
-            super(context);
-            mTripId = tripId;
-        }
-
-        @Override
-        public ObaTripDetailsResponse loadInBackground() {
-            return ObaTripDetailsRequest.newRequest(getContext(), mTripId).call();
-        }
-
-        @Override
-        public void deliverResult(ObaTripDetailsResponse data) {
-            mLastResponseTime = System.currentTimeMillis();
-            if (data.getCode() == ObaApi.OBA_OK) {
-                mLastGoodResponse = data;
-                TripDataManager.getInstance().recordTripDetailsResponse(mTripId, data);
-                mLastGoodResponseTime = mLastResponseTime;
-            }
-            super.deliverResult(data);
-        }
-
-        public long getLastResponseTime() {
-            return mLastResponseTime;
-        }
-
-        public ObaTripDetailsResponse getLastGoodResponse() {
-            return mLastGoodResponse;
-        }
-
-        public long getLastGoodResponseTime() {
-            return mLastGoodResponseTime;
-        }
-    }
 
     private final class TripDetailsAdapter extends BaseAdapter {
 

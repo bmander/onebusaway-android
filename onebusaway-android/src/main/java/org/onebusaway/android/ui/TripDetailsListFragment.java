@@ -276,6 +276,7 @@ public class TripDetailsListFragment extends ListFragment {
         ObaTripDetailsResponse cached = mDataManager.getTripDetails(mTripId);
         if (cached != null) {
             setTripDetails(cached);
+            setListShown(true);
         }
 
         TripPollingService.subscribeTripDetails(mTripId);

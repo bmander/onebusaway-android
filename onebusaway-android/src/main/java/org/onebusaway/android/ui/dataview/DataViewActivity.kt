@@ -18,29 +18,33 @@ package org.onebusaway.android.ui.dataview
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.MenuItem
 import android.view.View
-import android.view.ViewGroup
-import android.widget.BaseAdapter
-import android.widget.ListView
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import org.onebusaway.android.R
 import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.extrapolation.data.TripPollingService
+import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.util.UIUtils
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /**
- * Hub activity listing all trips with collected AVL data. Tapping a row opens
- * [VehicleLocationDataActivity] for that trip.
+ * Dashboard activity showing live polling status, active subscriptions,
+ * and collected trip data.
  */
 class DataViewActivity : AppCompatActivity() {
 
     companion object {
+        private const val REFRESH_MS = 1_000L
+
         @JvmStatic
         fun start(context: Context) {
             context.startActivity(Intent(context, DataViewActivity::class.java))
@@ -48,8 +52,23 @@ class DataViewActivity : AppCompatActivity() {
     }
 
     private val timeFmt = SimpleDateFormat("h:mm:ss a", Locale.getDefault())
-    private lateinit var listView: ListView
-    private var adapter: TripAdapter? = null
+    private val refreshHandler = Handler(Looper.getMainLooper())
+    private val refreshRunnable = object : Runnable {
+        override fun run() {
+            refreshAll()
+            refreshHandler.postDelayed(this, REFRESH_MS)
+        }
+    }
+
+    private lateinit var pollingStatusText: TextView
+    private lateinit var subscriptionsEmpty: TextView
+    private lateinit var subscriptionsContainer: LinearLayout
+    private lateinit var collectedDataEmpty: TextView
+    private lateinit var collectedDataContainer: LinearLayout
+
+    private var lastSubscriptionRoutes: Set<String> = emptySet()
+    private var lastSubscriptionTrips: Map<String, Int> = emptyMap()
+    private var lastTrackedTripIds: Set<String> = emptySet()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,18 +79,22 @@ class DataViewActivity : AppCompatActivity() {
         UIUtils.setupActionBar(this)
         supportActionBar?.setTitle(R.string.data_views_title)
 
-        listView = findViewById(R.id.trip_list)
-        listView.emptyView = findViewById(R.id.empty_text)
-        listView.setOnItemClickListener { _, _, position, _ ->
-            adapter?.getItem(position)?.let { row ->
-                VehicleLocationDataActivity.start(this, row.tripId, row.vehicleId)
-            }
-        }
+        pollingStatusText = findViewById(R.id.polling_status)
+        subscriptionsEmpty = findViewById(R.id.subscriptions_empty)
+        subscriptionsContainer = findViewById(R.id.subscriptions_container)
+        collectedDataEmpty = findViewById(R.id.collected_data_empty)
+        collectedDataContainer = findViewById(R.id.collected_data_container)
     }
 
     override fun onResume() {
         super.onResume()
-        refreshList()
+        refreshAll()
+        refreshHandler.postDelayed(refreshRunnable, REFRESH_MS)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        refreshHandler.removeCallbacks(refreshRunnable)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -79,49 +102,112 @@ class DataViewActivity : AppCompatActivity() {
         return super.onOptionsItemSelected(item)
     }
 
-    private fun refreshList() {
-        val rows = TripDataManager.getTrackedTripIds().map { tripId ->
-            val count = TripDataManager.getHistorySize(tripId)
-            val lastState = TripDataManager.getLastState(tripId)
-            TripRow(tripId, lastState?.vehicleId, count, lastState?.lastLocationUpdateTime ?: 0)
-        }
+    private fun refreshAll() {
+        val snapshot = TripPollingService.getSnapshot()
+        refreshPollingStatus(snapshot)
+        refreshSubscriptions(snapshot)
+        refreshCollectedData()
+    }
 
-        adapter?.updateRows(rows) ?: run {
-            adapter = TripAdapter(rows)
-            listView.adapter = adapter
+    private fun refreshPollingStatus(snapshot: TripPollingService.PollingSnapshot) {
+        if (snapshot.isTicking && snapshot.lastTickTimeMs > 0) {
+            val elapsed = System.currentTimeMillis() - snapshot.lastTickTimeMs
+            pollingStatusText.text = getString(
+                    R.string.data_views_polling_active, formatElapsed(elapsed))
+        } else {
+            pollingStatusText.text = getString(R.string.data_views_polling_inactive)
         }
     }
 
-    // --- Data and adapter ---
+    private fun refreshSubscriptions(snapshot: TripPollingService.PollingSnapshot) {
+        val hasSubscriptions = snapshot.subscribedRouteIds.isNotEmpty()
+                || snapshot.subscribedTripIds.isNotEmpty()
+        subscriptionsEmpty.visibility = if (hasSubscriptions) View.GONE else View.VISIBLE
+        subscriptionsContainer.visibility = if (hasSubscriptions) View.VISIBLE else View.GONE
 
-    private data class TripRow(
-            val tripId: String,
-            val vehicleId: String?,
-            val sampleCount: Int,
-            val lastUpdateTime: Long
-    )
+        if (!hasSubscriptions) return
 
-    private inner class TripAdapter(private var rows: List<TripRow>) : BaseAdapter() {
-        fun updateRows(newRows: List<TripRow>) { rows = newRows; notifyDataSetChanged() }
-        override fun getCount() = rows.size
-        override fun getItem(position: Int) = rows[position]
-        override fun getItemId(position: Int) = position.toLong()
+        // Only rebuild views if subscriptions changed
+        if (snapshot.subscribedRouteIds == lastSubscriptionRoutes
+                && snapshot.subscribedTripIds == lastSubscriptionTrips) return
+        lastSubscriptionRoutes = snapshot.subscribedRouteIds
+        lastSubscriptionTrips = snapshot.subscribedTripIds
 
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-            val view = convertView ?: LayoutInflater.from(this@DataViewActivity)
-                    .inflate(R.layout.item_data_view_trip, parent, false)
-            val row = rows[position]
-            view.findViewById<TextView>(R.id.trip_id).text = row.tripId
-            view.findViewById<TextView>(R.id.trip_details).text = buildDetailText(row)
-            return view
+        subscriptionsContainer.removeAllViews()
+        for (routeId in snapshot.subscribedRouteIds) {
+            addRowText(subscriptionsContainer,
+                    getString(R.string.data_views_route_subscription, routeId))
         }
+        for ((tripId, refCount) in snapshot.subscribedTripIds) {
+            addRowText(subscriptionsContainer,
+                    getString(R.string.data_views_trip_subscription, tripId, refCount))
+        }
+    }
 
-        private fun buildDetailText(row: TripRow) = buildString {
-            row.vehicleId?.let { append("Vehicle: $it  ") }
-            append("Samples: ${row.sampleCount}")
-            if (row.lastUpdateTime > 0) {
-                append("  Last: ${timeFmt.format(Date(row.lastUpdateTime))}")
+    private fun refreshCollectedData() {
+        val tripIds = TripDataManager.getTrackedTripIds()
+        val hasData = tripIds.isNotEmpty()
+        collectedDataEmpty.visibility = if (hasData) View.GONE else View.VISIBLE
+        collectedDataContainer.visibility = if (hasData) View.VISIBLE else View.GONE
+
+        if (!hasData) return
+
+        // Only rebuild if tracked trips changed
+        if (tripIds == lastTrackedTripIds) {
+            // Update details in-place
+            updateCollectedDataDetails(tripIds)
+            return
+        }
+        lastTrackedTripIds = tripIds.toSet()
+
+        collectedDataContainer.removeAllViews()
+        for (tripId in tripIds) {
+            val view = LayoutInflater.from(this)
+                    .inflate(R.layout.item_data_view_trip, collectedDataContainer, false)
+            view.tag = tripId
+            view.findViewById<TextView>(R.id.trip_id).text = tripId
+            view.findViewById<TextView>(R.id.trip_details).text =
+                    buildDetailText(tripId, TripDataManager.getLastState(tripId))
+            view.setOnClickListener {
+                val currentState = TripDataManager.getLastState(tripId)
+                VehicleLocationDataActivity.start(this, tripId, currentState?.vehicleId)
             }
+            collectedDataContainer.addView(view)
+        }
+    }
+
+    private fun updateCollectedDataDetails(tripIds: Set<String>) {
+        for (i in 0 until collectedDataContainer.childCount) {
+            val view = collectedDataContainer.getChildAt(i)
+            val tripId = view.tag as? String ?: continue
+            if (tripId !in tripIds) continue
+            view.findViewById<TextView>(R.id.trip_details).text =
+                    buildDetailText(tripId, TripDataManager.getLastState(tripId))
+        }
+    }
+
+    private fun buildDetailText(tripId: String, lastState: ObaTripStatus?) = buildString {
+        lastState?.vehicleId?.let { append("Vehicle: $it  ") }
+        append("Samples: ${TripDataManager.getHistorySize(tripId)}")
+        val updateTime = lastState?.lastLocationUpdateTime ?: 0
+        if (updateTime > 0) {
+            append("  Last: ${timeFmt.format(Date(updateTime))}")
+        }
+    }
+
+    private fun addRowText(container: LinearLayout, text: String) {
+        val tv = TextView(this)
+        tv.setTextAppearance(R.style.VehicleDebugRow)
+        tv.text = text
+        container.addView(tv)
+    }
+
+    private fun formatElapsed(ms: Long): String {
+        val sec = ms / 1000
+        return when {
+            sec < 60 -> "${sec}s"
+            sec < 3600 -> "${sec / 60}m ${sec % 60}s"
+            else -> "${sec / 3600}h ${(sec % 3600) / 60}m"
         }
     }
 }

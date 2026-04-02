@@ -41,6 +41,25 @@ object TripPollingService {
     private const val TAG = "TripPollingService"
     private const val TICK_INTERVAL_MS = 10_000L
 
+    @Volatile
+    var lastTickTimeMs = 0L
+        private set
+
+    data class PollingSnapshot(
+            val isTicking: Boolean,
+            val lastTickTimeMs: Long,
+            val subscribedRouteIds: Set<String>,
+            val subscribedTripIds: Map<String, Int>
+    )
+
+    @JvmStatic
+    fun getSnapshot(): PollingSnapshot = PollingSnapshot(
+            isTicking = ticking,
+            lastTickTimeMs = lastTickTimeMs,
+            subscribedRouteIds = routeSubscriptions.keys.toSet(),
+            subscribedTripIds = tripRefCounts.toMap()
+    )
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private val fetchExecutor = Executors.newSingleThreadExecutor()
 
@@ -85,6 +104,7 @@ object TripPollingService {
     fun subscribeTripDetails(tripId: String) {
         tripRefCounts.compute(tripId) { _, count -> (count ?: 0) + 1 }
         ensureTicking()
+        fetchNow(tripId)
     }
 
     @JvmStatic
@@ -103,6 +123,7 @@ object TripPollingService {
     // --- Tick ---
 
     private fun tick() {
+        lastTickTimeMs = System.currentTimeMillis()
         val coveredTripIds = mutableSetOf<String>()
 
         // 1. Poll all subscribed routes (batch)
@@ -149,6 +170,7 @@ object TripPollingService {
         val ctx = Application.get().applicationContext
         val response = ObaTripDetailsRequest.newRequest(ctx, tripId).call()
         if (response != null) {
+            TripDataManager.putTripDetails(tripId, response)
             TripDataManager.recordTripDetailsResponse(tripId, response)
         }
     }

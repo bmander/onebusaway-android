@@ -72,10 +72,10 @@ object TripDataManager {
      * Deduplicates history by distance — only adds an entry when the vehicle has moved.
      */
     @Synchronized
-    fun recordStatus(status: ObaTripStatus?) {
+    fun recordStatus(status: ObaTripStatus?, serverTimeMs: Long) {
         if (status == null) return
         val tripId = status.activeTripId ?: return
-        getOrCreateTrip(tripId).recordStatus(status)
+        getOrCreateTrip(tripId).recordStatus(status, serverTimeMs)
         evictOldTripsIfNeeded()
     }
 
@@ -88,7 +88,7 @@ object TripDataManager {
         }
         val activeTripId = status.activeTripId ?: return
         val trip = getOrCreateTrip(activeTripId)
-        trip.recordStatus(status)
+        trip.recordStatus(status, response.currentTime)
         if (status.serviceDate > 0) {
             trip.serviceDate = status.serviceDate
         }
@@ -96,6 +96,7 @@ object TripDataManager {
     }
 
     fun recordTripsForRouteResponse(response: ObaTripsForRouteResponse) {
+        val serverTime = response.currentTime
         for (tripDetails in response.trips) {
             val status = tripDetails.status ?: continue
             val activeTrip = response.getTrip(status.activeTripId) ?: continue
@@ -103,7 +104,7 @@ object TripDataManager {
 
             synchronized(this) {
                 val trip = getOrCreateTrip(tripId)
-                trip.recordStatus(status)
+                trip.recordStatus(status, serverTime)
                 if (status.serviceDate > 0) trip.serviceDate = status.serviceDate
                 if (trip.routeType == null) {
                     val routeId = activeTrip.routeId

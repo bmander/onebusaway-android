@@ -60,7 +60,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, 1000L
         )
 
-        dm.recordStatus(status)
+        dm.recordStatus(status, System.currentTimeMillis())
 
         val history = dm.getHistory("trip1")
         assertEquals(1, history.size)
@@ -74,7 +74,7 @@ class SpeedEstimatorTest {
                 "v1", "trip1", 47.0 + i * 0.001, -122.0,
                 100.0 * i, 100.0 * i, 5000.0, 1000L + i * 30000L
             )
-            dm.recordStatus(status)
+            dm.recordStatus(status, System.currentTimeMillis())
         }
 
         val history = dm.getHistory("trip1")
@@ -90,8 +90,8 @@ class SpeedEstimatorTest {
             "v2", "trip2", 47.5, -122.5, 200.0, 200.0, 6000.0, 1000L
         )
 
-        dm.recordStatus(status1)
-        dm.recordStatus(status2)
+        dm.recordStatus(status1, System.currentTimeMillis())
+        dm.recordStatus(status2, System.currentTimeMillis())
 
         assertEquals(1, dm.getHistory("trip1").size)
         assertEquals(1, dm.getHistory("trip2").size)
@@ -102,7 +102,7 @@ class SpeedEstimatorTest {
         val status = createStatus(
             "v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, 1000L
         )
-        dm.recordStatus(status)
+        dm.recordStatus(status, System.currentTimeMillis())
         assertEquals(1, dm.getHistory("trip1").size)
 
         dm.clearAll()
@@ -114,7 +114,7 @@ class SpeedEstimatorTest {
         val status = createStatus(
             "v1", "trip1", 47.0, -122.0, 100.0, 100.0, 5000.0, 1000L
         )
-        dm.recordStatus(status)
+        dm.recordStatus(status, System.currentTimeMillis())
 
         val history = dm.getHistory("trip1")
         history.toMutableList().clear() // Modifying a copy
@@ -141,13 +141,13 @@ class SpeedEstimatorTest {
             scheduleDeviation = 0L,
             predicted = true
         )
-        dm.recordStatus(statusWithNullTrip)
+        dm.recordStatus(statusWithNullTrip, System.currentTimeMillis())
         // Should not throw, just silently ignore
     }
 
     @Test
     fun testTrackerNullStatusIgnored() {
-        dm.recordStatus(null)
+        dm.recordStatus(null, System.currentTimeMillis())
         assertEquals(0, dm.getHistory("trip1").size)
     }
 
@@ -235,7 +235,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 100.0, 95.0, 5000.0, 1000L, false
         )
 
-        dm.recordStatus(status)
+        dm.recordStatus(status, System.currentTimeMillis())
         assertEquals(0, dm.getHistorySize("trip1"))
     }
 
@@ -245,7 +245,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.0, -122.0, 100.0, 95.0, 5000.0, 1000L, true
         )
 
-        dm.recordStatus(status)
+        dm.recordStatus(status, System.currentTimeMillis())
         assertEquals(1, dm.getHistorySize("trip1"))
     }
 
@@ -272,8 +272,8 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.001, -122.0, 400.0, 400.0, 5000.0, queryTime
         )
 
-        dm.recordStatus(status1)
-        dm.recordStatus(status2)
+        dm.recordStatus(status1, System.currentTimeMillis())
+        dm.recordStatus(status2, System.currentTimeMillis())
 
         val result = extrapolator.extrapolate(queryTime + 5000)
         assertTrue("Should succeed", result is ExtrapolationResult.Success)
@@ -289,7 +289,7 @@ class SpeedEstimatorTest {
         val status = createStatus(
             "v1", "trip1", 47.0, -122.0, 100.0, null, 5000.0, timestamp
         )
-        dm.recordStatus(status)
+        dm.recordStatus(status, System.currentTimeMillis())
 
         val result = extrapolator.extrapolate(timestamp)
         assertTrue("Should be MissingSchedule", result is ExtrapolationResult.MissingSchedule)
@@ -324,7 +324,7 @@ class SpeedEstimatorTest {
                 10000.0,
                 baseTime + i * 30_000L
             )
-            dm.recordStatus(status)
+            dm.recordStatus(status, System.currentTimeMillis())
         }
 
         val latestTimestamp = baseTime + 120_000L
@@ -332,7 +332,7 @@ class SpeedEstimatorTest {
             "v1", "trip1", 47.012, -122.0, 1200.0, 1200.0, 10000.0, latestTimestamp
         )
 
-        dm.recordStatus(latestStatus)
+        dm.recordStatus(latestStatus, System.currentTimeMillis())
         val extrapolator = GammaExtrapolator("trip1", dm)
         val result = extrapolator.extrapolate(latestTimestamp)
         assertTrue("Should succeed", result is ExtrapolationResult.Success)

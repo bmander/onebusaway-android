@@ -60,12 +60,23 @@ class Trip(val tripId: String) {
 
     // --- Recording ---
 
-    /** Records a status snapshot. Skips entries without valid distance data. */
-    fun recordStatus(status: ObaTripStatus) {
-        if (status.distanceAlongTrip == null) return
+    /**
+     * Records a status snapshot. Skips entries without valid distance data.
+     * @param serverTimeMs the server's currentTime from the API response, or 0 to use local clock
+     */
+    fun recordStatus(status: ObaTripStatus, serverTimeMs: Long) {
+        if (status.distanceAlongTrip == null || serverTimeMs <= 0) return
+
+        // Skip true duplicates (same distance and time as previous entry)
+        val prev = history.lastOrNull()
+        if (prev != null
+                && status.distanceAlongTrip == prev.distanceAlongTrip
+                && status.lastUpdateTime == prev.lastUpdateTime) {
+            return
+        }
 
         history.add(status)
-        fetchTimes.add(System.currentTimeMillis())
+        fetchTimes.add(serverTimeMs)
 
         if (history.size > MAX_ENTRIES) {
             history.subList(0, history.size - MAX_ENTRIES).clear()

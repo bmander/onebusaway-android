@@ -102,9 +102,9 @@ object TripPollingService {
 
     @JvmStatic
     fun subscribeTripDetails(tripId: String) {
-        tripRefCounts.compute(tripId) { _, count -> (count ?: 0) + 1 }
+        val isNew = tripRefCounts.compute(tripId) { _, count -> (count ?: 0) + 1 } == 1
         ensureTicking()
-        fetchNow(tripId)
+        if (isNew) fetchNow(tripId)
     }
 
     @JvmStatic

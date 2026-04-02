@@ -168,22 +168,21 @@ class VehicleLocationDataActivity : AppCompatActivity() {
     // --- Data refresh ---
 
     private fun refreshData() {
-        val history = TripDataManager.getHistory(tripId)
-        val times = TripDataManager.getFetchTimes(tripId)
+        val snapshot = TripDataManager.getHistorySnapshot(tripId)
         val activeTripId = TripDataManager.getLastActiveTripId(tripId)
         val tripEnded = activeTripId != null && tripId != activeTripId
 
-        updateHeader(history.size, tripEnded)
+        updateHeader(snapshot.history.size, tripEnded)
 
-        if (history.size != lastRowCount) {
-            lastRowCount = history.size
+        if (snapshot.history.size != lastRowCount) {
+            lastRowCount = snapshot.history.size
             val table: TableLayout = findViewById(R.id.location_data_table)
             table.removeAllViews()
-            buildTable(table, history, times)
+            buildTable(table, snapshot)
         }
 
         if (graphView.visibility == View.VISIBLE) {
-            refreshGraph(history, tripEnded)
+            refreshGraph(snapshot.history, tripEnded)
         }
     }
 
@@ -232,7 +231,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
     private val tableHeaders = arrayOf(
             "#",
             // Timestamps
-            "Fetched", "Update time", "AVL time",
+            "Local fetch", "Server clock", "Vehicle msg", "GPS time",
             // Raw GPS
             "Lat", "Lon", "Last dist (m)", "Orientation",
             // Server estimate
@@ -245,23 +244,24 @@ class VehicleLocationDataActivity : AppCompatActivity() {
     )
     private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
 
-    private fun buildTable(table: TableLayout, history: List<ObaTripStatus>,
-                           fetchTimes: List<Long>) {
-        currentHistory = history
+    private fun buildTable(table: TableLayout,
+                           snapshot: TripDataManager.HistorySnapshot) {
+        currentHistory = snapshot.history
         dataRows.clear()
         selectedIndex = null
         addHeaderRow(table)
         addDivider(table)
 
-        if (history.isEmpty()) {
+        if (snapshot.history.isEmpty()) {
             addEmptyRow(table)
             return
         }
 
         var prev: ObaTripStatus? = null
-        for ((i, entry) in history.withIndex()) {
-            val fetchTime = fetchTimes.getOrElse(i) { 0L }
-            addDataRow(table, i, entry, prev, fetchTime)
+        for ((i, entry) in snapshot.history.withIndex()) {
+            val fetchTime = snapshot.fetchTimes.getOrElse(i) { 0L }
+            val localFetchTime = snapshot.localFetchTimes.getOrElse(i) { 0L }
+            addDataRow(table, i, entry, prev, fetchTime, localFetchTime)
             prev = entry
         }
     }
@@ -291,7 +291,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
             if (index % 2 == 0) 0xFF1A1A1A.toInt() else 0xFF262626.toInt()
 
     private fun addDataRow(table: TableLayout, index: Int, entry: ObaTripStatus,
-                           prev: ObaTripStatus?, fetchTime: Long) {
+                           prev: ObaTripStatus?, fetchTime: Long, localFetchTime: Long) {
         val row = TableRow(this).apply {
             setBackgroundColor(rowBgColor(index))
             setOnClickListener {
@@ -309,6 +309,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         // #
         row.addView(cell("${index + 1}"))
         // Timestamps
+        row.addView(cell(fmtTime(localFetchTime)))
         row.addView(cell(fmtTime(fetchTime)))
         row.addView(cell(fmtTime(updateTime)))
         row.addView(cell(fmtTime(avlTime)))

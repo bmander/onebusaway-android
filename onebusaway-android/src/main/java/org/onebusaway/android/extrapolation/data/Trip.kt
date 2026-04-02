@@ -43,6 +43,7 @@ class Trip(val tripId: String) {
     // --- Vehicle history ---
     val history = mutableListOf<ObaTripStatus>()
     val fetchTimes = mutableListOf<Long>()
+    val localFetchTimes = mutableListOf<Long>()
     /** The most recent status with valid distance data, or null. */
     val anchor: ObaTripStatus? get() = history.lastOrNull()
 
@@ -63,8 +64,9 @@ class Trip(val tripId: String) {
     /**
      * Records a status snapshot. Skips entries without valid distance data.
      * @param serverTimeMs the server's currentTime from the API response, or 0 to use local clock
+     * @param localTimeMs local device clock time when the response was received
      */
-    fun recordStatus(status: ObaTripStatus, serverTimeMs: Long) {
+    fun recordStatus(status: ObaTripStatus, serverTimeMs: Long, localTimeMs: Long) {
         if (status.distanceAlongTrip == null || serverTimeMs <= 0) return
 
         // Skip true duplicates (same distance and time as previous entry)
@@ -77,10 +79,12 @@ class Trip(val tripId: String) {
 
         history.add(status)
         fetchTimes.add(serverTimeMs)
+        localFetchTimes.add(localTimeMs)
 
         if (history.size > MAX_ENTRIES) {
             history.subList(0, history.size - MAX_ENTRIES).clear()
             fetchTimes.subList(0, fetchTimes.size - MAX_ENTRIES).clear()
+            localFetchTimes.subList(0, localFetchTimes.size - MAX_ENTRIES).clear()
         }
     }
 

@@ -72,15 +72,16 @@ object TripDataManager {
      * Deduplicates history by distance — only adds an entry when the vehicle has moved.
      */
     @Synchronized
-    fun recordStatus(status: ObaTripStatus?, serverTimeMs: Long) {
+    fun recordStatus(status: ObaTripStatus?, serverTimeMs: Long, localTimeMs: Long) {
         if (status == null) return
         val tripId = status.activeTripId ?: return
-        getOrCreateTrip(tripId).recordStatus(status, serverTimeMs)
+        getOrCreateTrip(tripId).recordStatus(status, serverTimeMs, localTimeMs)
         evictOldTripsIfNeeded()
     }
 
     @Synchronized
-    fun recordTripDetailsResponse(polledTripId: String?, response: ObaTripDetailsResponse?) {
+    fun recordTripDetailsResponse(
+            polledTripId: String?, response: ObaTripDetailsResponse?, localTimeMs: Long) {
         if (response == null) return
         val status = response.status ?: return
         if (polledTripId != null) {
@@ -88,14 +89,14 @@ object TripDataManager {
         }
         val activeTripId = status.activeTripId ?: return
         val trip = getOrCreateTrip(activeTripId)
-        trip.recordStatus(status, response.currentTime)
+        trip.recordStatus(status, response.currentTime, localTimeMs)
         if (status.serviceDate > 0) {
             trip.serviceDate = status.serviceDate
         }
         evictOldTripsIfNeeded()
     }
 
-    fun recordTripsForRouteResponse(response: ObaTripsForRouteResponse) {
+    fun recordTripsForRouteResponse(response: ObaTripsForRouteResponse, localTimeMs: Long) {
         val serverTime = response.currentTime
         for (tripDetails in response.trips) {
             val status = tripDetails.status ?: continue
@@ -104,7 +105,7 @@ object TripDataManager {
 
             synchronized(this) {
                 val trip = getOrCreateTrip(tripId)
-                trip.recordStatus(status, serverTime)
+                trip.recordStatus(status, serverTime, localTimeMs)
                 if (status.serviceDate > 0) trip.serviceDate = status.serviceDate
                 if (trip.routeType == null) {
                     val routeId = activeTrip.routeId
@@ -124,6 +125,26 @@ object TripDataManager {
 
     // --- Delegating accessors (for callers not yet using Trip directly) ---
 
+    data class HistorySnapshot(
+            val history: List<ObaTripStatus>,
+            val fetchTimes: List<Long>,
+            val localFetchTimes: List<Long>
+    ) {
+        companion object {
+            val EMPTY = HistorySnapshot(emptyList(), emptyList(), emptyList())
+        }
+    }
+
+    @Synchronized
+    fun getHistorySnapshot(activeTripId: String?): HistorySnapshot {
+        val trip = getTrip(activeTripId) ?: return HistorySnapshot.EMPTY
+        return HistorySnapshot(
+                trip.history.toList(),
+                trip.fetchTimes.toList(),
+                trip.localFetchTimes.toList()
+        )
+    }
+
     @Synchronized
     fun getHistory(activeTripId: String?): List<ObaTripStatus> =
             getTrip(activeTripId)?.history?.toList().orEmpty()
@@ -135,6 +156,10 @@ object TripDataManager {
     @Synchronized
     fun getFetchTimes(activeTripId: String?): List<Long> =
             getTrip(activeTripId)?.fetchTimes?.toList().orEmpty()
+
+    @Synchronized
+    fun getLocalFetchTimes(activeTripId: String?): List<Long> =
+            getTrip(activeTripId)?.localFetchTimes?.toList().orEmpty()
 
     @Synchronized
     fun getLastState(activeTripId: String?): ObaTripStatus? =

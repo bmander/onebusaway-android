@@ -303,7 +303,7 @@ public class TripDetailsListFragment extends ListFragment {
 
         // Push vehicle state into the trip data manager so speed estimation
         // and the trajectory debug view can use it
-        mDataManager.recordTripDetailsResponse(mTripId, data);
+        mDataManager.recordTripDetailsResponse(mTripId, data, System.currentTimeMillis());
 
         setUpHeader();
         final ListView listView = getListView();

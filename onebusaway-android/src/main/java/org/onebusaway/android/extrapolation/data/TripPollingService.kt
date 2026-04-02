@@ -130,7 +130,8 @@ object TripPollingService {
         for (sub in routeSubscriptions.values) {
             try {
                 val response = fetchTripsForRoute(sub.routeId) ?: continue
-                TripDataManager.recordTripsForRouteResponse(response)
+                val localTime = System.currentTimeMillis()
+                TripDataManager.recordTripsForRouteResponse(response, localTime)
                 // Collect tripIds covered by this batch
                 for (trip in response.trips) {
                     trip.status?.activeTripId?.let { coveredTripIds.add(it) }
@@ -170,8 +171,9 @@ object TripPollingService {
         val ctx = Application.get().applicationContext
         val response = ObaTripDetailsRequest.newRequest(ctx, tripId).call()
         if (response != null) {
+            val localTime = System.currentTimeMillis()
             TripDataManager.putTripDetails(tripId, response)
-            TripDataManager.recordTripDetailsResponse(tripId, response)
+            TripDataManager.recordTripDetailsResponse(tripId, response, localTime)
         }
     }
 

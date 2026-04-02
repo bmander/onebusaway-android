@@ -27,7 +27,7 @@ import org.onebusaway.android.io.request.ObaTripsForRouteRequest;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.MapUtils;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
-import org.onebusaway.android.extrapolation.data.TripDetailsPoller;
+import org.onebusaway.android.extrapolation.data.TripPollingService;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.UIUtils;
 
@@ -78,10 +78,6 @@ public class RouteMapController implements MapModeController {
 
     private RouteLoaderListener mRouteLoaderListener;
 
-    private Loader<ObaTripsForRouteResponse> mVehiclesLoader;
-
-    private VehicleLoaderListener mVehicleLoaderListener;
-
     /** Trip ID to auto-select on first vehicle load, or null. */
     private String mPendingTripSelection;
 
@@ -96,7 +92,6 @@ public class RouteMapController implements MapModeController {
                 android.R.integer.config_shortAnimTime);
         mRoutePopup = new RoutePopup();
         mRouteLoaderListener = new RouteLoaderListener();
-        mVehicleLoaderListener = new VehicleLoaderListener();
     }
 
     @Override
@@ -130,9 +125,7 @@ public class RouteMapController implements MapModeController {
             mRouteLoader.registerListener(0, mRouteLoaderListener);
             mRouteLoader.startLoading();
 
-            mVehiclesLoader = mVehicleLoaderListener.onCreateLoader(VEHICLES_LOADER, null);
-            mVehiclesLoader.registerListener(0, mVehicleLoaderListener);
-            mVehiclesLoader.startLoading();
+            TripPollingService.subscribeRoute(routeId, this::onVehiclesResponse);
         } else {
             // We are returning to the route view with the route already set, so show the header
             mRoutePopup.show();
@@ -143,12 +136,10 @@ public class RouteMapController implements MapModeController {
      * Clears the current state of the controller, so a new route can be loaded
      */
     private void clearCurrentState() {
-        // Stop loaders and refresh handler
+        // Stop route loader and vehicle polling
         mRouteLoader.stopLoading();
         mRouteLoader.reset();
-        mVehiclesLoader.stopLoading();
-        mVehiclesLoader.reset();
-        mVehicleRefreshHandler.removeCallbacks(mVehicleRefresh);
+        TripPollingService.unsubscribeRoute(mRouteId);
 
         // Clear trip data and speed estimation state
         TripDataManager.getInstance().clearAll();
@@ -170,13 +161,13 @@ public class RouteMapController implements MapModeController {
     public void destroy() {
         mRoutePopup.hide();
         mFragment.getMapView().removeRouteOverlay();
-        mVehicleRefreshHandler.removeCallbacks(mVehicleRefresh);
+        if (mRouteId != null) TripPollingService.unsubscribeRoute(mRouteId);
         mFragment.getMapView().removeVehicleOverlay();
     }
 
     @Override
     public void onPause() {
-        mVehicleRefreshHandler.removeCallbacks(mVehicleRefresh);
+        // Polling service continues in background — no action needed
     }
 
     /**
@@ -186,7 +177,6 @@ public class RouteMapController implements MapModeController {
      */
     @Override
     public void onHidden(boolean hidden) {
-        // If the fragment is no longer visible, hide the route header - otherwise, show it
         if (hidden) {
             mRoutePopup.hide();
         } else {
@@ -196,27 +186,7 @@ public class RouteMapController implements MapModeController {
 
     @Override
     public void onResume() {
-        // Make sure we schedule a future update for vehicles
-        mVehicleRefreshHandler.removeCallbacks(mVehicleRefresh);
-
-        if (mLastUpdatedTimeVehicles == 0) {
-            // We haven't loaded any vehicles yet - schedule the refresh for the full period and defer
-            // to the loader to reschedule when load is complete
-            mVehicleRefreshHandler.postDelayed(mVehicleRefresh, VEHICLE_REFRESH_PERIOD);
-            return;
-        }
-
-        long elapsedTimeMillis = TimeUnit.NANOSECONDS.toMillis(UIUtils.getCurrentTimeForComparison()
-                - mLastUpdatedTimeVehicles);
-        long refreshPeriod;
-        if (elapsedTimeMillis > VEHICLE_REFRESH_PERIOD) {
-            // Schedule an immediate update, if we're past the normal period after a load
-            refreshPeriod = 100;
-        } else {
-            // Schedule an update so a total of VEHICLE_REFRESH_PERIOD has elapsed since the last update
-            refreshPeriod = VEHICLE_REFRESH_PERIOD - elapsedTimeMillis;
-        }
-        mVehicleRefreshHandler.postDelayed(mVehicleRefresh, refreshPeriod);
+        // Polling is managed by TripPollingService — no manual scheduling needed
     }
 
     @Override
@@ -363,23 +333,25 @@ public class RouteMapController implements MapModeController {
         }
     }
 
-    private static final long VEHICLE_REFRESH_PERIOD = TimeUnit.SECONDS.toMillis(10);
+    private void onVehiclesResponse(ObaTripsForRouteResponse response) {
+        ObaMapView obaMapView = mFragment.getMapView();
 
-    private final Handler mVehicleRefreshHandler = new Handler();
+        HashSet<String> routes = new HashSet<>(1);
+        routes.add(mRouteId);
 
-    private final Runnable mVehicleRefresh = new Runnable() {
-        public void run() {
-            refresh();
+        obaMapView.updateVehicles(routes, response);
+
+        if (mPendingTripSelection != null) {
+            obaMapView.selectVehicle(mPendingTripSelection);
+            mPendingTripSelection = null;
         }
-    };
 
-    /**
-     * Refresh vehicle data from the OBA server
-     */
-    private void refresh() {
-        if (mVehiclesLoader != null) {
-            mVehiclesLoader.onContentChanged();
+        if (mZoomIncludeClosestVehicle) {
+            obaMapView.zoomIncludeClosestVehicle(routes, response);
+            mZoomIncludeClosestVehicle = false;
         }
+
+        mLastUpdatedTimeVehicles = UIUtils.getCurrentTimeForComparison();
     }
 
     //
@@ -480,98 +452,4 @@ public class RouteMapController implements MapModeController {
         }
     }
 
-    private static class VehiclesLoader extends AsyncTaskLoader<ObaTripsForRouteResponse> {
-
-        private final String mRouteId;
-
-        public VehiclesLoader(Context context, String routeId) {
-            super(context);
-            mRouteId = routeId;
-        }
-
-        @Override
-        public ObaTripsForRouteResponse loadInBackground() {
-            if (Application.get().getCurrentRegion() == null &&
-                    TextUtils.isEmpty(Application.get().getCustomApiUrl())) {
-                //We don't have region info or manually entered API to know what server to contact
-                Log.d(TAG, "Trying to load trips (vehicles) for route from server " +
-                        "without OBA REST API endpoint, aborting...");
-                return null;
-            }
-            //Make OBA REST API call to the server and return result
-            return new ObaTripsForRouteRequest.Builder(getContext(), mRouteId)
-                    .setIncludeStatus(true)
-                    .build()
-                    .call();
-        }
-
-        @Override
-        public void deliverResult(ObaTripsForRouteResponse data) {
-            super.deliverResult(data);
-        }
-
-        @Override
-        public void onStartLoading() {
-            forceLoad();
-        }
-    }
-
-    class VehicleLoaderListener implements LoaderManager.LoaderCallbacks<ObaTripsForRouteResponse>,
-            Loader.OnLoadCompleteListener<ObaTripsForRouteResponse> {
-
-        HashSet<String> routes = new HashSet<>(1);
-
-        @Override
-        public Loader<ObaTripsForRouteResponse> onCreateLoader(int id,
-                Bundle args) {
-            return new VehiclesLoader(mFragment.getActivity(), mRouteId);
-        }
-
-        @Override
-        public void onLoadFinished(Loader<ObaTripsForRouteResponse> loader,
-                ObaTripsForRouteResponse response) {
-
-            ObaMapView obaMapView = mFragment.getMapView();
-
-            if (response == null || response.getCode() != ObaApi.OBA_OK) {
-                MapUtils.showMapError(response);
-                return;
-            }
-
-            routes.clear();
-            routes.add(mRouteId);
-
-            TripDetailsPoller.recordBatchResponse(response);
-            obaMapView.updateVehicles(routes, response);
-
-            if (mPendingTripSelection != null) {
-                obaMapView.selectVehicle(mPendingTripSelection);
-                mPendingTripSelection = null;
-            }
-
-            if (mZoomIncludeClosestVehicle) {
-                obaMapView.zoomIncludeClosestVehicle(routes, response);
-                mZoomIncludeClosestVehicle = false;
-            }
-
-            mLastUpdatedTimeVehicles = UIUtils.getCurrentTimeForComparison();
-
-            // Clear any pending refreshes
-            mVehicleRefreshHandler.removeCallbacks(mVehicleRefresh);
-
-            // Post an update
-            mVehicleRefreshHandler.postDelayed(mVehicleRefresh, VEHICLE_REFRESH_PERIOD);
-        }
-
-        @Override
-        public void onLoaderReset(Loader<ObaTripsForRouteResponse> loader) {
-            mFragment.getMapView().removeVehicleOverlay();
-        }
-
-        @Override
-        public void onLoadComplete(Loader<ObaTripsForRouteResponse> loader,
-                ObaTripsForRouteResponse response) {
-            onLoadFinished(loader, response);
-        }
-    }
 }

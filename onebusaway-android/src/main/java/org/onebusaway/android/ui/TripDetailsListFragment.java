@@ -89,7 +89,7 @@ import org.onebusaway.android.extrapolation.ExtrapolationResult;
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
 import org.onebusaway.android.extrapolation.data.Trip;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
-import org.onebusaway.android.extrapolation.data.TripDetailsPoller;
+import org.onebusaway.android.extrapolation.data.TripPollingService;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.DBUtil;
@@ -240,7 +240,7 @@ public class TripDetailsListFragment extends ListFragment {
         mDestinationId = args.getString(DEST_ID);
 
         // Kick off initial fetch
-        TripDetailsPoller.fetchIfNeeded(mTripId);
+        TripPollingService.subscribeTripDetails(mTripId);
     }
 
     @Override
@@ -265,6 +265,7 @@ public class TripDetailsListFragment extends ListFragment {
 
     @Override
     public void onPause() {
+        TripPollingService.unsubscribeTripDetails(mTripId);
         mPositionTickHandler.removeCallbacks(mPositionTick);
         super.onPause();
     }
@@ -277,7 +278,7 @@ public class TripDetailsListFragment extends ListFragment {
             setTripDetails(cached);
         }
 
-        TripDetailsPoller.fetchIfNeeded(mTripId);
+        TripPollingService.subscribeTripDetails(mTripId);
         mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
 
         super.onResume();

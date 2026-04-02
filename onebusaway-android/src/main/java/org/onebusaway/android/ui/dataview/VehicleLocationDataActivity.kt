@@ -38,6 +38,7 @@ import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.MPS_TO_MPH
 import org.onebusaway.android.extrapolation.data.Trip
 import org.onebusaway.android.extrapolation.data.TripDataManager
+import org.onebusaway.android.extrapolation.data.TripPollingService
 
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.elements.ObaTripStatus
@@ -127,11 +128,13 @@ class VehicleLocationDataActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        TripPollingService.subscribeTripDetails(tripId)
         refreshData()
         refreshHandler.postDelayed(refreshRunnable, UI_REFRESH_MS)
     }
 
     override fun onPause() {
+        TripPollingService.unsubscribeTripDetails(tripId)
         refreshHandler.removeCallbacks(refreshRunnable)
         super.onPause()
     }

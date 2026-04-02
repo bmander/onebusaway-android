@@ -311,6 +311,5 @@ object TripDataManager {
         trips.clear()
         pendingScheduleFetches.clear()
         pendingShapeFetches.clear()
-        TripDetailsPoller.clearPollState()
     }
 }

@@ -41,6 +41,7 @@
     <string name="generic_comm_error">Sorry, there was a communication error and we can\'t show this
         information. Try again and it might work.
     </string>
+    <string name="trip_details_error">Error %1$d: %2$s\nTrip: %3$s\nVersion: %4$s</string>
     <string name="generic_comm_error_toast">Failed to update. We\'ll try again in a minute.</string>
     <string name="route_not_found_error_no_region">Sorry, that particular route can\'t be found. If
         this was a

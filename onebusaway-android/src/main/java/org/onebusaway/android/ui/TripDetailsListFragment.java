@@ -297,7 +297,8 @@ public class TripDetailsListFragment extends ListFragment {
         if (code == ObaApi.OBA_OK) {
             setEmptyText("");
         } else {
-            setEmptyText(UIUtils.getRouteErrorString(getActivity(), code));
+            setEmptyText(getString(R.string.trip_details_error,
+                    code, mTripInfo.getText(), mTripId, mTripInfo.getVersion()));
             return;
         }
 

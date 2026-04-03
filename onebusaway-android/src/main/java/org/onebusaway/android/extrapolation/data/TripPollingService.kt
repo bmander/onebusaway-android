@@ -21,7 +21,9 @@ import android.text.TextUtils
 import android.util.Log
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaApi
+import org.onebusaway.android.io.request.ObaResponse
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
+import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.io.request.ObaTripsForRouteRequest
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import java.util.concurrent.ConcurrentHashMap
@@ -59,6 +61,37 @@ object TripPollingService {
             subscribedRouteIds = routeSubscriptions.keys.toSet(),
             subscribedTripIds = tripRefCounts.toMap()
     )
+
+    sealed class FetchResult<out T : ObaResponse> {
+        abstract val localTimeMs: Long
+
+        data class Success<T : ObaResponse>(
+                val response: T,
+                override val localTimeMs: Long
+        ) : FetchResult<T>() {
+            val serverTimeMs: Long get() = response.currentTime
+        }
+
+        data class ApiError(
+                val code: Int,
+                val text: String?,
+                override val localTimeMs: Long
+        ) : FetchResult<Nothing>()
+
+        data class TransportError(
+                val message: String?,
+                override val localTimeMs: Long
+        ) : FetchResult<Nothing>()
+    }
+
+    private fun <T : ObaResponse> classify(response: T?, localTimeMs: Long): FetchResult<T>? {
+        if (response == null) return null
+        return when (response.code) {
+            ObaApi.OBA_OK -> FetchResult.Success(response, localTimeMs)
+            ObaApi.OBA_IO_EXCEPTION -> FetchResult.TransportError(response.text, localTimeMs)
+            else -> FetchResult.ApiError(response.code, response.text, localTimeMs)
+        }
+    }
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val fetchExecutor = Executors.newSingleThreadExecutor()
@@ -117,7 +150,14 @@ object TripPollingService {
     /** Immediate one-shot fetch for a single trip (e.g. refresh button). */
     @JvmStatic
     fun fetchNow(tripId: String) {
-        fetchExecutor.execute { fetchTripDetails(tripId) }
+        fetchExecutor.execute {
+            val result = fetchTripDetails(tripId)
+            if (result is FetchResult.Success) {
+                TripDataManager.putTripDetails(tripId, result.response)
+                TripDataManager.recordTripDetailsResponse(
+                        tripId, result.response, result.localTimeMs)
+            }
+        }
     }
 
     // --- Tick ---
@@ -129,15 +169,14 @@ object TripPollingService {
         // 1. Poll all subscribed routes (batch)
         for (sub in routeSubscriptions.values) {
             try {
-                val response = fetchTripsForRoute(sub.routeId) ?: continue
-                val localTime = System.currentTimeMillis()
-                TripDataManager.recordTripsForRouteResponse(response, localTime)
-                // Collect tripIds covered by this batch
-                for (trip in response.trips) {
+                val result = fetchTripsForRoute(sub.routeId) ?: continue
+                if (result !is FetchResult.Success) continue
+                TripDataManager.recordTripsForRouteResponse(
+                        result.response, result.localTimeMs)
+                for (trip in result.response.trips) {
                     trip.status?.activeTripId?.let { coveredTripIds.add(it) }
                 }
-                // Deliver to subscriber on main thread
-                mainHandler.post { sub.callback.onResponse(response) }
+                mainHandler.post { sub.callback.onResponse(result.response) }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch trips for route ${sub.routeId}", e)
             }
@@ -147,14 +186,19 @@ object TripPollingService {
         for (tripId in tripRefCounts.keys) {
             if (tripId in coveredTripIds) continue
             try {
-                fetchTripDetails(tripId)
+                val result = fetchTripDetails(tripId) ?: continue
+                if (result is FetchResult.Success) {
+                    TripDataManager.putTripDetails(tripId, result.response)
+                    TripDataManager.recordTripDetailsResponse(
+                            tripId, result.response, result.localTimeMs)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch trip details for $tripId", e)
             }
         }
     }
 
-    private fun fetchTripsForRoute(routeId: String): ObaTripsForRouteResponse? {
+    private fun fetchTripsForRoute(routeId: String): FetchResult<ObaTripsForRouteResponse>? {
         if (Application.get().currentRegion == null
                 && TextUtils.isEmpty(Application.get().customApiUrl)) {
             return null
@@ -164,16 +208,13 @@ object TripPollingService {
                 .setIncludeStatus(true)
                 .build()
                 .call()
-        return if (response?.code == ObaApi.OBA_OK) response else null
+        return classify(response, System.currentTimeMillis())
     }
 
-    private fun fetchTripDetails(tripId: String) {
+    private fun fetchTripDetails(tripId: String): FetchResult<ObaTripDetailsResponse>? {
         val ctx = Application.get().applicationContext
-        val response = ObaTripDetailsRequest.newRequest(ctx, tripId).call() ?: return
-        if (response.code != ObaApi.OBA_OK) return
-        val localTime = System.currentTimeMillis()
-        TripDataManager.putTripDetails(tripId, response)
-        TripDataManager.recordTripDetailsResponse(tripId, response, localTime)
+        val response = ObaTripDetailsRequest.newRequest(ctx, tripId).call()
+        return classify(response, System.currentTimeMillis())
     }
 
     // --- Lifecycle ---

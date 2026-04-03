@@ -66,7 +66,7 @@ object TripPollingService {
 
     @JvmStatic
     fun getSnapshot(): PollingSnapshot = PollingSnapshot(
-            isTicking = tickJob?.isActive == true,
+            isTicking = tickJob.isActive,
             lastTickTimeMs = lastTickTimeMs,
             subscribedRouteIds = subscribedRouteIds.toSet(),
             subscribedTripIds = tripRefCounts.keys.toSet()
@@ -104,7 +104,16 @@ object TripPollingService {
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var tickJob: Job? = null
+    private val tickJob: Job = scope.launch {
+        while (isActive) {
+            if (hasSubscriptions()) {
+                lastTickTimeMs = System.currentTimeMillis()
+                val coveredTripIds = pollRoutes()
+                pollTrips(coveredTripIds)
+            }
+            delay(TICK_INTERVAL_MS)
+        }
+    }
 
     // --- Shared flows ---
 
@@ -122,7 +131,6 @@ object TripPollingService {
      */
     fun tripUpdates(tripId: String): Flow<ObaTripDetailsResponse> = flow {
         val isFirst = addTripRef(tripId)
-        ensureTicking()
         if (isFirst) {
             handleTripResult(tripId, fetchTripDetails(tripId))
         }
@@ -169,7 +177,6 @@ object TripPollingService {
                 withContext(Dispatchers.Main) { callback.onResponse(response) }
             }
         }
-        ensureTicking()
     }
 
     @JvmStatic
@@ -274,16 +281,4 @@ object TripPollingService {
 
     private fun hasSubscriptions() =
             subscribedRouteIds.isNotEmpty() || tripRefCounts.isNotEmpty()
-
-    private fun ensureTicking() {
-        if (tickJob?.isActive == true || !hasSubscriptions()) return
-        tickJob = scope.launch {
-            while (isActive && hasSubscriptions()) {
-                lastTickTimeMs = System.currentTimeMillis()
-                val coveredTripIds = pollRoutes()
-                pollTrips(coveredTripIds)
-                delay(TICK_INTERVAL_MS)
-            }
-        }
-    }
 }

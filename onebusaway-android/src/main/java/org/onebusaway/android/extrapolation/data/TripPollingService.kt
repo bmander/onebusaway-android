@@ -22,6 +22,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -39,9 +43,8 @@ import java.util.concurrent.ConcurrentHashMap
  * or individual trips; the service runs a single tick loop that fetches data
  * and records it into [TripDataManager].
  *
- * - Route subscriptions use the batch trips-for-route endpoint
- * - Trip subscriptions use the single trip-details endpoint
- * - Trips already covered by a batch response are not fetched individually
+ * Route responses are emitted on a [SharedFlow][MutableSharedFlow]; use
+ * [routeUpdates] to collect, or [subscribeRoute] for Java callback compatibility.
  */
 object TripPollingService {
 
@@ -63,7 +66,7 @@ object TripPollingService {
     fun getSnapshot(): PollingSnapshot = PollingSnapshot(
             isTicking = tickJob?.isActive == true,
             lastTickTimeMs = lastTickTimeMs,
-            subscribedRouteIds = routeSubscriptions.keys.toSet(),
+            subscribedRouteIds = subscribedRouteIds.toSet(),
             subscribedTripIds = tripRefCounts.toMap()
     )
 
@@ -101,31 +104,44 @@ object TripPollingService {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var tickJob: Job? = null
 
+    // --- Route responses flow ---
+
+    private val _routeResponses = MutableSharedFlow<Pair<String, ObaTripsForRouteResponse>>()
+
+    /** Observe route poll responses for a specific route. */
+    fun routeUpdates(routeId: String): Flow<ObaTripsForRouteResponse> =
+            _routeResponses.filter { it.first == routeId }.map { it.second }
+
+    /** Java callback interface for route responses. */
     fun interface RouteCallback {
         fun onResponse(response: ObaTripsForRouteResponse)
     }
 
     // --- Route subscriptions ---
-    private data class RouteSubscription(
-            val routeId: String,
-            val callback: RouteCallback
-    )
-    private val routeSubscriptions = ConcurrentHashMap<String, RouteSubscription>()
+    private val subscribedRouteIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val routeCollectionJobs = ConcurrentHashMap<String, Job>()
 
     // --- Trip subscriptions (refcounted) ---
     private val tripRefCounts = ConcurrentHashMap<String, Int>()
 
     // --- Public API ---
 
+    /** Subscribe to route updates via Flow collection, with a Java-compatible callback. */
     @JvmStatic
     fun subscribeRoute(routeId: String, callback: RouteCallback) {
-        routeSubscriptions[routeId] = RouteSubscription(routeId, callback)
+        subscribedRouteIds.add(routeId)
+        routeCollectionJobs[routeId] = scope.launch {
+            routeUpdates(routeId).collect { response ->
+                withContext(Dispatchers.Main) { callback.onResponse(response) }
+            }
+        }
         ensureTicking()
     }
 
     @JvmStatic
     fun unsubscribeRoute(routeId: String) {
-        routeSubscriptions.remove(routeId)
+        subscribedRouteIds.remove(routeId)
+        routeCollectionJobs.remove(routeId)?.cancel()
     }
 
     @JvmStatic
@@ -153,14 +169,12 @@ object TripPollingService {
     // --- Result handlers ---
 
     private suspend fun handleRouteResult(
-            sub: RouteSubscription,
+            routeId: String,
             result: FetchResult<ObaTripsForRouteResponse>?
     ): Set<String> {
         if (result !is FetchResult.Success) return emptySet()
         TripDataManager.recordTripsForRouteResponse(result.response, result.localTimeMs)
-        withContext(Dispatchers.Main) {
-            sub.callback.onResponse(result.response)
-        }
+        _routeResponses.emit(routeId to result.response)
         return result.response.trips
                 .mapNotNull { it.status?.activeTripId }
                 .toSet()
@@ -179,11 +193,11 @@ object TripPollingService {
 
     private suspend fun pollRoutes(): Set<String> {
         val coveredTripIds = mutableSetOf<String>()
-        for (sub in routeSubscriptions.values) {
+        for (routeId in subscribedRouteIds) {
             try {
-                coveredTripIds += handleRouteResult(sub, fetchTripsForRoute(sub.routeId))
+                coveredTripIds += handleRouteResult(routeId, fetchTripsForRoute(routeId))
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to fetch trips for route ${sub.routeId}", e)
+                Log.e(TAG, "Failed to fetch trips for route $routeId", e)
             }
         }
         return coveredTripIds
@@ -222,7 +236,7 @@ object TripPollingService {
     // --- Lifecycle ---
 
     private fun hasSubscriptions() =
-            routeSubscriptions.isNotEmpty() || tripRefCounts.isNotEmpty()
+            subscribedRouteIds.isNotEmpty() || tripRefCounts.isNotEmpty()
 
     private fun ensureTicking() {
         if (tickJob?.isActive == true || !hasSubscriptions()) return

@@ -85,7 +85,9 @@ object TripDataManager {
         if (response == null) return
         val status = response.status ?: return
         if (polledTripId != null) {
-            getOrCreateTrip(polledTripId).lastActiveTripId = status.activeTripId
+            val polledTrip = getOrCreateTrip(polledTripId)
+            polledTrip.lastActiveTripId = status.activeTripId
+            polledTrip.tripDetailsResponse = response
         }
         val activeTripId = status.activeTripId ?: return
         val trip = getOrCreateTrip(activeTripId)
@@ -169,11 +171,6 @@ object TripDataManager {
     fun getTrackedTripIds(): Set<String> = trips.keys.toSet()
 
     // --- Trip details response cache ---
-
-    @Synchronized
-    fun putTripDetails(tripId: String, response: ObaTripDetailsResponse) {
-        getOrCreateTrip(tripId).tripDetailsResponse = response
-    }
 
     @Synchronized
     fun getTripDetails(tripId: String): ObaTripDetailsResponse? =

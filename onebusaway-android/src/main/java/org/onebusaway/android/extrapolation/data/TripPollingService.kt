@@ -151,13 +151,31 @@ object TripPollingService {
     @JvmStatic
     fun fetchNow(tripId: String) {
         fetchExecutor.execute {
-            val result = fetchTripDetails(tripId)
-            if (result is FetchResult.Success) {
-                TripDataManager.putTripDetails(tripId, result.response)
-                TripDataManager.recordTripDetailsResponse(
-                        tripId, result.response, result.localTimeMs)
-            }
+            handleTripResult(tripId, fetchTripDetails(tripId))
         }
+    }
+
+    // --- Result handlers ---
+
+    private fun handleRouteResult(
+            sub: RouteSubscription,
+            result: FetchResult<ObaTripsForRouteResponse>?
+    ): Set<String> {
+        if (result !is FetchResult.Success) return emptySet()
+        TripDataManager.recordTripsForRouteResponse(result.response, result.localTimeMs)
+        mainHandler.post { sub.callback.onResponse(result.response) }
+        return result.response.trips
+                .mapNotNull { it.status?.activeTripId }
+                .toSet()
+    }
+
+    private fun handleTripResult(
+            tripId: String,
+            result: FetchResult<ObaTripDetailsResponse>?
+    ) {
+        if (result !is FetchResult.Success) return
+        TripDataManager.recordTripDetailsResponse(
+                tripId, result.response, result.localTimeMs)
     }
 
     // --- Tick ---
@@ -172,14 +190,7 @@ object TripPollingService {
         val coveredTripIds = mutableSetOf<String>()
         for (sub in routeSubscriptions.values) {
             try {
-                val result = fetchTripsForRoute(sub.routeId) ?: continue
-                if (result !is FetchResult.Success) continue
-                TripDataManager.recordTripsForRouteResponse(
-                        result.response, result.localTimeMs)
-                for (trip in result.response.trips) {
-                    trip.status?.activeTripId?.let { coveredTripIds.add(it) }
-                }
-                mainHandler.post { sub.callback.onResponse(result.response) }
+                coveredTripIds += handleRouteResult(sub, fetchTripsForRoute(sub.routeId))
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch trips for route ${sub.routeId}", e)
             }
@@ -191,12 +202,7 @@ object TripPollingService {
         for (tripId in tripRefCounts.keys) {
             if (tripId in coveredTripIds) continue
             try {
-                val result = fetchTripDetails(tripId) ?: continue
-                if (result is FetchResult.Success) {
-                    TripDataManager.putTripDetails(tripId, result.response)
-                    TripDataManager.recordTripDetailsResponse(
-                            tripId, result.response, result.localTimeMs)
-                }
+                handleTripResult(tripId, fetchTripDetails(tripId))
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch trip details for $tripId", e)
             }

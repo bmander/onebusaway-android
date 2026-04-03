@@ -288,11 +288,6 @@ public class TripDetailsListFragment extends ListFragment {
     private void setTripDetails(ObaTripDetailsResponse data) {
         mTripInfo = data;
 
-        // Cache the full response so the map fragment can read it by tripId
-        if (mTripId != null) {
-            mDataManager.putTripDetails(mTripId, data);
-        }
-
         final int code = mTripInfo.getCode();
         if (code == ObaApi.OBA_OK) {
             setEmptyText("");
@@ -302,8 +297,6 @@ public class TripDetailsListFragment extends ListFragment {
             return;
         }
 
-        // Push vehicle state into the trip data manager so speed estimation
-        // and the trajectory debug view can use it
         mDataManager.recordTripDetailsResponse(mTripId, data, System.currentTimeMillis());
 
         setUpHeader();

@@ -38,6 +38,7 @@ import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.MPS_TO_MPH
 import org.onebusaway.android.extrapolation.data.Trip
 import org.onebusaway.android.extrapolation.data.TripDataManager
+import kotlinx.coroutines.Job
 import org.onebusaway.android.extrapolation.data.TripPollingService
 
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
@@ -86,6 +87,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
     private var vehicleId: String? = null
     private var stopId: String? = null
     private var trip: Trip? = null
+    private var pollingJob: Job? = null
 
     private val refreshHandler = Handler(Looper.getMainLooper())
     private var lastRowCount = -1
@@ -128,13 +130,13 @@ class VehicleLocationDataActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        TripPollingService.subscribeTripDetails(tripId)
+        pollingJob = TripPollingService.subscribeTripDetails(tripId)
         refreshData()
         refreshHandler.postDelayed(refreshRunnable, UI_REFRESH_MS)
     }
 
     override fun onPause() {
-        TripPollingService.unsubscribeTripDetails(tripId)
+        pollingJob?.cancel()
         refreshHandler.removeCallbacks(refreshRunnable)
         super.onPause()
     }

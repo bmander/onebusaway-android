@@ -27,6 +27,7 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.Marker
+import kotlinx.coroutines.Job
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.TripPollingService
 import org.onebusaway.android.ui.TripMapCallback
@@ -75,6 +76,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     private var routeOverlay: TripRouteOverlay? = null
     private var vehicleOverlay: TripVehicleOverlay? = null
     private var extrapolationController: TripExtrapolationController? = null
+    private var pollingJob: Job? = null
     private var activated = false
     private var mapCallback: TripMapCallback? = null
 
@@ -114,18 +116,18 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         super.onResume()
         if (activated) {
             extrapolationController?.start()
-            TripPollingService.subscribeTripDetails(tripId)
+            pollingJob = TripPollingService.subscribeTripDetails(tripId)
         }
     }
 
     override fun onPause() {
         extrapolationController?.stop()
-        TripPollingService.unsubscribeTripDetails(tripId)
+        pollingJob?.cancel()
         super.onPause()
     }
 
     override fun onDestroyView() {
-        TripPollingService.unsubscribeTripDetails(tripId)
+        pollingJob?.cancel()
         extrapolationController?.stop()
         extrapolationController = null
         routeOverlay?.deactivate()
@@ -164,7 +166,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         val trip = TripDataManager.getOrCreateTrip(tripId)
         extrapolationController = TripExtrapolationController(
                 overlays.vehicle, trip).also { it.start() }
-        TripPollingService.subscribeTripDetails(tripId)
+        pollingJob = TripPollingService.subscribeTripDetails(tripId)
         activated = true
         overlays.route.fitCameraToShape()
     }

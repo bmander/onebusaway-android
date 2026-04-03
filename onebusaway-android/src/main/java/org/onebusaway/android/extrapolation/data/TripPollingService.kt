@@ -120,9 +120,18 @@ object TripPollingService {
     private val _routeResponses = MutableSharedFlow<Pair<String, ObaTripsForRouteResponse>>()
     private val _tripResponses = MutableSharedFlow<Pair<String, ObaTripDetailsResponse>>()
 
-    /** Observe route poll responses for a specific route. */
-    fun routeUpdates(routeId: String): Flow<ObaTripsForRouteResponse> =
-            _routeResponses.filter { it.first == routeId }.map { it.second }
+    /** Observe route poll responses. Collecting registers the route; cancelling unregisters it. */
+    fun routeUpdates(routeId: String): Flow<ObaTripsForRouteResponse> = flow {
+        subscribedRouteIds.add(routeId)
+        try {
+            _routeResponses
+                    .filter { it.first == routeId }
+                    .map { it.second }
+                    .collect { emit(it) }
+        } finally {
+            subscribedRouteIds.remove(routeId)
+        }
+    }
 
     /**
      * Observe trip poll responses for a specific trip. Collecting this flow
@@ -151,11 +160,9 @@ object TripPollingService {
 
     // --- Route subscriptions ---
     private val subscribedRouteIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
-    private val routeCollectionJobs = ConcurrentHashMap<String, Job>()
 
     // --- Trip subscriptions (refcounted via flow lifecycle) ---
     private val tripRefCounts = ConcurrentHashMap<String, Int>()
-    private val tripCollectionJobs = ConcurrentHashMap<String, MutableList<Job>>()
 
     private fun addTripRef(tripId: String): Boolean =
             tripRefCounts.compute(tripId) { _, c -> (c ?: 0) + 1 } == 1
@@ -168,38 +175,19 @@ object TripPollingService {
 
     // --- Public API ---
 
-    /** Subscribe to route updates via Flow collection, with a Java-compatible callback. */
+    /** Subscribe to route updates with a Java-compatible callback. Caller cancels the returned Job to unsubscribe. */
     @JvmStatic
-    fun subscribeRoute(routeId: String, callback: RouteCallback) {
-        subscribedRouteIds.add(routeId)
-        routeCollectionJobs[routeId] = scope.launch {
-            routeUpdates(routeId).collect { response ->
-                withContext(Dispatchers.Main) { callback.onResponse(response) }
+    fun subscribeRoute(routeId: String, callback: RouteCallback): Job =
+            scope.launch {
+                routeUpdates(routeId).collect { response ->
+                    withContext(Dispatchers.Main) { callback.onResponse(response) }
+                }
             }
-        }
-    }
 
+    /** Launch a flow collection job for [tripUpdates]. Caller cancels the returned Job to unsubscribe. */
     @JvmStatic
-    fun unsubscribeRoute(routeId: String) {
-        subscribedRouteIds.remove(routeId)
-        routeCollectionJobs.remove(routeId)?.cancel()
-    }
-
-    /** Java-compatible wrapper: launches a flow collection job for [tripUpdates]. */
-    @JvmStatic
-    fun subscribeTripDetails(tripId: String) {
-        val job = scope.launch { tripUpdates(tripId).collect { } }
-        tripCollectionJobs.compute(tripId) { _, jobs ->
-            (jobs ?: mutableListOf()).apply { add(job) }
-        }
-    }
-
-    @JvmStatic
-    fun unsubscribeTripDetails(tripId: String) {
-        val jobs = tripCollectionJobs[tripId] ?: return
-        jobs.removeLastOrNull()?.cancel()
-        if (jobs.isEmpty()) tripCollectionJobs.remove(tripId)
-    }
+    fun subscribeTripDetails(tripId: String): Job =
+            scope.launch { tripUpdates(tripId).collect { } }
 
     /** Immediate one-shot fetch for a single trip (e.g. refresh button). */
     @JvmStatic

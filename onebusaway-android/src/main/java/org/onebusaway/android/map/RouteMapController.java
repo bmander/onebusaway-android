@@ -28,6 +28,7 @@ import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.MapUtils;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
 import org.onebusaway.android.extrapolation.data.TripPollingService;
+import kotlinx.coroutines.Job;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.UIUtils;
 
@@ -61,6 +62,7 @@ public class RouteMapController implements MapModeController {
     private final Callback mFragment;
 
     private String mRouteId;
+    private Job mPollingJob;
 
     private boolean mZoomToRoute;
 
@@ -125,7 +127,7 @@ public class RouteMapController implements MapModeController {
             mRouteLoader.registerListener(0, mRouteLoaderListener);
             mRouteLoader.startLoading();
 
-            TripPollingService.subscribeRoute(routeId, this::onVehiclesResponse);
+            mPollingJob = TripPollingService.subscribeRoute(routeId, this::onVehiclesResponse);
         } else {
             // We are returning to the route view with the route already set, so show the header
             mRoutePopup.show();
@@ -139,7 +141,7 @@ public class RouteMapController implements MapModeController {
         // Stop route loader and vehicle polling
         mRouteLoader.stopLoading();
         mRouteLoader.reset();
-        TripPollingService.unsubscribeRoute(mRouteId);
+        if (mPollingJob != null) mPollingJob.cancel(null);
 
         // Clear trip data and speed estimation state
         TripDataManager.getInstance().clearAll();
@@ -161,7 +163,7 @@ public class RouteMapController implements MapModeController {
     public void destroy() {
         mRoutePopup.hide();
         mFragment.getMapView().removeRouteOverlay();
-        if (mRouteId != null) TripPollingService.unsubscribeRoute(mRouteId);
+        if (mPollingJob != null) mPollingJob.cancel(null);
         mFragment.getMapView().removeVehicleOverlay();
     }
 

@@ -164,9 +164,12 @@ object TripPollingService {
 
     private fun tick() {
         lastTickTimeMs = System.currentTimeMillis()
-        val coveredTripIds = mutableSetOf<String>()
+        val coveredTripIds = pollRoutes()
+        pollTrips(coveredTripIds)
+    }
 
-        // 1. Poll all subscribed routes (batch)
+    private fun pollRoutes(): Set<String> {
+        val coveredTripIds = mutableSetOf<String>()
         for (sub in routeSubscriptions.values) {
             try {
                 val result = fetchTripsForRoute(sub.routeId) ?: continue
@@ -181,8 +184,10 @@ object TripPollingService {
                 Log.e(TAG, "Failed to fetch trips for route ${sub.routeId}", e)
             }
         }
+        return coveredTripIds
+    }
 
-        // 2. Poll individual trips not covered by batch responses
+    private fun pollTrips(coveredTripIds: Set<String>) {
         for (tripId in tripRefCounts.keys) {
             if (tripId in coveredTripIds) continue
             try {

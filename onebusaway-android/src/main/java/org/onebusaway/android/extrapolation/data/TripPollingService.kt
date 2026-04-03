@@ -15,10 +15,16 @@
  */
 package org.onebusaway.android.extrapolation.data
 
-import android.os.Handler
-import android.os.Looper
 import android.text.TextUtils
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.request.ObaResponse
@@ -27,7 +33,6 @@ import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.io.request.ObaTripsForRouteRequest
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
 
 /**
  * System-wide polling service for OBA trip data. Components subscribe to routes
@@ -56,7 +61,7 @@ object TripPollingService {
 
     @JvmStatic
     fun getSnapshot(): PollingSnapshot = PollingSnapshot(
-            isTicking = ticking,
+            isTicking = tickJob?.isActive == true,
             lastTickTimeMs = lastTickTimeMs,
             subscribedRouteIds = routeSubscriptions.keys.toSet(),
             subscribedTripIds = tripRefCounts.toMap()
@@ -93,8 +98,8 @@ object TripPollingService {
         }
     }
 
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val fetchExecutor = Executors.newSingleThreadExecutor()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var tickJob: Job? = null
 
     fun interface RouteCallback {
         fun onResponse(response: ObaTripsForRouteResponse)
@@ -109,16 +114,6 @@ object TripPollingService {
 
     // --- Trip subscriptions (refcounted) ---
     private val tripRefCounts = ConcurrentHashMap<String, Int>()
-
-    private var ticking = false
-
-    private val tickRunnable = object : Runnable {
-        override fun run() {
-            if (!hasSubscriptions()) { ticking = false; return }
-            fetchExecutor.execute { tick() }
-            mainHandler.postDelayed(this, TICK_INTERVAL_MS)
-        }
-    }
 
     // --- Public API ---
 
@@ -150,20 +145,22 @@ object TripPollingService {
     /** Immediate one-shot fetch for a single trip (e.g. refresh button). */
     @JvmStatic
     fun fetchNow(tripId: String) {
-        fetchExecutor.execute {
+        scope.launch {
             handleTripResult(tripId, fetchTripDetails(tripId))
         }
     }
 
     // --- Result handlers ---
 
-    private fun handleRouteResult(
+    private suspend fun handleRouteResult(
             sub: RouteSubscription,
             result: FetchResult<ObaTripsForRouteResponse>?
     ): Set<String> {
         if (result !is FetchResult.Success) return emptySet()
         TripDataManager.recordTripsForRouteResponse(result.response, result.localTimeMs)
-        mainHandler.post { sub.callback.onResponse(result.response) }
+        withContext(Dispatchers.Main) {
+            sub.callback.onResponse(result.response)
+        }
         return result.response.trips
                 .mapNotNull { it.status?.activeTripId }
                 .toSet()
@@ -178,15 +175,9 @@ object TripPollingService {
                 tripId, result.response, result.localTimeMs)
     }
 
-    // --- Tick ---
+    // --- Polling ---
 
-    private fun tick() {
-        lastTickTimeMs = System.currentTimeMillis()
-        val coveredTripIds = pollRoutes()
-        pollTrips(coveredTripIds)
-    }
-
-    private fun pollRoutes(): Set<String> {
+    private suspend fun pollRoutes(): Set<String> {
         val coveredTripIds = mutableSetOf<String>()
         for (sub in routeSubscriptions.values) {
             try {
@@ -198,7 +189,7 @@ object TripPollingService {
         return coveredTripIds
     }
 
-    private fun pollTrips(coveredTripIds: Set<String>) {
+    private suspend fun pollTrips(coveredTripIds: Set<String>) {
         for (tripId in tripRefCounts.keys) {
             if (tripId in coveredTripIds) continue
             try {
@@ -209,7 +200,7 @@ object TripPollingService {
         }
     }
 
-    private fun fetchTripsForRoute(routeId: String): FetchResult<ObaTripsForRouteResponse>? {
+    private suspend fun fetchTripsForRoute(routeId: String): FetchResult<ObaTripsForRouteResponse>? {
         if (Application.get().currentRegion == null
                 && TextUtils.isEmpty(Application.get().customApiUrl)) {
             return null
@@ -222,7 +213,7 @@ object TripPollingService {
         return classify(response, System.currentTimeMillis())
     }
 
-    private fun fetchTripDetails(tripId: String): FetchResult<ObaTripDetailsResponse>? {
+    private suspend fun fetchTripDetails(tripId: String): FetchResult<ObaTripDetailsResponse>? {
         val ctx = Application.get().applicationContext
         val response = ObaTripDetailsRequest.newRequest(ctx, tripId).call()
         return classify(response, System.currentTimeMillis())
@@ -234,11 +225,14 @@ object TripPollingService {
             routeSubscriptions.isNotEmpty() || tripRefCounts.isNotEmpty()
 
     private fun ensureTicking() {
-        if (!ticking && hasSubscriptions()) {
-            ticking = true
-            // First tick immediately
-            fetchExecutor.execute { tick() }
-            mainHandler.postDelayed(tickRunnable, TICK_INTERVAL_MS)
+        if (tickJob?.isActive == true || !hasSubscriptions()) return
+        tickJob = scope.launch {
+            while (isActive && hasSubscriptions()) {
+                lastTickTimeMs = System.currentTimeMillis()
+                val coveredTripIds = pollRoutes()
+                pollTrips(coveredTripIds)
+                delay(TICK_INTERVAL_MS)
+            }
         }
     }
 }

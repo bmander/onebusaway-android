@@ -67,7 +67,7 @@ class DataViewActivity : AppCompatActivity() {
     private lateinit var collectedDataContainer: LinearLayout
 
     private var lastSubscriptionRoutes: Set<String> = emptySet()
-    private var lastSubscriptionTrips: Map<String, Int> = emptyMap()
+    private var lastSubscriptionTrips: Set<String> = emptySet()
     private var lastTrackedTripIds: Set<String> = emptySet()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -138,9 +138,9 @@ class DataViewActivity : AppCompatActivity() {
             addRowText(subscriptionsContainer,
                     getString(R.string.data_views_route_subscription, routeId))
         }
-        for ((tripId, refCount) in snapshot.subscribedTripIds) {
+        for (tripId in snapshot.subscribedTripIds) {
             addRowText(subscriptionsContainer,
-                    getString(R.string.data_views_trip_subscription, tripId, refCount))
+                    getString(R.string.data_views_trip_subscription, tripId))
         }
     }
 

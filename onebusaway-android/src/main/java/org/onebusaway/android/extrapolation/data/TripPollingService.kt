@@ -25,6 +25,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -43,8 +44,9 @@ import java.util.concurrent.ConcurrentHashMap
  * or individual trips; the service runs a single tick loop that fetches data
  * and records it into [TripDataManager].
  *
- * Route responses are emitted on a [SharedFlow][MutableSharedFlow]; use
- * [routeUpdates] to collect, or [subscribeRoute] for Java callback compatibility.
+ * Collect [routeUpdates] or [tripUpdates] for Kotlin Flow access.
+ * Java callers use [subscribeRoute]/[subscribeTripDetails] which bridge flows
+ * to callbacks/collection jobs.
  */
 object TripPollingService {
 
@@ -59,7 +61,7 @@ object TripPollingService {
             val isTicking: Boolean,
             val lastTickTimeMs: Long,
             val subscribedRouteIds: Set<String>,
-            val subscribedTripIds: Map<String, Int>
+            val subscribedTripIds: Set<String>
     )
 
     @JvmStatic
@@ -67,7 +69,7 @@ object TripPollingService {
             isTicking = tickJob?.isActive == true,
             lastTickTimeMs = lastTickTimeMs,
             subscribedRouteIds = subscribedRouteIds.toSet(),
-            subscribedTripIds = tripRefCounts.toMap()
+            subscribedTripIds = tripRefCounts.keys.toSet()
     )
 
     sealed class FetchResult<out T : ObaResponse> {
@@ -104,13 +106,35 @@ object TripPollingService {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var tickJob: Job? = null
 
-    // --- Route responses flow ---
+    // --- Shared flows ---
 
     private val _routeResponses = MutableSharedFlow<Pair<String, ObaTripsForRouteResponse>>()
+    private val _tripResponses = MutableSharedFlow<Pair<String, ObaTripDetailsResponse>>()
 
     /** Observe route poll responses for a specific route. */
     fun routeUpdates(routeId: String): Flow<ObaTripsForRouteResponse> =
             _routeResponses.filter { it.first == routeId }.map { it.second }
+
+    /**
+     * Observe trip poll responses for a specific trip. Collecting this flow
+     * registers the trip for polling; cancelling collection unregisters it.
+     * The first collector triggers an immediate fetch.
+     */
+    fun tripUpdates(tripId: String): Flow<ObaTripDetailsResponse> = flow {
+        val isFirst = addTripRef(tripId)
+        ensureTicking()
+        if (isFirst) {
+            handleTripResult(tripId, fetchTripDetails(tripId))
+        }
+        try {
+            _tripResponses
+                    .filter { it.first == tripId }
+                    .map { it.second }
+                    .collect { emit(it) }
+        } finally {
+            removeTripRef(tripId)
+        }
+    }
 
     /** Java callback interface for route responses. */
     fun interface RouteCallback {
@@ -121,8 +145,18 @@ object TripPollingService {
     private val subscribedRouteIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private val routeCollectionJobs = ConcurrentHashMap<String, Job>()
 
-    // --- Trip subscriptions (refcounted) ---
+    // --- Trip subscriptions (refcounted via flow lifecycle) ---
     private val tripRefCounts = ConcurrentHashMap<String, Int>()
+    private val tripCollectionJobs = ConcurrentHashMap<String, MutableList<Job>>()
+
+    private fun addTripRef(tripId: String): Boolean =
+            tripRefCounts.compute(tripId) { _, c -> (c ?: 0) + 1 } == 1
+
+    private fun removeTripRef(tripId: String) {
+        tripRefCounts.compute(tripId) { _, c ->
+            if (c == null || c <= 1) null else c - 1
+        }
+    }
 
     // --- Public API ---
 
@@ -144,18 +178,20 @@ object TripPollingService {
         routeCollectionJobs.remove(routeId)?.cancel()
     }
 
+    /** Java-compatible wrapper: launches a flow collection job for [tripUpdates]. */
     @JvmStatic
     fun subscribeTripDetails(tripId: String) {
-        val isNew = tripRefCounts.compute(tripId) { _, count -> (count ?: 0) + 1 } == 1
-        ensureTicking()
-        if (isNew) fetchNow(tripId)
+        val job = scope.launch { tripUpdates(tripId).collect { } }
+        tripCollectionJobs.compute(tripId) { _, jobs ->
+            (jobs ?: mutableListOf()).apply { add(job) }
+        }
     }
 
     @JvmStatic
     fun unsubscribeTripDetails(tripId: String) {
-        tripRefCounts.compute(tripId) { _, count ->
-            if (count == null || count <= 1) null else count - 1
-        }
+        val jobs = tripCollectionJobs[tripId] ?: return
+        jobs.removeLastOrNull()?.cancel()
+        if (jobs.isEmpty()) tripCollectionJobs.remove(tripId)
     }
 
     /** Immediate one-shot fetch for a single trip (e.g. refresh button). */
@@ -180,13 +216,14 @@ object TripPollingService {
                 .toSet()
     }
 
-    private fun handleTripResult(
+    private suspend fun handleTripResult(
             tripId: String,
             result: FetchResult<ObaTripDetailsResponse>?
     ) {
         if (result !is FetchResult.Success) return
         TripDataManager.recordTripDetailsResponse(
                 tripId, result.response, result.localTimeMs)
+        _tripResponses.emit(tripId to result.response)
     }
 
     // --- Polling ---

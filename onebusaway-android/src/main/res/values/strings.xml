@@ -854,7 +854,7 @@
     <string name="data_views_section_subscriptions">Active Subscriptions</string>
     <string name="data_views_no_subscriptions">No active subscriptions</string>
     <string name="data_views_route_subscription">Route: %s</string>
-    <string name="data_views_trip_subscription">Trip: %s (refs: %d)</string>
+    <string name="data_views_trip_subscription">Trip: %s</string>
     <string name="data_views_section_collected">Collected Trip Data</string>
 
     <!-- Vehicles on Map -->

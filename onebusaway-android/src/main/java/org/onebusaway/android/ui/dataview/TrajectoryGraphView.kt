@@ -58,6 +58,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
     // Data state
     private var history: List<ObaTripStatus> = emptyList()
     private var extrapolationAnchor: ObaTripStatus? = null
+    private var anchorTimeMs: Long = 0L
     private var schedule: ObaTripSchedule? = null
     private var serviceDate = 0L
     private var currentTime = System.currentTimeMillis()
@@ -160,9 +161,12 @@ class TrajectoryGraphView @JvmOverloads constructor(
     }
 
     fun setData(history: List<ObaTripStatus>?, schedule: ObaTripSchedule?,
-                serviceDate: Long, distribution: ProbDistribution?) {
+                serviceDate: Long, distribution: ProbDistribution?,
+                anchor: ObaTripStatus? = null, anchorTime: Long = 0L) {
         this.history = history?.toList() ?: emptyList()
-        extrapolationAnchor = findExtrapolationAnchor(this.history)
+        extrapolationAnchor = anchor ?: findExtrapolationAnchor(this.history)
+        this.anchorTimeMs = if (anchorTime > 0) anchorTime
+                else extrapolationAnchor?.lastUpdateTime ?: 0L
         this.schedule = schedule
         this.serviceDate = serviceDate
         this.distribution = distribution
@@ -246,7 +250,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
         drawTrajectoryDots(canvas)
 
         val lastDist = extrapolationAnchor?.distanceAlongTrip
-        val lastTime = extrapolationAnchor?.lastUpdateTime ?: 0
+        val lastTime = anchorTimeMs
 
         drawExtrapolationAndDeviation(canvas, lastDist, lastTime)
         drawGammaPdfAndBands(canvas, lastDist, lastTime)

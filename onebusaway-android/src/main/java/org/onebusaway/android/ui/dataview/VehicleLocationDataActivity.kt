@@ -171,6 +171,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         val snapshot = TripDataManager.getHistorySnapshot(tripId)
         val activeTripId = TripDataManager.getLastActiveTripId(tripId)
         val tripEnded = activeTripId != null && tripId != activeTripId
+        if (trip == null) trip = TripDataManager.getOrCreateTrip(tripId)
 
         updateHeader(snapshot.history.size, tripEnded)
 
@@ -178,7 +179,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
             lastRowCount = snapshot.history.size
             val table: TableLayout = findViewById(R.id.location_data_table)
             table.removeAllViews()
-            buildTable(table, snapshot)
+            buildTable(table, snapshot, trip?.anchor)
         }
 
         if (graphView.visibility == View.VISIBLE) {
@@ -200,13 +201,11 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         val schedule = TripDataManager.getSchedule(tripId)
         val serviceDate = TripDataManager.getServiceDate(tripId) ?: 0L
         val distribution: ProbDistribution? = if (!tripEnded) {
-            if (trip == null) {
-                trip = TripDataManager.getOrCreateTrip(tripId)
-            }
             (trip?.extrapolate(System.currentTimeMillis())
                     as? ExtrapolationResult.Success)?.distribution
         } else null
-        graphView.setData(history, schedule, serviceDate, distribution)
+        graphView.setData(history, schedule, serviceDate, distribution,
+                trip?.anchor, trip?.anchorTimeMs ?: 0L)
     }
 
     private fun selectDataPoint(index: Int?) {
@@ -245,7 +244,8 @@ class VehicleLocationDataActivity : AppCompatActivity() {
     private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
 
     private fun buildTable(table: TableLayout,
-                           snapshot: TripDataManager.HistorySnapshot) {
+                           snapshot: TripDataManager.HistorySnapshot,
+                           anchor: ObaTripStatus?) {
         currentHistory = snapshot.history
         dataRows.clear()
         selectedIndex = null
@@ -261,7 +261,8 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         for ((i, entry) in snapshot.history.withIndex()) {
             val fetchTime = snapshot.fetchTimes.getOrElse(i) { 0L }
             val localFetchTime = snapshot.localFetchTimes.getOrElse(i) { 0L }
-            addDataRow(table, i, entry, prev, fetchTime, localFetchTime)
+            val isAnchor = anchor != null && entry === anchor
+            addDataRow(table, i, entry, prev, fetchTime, localFetchTime, isAnchor)
             prev = entry
         }
     }
@@ -287,13 +288,17 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         table.addView(row)
     }
 
-    private fun rowBgColor(index: Int) =
-            if (index % 2 == 0) 0xFF1A1A1A.toInt() else 0xFF262626.toInt()
+    private fun rowBgColor(index: Int, isAnchor: Boolean = false) = when {
+        isAnchor -> 0xFF1A2A1A.toInt()
+        index % 2 == 0 -> 0xFF1A1A1A.toInt()
+        else -> 0xFF262626.toInt()
+    }
 
     private fun addDataRow(table: TableLayout, index: Int, entry: ObaTripStatus,
-                           prev: ObaTripStatus?, fetchTime: Long, localFetchTime: Long) {
+                           prev: ObaTripStatus?, fetchTime: Long, localFetchTime: Long,
+                           isAnchor: Boolean = false) {
         val row = TableRow(this).apply {
-            setBackgroundColor(rowBgColor(index))
+            setBackgroundColor(rowBgColor(index, isAnchor))
             setOnClickListener {
                 if (selectedIndex == index) showStatusJson(index)
                 else selectDataPoint(index)
@@ -307,7 +312,7 @@ class VehicleLocationDataActivity : AppCompatActivity() {
         val avlTime = entry.lastLocationUpdateTime
 
         // #
-        row.addView(cell("${index + 1}"))
+        row.addView(cell(if (isAnchor) "\u2693 ${index + 1}" else "${index + 1}"))
         // Timestamps
         row.addView(cell(fmtTime(localFetchTime)))
         row.addView(cell(fmtTime(fetchTime)))

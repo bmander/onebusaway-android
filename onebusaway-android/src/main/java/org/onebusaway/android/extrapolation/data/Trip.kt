@@ -23,6 +23,7 @@ import org.onebusaway.android.extrapolation.ScheduleReplayExtrapolator
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.elements.isLocationRealtime
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.util.Polyline
 
@@ -40,12 +41,17 @@ private const val TRIP_END_DISTANCE_THRESHOLD = 50.0
  */
 class Trip(val tripId: String) {
 
-    // --- Vehicle history ---
+    // --- Vehicle history (raw log — everything, for debugging) ---
     val history = mutableListOf<ObaTripStatus>()
     val fetchTimes = mutableListOf<Long>()
     val localFetchTimes = mutableListOf<Long>()
-    /** The most recent status with valid distance data, or null. */
-    val anchor: ObaTripStatus? get() = history.lastOrNull()
+
+    /** The most recent status by timestamp, with GPS winning ties. */
+    var anchor: ObaTripStatus? = null
+        private set
+    /** Effective timestamp of the anchor (lastUpdateTime, or serverTimeMs as fallback). */
+    var anchorTimeMs: Long = 0L
+        private set
 
     // --- Caches ---
     var schedule: ObaTripSchedule? = null
@@ -81,6 +87,16 @@ class Trip(val tripId: String) {
         fetchTimes.add(serverTimeMs)
         localFetchTimes.add(localTimeMs)
 
+        // Update anchor: newest timestamp wins; GPS wins ties
+        val effectiveTime = if (status.lastUpdateTime > 0) status.lastUpdateTime else serverTimeMs
+        if (effectiveTime > anchorTimeMs
+                || (effectiveTime == anchorTimeMs
+                        && status.isLocationRealtime
+                        && anchor?.isLocationRealtime != true)) {
+            anchor = status
+            anchorTimeMs = effectiveTime
+        }
+
         if (history.size > MAX_ENTRIES) {
             history.subList(0, history.size - MAX_ENTRIES).clear()
             fetchTimes.subList(0, fetchTimes.size - MAX_ENTRIES).clear()
@@ -94,12 +110,9 @@ class Trip(val tripId: String) {
         val currentAnchor = anchor ?: return ExtrapolationResult.NoData
         val lastDist = currentAnchor.distanceAlongTrip
                 ?: return ExtrapolationResult.NoData
+        if (anchorTimeMs <= 0) return ExtrapolationResult.NoData
 
-        val serverTime = try { currentAnchor.lastUpdateTime } catch (_: NullPointerException) { 0L }
-        val lastTime = if (serverTime > 0) serverTime else fetchTimes.lastOrNull() ?: 0L
-        if (lastTime <= 0) return ExtrapolationResult.NoData
-
-        val dtMs = queryTimeMs - lastTime
+        val dtMs = queryTimeMs - anchorTimeMs
         if (dtMs < 0 || dtMs > MAX_HORIZON_MS) return ExtrapolationResult.Stale
         if (lastDist <= PRE_DEPARTURE_DISTANCE_THRESHOLD) return ExtrapolationResult.TripNotStarted
         val totalDist = currentAnchor.totalDistanceAlongTrip
@@ -108,7 +121,7 @@ class Trip(val tripId: String) {
             return ExtrapolationResult.TripEnded
         }
 
-        return getOrCreateExtrapolator().doExtrapolate(lastDist, lastTime, queryTimeMs)
+        return getOrCreateExtrapolator().doExtrapolate(lastDist, anchorTimeMs, queryTimeMs)
     }
 
     private fun getOrCreateExtrapolator(): Extrapolator {

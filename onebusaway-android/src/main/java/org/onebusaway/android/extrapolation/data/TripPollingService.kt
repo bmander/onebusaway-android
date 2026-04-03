@@ -169,12 +169,11 @@ object TripPollingService {
 
     private fun fetchTripDetails(tripId: String) {
         val ctx = Application.get().applicationContext
-        val response = ObaTripDetailsRequest.newRequest(ctx, tripId).call()
-        if (response != null) {
-            val localTime = System.currentTimeMillis()
-            TripDataManager.putTripDetails(tripId, response)
-            TripDataManager.recordTripDetailsResponse(tripId, response, localTime)
-        }
+        val response = ObaTripDetailsRequest.newRequest(ctx, tripId).call() ?: return
+        if (response.code != ObaApi.OBA_OK) return
+        val localTime = System.currentTimeMillis()
+        TripDataManager.putTripDetails(tripId, response)
+        TripDataManager.recordTripDetailsResponse(tripId, response, localTime)
     }
 
     // --- Lifecycle ---

@@ -121,9 +121,6 @@ object TripPollingService {
     }
 
     // --- Shared flows ---
-    // TODO: replay=0 means the initial fetch in tripUpdates (and any emission before the
-    //  collector is ready) is lost to the flow consumer. Consider replay=1 or emitting
-    //  the initial result directly into the returned flow before subscribing to the SharedFlow.
 
     private val _routeResponses = MutableSharedFlow<Pair<String, ObaTripsForRouteResponse>>(
             extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -154,7 +151,9 @@ object TripPollingService {
         wakeUp.trySend(Unit)
         if (isFirst) {
             val response = fetchTripDetails(tripId)
-            handleTripResult(tripId, classify(response, System.currentTimeMillis()))
+            val result = classify(response, System.currentTimeMillis())
+            handleTripResult(tripId, result)
+            if (result is FetchResult.Success) emit(result.response)
         }
         try {
             _tripResponses

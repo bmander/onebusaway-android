@@ -20,6 +20,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.BufferOverflow
@@ -54,6 +56,7 @@ object TripPollingService {
 
     private const val TAG = "TripPollingService"
     private const val TICK_INTERVAL_MS = 10_000L
+    private const val REQUEST_SPACING_MS = 100L
 
     @Volatile
     var lastTickTimeMs = 0L
@@ -118,6 +121,28 @@ object TripPollingService {
                 wakeUp.receive()
             }
         }
+    }
+
+    // --- Rate-limited request queue ---
+
+    private val requestQueue = Channel<suspend () -> Unit>(Channel.UNLIMITED)
+    private val requestDispatcher = scope.launch {
+        for (task in requestQueue) {
+            task()
+            delay(REQUEST_SPACING_MS)
+        }
+    }
+
+    private fun <T> enqueueRequest(block: suspend () -> T): Deferred<T> {
+        val deferred = CompletableDeferred<T>()
+        requestQueue.trySend {
+            try {
+                deferred.complete(block())
+            } catch (e: Exception) {
+                deferred.completeExceptionally(e)
+            }
+        }
+        return deferred
     }
 
     // --- Shared flows ---
@@ -235,16 +260,18 @@ object TripPollingService {
     }
 
     // --- Polling ---
-    // TODO: Routes and trips are fetched sequentially as an ad-hoc throttling strategy.
-    //  Replace with parallel fetches (async/awaitAll) gated by a real concurrency limit.
 
     private suspend fun pollRoutes(): Set<String> {
-        val coveredTripIds = mutableSetOf<String>()
-        for (routeId in subscribedRouteIds) {
-            try {
+        val deferreds = subscribedRouteIds.map { routeId ->
+            routeId to enqueueRequest {
                 val response = fetchTripsForRoute(routeId)
-                coveredTripIds += handleRouteResult(routeId,
-                        classify(response, System.currentTimeMillis()))
+                classify(response, System.currentTimeMillis())
+            }
+        }
+        val coveredTripIds = mutableSetOf<String>()
+        for ((routeId, deferred) in deferreds) {
+            try {
+                coveredTripIds += handleRouteResult(routeId, deferred.await())
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch trips for route $routeId", e)
             }
@@ -253,11 +280,17 @@ object TripPollingService {
     }
 
     private suspend fun pollTrips(coveredTripIds: Set<String>) {
-        for (tripId in tripRefCounts.keys) {
-            if (tripId in coveredTripIds) continue
+        val deferreds = tripRefCounts.keys
+                .filter { it !in coveredTripIds }
+                .map { tripId ->
+                    tripId to enqueueRequest {
+                        val response = fetchTripDetails(tripId)
+                        classify(response, System.currentTimeMillis())
+                    }
+                }
+        for ((tripId, deferred) in deferreds) {
             try {
-                val response = fetchTripDetails(tripId)
-                handleTripResult(tripId, classify(response, System.currentTimeMillis()))
+                handleTripResult(tripId, deferred.await())
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch trip details for $tripId", e)
             }

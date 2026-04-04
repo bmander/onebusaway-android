@@ -127,9 +127,10 @@ object TripPollingService {
 
     private val requestQueue = Channel<suspend () -> Unit>(Channel.UNLIMITED)
     private val requestDispatcher = scope.launch {
+        var first = true
         for (task in requestQueue) {
+            if (!first) delay(REQUEST_SPACING_MS) else first = false
             task()
-            delay(REQUEST_SPACING_MS)
         }
     }
 
@@ -175,8 +176,10 @@ object TripPollingService {
         val isFirst = addTripRef(tripId)
         wakeUp.trySend(Unit)
         if (isFirst) {
-            val response = fetchTripDetails(tripId)
-            val result = classify(response, System.currentTimeMillis())
+            val result = enqueueRequest {
+                val response = fetchTripDetails(tripId)
+                classify(response, System.currentTimeMillis())
+            }.await()
             handleTripResult(tripId, result)
             if (result is FetchResult.Success) emit(result.response)
         }
@@ -229,9 +232,12 @@ object TripPollingService {
     /** Immediate one-shot fetch for a single trip (e.g. refresh button). */
     @JvmStatic
     fun fetchNow(tripId: String) {
-        scope.launch {
+        val deferred = enqueueRequest {
             val response = fetchTripDetails(tripId)
-            handleTripResult(tripId, classify(response, System.currentTimeMillis()))
+            classify(response, System.currentTimeMillis())
+        }
+        scope.launch {
+            handleTripResult(tripId, deferred.await())
         }
     }
 

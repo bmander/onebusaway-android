@@ -23,6 +23,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.filter
@@ -124,8 +125,10 @@ object TripPollingService {
     //  collector is ready) is lost to the flow consumer. Consider replay=1 or emitting
     //  the initial result directly into the returned flow before subscribing to the SharedFlow.
 
-    private val _routeResponses = MutableSharedFlow<Pair<String, ObaTripsForRouteResponse>>()
-    private val _tripResponses = MutableSharedFlow<Pair<String, ObaTripDetailsResponse>>()
+    private val _routeResponses = MutableSharedFlow<Pair<String, ObaTripsForRouteResponse>>(
+            extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    private val _tripResponses = MutableSharedFlow<Pair<String, ObaTripDetailsResponse>>(
+            extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     /** Observe route poll responses. Collecting registers the route; cancelling unregisters it. */
     fun routeUpdates(routeId: String): Flow<ObaTripsForRouteResponse> = flow {

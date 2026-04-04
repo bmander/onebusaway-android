@@ -241,7 +241,6 @@ public class TripDetailsListFragment extends ListFragment {
 
         mDestinationId = args.getString(DEST_ID);
 
-        // Initial fetch happens when onResume subscribes
     }
 
     @Override

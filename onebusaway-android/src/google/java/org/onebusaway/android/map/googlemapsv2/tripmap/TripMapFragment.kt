@@ -116,6 +116,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         super.onResume()
         if (activated) {
             extrapolationController?.start()
+            pollingJob?.cancel()
             pollingJob = TripPollingService.subscribeTripDetails(tripId)
         }
     }
@@ -127,7 +128,6 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     }
 
     override fun onDestroyView() {
-        pollingJob?.cancel()
         extrapolationController?.stop()
         extrapolationController = null
         routeOverlay?.deactivate()
@@ -166,6 +166,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         val trip = TripDataManager.getOrCreateTrip(tripId)
         extrapolationController = TripExtrapolationController(
                 overlays.vehicle, trip).also { it.start() }
+        pollingJob?.cancel()
         pollingJob = TripPollingService.subscribeTripDetails(tripId)
         activated = true
         overlays.route.fitCameraToShape()

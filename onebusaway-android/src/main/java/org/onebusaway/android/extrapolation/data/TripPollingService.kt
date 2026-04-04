@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -104,18 +105,24 @@ object TripPollingService {
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val wakeUp = Channel<Unit>(Channel.CONFLATED)
     private val tickJob: Job = scope.launch {
         while (isActive) {
             if (hasSubscriptions()) {
                 lastTickTimeMs = System.currentTimeMillis()
                 val coveredTripIds = pollRoutes()
                 pollTrips(coveredTripIds)
+                delay(TICK_INTERVAL_MS)
+            } else {
+                wakeUp.receive()
             }
-            delay(TICK_INTERVAL_MS)
         }
     }
 
     // --- Shared flows ---
+    // TODO: replay=0 means the initial fetch in tripUpdates (and any emission before the
+    //  collector is ready) is lost to the flow consumer. Consider replay=1 or emitting
+    //  the initial result directly into the returned flow before subscribing to the SharedFlow.
 
     private val _routeResponses = MutableSharedFlow<Pair<String, ObaTripsForRouteResponse>>()
     private val _tripResponses = MutableSharedFlow<Pair<String, ObaTripDetailsResponse>>()
@@ -123,6 +130,7 @@ object TripPollingService {
     /** Observe route poll responses. Collecting registers the route; cancelling unregisters it. */
     fun routeUpdates(routeId: String): Flow<ObaTripsForRouteResponse> = flow {
         subscribedRouteIds.add(routeId)
+        wakeUp.trySend(Unit)
         try {
             _routeResponses
                     .filter { it.first == routeId }
@@ -140,6 +148,7 @@ object TripPollingService {
      */
     fun tripUpdates(tripId: String): Flow<ObaTripDetailsResponse> = flow {
         val isFirst = addTripRef(tripId)
+        wakeUp.trySend(Unit)
         if (isFirst) {
             handleTripResult(tripId, fetchTripDetails(tripId))
         }
@@ -222,6 +231,8 @@ object TripPollingService {
     }
 
     // --- Polling ---
+    // TODO: Routes and trips are fetched sequentially as an ad-hoc throttling strategy.
+    //  Replace with parallel fetches (async/awaitAll) gated by a real concurrency limit.
 
     private suspend fun pollRoutes(): Set<String> {
         val coveredTripIds = mutableSetOf<String>()

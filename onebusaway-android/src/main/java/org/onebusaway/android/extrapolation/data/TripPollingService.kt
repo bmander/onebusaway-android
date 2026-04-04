@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.extrapolation.data
 
-import android.text.TextUtils
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -264,10 +263,6 @@ object TripPollingService {
     }
 
     private suspend fun fetchTripsForRoute(routeId: String): FetchResult<ObaTripsForRouteResponse>? {
-        if (Application.get().currentRegion == null
-                && TextUtils.isEmpty(Application.get().customApiUrl)) {
-            return null
-        }
         val ctx = Application.get().applicationContext
         val response = ObaTripsForRouteRequest.Builder(ctx, routeId)
                 .setIncludeStatus(true)

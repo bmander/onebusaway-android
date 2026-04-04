@@ -96,14 +96,12 @@ object TripPollingService {
         ) : FetchResult<Nothing>()
     }
 
-    private fun <T : ObaResponse> classify(response: T?, localTimeMs: Long): FetchResult<T>? {
-        if (response == null) return null
-        return when (response.code) {
+    private fun <T : ObaResponse> classify(response: T, localTimeMs: Long): FetchResult<T> =
+        when (response.code) {
             ObaApi.OBA_OK -> FetchResult.Success(response, localTimeMs)
             ObaApi.OBA_IO_EXCEPTION -> FetchResult.TransportError(response.text, localTimeMs)
             else -> FetchResult.ApiError(response.code, response.text, localTimeMs)
         }
-    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val wakeUp = Channel<Unit>(Channel.CONFLATED)
@@ -217,7 +215,7 @@ object TripPollingService {
 
     private suspend fun handleRouteResult(
             routeId: String,
-            result: FetchResult<ObaTripsForRouteResponse>?
+            result: FetchResult<ObaTripsForRouteResponse>
     ): Set<String> {
         if (result !is FetchResult.Success) return emptySet()
         TripDataManager.recordTripsForRouteResponse(result.response, result.localTimeMs)
@@ -229,7 +227,7 @@ object TripPollingService {
 
     private suspend fun handleTripResult(
             tripId: String,
-            result: FetchResult<ObaTripDetailsResponse>?
+            result: FetchResult<ObaTripDetailsResponse>
     ) {
         if (result !is FetchResult.Success) return
         TripDataManager.recordTripDetailsResponse(

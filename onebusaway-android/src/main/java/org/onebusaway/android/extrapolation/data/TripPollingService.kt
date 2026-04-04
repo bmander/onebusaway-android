@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaApi
@@ -110,10 +111,12 @@ object TripPollingService {
     private val tickJob: Job = scope.launch {
         while (isActive) {
             if (hasSubscriptions()) {
-                lastTickTimeMs = System.currentTimeMillis()
-                val coveredTripIds = pollRoutes()
-                pollTrips(coveredTripIds)
-                delay(TICK_INTERVAL_MS)
+                val elapsed = measureTimeMillis {
+                    lastTickTimeMs = System.currentTimeMillis()
+                    val coveredTripIds = pollRoutes()
+                    pollTrips(coveredTripIds)
+                }
+                delay((TICK_INTERVAL_MS - elapsed).coerceAtLeast(0))
             } else {
                 wakeUp.receive()
             }

@@ -155,7 +155,8 @@ object TripPollingService {
         val isFirst = addTripRef(tripId)
         wakeUp.trySend(Unit)
         if (isFirst) {
-            handleTripResult(tripId, fetchTripDetails(tripId))
+            val response = fetchTripDetails(tripId)
+            handleTripResult(tripId, classify(response, System.currentTimeMillis()))
         }
         try {
             _tripResponses
@@ -207,7 +208,8 @@ object TripPollingService {
     @JvmStatic
     fun fetchNow(tripId: String) {
         scope.launch {
-            handleTripResult(tripId, fetchTripDetails(tripId))
+            val response = fetchTripDetails(tripId)
+            handleTripResult(tripId, classify(response, System.currentTimeMillis()))
         }
     }
 
@@ -243,7 +245,9 @@ object TripPollingService {
         val coveredTripIds = mutableSetOf<String>()
         for (routeId in subscribedRouteIds) {
             try {
-                coveredTripIds += handleRouteResult(routeId, fetchTripsForRoute(routeId))
+                val response = fetchTripsForRoute(routeId)
+                coveredTripIds += handleRouteResult(routeId,
+                        classify(response, System.currentTimeMillis()))
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch trips for route $routeId", e)
             }
@@ -255,26 +259,25 @@ object TripPollingService {
         for (tripId in tripRefCounts.keys) {
             if (tripId in coveredTripIds) continue
             try {
-                handleTripResult(tripId, fetchTripDetails(tripId))
+                val response = fetchTripDetails(tripId)
+                handleTripResult(tripId, classify(response, System.currentTimeMillis()))
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch trip details for $tripId", e)
             }
         }
     }
 
-    private suspend fun fetchTripsForRoute(routeId: String): FetchResult<ObaTripsForRouteResponse>? {
+    private suspend fun fetchTripsForRoute(routeId: String): ObaTripsForRouteResponse {
         val ctx = Application.get().applicationContext
-        val response = ObaTripsForRouteRequest.Builder(ctx, routeId)
+        return ObaTripsForRouteRequest.Builder(ctx, routeId)
                 .setIncludeStatus(true)
                 .build()
                 .call()
-        return classify(response, System.currentTimeMillis())
     }
 
-    private suspend fun fetchTripDetails(tripId: String): FetchResult<ObaTripDetailsResponse>? {
+    private suspend fun fetchTripDetails(tripId: String): ObaTripDetailsResponse {
         val ctx = Application.get().applicationContext
-        val response = ObaTripDetailsRequest.newRequest(ctx, tripId).call()
-        return classify(response, System.currentTimeMillis())
+        return ObaTripDetailsRequest.newRequest(ctx, tripId).call()
     }
 
     // --- Lifecycle ---

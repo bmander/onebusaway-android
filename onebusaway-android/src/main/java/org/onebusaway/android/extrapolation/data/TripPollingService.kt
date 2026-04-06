@@ -20,23 +20,18 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
-import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.request.ObaResponse
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.io.request.ObaTripsForRouteRequest
@@ -45,8 +40,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * System-wide polling service for OBA trip data. Components subscribe to routes
- * or individual trips; the service runs a single tick loop that fetches data
- * and records it into [TripDataManager].
+ * or individual trips; each subscription gets its own polling loop that fetches
+ * data and records it into [TripDataManager].
  *
  * Collect [routeUpdates] or [tripUpdates] for Kotlin Flow access.
  * Java callers use [subscribeRoute]/[subscribeTripDetails] which bridge flows
@@ -56,7 +51,7 @@ object TripPollingService {
 
     private const val TAG = "TripPollingService"
     private const val TICK_INTERVAL_MS = 10_000L
-    private const val REQUEST_SPACING_MS = 100L
+    private const val STOP_TIMEOUT_MS = 5_000L
 
     @Volatile
     var lastTickTimeMs = 0L
@@ -71,149 +66,84 @@ object TripPollingService {
 
     @JvmStatic
     fun getSnapshot(): PollingSnapshot = PollingSnapshot(
-            isTicking = tickJob.isActive,
+            isTicking = activeRouteIds.isNotEmpty() || activeTripIds.isNotEmpty(),
             lastTickTimeMs = lastTickTimeMs,
-            subscribedRouteIds = subscribedRouteIds.toSet(),
-            subscribedTripIds = tripRefCounts.keys.toSet()
+            subscribedRouteIds = activeRouteIds.toSet(),
+            subscribedTripIds = activeTripIds.toSet()
     )
 
-    sealed class FetchResult<out T : ObaResponse> {
-        abstract val localTimeMs: Long
-
-        data class Success<T : ObaResponse>(
-                val response: T,
-                override val localTimeMs: Long
-        ) : FetchResult<T>() {
-            val serverTimeMs: Long get() = response.currentTime
-        }
-
-        data class ApiError(
-                val code: Int,
-                val text: String?,
-                override val localTimeMs: Long
-        ) : FetchResult<Nothing>()
-
-        data class TransportError(
-                val message: String?,
-                override val localTimeMs: Long
-        ) : FetchResult<Nothing>()
-    }
-
-    private fun <T : ObaResponse> classify(response: T, localTimeMs: Long): FetchResult<T> =
-        when (response.code) {
-            ObaApi.OBA_OK -> FetchResult.Success(response, localTimeMs)
-            ObaApi.OBA_IO_EXCEPTION -> FetchResult.TransportError(response.text, localTimeMs)
-            else -> FetchResult.ApiError(response.code, response.text, localTimeMs)
-        }
-
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val wakeUp = Channel<Unit>(Channel.CONFLATED)
-    private val tickJob: Job = scope.launch {
-        while (isActive) {
-            if (hasSubscriptions()) {
-                val elapsed = measureTimeMillis {
-                    lastTickTimeMs = System.currentTimeMillis()
-                    val coveredTripIds = pollRoutes()
-                    pollTrips(coveredTripIds)
+
+    // --- Active ID tracking (for getSnapshot) ---
+
+    private val activeRouteIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val activeTripIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    // --- Per-ID SharedFlow caches ---
+
+    private val routeFlows = ConcurrentHashMap<String, SharedFlow<ObaTripsForRouteResponse>>()
+    private val tripFlows = ConcurrentHashMap<String, SharedFlow<ObaTripDetailsResponse>>()
+
+    private fun getOrCreateRouteFlow(routeId: String): SharedFlow<ObaTripsForRouteResponse> =
+            routeFlows.computeIfAbsent(routeId) { id ->
+                flow {
+                    while (true) {
+                        try {
+                            val localTimeMs = System.currentTimeMillis()
+                            val response = fetchTripsForRoute(id)
+                            if (response.code == ObaApi.OBA_OK) {
+                                lastTickTimeMs = localTimeMs
+                                TripDataManager.recordTripsForRouteResponse(response, localTimeMs)
+                                emit(response)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to fetch trips for route $id", e)
+                        }
+                        delay(TICK_INTERVAL_MS)
+                    }
                 }
-                delay((TICK_INTERVAL_MS - elapsed).coerceAtLeast(0))
-            } else {
-                wakeUp.receive()
+                .onStart { activeRouteIds.add(id) }
+                .onCompletion { activeRouteIds.remove(id); routeFlows.remove(id) }
+                .shareIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), replay = 1)
             }
-        }
-    }
 
-    // --- Rate-limited request queue ---
-
-    private val requestQueue = Channel<suspend () -> Unit>(Channel.UNLIMITED)
-    private val requestDispatcher = scope.launch {
-        var first = true
-        for (task in requestQueue) {
-            if (!first) delay(REQUEST_SPACING_MS) else first = false
-            task()
-        }
-    }
-
-    private fun <T> enqueueRequest(block: suspend () -> T): Deferred<T> {
-        val deferred = CompletableDeferred<T>()
-        requestQueue.trySend {
-            try {
-                deferred.complete(block())
-            } catch (e: Exception) {
-                deferred.completeExceptionally(e)
+    private fun getOrCreateTripFlow(tripId: String): SharedFlow<ObaTripDetailsResponse> =
+            tripFlows.computeIfAbsent(tripId) { id ->
+                flow {
+                    while (true) {
+                        try {
+                            val localTimeMs = System.currentTimeMillis()
+                            val response = fetchTripDetails(id)
+                            if (response.code == ObaApi.OBA_OK) {
+                                lastTickTimeMs = localTimeMs
+                                TripDataManager.recordTripDetailsResponse(id, response, localTimeMs)
+                                emit(response)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to fetch trip details for $id", e)
+                        }
+                        delay(TICK_INTERVAL_MS)
+                    }
+                }
+                .onStart { activeTripIds.add(id) }
+                .onCompletion { activeTripIds.remove(id); tripFlows.remove(id) }
+                .shareIn(scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), replay = 1)
             }
-        }
-        return deferred
-    }
 
-    // --- Shared flows ---
+    // --- Public API ---
 
-    private val _routeResponses = MutableSharedFlow<Pair<String, ObaTripsForRouteResponse>>(
-            extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    private val _tripResponses = MutableSharedFlow<Pair<String, ObaTripDetailsResponse>>(
-            extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    /** Observe route poll responses. Collecting keeps the route polled; cancelling stops it. */
+    fun routeUpdates(routeId: String): Flow<ObaTripsForRouteResponse> =
+            getOrCreateRouteFlow(routeId)
 
-    /** Observe route poll responses. Collecting registers the route; cancelling unregisters it. */
-    fun routeUpdates(routeId: String): Flow<ObaTripsForRouteResponse> = flow {
-        subscribedRouteIds.add(routeId)
-        wakeUp.trySend(Unit)
-        try {
-            _routeResponses
-                    .filter { it.first == routeId }
-                    .map { it.second }
-                    .collect { emit(it) }
-        } finally {
-            subscribedRouteIds.remove(routeId)
-        }
-    }
-
-    /**
-     * Observe trip poll responses for a specific trip. Collecting this flow
-     * registers the trip for polling; cancelling collection unregisters it.
-     * The first collector triggers an immediate fetch.
-     */
-    fun tripUpdates(tripId: String): Flow<ObaTripDetailsResponse> = flow {
-        val isFirst = addTripRef(tripId)
-        wakeUp.trySend(Unit)
-        if (isFirst) {
-            val result = enqueueRequest {
-                val response = fetchTripDetails(tripId)
-                classify(response, System.currentTimeMillis())
-            }.await()
-            handleTripResult(tripId, result)
-            if (result is FetchResult.Success) emit(result.response)
-        }
-        try {
-            _tripResponses
-                    .filter { it.first == tripId }
-                    .map { it.second }
-                    .collect { emit(it) }
-        } finally {
-            removeTripRef(tripId)
-        }
-    }
+    /** Observe trip poll responses. Collecting keeps the trip polled; cancelling stops it. */
+    fun tripUpdates(tripId: String): Flow<ObaTripDetailsResponse> =
+            getOrCreateTripFlow(tripId)
 
     /** Java callback interface for route responses. */
     fun interface RouteCallback {
         fun onResponse(response: ObaTripsForRouteResponse)
     }
-
-    // --- Route subscriptions ---
-    private val subscribedRouteIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
-
-    // --- Trip subscriptions (refcounted via flow lifecycle) ---
-    private val tripRefCounts = ConcurrentHashMap<String, Int>()
-
-    private fun addTripRef(tripId: String): Boolean =
-            tripRefCounts.compute(tripId) { _, c -> (c ?: 0) + 1 } == 1
-
-    private fun removeTripRef(tripId: String) {
-        tripRefCounts.compute(tripId) { _, c ->
-            if (c == null || c <= 1) null else c - 1
-        }
-    }
-
-    // --- Public API ---
 
     /** Subscribe to route updates with a Java-compatible callback. Caller cancels the returned Job to unsubscribe. */
     @JvmStatic
@@ -232,76 +162,20 @@ object TripPollingService {
     /** Immediate one-shot fetch for a single trip (e.g. refresh button). */
     @JvmStatic
     fun fetchNow(tripId: String) {
-        val deferred = enqueueRequest {
-            val response = fetchTripDetails(tripId)
-            classify(response, System.currentTimeMillis())
-        }
         scope.launch {
-            handleTripResult(tripId, deferred.await())
-        }
-    }
-
-    // --- Result handlers ---
-
-    private suspend fun handleRouteResult(
-            routeId: String,
-            result: FetchResult<ObaTripsForRouteResponse>
-    ): Set<String> {
-        if (result !is FetchResult.Success) return emptySet()
-        TripDataManager.recordTripsForRouteResponse(result.response, result.localTimeMs)
-        _routeResponses.emit(routeId to result.response)
-        return result.response.trips
-                .mapNotNull { it.status?.activeTripId }
-                .toSet()
-    }
-
-    private suspend fun handleTripResult(
-            tripId: String,
-            result: FetchResult<ObaTripDetailsResponse>
-    ) {
-        if (result !is FetchResult.Success) return
-        TripDataManager.recordTripDetailsResponse(
-                tripId, result.response, result.localTimeMs)
-        _tripResponses.emit(tripId to result.response)
-    }
-
-    // --- Polling ---
-
-    private suspend fun pollRoutes(): Set<String> {
-        val deferreds = subscribedRouteIds.map { routeId ->
-            routeId to enqueueRequest {
-                val response = fetchTripsForRoute(routeId)
-                classify(response, System.currentTimeMillis())
-            }
-        }
-        val coveredTripIds = mutableSetOf<String>()
-        for ((routeId, deferred) in deferreds) {
             try {
-                coveredTripIds += handleRouteResult(routeId, deferred.await())
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to fetch trips for route $routeId", e)
-            }
-        }
-        return coveredTripIds
-    }
-
-    private suspend fun pollTrips(coveredTripIds: Set<String>) {
-        val deferreds = tripRefCounts.keys
-                .filter { it !in coveredTripIds }
-                .map { tripId ->
-                    tripId to enqueueRequest {
-                        val response = fetchTripDetails(tripId)
-                        classify(response, System.currentTimeMillis())
-                    }
+                val localTimeMs = System.currentTimeMillis()
+                val response = fetchTripDetails(tripId)
+                if (response.code == ObaApi.OBA_OK) {
+                    TripDataManager.recordTripDetailsResponse(tripId, response, localTimeMs)
                 }
-        for ((tripId, deferred) in deferreds) {
-            try {
-                handleTripResult(tripId, deferred.await())
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to fetch trip details for $tripId", e)
+                Log.e(TAG, "Failed to fetch trip details for $tripId (fetchNow)", e)
             }
         }
     }
+
+    // --- Network calls ---
 
     private suspend fun fetchTripsForRoute(routeId: String): ObaTripsForRouteResponse {
         val ctx = Application.get().applicationContext
@@ -315,9 +189,4 @@ object TripPollingService {
         val ctx = Application.get().applicationContext
         return ObaTripDetailsRequest.newRequest(ctx, tripId).call()
     }
-
-    // --- Lifecycle ---
-
-    private fun hasSubscriptions() =
-            subscribedRouteIds.isNotEmpty() || tripRefCounts.isNotEmpty()
 }

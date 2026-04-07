@@ -21,6 +21,10 @@ import android.os.Looper
 import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
@@ -55,6 +59,19 @@ object TripDataManager {
 
     private val trips = LinkedHashMap<String, Trip>()
 
+    // --- Change notifications ---
+
+    private val _changes = MutableSharedFlow<Unit>(
+            extraBufferCapacity = 1,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** Emits Unit whenever any mutation method runs. Coalesces bursts via DROP_OLDEST. */
+    val changes: SharedFlow<Unit> = _changes.asSharedFlow()
+
+    private fun notifyChanged() {
+        _changes.tryEmit(Unit)
+    }
+
     // --- Trip registry ---
 
     @Synchronized
@@ -77,6 +94,7 @@ object TripDataManager {
         val tripId = status.activeTripId ?: return
         getOrCreateTrip(tripId).recordStatus(status, serverTimeMs, localTimeMs)
         evictOldTripsIfNeeded()
+        notifyChanged()
     }
 
     @Synchronized
@@ -96,6 +114,7 @@ object TripDataManager {
             trip.serviceDate = status.serviceDate
         }
         evictOldTripsIfNeeded()
+        notifyChanged()
     }
 
     fun recordTripsForRouteResponse(response: ObaTripsForRouteResponse, localTimeMs: Long) {
@@ -123,6 +142,7 @@ object TripDataManager {
                 ensureShape(tripId, shapeId)
             }
         }
+        notifyChanged()
     }
 
     // --- Delegating accessors (for callers not yet using Trip directly) ---
@@ -182,6 +202,7 @@ object TripDataManager {
     fun putSchedule(tripId: String?, schedule: ObaTripSchedule?) {
         if (tripId != null && schedule != null) {
             getOrCreateTrip(tripId).schedule = schedule
+            notifyChanged()
         }
     }
 
@@ -227,6 +248,7 @@ object TripDataManager {
     fun putServiceDate(tripId: String?, serviceDate: Long) {
         if (tripId != null && serviceDate > 0) {
             getOrCreateTrip(tripId).serviceDate = serviceDate
+            notifyChanged()
         }
     }
 
@@ -240,6 +262,7 @@ object TripDataManager {
     fun putShape(tripId: String?, points: List<Location>?) {
         if (tripId != null && points != null && points.isNotEmpty()) {
             getOrCreateTrip(tripId).polyline = Polyline(points)
+            notifyChanged()
         }
     }
 
@@ -297,6 +320,7 @@ object TripDataManager {
     @Synchronized
     fun putRouteType(tripId: String, type: Int) {
         getOrCreateTrip(tripId).routeType = type
+        notifyChanged()
     }
 
     @Synchronized fun getRouteType(tripId: String): Int? = getTrip(tripId)?.routeType
@@ -307,6 +331,7 @@ object TripDataManager {
     fun putLastActiveTripId(polledTripId: String?, activeTripId: String?) {
         if (polledTripId != null) {
             getOrCreateTrip(polledTripId).lastActiveTripId = activeTripId
+            notifyChanged()
         }
     }
 
@@ -333,5 +358,6 @@ object TripDataManager {
         trips.clear()
         pendingScheduleFetches.clear()
         pendingShapeFetches.clear()
+        notifyChanged()
     }
 }

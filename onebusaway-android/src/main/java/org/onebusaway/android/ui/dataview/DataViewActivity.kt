@@ -18,8 +18,6 @@ package org.onebusaway.android.ui.dataview
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.MenuItem
 import android.view.View
@@ -27,6 +25,11 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.io.elements.ObaTripStatus
@@ -41,8 +44,6 @@ import java.util.Locale
 class DataViewActivity : AppCompatActivity() {
 
     companion object {
-        private const val REFRESH_MS = 1_000L
-
         @JvmStatic
         fun start(context: Context) {
             context.startActivity(Intent(context, DataViewActivity::class.java))
@@ -50,13 +51,7 @@ class DataViewActivity : AppCompatActivity() {
     }
 
     private val timeFmt = SimpleDateFormat("h:mm:ss a", Locale.getDefault())
-    private val refreshHandler = Handler(Looper.getMainLooper())
-    private val refreshRunnable = object : Runnable {
-        override fun run() {
-            refreshCollectedData()
-            refreshHandler.postDelayed(this, REFRESH_MS)
-        }
-    }
+    private var collectJob: Job? = null
 
     private lateinit var collectedDataEmpty: TextView
     private lateinit var collectedDataContainer: LinearLayout
@@ -79,12 +74,15 @@ class DataViewActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshCollectedData()
-        refreshHandler.postDelayed(refreshRunnable, REFRESH_MS)
+        collectJob = CoroutineScope(SupervisorJob() + Dispatchers.Main).launch {
+            TripDataManager.changes.collect { refreshCollectedData() }
+        }
     }
 
     override fun onPause() {
         super.onPause()
-        refreshHandler.removeCallbacks(refreshRunnable)
+        collectJob?.cancel()
+        collectJob = null
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -106,7 +104,7 @@ class DataViewActivity : AppCompatActivity() {
             updateCollectedDataDetails(tripIds)
             return
         }
-        lastTrackedTripIds = tripIds.toSet()
+        lastTrackedTripIds = tripIds
 
         collectedDataContainer.removeAllViews()
         for (tripId in tripIds) {

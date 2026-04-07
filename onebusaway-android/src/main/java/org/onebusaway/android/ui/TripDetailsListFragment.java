@@ -89,8 +89,7 @@ import org.onebusaway.android.extrapolation.ExtrapolationResult;
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution;
 import org.onebusaway.android.extrapolation.data.Trip;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
-import org.onebusaway.android.extrapolation.data.TripPollingService;
-import kotlinx.coroutines.Job;
+import org.onebusaway.android.extrapolation.data.TripDetailsPoller;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.DBUtil;
@@ -139,7 +138,7 @@ public class TripDetailsListFragment extends ListFragment {
     private final TripDataManager mDataManager = TripDataManager.getInstance();
 
     private String mTripId;
-    private Job mPollingJob;
+    private TripDetailsPoller mPoller;
     private Trip mTrip;
 
     private String mRouteId;
@@ -265,7 +264,10 @@ public class TripDetailsListFragment extends ListFragment {
 
     @Override
     public void onPause() {
-        if (mPollingJob != null) mPollingJob.cancel(null);
+        if (mPoller != null) {
+            mPoller.stop();
+            mPoller = null;
+        }
         mPositionTickHandler.removeCallbacks(mPositionTick);
         super.onPause();
     }
@@ -279,7 +281,8 @@ public class TripDetailsListFragment extends ListFragment {
             setListShown(true);
         }
 
-        mPollingJob = TripPollingService.subscribeTripDetails(mTripId);
+        mPoller = new TripDetailsPoller(mTripId);
+        mPoller.start();
         mPositionTickHandler.postDelayed(mPositionTick, POSITION_TICK_MS);
 
         super.onResume();

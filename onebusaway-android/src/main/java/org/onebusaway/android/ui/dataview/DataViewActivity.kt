@@ -29,7 +29,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import org.onebusaway.android.R
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.data.TripPollingService
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.util.UIUtils
 import java.text.SimpleDateFormat
@@ -37,8 +36,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Dashboard activity showing live polling status, active subscriptions,
- * and collected trip data.
+ * Dashboard activity showing trip data collected in [TripDataManager].
  */
 class DataViewActivity : AppCompatActivity() {
 
@@ -55,19 +53,14 @@ class DataViewActivity : AppCompatActivity() {
     private val refreshHandler = Handler(Looper.getMainLooper())
     private val refreshRunnable = object : Runnable {
         override fun run() {
-            refreshAll()
+            refreshCollectedData()
             refreshHandler.postDelayed(this, REFRESH_MS)
         }
     }
 
-    private lateinit var pollingStatusText: TextView
-    private lateinit var subscriptionsEmpty: TextView
-    private lateinit var subscriptionsContainer: LinearLayout
     private lateinit var collectedDataEmpty: TextView
     private lateinit var collectedDataContainer: LinearLayout
 
-    private var lastSubscriptionRoutes: Set<String> = emptySet()
-    private var lastSubscriptionTrips: Set<String> = emptySet()
     private var lastTrackedTripIds: Set<String> = emptySet()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -79,16 +72,13 @@ class DataViewActivity : AppCompatActivity() {
         UIUtils.setupActionBar(this)
         supportActionBar?.setTitle(R.string.data_views_title)
 
-        pollingStatusText = findViewById(R.id.polling_status)
-        subscriptionsEmpty = findViewById(R.id.subscriptions_empty)
-        subscriptionsContainer = findViewById(R.id.subscriptions_container)
         collectedDataEmpty = findViewById(R.id.collected_data_empty)
         collectedDataContainer = findViewById(R.id.collected_data_container)
     }
 
     override fun onResume() {
         super.onResume()
-        refreshAll()
+        refreshCollectedData()
         refreshHandler.postDelayed(refreshRunnable, REFRESH_MS)
     }
 
@@ -100,48 +90,6 @@ class DataViewActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == android.R.id.home) { finish(); return true }
         return super.onOptionsItemSelected(item)
-    }
-
-    private fun refreshAll() {
-        val snapshot = TripPollingService.getSnapshot()
-        refreshPollingStatus(snapshot)
-        refreshSubscriptions(snapshot)
-        refreshCollectedData()
-    }
-
-    private fun refreshPollingStatus(snapshot: TripPollingService.PollingSnapshot) {
-        if (snapshot.isTicking && snapshot.lastTickTimeMs > 0) {
-            val elapsed = System.currentTimeMillis() - snapshot.lastTickTimeMs
-            pollingStatusText.text = getString(
-                    R.string.data_views_polling_active, formatElapsed(elapsed))
-        } else {
-            pollingStatusText.text = getString(R.string.data_views_polling_inactive)
-        }
-    }
-
-    private fun refreshSubscriptions(snapshot: TripPollingService.PollingSnapshot) {
-        val hasSubscriptions = snapshot.subscribedRouteIds.isNotEmpty()
-                || snapshot.subscribedTripIds.isNotEmpty()
-        subscriptionsEmpty.visibility = if (hasSubscriptions) View.GONE else View.VISIBLE
-        subscriptionsContainer.visibility = if (hasSubscriptions) View.VISIBLE else View.GONE
-
-        if (!hasSubscriptions) return
-
-        // Only rebuild views if subscriptions changed
-        if (snapshot.subscribedRouteIds == lastSubscriptionRoutes
-                && snapshot.subscribedTripIds == lastSubscriptionTrips) return
-        lastSubscriptionRoutes = snapshot.subscribedRouteIds
-        lastSubscriptionTrips = snapshot.subscribedTripIds
-
-        subscriptionsContainer.removeAllViews()
-        for (routeId in snapshot.subscribedRouteIds) {
-            addRowText(subscriptionsContainer,
-                    getString(R.string.data_views_route_subscription, routeId))
-        }
-        for (tripId in snapshot.subscribedTripIds) {
-            addRowText(subscriptionsContainer,
-                    getString(R.string.data_views_trip_subscription, tripId))
-        }
     }
 
     private fun refreshCollectedData() {
@@ -192,22 +140,6 @@ class DataViewActivity : AppCompatActivity() {
         val updateTime = lastState?.lastLocationUpdateTime ?: 0
         if (updateTime > 0) {
             append("  Last: ${timeFmt.format(Date(updateTime))}")
-        }
-    }
-
-    private fun addRowText(container: LinearLayout, text: String) {
-        val tv = TextView(this)
-        tv.setTextAppearance(R.style.VehicleDebugRow)
-        tv.text = text
-        container.addView(tv)
-    }
-
-    private fun formatElapsed(ms: Long): String {
-        val sec = ms / 1000
-        return when {
-            sec < 60 -> "${sec}s"
-            sec < 3600 -> "${sec / 60}m ${sec % 60}s"
-            else -> "${sec / 3600}h ${(sec % 3600) / 60}m"
         }
     }
 }

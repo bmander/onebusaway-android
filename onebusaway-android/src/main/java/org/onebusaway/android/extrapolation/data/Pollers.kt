@@ -1,0 +1,133 @@
+/*
+ * Copyright (C) 2024-2026 Open Transit Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+@file:JvmName("Pollers")
+
+package org.onebusaway.android.extrapolation.data
+
+import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.onebusaway.android.app.Application
+import org.onebusaway.android.io.ObaApi
+import org.onebusaway.android.io.request.ObaTripDetailsRequest
+import org.onebusaway.android.io.request.ObaTripsForRouteRequest
+import org.onebusaway.android.io.request.ObaTripsForRouteResponse
+
+private const val POLL_INTERVAL_MS = 10_000L
+private const val TAG = "Pollers"
+
+/**
+ * Polls trip details every [POLL_INTERVAL_MS] and records responses into [TripDataManager].
+ * Lifecycle is owned by the caller: call [start] in onResume, [stop] in onPause.
+ */
+class TripDetailsPoller(private val tripId: String) {
+    private var job: Job? = null
+
+    fun start() {
+        if (job?.isActive == true) return
+        job = CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            while (isActive) {
+                try {
+                    val localTimeMs = System.currentTimeMillis()
+                    val ctx = Application.get().applicationContext
+                    val response = ObaTripDetailsRequest.newRequest(ctx, tripId).call()
+                    if (response.code == ObaApi.OBA_OK) {
+                        TripDataManager.recordTripDetailsResponse(tripId, response, localTimeMs)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to fetch trip details for $tripId", e)
+                }
+                delay(POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    fun stop() {
+        job?.cancel()
+        job = null
+    }
+}
+
+/**
+ * Polls trips-for-route every [POLL_INTERVAL_MS], records responses into [TripDataManager],
+ * and delivers each response to an optional callback on [Dispatchers.Main].
+ * Lifecycle is owned by the caller.
+ */
+class RoutePoller @JvmOverloads constructor(
+        private val routeId: String,
+        private val callback: ResponseCallback? = null
+) {
+    fun interface ResponseCallback {
+        fun onResponse(response: ObaTripsForRouteResponse)
+    }
+
+    private var job: Job? = null
+
+    fun start() {
+        if (job?.isActive == true) return
+        job = CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            while (isActive) {
+                try {
+                    val localTimeMs = System.currentTimeMillis()
+                    val ctx = Application.get().applicationContext
+                    val response = ObaTripsForRouteRequest.Builder(ctx, routeId)
+                            .setIncludeStatus(true)
+                            .build()
+                            .call()
+                    if (response.code == ObaApi.OBA_OK) {
+                        TripDataManager.recordTripsForRouteResponse(response, localTimeMs)
+                        callback?.let { cb ->
+                            withContext(Dispatchers.Main) { cb.onResponse(response) }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to fetch trips for route $routeId", e)
+                }
+                delay(POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    fun stop() {
+        job?.cancel()
+        job = null
+    }
+}
+
+/**
+ * Fire-and-forget one-shot trip details fetch for UI refresh actions.
+ * Records the result into [TripDataManager]; does not notify callers on success or failure.
+ */
+fun fetchTripDetailsOnce(tripId: String) {
+    CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+        try {
+            val localTimeMs = System.currentTimeMillis()
+            val ctx = Application.get().applicationContext
+            val response = ObaTripDetailsRequest.newRequest(ctx, tripId).call()
+            if (response.code == ObaApi.OBA_OK) {
+                TripDataManager.recordTripDetailsResponse(tripId, response, localTimeMs)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed one-shot trip details fetch for $tripId", e)
+        }
+    }
+}

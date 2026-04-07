@@ -26,9 +26,8 @@ import org.onebusaway.android.io.request.ObaStopsForRouteResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteRequest;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.MapUtils;
+import org.onebusaway.android.extrapolation.data.RoutePoller;
 import org.onebusaway.android.extrapolation.data.TripDataManager;
-import org.onebusaway.android.extrapolation.data.TripPollingService;
-import kotlinx.coroutines.Job;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.UIUtils;
 
@@ -62,7 +61,7 @@ public class RouteMapController implements MapModeController {
     private final Callback mFragment;
 
     private String mRouteId;
-    private Job mPollingJob;
+    private RoutePoller mPoller;
 
     private boolean mZoomToRoute;
 
@@ -127,7 +126,8 @@ public class RouteMapController implements MapModeController {
             mRouteLoader.registerListener(0, mRouteLoaderListener);
             mRouteLoader.startLoading();
 
-            mPollingJob = TripPollingService.subscribeRoute(routeId, this::onVehiclesResponse);
+            mPoller = new RoutePoller(routeId, this::onVehiclesResponse);
+            mPoller.start();
         } else {
             // We are returning to the route view with the route already set, so show the header
             mRoutePopup.show();
@@ -141,7 +141,10 @@ public class RouteMapController implements MapModeController {
         // Stop route loader and vehicle polling
         mRouteLoader.stopLoading();
         mRouteLoader.reset();
-        if (mPollingJob != null) mPollingJob.cancel(null);
+        if (mPoller != null) {
+            mPoller.stop();
+            mPoller = null;
+        }
 
         // Clear trip data and speed estimation state
         TripDataManager.getInstance().clearAll();
@@ -163,13 +166,17 @@ public class RouteMapController implements MapModeController {
     public void destroy() {
         mRoutePopup.hide();
         mFragment.getMapView().removeRouteOverlay();
-        if (mPollingJob != null) mPollingJob.cancel(null);
+        if (mPoller != null) {
+            mPoller.stop();
+            mPoller = null;
+        }
         mFragment.getMapView().removeVehicleOverlay();
     }
 
     @Override
     public void onPause() {
-        // Polling service continues in background — no action needed
+        // Poller keeps running across pause so vehicle markers are fresh on resume;
+        // only destroy() and clearCurrentState() stop it.
     }
 
     /**
@@ -188,7 +195,7 @@ public class RouteMapController implements MapModeController {
 
     @Override
     public void onResume() {
-        // Polling is managed by TripPollingService — no manual scheduling needed
+        // Poller started in setState() — nothing to resume here
     }
 
     @Override

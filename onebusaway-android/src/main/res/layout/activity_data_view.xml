@@ -17,32 +17,6 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- Section 1: Polling Status -->
-            <TextView
-                style="@style/VehicleDebugSectionHeader"
-                android:text="@string/data_views_section_polling" />
-
-            <TextView
-                android:id="@+id/polling_status"
-                style="@style/VehicleDebugRow" />
-
-            <!-- Section 2: Active Subscriptions -->
-            <TextView
-                style="@style/VehicleDebugSectionHeader"
-                android:text="@string/data_views_section_subscriptions" />
-
-            <TextView
-                android:id="@+id/subscriptions_empty"
-                style="@style/VehicleDebugRow"
-                android:text="@string/data_views_no_subscriptions" />
-
-            <LinearLayout
-                android:id="@+id/subscriptions_container"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical" />
-
-            <!-- Section 3: Collected Trip Data -->
             <TextView
                 style="@style/VehicleDebugSectionHeader"
                 android:text="@string/data_views_section_collected" />

@@ -27,9 +27,8 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.Marker
-import kotlinx.coroutines.Job
 import org.onebusaway.android.extrapolation.data.TripDataManager
-import org.onebusaway.android.extrapolation.data.TripPollingService
+import org.onebusaway.android.extrapolation.data.TripDetailsPoller
 import org.onebusaway.android.ui.TripMapCallback
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 
@@ -39,7 +38,7 @@ import org.onebusaway.android.map.googlemapsv2.MapHelpV2
  *
  * Holds two overlay layers: [TripRouteOverlay] (static skeleton) and
  * [TripVehicleOverlay] (live data). Per-frame extrapolation is driven
- * by [TripExtrapolationController], and API polling by [TripPollingService].
+ * by [TripExtrapolationController], and API polling by [TripDetailsPoller].
  *
  * If the fragment cannot activate (missing trip data), it notifies the host
  * activity via [TripMapCallback] so it can fall back to
@@ -76,7 +75,7 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
     private var routeOverlay: TripRouteOverlay? = null
     private var vehicleOverlay: TripVehicleOverlay? = null
     private var extrapolationController: TripExtrapolationController? = null
-    private var pollingJob: Job? = null
+    private var poller: TripDetailsPoller? = null
     private var activated = false
     private var mapCallback: TripMapCallback? = null
 
@@ -114,16 +113,16 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
 
     override fun onResume() {
         super.onResume()
-        if (activated) {
+        if (activated && poller == null) {
             extrapolationController?.start()
-            pollingJob?.cancel()
-            pollingJob = TripPollingService.subscribeTripDetails(tripId)
+            poller = TripDetailsPoller(tripId).also { it.start() }
         }
     }
 
     override fun onPause() {
         extrapolationController?.stop()
-        pollingJob?.cancel()
+        poller?.stop()
+        poller = null
         super.onPause()
     }
 
@@ -166,8 +165,8 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         val trip = TripDataManager.getOrCreateTrip(tripId)
         extrapolationController = TripExtrapolationController(
                 overlays.vehicle, trip).also { it.start() }
-        pollingJob?.cancel()
-        pollingJob = TripPollingService.subscribeTripDetails(tripId)
+        poller?.stop()
+        poller = TripDetailsPoller(tripId).also { it.start() }
         activated = true
         overlays.route.fitCameraToShape()
     }

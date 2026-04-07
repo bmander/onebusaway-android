@@ -848,13 +848,6 @@
     <string name="data_views_title">Data views</string>
     <string name="data_views_summary">View collected vehicle location data</string>
     <string name="data_views_empty">No vehicle location data collected yet.\nOpen a trip to start collecting data.</string>
-    <string name="data_views_section_polling">Polling Status</string>
-    <string name="data_views_polling_active">Active \u2014 last tick: %s ago</string>
-    <string name="data_views_polling_inactive">Inactive \u2014 no subscriptions</string>
-    <string name="data_views_section_subscriptions">Active Subscriptions</string>
-    <string name="data_views_no_subscriptions">No active subscriptions</string>
-    <string name="data_views_route_subscription">Route: %s</string>
-    <string name="data_views_trip_subscription">Trip: %s</string>
     <string name="data_views_section_collected">Collected Trip Data</string>
 
     <!-- Vehicles on Map -->

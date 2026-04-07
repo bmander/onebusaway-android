@@ -32,14 +32,17 @@ import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripsForRouteRequest
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 
-private const val POLL_INTERVAL_MS = 10_000L
+private const val DEFAULT_POLL_INTERVAL_MS = 10_000L
 private const val TAG = "Pollers"
 
 /**
- * Polls trip details every [POLL_INTERVAL_MS] and records responses into [TripDataManager].
+ * Polls trip details every [intervalMs] and records responses into [TripDataManager].
  * Lifecycle is owned by the caller: call [start] in onResume, [stop] in onPause.
  */
-class TripDetailsPoller(private val tripId: String) {
+class TripDetailsPoller @JvmOverloads constructor(
+        private val tripId: String,
+        private val intervalMs: Long = DEFAULT_POLL_INTERVAL_MS
+) {
     private var job: Job? = null
 
     fun start() {
@@ -56,7 +59,7 @@ class TripDetailsPoller(private val tripId: String) {
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to fetch trip details for $tripId", e)
                 }
-                delay(POLL_INTERVAL_MS)
+                delay(intervalMs)
             }
         }
     }
@@ -68,13 +71,14 @@ class TripDetailsPoller(private val tripId: String) {
 }
 
 /**
- * Polls trips-for-route every [POLL_INTERVAL_MS], records responses into [TripDataManager],
+ * Polls trips-for-route every [intervalMs], records responses into [TripDataManager],
  * and delivers each response to an optional callback on [Dispatchers.Main].
  * Lifecycle is owned by the caller.
  */
 class RoutePoller @JvmOverloads constructor(
         private val routeId: String,
-        private val callback: ResponseCallback? = null
+        private val callback: ResponseCallback? = null,
+        private val intervalMs: Long = DEFAULT_POLL_INTERVAL_MS
 ) {
     fun interface ResponseCallback {
         fun onResponse(response: ObaTripsForRouteResponse)
@@ -102,7 +106,7 @@ class RoutePoller @JvmOverloads constructor(
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to fetch trips for route $routeId", e)
                 }
-                delay(POLL_INTERVAL_MS)
+                delay(intervalMs)
             }
         }
     }

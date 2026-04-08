@@ -18,10 +18,9 @@
 package org.onebusaway.android.extrapolation.data
 
 import android.util.Log
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -47,12 +46,14 @@ class TripDetailsPoller @JvmOverloads constructor(
 
     fun start() {
         if (job?.isActive == true) return
-        job = CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+        job = MainScope().launch {
             while (isActive) {
                 try {
                     val localTimeMs = System.currentTimeMillis()
                     val ctx = Application.get().applicationContext
-                    val response = ObaTripDetailsRequest.newRequest(ctx, tripId).call()
+                    val response = withContext(Dispatchers.IO) {
+                        ObaTripDetailsRequest.newRequest(ctx, tripId).call()
+                    }
                     if (response.code == ObaApi.OBA_OK) {
                         TripDataManager.recordTripDetailsResponse(tripId, response, localTimeMs)
                     }
@@ -72,7 +73,7 @@ class TripDetailsPoller @JvmOverloads constructor(
 
 /**
  * Polls trips-for-route every [intervalMs], records responses into [TripDataManager],
- * and delivers each response to an optional callback on [Dispatchers.Main].
+ * and delivers each response to an optional callback on the main thread.
  * Lifecycle is owned by the caller.
  */
 class RoutePoller @JvmOverloads constructor(
@@ -88,20 +89,20 @@ class RoutePoller @JvmOverloads constructor(
 
     fun start() {
         if (job?.isActive == true) return
-        job = CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+        job = MainScope().launch {
             while (isActive) {
                 try {
                     val localTimeMs = System.currentTimeMillis()
                     val ctx = Application.get().applicationContext
-                    val response = ObaTripsForRouteRequest.Builder(ctx, routeId)
-                            .setIncludeStatus(true)
-                            .build()
-                            .call()
+                    val response = withContext(Dispatchers.IO) {
+                        ObaTripsForRouteRequest.Builder(ctx, routeId)
+                                .setIncludeStatus(true)
+                                .build()
+                                .call()
+                    }
                     if (response.code == ObaApi.OBA_OK) {
                         TripDataManager.recordTripsForRouteResponse(response, localTimeMs)
-                        callback?.let { cb ->
-                            withContext(Dispatchers.Main) { cb.onResponse(response) }
-                        }
+                        callback?.onResponse(response)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to fetch trips for route $routeId", e)
@@ -122,11 +123,13 @@ class RoutePoller @JvmOverloads constructor(
  * Records the result into [TripDataManager]; does not notify callers on success or failure.
  */
 fun fetchTripDetailsOnce(tripId: String) {
-    CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+    MainScope().launch {
         try {
             val localTimeMs = System.currentTimeMillis()
             val ctx = Application.get().applicationContext
-            val response = ObaTripDetailsRequest.newRequest(ctx, tripId).call()
+            val response = withContext(Dispatchers.IO) {
+                ObaTripDetailsRequest.newRequest(ctx, tripId).call()
+            }
             if (response.code == ObaApi.OBA_OK) {
                 TripDataManager.recordTripDetailsResponse(tripId, response, localTimeMs)
             }

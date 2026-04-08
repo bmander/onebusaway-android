@@ -19,7 +19,6 @@ import android.location.Location
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -32,7 +31,6 @@ import org.onebusaway.android.io.request.ObaShapeRequest
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
-import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.Polyline
 
 /**
@@ -40,7 +38,11 @@ import org.onebusaway.android.util.Polyline
  * All per-trip data lives on Trip; this singleton manages the registry, eviction, and
  * background fetches for schedules and shapes.
  *
- * Thread-safe via a single @Synchronized lock on this object.
+ * Thread safety: **main thread only.** All public methods must be called from the
+ * main thread. Background work (network fetches) lives in the pollers and the private
+ * fetch helpers below; results are posted back to the main thread before they touch
+ * any registry state. This invariant lets [Trip] hold plain (non-volatile, non-locked)
+ * mutable fields and lets the per-frame extrapolation loop read them directly.
  */
 object TripDataManager {
 
@@ -52,10 +54,10 @@ object TripDataManager {
 
     private val fetchExecutor = Executors.newFixedThreadPool(2)
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val pendingScheduleFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
-    private val pendingShapeFetches: MutableSet<String> = ConcurrentHashMap.newKeySet()
-    private val scheduleFailures = ConcurrentHashMap<String, Int>()
-    private val shapeFailures = ConcurrentHashMap<String, Int>()
+    private val pendingScheduleFetches: MutableSet<String> = HashSet()
+    private val pendingShapeFetches: MutableSet<String> = HashSet()
+    private val scheduleFailures = HashMap<String, Int>()
+    private val shapeFailures = HashMap<String, Int>()
 
     private val trips = LinkedHashMap<String, Trip>()
 
@@ -74,11 +76,9 @@ object TripDataManager {
 
     // --- Trip registry ---
 
-    @Synchronized
     fun getOrCreateTrip(tripId: String): Trip =
             trips.getOrPut(tripId) { Trip(tripId) }
 
-    @Synchronized
     fun getTrip(tripId: String?): Trip? =
             if (tripId != null) trips[tripId] else null
 
@@ -88,7 +88,6 @@ object TripDataManager {
      * Records a trip status snapshot. Always updates the extrapolation anchor.
      * Deduplicates history by distance — only adds an entry when the vehicle has moved.
      */
-    @Synchronized
     fun recordStatus(status: ObaTripStatus?, serverTimeMs: Long, localTimeMs: Long) {
         if (status == null) return
         val tripId = status.activeTripId ?: return
@@ -97,7 +96,6 @@ object TripDataManager {
         notifyChanged()
     }
 
-    @Synchronized
     fun recordTripDetailsResponse(
             polledTripId: String?, response: ObaTripDetailsResponse?, localTimeMs: Long) {
         if (response == null) return
@@ -124,17 +122,15 @@ object TripDataManager {
             val activeTrip = response.getTrip(status.activeTripId) ?: continue
             val tripId = status.activeTripId ?: continue
 
-            synchronized(this) {
-                val trip = getOrCreateTrip(tripId)
-                trip.recordStatus(status, serverTime, localTimeMs)
-                if (status.serviceDate > 0) trip.serviceDate = status.serviceDate
-                if (trip.routeType == null) {
-                    val routeId = activeTrip.routeId
-                    val route = if (routeId != null) response.getRoute(routeId) else null
-                    if (route != null) trip.routeType = route.type
-                }
-                evictOldTripsIfNeeded()
+            val trip = getOrCreateTrip(tripId)
+            trip.recordStatus(status, serverTime, localTimeMs)
+            if (status.serviceDate > 0) trip.serviceDate = status.serviceDate
+            if (trip.routeType == null) {
+                val routeId = activeTrip.routeId
+                val route = if (routeId != null) response.getRoute(routeId) else null
+                if (route != null) trip.routeType = route.type
             }
+            evictOldTripsIfNeeded()
 
             ensureSchedule(tripId)
             val shapeId = activeTrip.shapeId
@@ -157,7 +153,6 @@ object TripDataManager {
         }
     }
 
-    @Synchronized
     fun getHistorySnapshot(activeTripId: String?): HistorySnapshot {
         val trip = getTrip(activeTripId) ?: return HistorySnapshot.EMPTY
         return HistorySnapshot(
@@ -167,38 +162,30 @@ object TripDataManager {
         )
     }
 
-    @Synchronized
     fun getHistory(activeTripId: String?): List<ObaTripStatus> =
             getTrip(activeTripId)?.history?.toList().orEmpty()
 
-    @Synchronized
     fun getHistorySize(activeTripId: String?): Int =
             getTrip(activeTripId)?.history?.size ?: 0
 
-    @Synchronized
     fun getFetchTimes(activeTripId: String?): List<Long> =
             getTrip(activeTripId)?.fetchTimes?.toList().orEmpty()
 
-    @Synchronized
     fun getLocalFetchTimes(activeTripId: String?): List<Long> =
             getTrip(activeTripId)?.localFetchTimes?.toList().orEmpty()
 
-    @Synchronized
     fun getLastState(activeTripId: String?): ObaTripStatus? =
             getTrip(activeTripId)?.history?.lastOrNull()
 
-    @Synchronized
     fun getTrackedTripIds(): Set<String> = trips.keys.toSet()
 
     // --- Trip details response cache ---
 
-    @Synchronized
     fun getTripDetails(tripId: String): ObaTripDetailsResponse? =
             getTrip(tripId)?.tripDetailsResponse
 
     // --- Schedule ---
 
-    @Synchronized
     fun putSchedule(tripId: String?, schedule: ObaTripSchedule?) {
         if (tripId != null && schedule != null) {
             getOrCreateTrip(tripId).schedule = schedule
@@ -206,45 +193,46 @@ object TripDataManager {
         }
     }
 
-    @Synchronized
     fun getSchedule(tripId: String): ObaTripSchedule? = getTrip(tripId)?.schedule
 
-    @Synchronized
     fun isScheduleCached(tripId: String?): Boolean =
             tripId != null && getTrip(tripId)?.schedule != null
 
     fun ensureSchedule(tripId: String) {
         if (isScheduleCached(tripId) || !pendingScheduleFetches.add(tripId)) return
-        if ((scheduleFailures[tripId] ?: 0) >= MAX_FETCH_FAILURES) return
+        if ((scheduleFailures[tripId] ?: 0) >= MAX_FETCH_FAILURES) {
+            pendingScheduleFetches.remove(tripId)
+            return
+        }
         fetchExecutor.execute {
-            try {
+            val schedule: ObaTripSchedule? = try {
                 val ctx = Application.get().applicationContext
-                val response = ObaTripDetailsRequest.Builder(ctx, tripId)
+                ObaTripDetailsRequest.Builder(ctx, tripId)
                         .setIncludeSchedule(true)
                         .setIncludeStatus(false)
                         .setIncludeTrip(false)
                         .build()
                         .call()
-                val schedule = response?.schedule
+                        ?.schedule
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to fetch schedule for $tripId", e)
+                null
+            }
+            mainHandler.post {
+                pendingScheduleFetches.remove(tripId)
                 if (schedule != null) {
                     putSchedule(tripId, schedule)
                     scheduleFailures.remove(tripId)
                 } else {
-                    Log.d(TAG, "Schedule fetch for $tripId returned no schedule data")
+                    Log.d(TAG, "Schedule fetch for $tripId yielded no schedule")
                     scheduleFailures.merge(tripId, 1, Int::plus)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to fetch schedule for $tripId", e)
-                scheduleFailures.merge(tripId, 1, Int::plus)
-            } finally {
-                pendingScheduleFetches.remove(tripId)
             }
         }
     }
 
     // --- Service date ---
 
-    @Synchronized
     fun putServiceDate(tripId: String?, serviceDate: Long) {
         if (tripId != null && serviceDate > 0) {
             getOrCreateTrip(tripId).serviceDate = serviceDate
@@ -252,13 +240,11 @@ object TripDataManager {
         }
     }
 
-    @Synchronized
     fun getServiceDate(tripId: String?): Long? =
             getTrip(tripId)?.serviceDate?.let { if (it > 0) it else null }
 
     // --- Shape ---
 
-    @Synchronized
     fun putShape(tripId: String?, points: List<Location>?) {
         if (tripId != null && points != null && points.isNotEmpty()) {
             getOrCreateTrip(tripId).polyline = Polyline(points)
@@ -266,10 +252,9 @@ object TripDataManager {
         }
     }
 
-    @Synchronized fun getShape(tripId: String?): List<Location>? =
-            getTrip(tripId)?.polyline?.points
+    fun getShape(tripId: String?): List<Location>? = getTrip(tripId)?.polyline?.points
 
-    @Synchronized fun getPolyline(tripId: String): Polyline? = getTrip(tripId)?.polyline
+    fun getPolyline(tripId: String): Polyline? = getTrip(tripId)?.polyline
 
     @JvmOverloads
     fun ensureShape(
@@ -280,54 +265,54 @@ object TripDataManager {
     ) {
         val cached = getPolyline(tripId)
         if (cached != null) {
-            if (onReady != null) mainHandler.post { onReady(cached) }
+            if (onReady != null) onReady(cached)
             return
         }
         if (!pendingShapeFetches.add(tripId)) return
         if ((shapeFailures[tripId] ?: 0) >= MAX_FETCH_FAILURES) {
-            if (onError != null) mainHandler.post { onError() }
+            pendingShapeFetches.remove(tripId)
+            if (onError != null) onError()
             return
         }
         fetchExecutor.execute {
-            try {
+            // Network and Polyline construction happen off the main thread; only the
+            // assignment back into TripDataManager hops to Main.
+            val polyline: Polyline? = try {
                 val ctx = Application.get().applicationContext
                 val response = ObaShapeRequest.newRequest(ctx, shapeId).call()
                 val points = response?.points
-                if (points != null && points.isNotEmpty()) {
-                    putShape(tripId, points)
-                    shapeFailures.remove(tripId)
-                    if (onReady != null) {
-                        val sd = getPolyline(tripId)
-                        if (sd != null) mainHandler.post { onReady(sd) }
-                    }
-                } else {
-                    Log.d(TAG, "Shape fetch for $tripId returned no points")
-                    shapeFailures.merge(tripId, 1, Int::plus)
-                    if (onError != null) mainHandler.post { onError() }
-                }
+                if (points != null && points.isNotEmpty()) Polyline(points) else null
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch shape for $tripId", e)
-                shapeFailures.merge(tripId, 1, Int::plus)
-                if (onError != null) mainHandler.post { onError() }
-            } finally {
+                null
+            }
+            mainHandler.post {
                 pendingShapeFetches.remove(tripId)
+                if (polyline != null) {
+                    getOrCreateTrip(tripId).polyline = polyline
+                    shapeFailures.remove(tripId)
+                    notifyChanged()
+                    if (onReady != null) onReady(polyline)
+                } else {
+                    Log.d(TAG, "Shape fetch for $tripId yielded no points")
+                    shapeFailures.merge(tripId, 1, Int::plus)
+                    if (onError != null) onError()
+                }
             }
         }
     }
 
     // --- Route type ---
 
-    @Synchronized
     fun putRouteType(tripId: String, type: Int) {
         getOrCreateTrip(tripId).routeType = type
         notifyChanged()
     }
 
-    @Synchronized fun getRouteType(tripId: String): Int? = getTrip(tripId)?.routeType
+    fun getRouteType(tripId: String): Int? = getTrip(tripId)?.routeType
 
     // --- Active trip ID tracking ---
 
-    @Synchronized
     fun putLastActiveTripId(polledTripId: String?, activeTripId: String?) {
         if (polledTripId != null) {
             getOrCreateTrip(polledTripId).lastActiveTripId = activeTripId
@@ -335,7 +320,6 @@ object TripDataManager {
         }
     }
 
-    @Synchronized
     // TODO: Rename — "get trip id for trip id returning a different trip id" is confusing.
     //  This tracks when a vehicle switches trips (e.g. finishes one run, starts the next).
     //  The parameter is the trip we're watching; the return is what the vehicle is actually running.
@@ -353,7 +337,6 @@ object TripDataManager {
         }
     }
 
-    @Synchronized
     fun clearAll() {
         trips.clear()
         pendingScheduleFetches.clear()

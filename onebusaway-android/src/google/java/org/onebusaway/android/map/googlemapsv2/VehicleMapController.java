@@ -17,6 +17,7 @@ package org.onebusaway.android.map.googlemapsv2;
 
 import android.content.Context;
 import android.location.Location;
+import android.util.Log;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.LatLng;
@@ -51,6 +52,7 @@ import java.util.Map;
  */
 class VehicleMapController {
 
+    private static final String TAG = "VehicleMapController";
     private static final float VEHICLE_MARKER_Z_INDEX = 1;
     private static final float DATA_RECEIVED_MARKER_Z_INDEX = 3.1f;
 
@@ -305,7 +307,10 @@ class VehicleMapController {
         for (VehicleMarkerState vehicle : mStates.values()) {
             try {
                 updatePosition(vehicle, now);
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
+                // Programming-error path (e.g. require() failure in the gamma model on a
+                // degenerate schedule). Log so it surfaces, then degrade to the raw position.
+                Log.w(TAG, "updatePosition failed for trip " + vehicle.trip.getTripId(), e);
                 animateToRawPosition(vehicle);
             }
             Trip trip = vehicle.trip;

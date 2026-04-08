@@ -15,13 +15,19 @@
  */
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
+import android.util.Log
 import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.data.Trip
 import org.onebusaway.android.map.googlemapsv2.ThrottledFrameLoop
 
+private const val TAG = "TripExtrapolationCtl"
+
 /**
  * Owns the per-frame extrapolation loop for a single trip on the trip map view. Computes positions
  * and distributions each frame, then delegates all rendering to [TripVehicleOverlay].
+ *
+ * Runs entirely on the main thread: the choreographer drives the frame loop, and TripDataManager
+ * mutations are also main-thread, so [trip] fields are read directly without synchronization.
  */
 class TripExtrapolationController
 internal constructor(
@@ -35,30 +41,34 @@ internal constructor(
     fun stop() = frameLoop.stop()
 
     private fun doFrame() {
-        try {
-            val now = System.currentTimeMillis()
-            val shapeData = trip.polyline ?: return
-            val result = trip.extrapolate(now)
+        val now = System.currentTimeMillis()
+        val shapeData = trip.polyline ?: return
+        val result = try {
+            trip.extrapolate(now)
+        } catch (e: RuntimeException) {
+            // Programming-error path (e.g. require() failure in the gamma model on a degenerate
+            // schedule). Log so it surfaces, then skip this frame; the next frame will retry.
+            Log.w(TAG, "Extrapolation failed for ${trip.tripId}", e)
+            return
+        }
 
-            when (result) {
-                is ExtrapolationResult.Success -> {
-                    val distribution = result.distribution
-                    val loc = shapeData.interpolate(distribution.median())
-                    if (loc != null) {
-                        vehicleOverlay.updateVehiclePosition(loc, trip.anchor, now)
-                    }
-                    vehicleOverlay.updateEstimateOverlays(distribution)
+        when (result) {
+            is ExtrapolationResult.Success -> {
+                val distribution = result.distribution
+                val loc = shapeData.interpolate(distribution.median())
+                if (loc != null) {
+                    vehicleOverlay.updateVehiclePosition(loc, trip.anchor, now)
                 }
-                else -> {
-                    vehicleOverlay.hideVehicleMarker()
-                    vehicleOverlay.hideEstimateOverlays()
-                }
+                vehicleOverlay.updateEstimateOverlays(distribution)
             }
+            else -> {
+                vehicleOverlay.hideVehicleMarker()
+                vehicleOverlay.hideEstimateOverlays()
+            }
+        }
 
-            trip.history.lastOrNull()?.let {
-                vehicleOverlay.showOrUpdateDataReceivedMarker(it, now)
-            }
-        } catch (_: Exception) {
+        trip.history.lastOrNull()?.let {
+            vehicleOverlay.showOrUpdateDataReceivedMarker(it, now)
         }
     }
 }

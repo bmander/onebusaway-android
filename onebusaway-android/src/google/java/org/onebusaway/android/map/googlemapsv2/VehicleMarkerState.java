@@ -31,7 +31,8 @@ class VehicleMarkerState {
     ObaTripStatus status;
     boolean animating;
     boolean selected;
-    int lastAnchorIndex = -1;
+    /** The trip anchor we last animated to. Reference-compared to detect new data. */
+    ObaTripStatus lastAnimatedAnchor;
 
     VehicleIconParams iconParams;
 

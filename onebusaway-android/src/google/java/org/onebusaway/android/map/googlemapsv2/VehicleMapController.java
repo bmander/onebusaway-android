@@ -338,9 +338,12 @@ class VehicleMapController {
         if (loc == null) { animateToRawPosition(vehicle); return; }
 
         LatLng target = MapHelpV2.makeLatLng(loc);
-        int anchorIndex = trip.getHistory().size();
-        boolean freshData = anchorIndex != vehicle.lastAnchorIndex;
-        vehicle.lastAnchorIndex = anchorIndex;
+        // "Fresh data arrived" iff Trip.anchor has been reassigned since the previous
+        // frame. Reference equality on the anchor itself is the natural signal — it
+        // changes exactly when recordStatus accepts a non-duplicate, newer status.
+        ObaTripStatus currentAnchor = trip.getAnchor();
+        boolean freshData = currentAnchor != vehicle.lastAnimatedAnchor;
+        vehicle.lastAnimatedAnchor = currentAnchor;
 
         if (!vehicle.animating && positionChanged(vehicle, target)) {
             if (freshData) {

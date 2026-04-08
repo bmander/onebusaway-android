@@ -55,11 +55,19 @@ internal constructor(
         when (result) {
             is ExtrapolationResult.Success -> {
                 val distribution = result.distribution
-                val loc = shapeData.interpolate(distribution.median())
-                if (loc != null) {
-                    vehicleOverlay.updateVehiclePosition(loc, trip.anchor, now)
+                val medianDist = distribution.median()
+                if (medianDist.isFinite()) {
+                    val loc = shapeData.interpolate(medianDist)
+                    if (loc != null) {
+                        vehicleOverlay.updateVehiclePosition(loc, trip.anchor, now)
+                    }
+                    vehicleOverlay.updateEstimateOverlays(distribution)
+                } else {
+                    // Bisect could not converge on a quantile — treat as a failed
+                    // extrapolation frame rather than propagating NaN into rendering.
+                    vehicleOverlay.hideVehicleMarker()
+                    vehicleOverlay.hideEstimateOverlays()
                 }
-                vehicleOverlay.updateEstimateOverlays(distribution)
             }
             else -> {
                 vehicleOverlay.hideVehicleMarker()

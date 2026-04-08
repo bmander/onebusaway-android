@@ -35,13 +35,27 @@ private const val REFINE_MAX_ITER = 200
  * Guards against degenerate inputs: if [initialHi] is non-positive, NaN, or
  * infinite, falls back to 1.0. Both loops are iteration-capped to prevent
  * hangs from pathological CDFs.
+ *
+ * Returns [Double.NaN] if the bracket loop fails to converge within its iteration
+ * cap — this happens when the CDF is truly pathological (constant-below-target,
+ * stuck-under-threshold, NaN-returning for all sampled points) and bisect has no
+ * meaningful answer to report. Callers must check the result for finiteness
+ * before using it.
+ *
+ * The refine loop has its own iteration cap, but when it fires the loop has been
+ * halving `hi` toward zero (because every sampled `mid` was `>= target`), which
+ * is the signature of an extremely concentrated distribution whose median has
+ * underflowed below representable precision. In that case the midpoint of the
+ * still-tiny bracket is a reasonable best-effort answer, so we return it rather
+ * than NaN. Degrading to NaN here would break callers that legitimately expect
+ * a finite (if astronomically small) median for highly-concentrated distributions.
  */
 internal fun bisect(f: (Double) -> Double, target: Double, initialHi: Double): Double {
     var hi = if (initialHi > 0 && initialHi.isFinite()) initialHi else 1.0
     var iter = 0
     while (f(hi) < target) {
         hi *= 2
-        if (++iter >= BRACKET_MAX_ITER || !hi.isFinite()) return hi
+        if (++iter >= BRACKET_MAX_ITER || !hi.isFinite()) return Double.NaN
     }
 
     var lo = 0.0

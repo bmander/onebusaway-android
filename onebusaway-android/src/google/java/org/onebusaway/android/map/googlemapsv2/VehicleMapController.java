@@ -328,6 +328,9 @@ class VehicleMapController {
         if (polyline == null) { animateToRawPosition(vehicle); return; }
 
         double medianDist = dist.median();
+        // Bisect can return NaN on pathological CDFs; fall back to the raw position
+        // rather than propagating NaN into Polyline.segmentIndex/interpolate.
+        if (!Double.isFinite(medianDist)) { animateToRawPosition(vehicle); return; }
         int seg = polyline.segmentIndex(medianDist);
         updateDirectionIcon(vehicle, polyline, seg);
 

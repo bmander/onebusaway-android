@@ -78,19 +78,25 @@ class BisectTest {
     // --- Pathological CDF functions ---
 
     @Test(timeout = 1000)
-    fun `CDF that always returns zero terminates`() {
-        // f(x) = 0 for all x. bisect can never bracket; after 100 doublings
-        // hi overflows to +Infinity and the bracket loop exits.
+    fun `CDF that always returns zero reports NaN`() {
+        // f(x) = 0 for all x. bisect can never bracket — the bracket loop hits its
+        // iteration cap (or hi overflows to +Infinity) and returns NaN as the
+        // explicit "no valid answer" sentinel. Callers (DistanceEstimateOverlay,
+        // TripExtrapolationController) check for NaN and degrade gracefully.
         val result = bisect({ 0.0 }, 0.5, 1.0)
-        assertTrue("Result should not be NaN", !result.isNaN())
+        assertTrue("Non-convergent bracket should report NaN", result.isNaN())
     }
 
     @Test(timeout = 1000)
-    fun `CDF that returns NaN terminates`() {
-        // NaN < target is false, so bracket loop exits immediately.
-        // Refine loop: NaN - 0 > ... is false, exits immediately.
+    fun `CDF that returns NaN terminates with a finite value`() {
+        // NaN < target is always false, so the bracket loop exits immediately and
+        // the refine loop halves hi toward zero without lo ever moving up. After
+        // the refine iter cap fires, the midpoint of the still-tiny bracket is a
+        // finite (astronomically small) value — the same shape as a legitimately
+        // hyperconcentrated distribution, which bisect is allowed to return.
         val result = bisect({ Double.NaN }, 0.5, 1.0)
-        assertTrue("Result should not be NaN", !result.isNaN())
+        assertTrue("Result should be finite (refine cap returns best-effort midpoint)",
+                result.isFinite())
     }
 
     // --- Integration with real distributions ---

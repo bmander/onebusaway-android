@@ -99,7 +99,13 @@ class DistanceEstimateOverlay(
 
         val distLo = distribution.quantile(PDF_LOW_QUANTILE)
         val distHi = distribution.quantile(PDF_HIGH_QUANTILE)
-        if (distHi <= distLo) return
+        // Guard against non-finite quantiles (bisect returning NaN on a pathological
+        // CDF, or the caller passing an unbounded range). Hide stale segments so we
+        // don't render the previous frame's geometry indefinitely.
+        if (!distLo.isFinite() || !distHi.isFinite() || distHi <= distLo) {
+            segs.forEach { it.isVisible = false }
+            return
+        }
         val segWidth = (distHi - distLo) / segmentCount
 
         var maxPdf = 0.0
@@ -128,7 +134,9 @@ class DistanceEstimateOverlay(
 
     private fun updateFastEstimateMarker(distribution: ProbDistribution) {
         val marker = fastEstimateMarker ?: return
-        val loc = shape.interpolate(distribution.quantile(FAST_ESTIMATE_QUANTILE))
+        val dist = distribution.quantile(FAST_ESTIMATE_QUANTILE)
+        // Polyline.interpolate does not guard against NaN internally; check here.
+        val loc = if (dist.isFinite()) shape.interpolate(dist) else null
         if (loc != null) {
             marker.position = MapHelpV2.makeLatLng(loc)
             marker.isVisible = true

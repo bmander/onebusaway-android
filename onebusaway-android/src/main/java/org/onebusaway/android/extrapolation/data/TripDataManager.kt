@@ -48,7 +48,6 @@ object TripDataManager {
 
     private const val TAG = "TripDataManager"
     private const val MAX_TRACKED_TRIPS = 100
-    private const val MAX_FETCH_FAILURES = 3
 
     @JvmStatic fun getInstance() = this
 
@@ -56,8 +55,6 @@ object TripDataManager {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val pendingScheduleFetches: MutableSet<String> = HashSet()
     private val pendingShapeFetches: MutableSet<String> = HashSet()
-    private val scheduleFailures = HashMap<String, Int>()
-    private val shapeFailures = HashMap<String, Int>()
 
     // Access-ordered: each get/getOrPut promotes the entry to the tail, so the head is the
     // least-recently-used trip. evictOldTripsIfNeeded() removes from the head, which means a
@@ -206,7 +203,6 @@ object TripDataManager {
         ensureFetched(
                 tripId = tripId,
                 pending = pendingScheduleFetches,
-                failures = scheduleFailures,
                 isCached = { isScheduleCached(tripId) },
                 fetch = {
                     val ctx = Application.get().applicationContext
@@ -264,7 +260,6 @@ object TripDataManager {
         ensureFetched(
                 tripId = tripId,
                 pending = pendingShapeFetches,
-                failures = shapeFailures,
                 isCached = { getPolyline(tripId) != null },
                 fetch = {
                     val ctx = Application.get().applicationContext
@@ -283,24 +278,21 @@ object TripDataManager {
 
     /**
      * Fetches a value off the main thread and applies the result on the main thread, with
-     * pending-fetch deduplication and a per-trip failure cap. Both [fetch] (background) and
-     * [onSuccess]/[onError] (main thread) are guaranteed to run on those threads — callers
-     * observe the callbacks asynchronously even when the failure cap is hit at the entry point.
+     * pending-fetch deduplication. Failed fetches are retried naturally on the next call
+     * (typically the next poll tick), which is already rate-limited by the polling interval —
+     * no extra failure-cap or backoff logic is needed.
+     *
+     * [fetch] runs on the fetch executor; [onSuccess] and [onError] run on the main thread.
      */
     private fun <T : Any> ensureFetched(
             tripId: String,
             pending: MutableSet<String>,
-            failures: MutableMap<String, Int>,
             isCached: () -> Boolean,
             fetch: () -> T?,
             onSuccess: (T) -> Unit,
             onError: (() -> Unit)? = null
     ) {
         if (isCached()) return
-        if ((failures[tripId] ?: 0) >= MAX_FETCH_FAILURES) {
-            if (onError != null) mainHandler.post { onError() }
-            return
-        }
         if (!pending.add(tripId)) return
         fetchExecutor.execute {
             val result: T? = try {
@@ -312,11 +304,9 @@ object TripDataManager {
             mainHandler.post {
                 pending.remove(tripId)
                 if (result != null) {
-                    failures.remove(tripId)
                     onSuccess(result)
                 } else {
                     Log.d(TAG, "Fetch for $tripId yielded no data")
-                    failures.merge(tripId, 1, Int::plus)
                     if (onError != null) onError()
                 }
             }

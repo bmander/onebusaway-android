@@ -59,7 +59,11 @@ object TripDataManager {
     private val scheduleFailures = HashMap<String, Int>()
     private val shapeFailures = HashMap<String, Int>()
 
-    private val trips = LinkedHashMap<String, Trip>()
+    // Access-ordered: each get/getOrPut promotes the entry to the tail, so the head is the
+    // least-recently-used trip. evictOldTripsIfNeeded() removes from the head, which means a
+    // trip that's currently being polled (via recordStatus / getOrCreateTrip / isScheduleCached)
+    // stays alive even after MAX_TRACKED_TRIPS distinct trips have been observed.
+    private val trips = LinkedHashMap<String, Trip>(16, 0.75f, /*accessOrder=*/true)
 
     // --- Change notifications ---
 

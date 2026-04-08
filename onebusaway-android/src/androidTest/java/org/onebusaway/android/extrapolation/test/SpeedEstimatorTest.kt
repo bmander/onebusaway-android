@@ -150,6 +150,65 @@ class SpeedEstimatorTest {
         assertEquals(0, dm.getHistory("trip1").size)
     }
 
+    // --- Eviction tests ---
+
+    @Test
+    fun testEvictionUsesAccessOrder() {
+        // Insert MAX_TRACKED_TRIPS distinct trips so we're sitting at the cap with the registry
+        // ordered by insertion. trip0 is the oldest by insertion order.
+        val cap = 100
+        for (i in 0 until cap) {
+            val status = createStatus(
+                "v$i", "trip$i", 47.0, -122.0, 100.0, 100.0, 5000.0, 1000L + i
+            )
+            dm.recordStatus(status, System.currentTimeMillis(), System.currentTimeMillis())
+        }
+        assertEquals(cap, dm.getTrackedTripIds().size)
+
+        // Touch trip0 (the insertion-oldest) to promote it to most-recently-accessed.
+        // Any read goes through getTrip(); getLastState exercises that path.
+        assertNotNull(dm.getLastState("trip0"))
+
+        // Now insert one more trip. With access ordering, the LRU is trip1, not trip0.
+        val pushOver = createStatus(
+            "vNew", "tripNew", 47.0, -122.0, 100.0, 100.0, 5000.0, 9999L
+        )
+        dm.recordStatus(pushOver, System.currentTimeMillis(), System.currentTimeMillis())
+
+        val tracked = dm.getTrackedTripIds()
+        assertEquals(cap, tracked.size)
+        assertTrue("trip0 should survive eviction because it was just accessed",
+            "trip0" in tracked)
+        assertFalse("trip1 should have been evicted as the LRU", "trip1" in tracked)
+        assertTrue("tripNew should be tracked", "tripNew" in tracked)
+    }
+
+    @Test
+    fun testEvictionRecordingExistingTripDoesNotEvict() {
+        // Recording an update for an already-tracked trip must not push another trip out:
+        // it bumps the existing entry to the tail without growing the registry.
+        val cap = 100
+        for (i in 0 until cap) {
+            val status = createStatus(
+                "v$i", "trip$i", 47.0, -122.0, 100.0, 100.0, 5000.0, 1000L + i
+            )
+            dm.recordStatus(status, System.currentTimeMillis(), System.currentTimeMillis())
+        }
+        assertEquals(cap, dm.getTrackedTripIds().size)
+
+        // Re-record trip0 with a fresh status — same tripId, different distance and timestamp
+        // so the dedup in Trip.recordStatus actually appends.
+        val update = createStatus(
+            "v0", "trip0", 47.001, -122.0, 200.0, 200.0, 5000.0, 2000L
+        )
+        dm.recordStatus(update, System.currentTimeMillis(), System.currentTimeMillis())
+
+        val tracked = dm.getTrackedTripIds()
+        assertEquals(cap, tracked.size)
+        assertTrue("trip0 should still be present after self-update", "trip0" in tracked)
+        assertEquals(2, dm.getHistorySize("trip0"))
+    }
+
     // --- TripDataManager schedule cache tests ---
 
     @Test

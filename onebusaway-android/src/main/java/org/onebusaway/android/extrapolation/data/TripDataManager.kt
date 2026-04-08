@@ -199,36 +199,23 @@ object TripDataManager {
             tripId != null && getTrip(tripId)?.schedule != null
 
     fun ensureSchedule(tripId: String) {
-        if (isScheduleCached(tripId) || !pendingScheduleFetches.add(tripId)) return
-        if ((scheduleFailures[tripId] ?: 0) >= MAX_FETCH_FAILURES) {
-            pendingScheduleFetches.remove(tripId)
-            return
-        }
-        fetchExecutor.execute {
-            val schedule: ObaTripSchedule? = try {
-                val ctx = Application.get().applicationContext
-                ObaTripDetailsRequest.Builder(ctx, tripId)
-                        .setIncludeSchedule(true)
-                        .setIncludeStatus(false)
-                        .setIncludeTrip(false)
-                        .build()
-                        .call()
-                        ?.schedule
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to fetch schedule for $tripId", e)
-                null
-            }
-            mainHandler.post {
-                pendingScheduleFetches.remove(tripId)
-                if (schedule != null) {
-                    putSchedule(tripId, schedule)
-                    scheduleFailures.remove(tripId)
-                } else {
-                    Log.d(TAG, "Schedule fetch for $tripId yielded no schedule")
-                    scheduleFailures.merge(tripId, 1, Int::plus)
-                }
-            }
-        }
+        ensureFetched(
+                tripId = tripId,
+                pending = pendingScheduleFetches,
+                failures = scheduleFailures,
+                isCached = { isScheduleCached(tripId) },
+                fetch = {
+                    val ctx = Application.get().applicationContext
+                    ObaTripDetailsRequest.Builder(ctx, tripId)
+                            .setIncludeSchedule(true)
+                            .setIncludeStatus(false)
+                            .setIncludeTrip(false)
+                            .build()
+                            .call()
+                            ?.schedule
+                },
+                onSuccess = { schedule -> putSchedule(tripId, schedule) }
+        )
     }
 
     // --- Service date ---
@@ -263,39 +250,69 @@ object TripDataManager {
             onReady: ((Polyline) -> Unit)? = null,
             onError: (() -> Unit)? = null
     ) {
+        // Cached-hit fast path: still hops through mainHandler.post so callers always
+        // observe the callback asynchronously, regardless of cache state.
         val cached = getPolyline(tripId)
         if (cached != null) {
-            if (onReady != null) onReady(cached)
+            if (onReady != null) mainHandler.post { onReady(cached) }
             return
         }
-        if (!pendingShapeFetches.add(tripId)) return
-        if ((shapeFailures[tripId] ?: 0) >= MAX_FETCH_FAILURES) {
-            pendingShapeFetches.remove(tripId)
-            if (onError != null) onError()
+        ensureFetched(
+                tripId = tripId,
+                pending = pendingShapeFetches,
+                failures = shapeFailures,
+                isCached = { getPolyline(tripId) != null },
+                fetch = {
+                    val ctx = Application.get().applicationContext
+                    val response = ObaShapeRequest.newRequest(ctx, shapeId).call()
+                    val points = response?.points
+                    if (points != null && points.isNotEmpty()) Polyline(points) else null
+                },
+                onSuccess = { polyline ->
+                    getOrCreateTrip(tripId).polyline = polyline
+                    notifyChanged()
+                    if (onReady != null) onReady(polyline)
+                },
+                onError = onError
+        )
+    }
+
+    /**
+     * Fetches a value off the main thread and applies the result on the main thread, with
+     * pending-fetch deduplication and a per-trip failure cap. Both [fetch] (background) and
+     * [onSuccess]/[onError] (main thread) are guaranteed to run on those threads — callers
+     * observe the callbacks asynchronously even when the failure cap is hit at the entry point.
+     */
+    private fun <T : Any> ensureFetched(
+            tripId: String,
+            pending: MutableSet<String>,
+            failures: MutableMap<String, Int>,
+            isCached: () -> Boolean,
+            fetch: () -> T?,
+            onSuccess: (T) -> Unit,
+            onError: (() -> Unit)? = null
+    ) {
+        if (isCached()) return
+        if ((failures[tripId] ?: 0) >= MAX_FETCH_FAILURES) {
+            if (onError != null) mainHandler.post { onError() }
             return
         }
+        if (!pending.add(tripId)) return
         fetchExecutor.execute {
-            // Network and Polyline construction happen off the main thread; only the
-            // assignment back into TripDataManager hops to Main.
-            val polyline: Polyline? = try {
-                val ctx = Application.get().applicationContext
-                val response = ObaShapeRequest.newRequest(ctx, shapeId).call()
-                val points = response?.points
-                if (points != null && points.isNotEmpty()) Polyline(points) else null
+            val result: T? = try {
+                fetch()
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to fetch shape for $tripId", e)
+                Log.e(TAG, "Fetch failed for $tripId", e)
                 null
             }
             mainHandler.post {
-                pendingShapeFetches.remove(tripId)
-                if (polyline != null) {
-                    getOrCreateTrip(tripId).polyline = polyline
-                    shapeFailures.remove(tripId)
-                    notifyChanged()
-                    if (onReady != null) onReady(polyline)
+                pending.remove(tripId)
+                if (result != null) {
+                    failures.remove(tripId)
+                    onSuccess(result)
                 } else {
-                    Log.d(TAG, "Shape fetch for $tripId yielded no points")
-                    shapeFailures.merge(tripId, 1, Int::plus)
+                    Log.d(TAG, "Fetch for $tripId yielded no data")
+                    failures.merge(tripId, 1, Int::plus)
                     if (onError != null) onError()
                 }
             }

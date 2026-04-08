@@ -46,11 +46,11 @@ class TripDetailsPoller @JvmOverloads constructor(
 
     fun start() {
         if (job?.isActive == true) return
+        val ctx = Application.get().applicationContext
         job = MainScope().launch {
             while (isActive) {
                 try {
                     val localTimeMs = System.currentTimeMillis()
-                    val ctx = Application.get().applicationContext
                     val response = withContext(Dispatchers.IO) {
                         ObaTripDetailsRequest.newRequest(ctx, tripId).call()
                     }
@@ -89,11 +89,11 @@ class RoutePoller @JvmOverloads constructor(
 
     fun start() {
         if (job?.isActive == true) return
+        val ctx = Application.get().applicationContext
         job = MainScope().launch {
             while (isActive) {
                 try {
                     val localTimeMs = System.currentTimeMillis()
-                    val ctx = Application.get().applicationContext
                     val response = withContext(Dispatchers.IO) {
                         ObaTripsForRouteRequest.Builder(ctx, routeId)
                                 .setIncludeStatus(true)
@@ -123,10 +123,10 @@ class RoutePoller @JvmOverloads constructor(
  * Records the result into [TripDataManager]; does not notify callers on success or failure.
  */
 fun fetchTripDetailsOnce(tripId: String) {
+    val ctx = Application.get().applicationContext
     MainScope().launch {
         try {
             val localTimeMs = System.currentTimeMillis()
-            val ctx = Application.get().applicationContext
             val response = withContext(Dispatchers.IO) {
                 ObaTripDetailsRequest.newRequest(ctx, tripId).call()
             }

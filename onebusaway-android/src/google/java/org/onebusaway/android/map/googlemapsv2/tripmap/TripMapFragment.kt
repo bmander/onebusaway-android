@@ -153,8 +153,8 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         extrapolationController?.stop()
 
         TripMapOverlayFactory.create(m, requireContext(), tripId,
-                selectedStopId, response, ::onOverlaysReady) {
-            Log.w(TAG, "Overlay creation failed for $tripId")
+                selectedStopId, response, ::onOverlaysReady) { reason ->
+            Log.w(TAG, "Overlay creation failed for $tripId: $reason")
             mapCallback?.onTripMapActivationFailed()
         }
     }

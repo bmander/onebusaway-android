@@ -35,11 +35,21 @@ data class TripMapOverlays(
         val tripId: String
 )
 
+/** Reasons [TripMapOverlayFactory.create] may fail to produce overlays. */
+internal enum class TripMapOverlayFailure {
+    MISSING_SCHEDULE,
+    MISSING_REFERENCES,
+    TRIP_NOT_IN_REFERENCES,
+    MISSING_SHAPE_ID,
+    /** Async shape fetch failed (e.g. network or API error). */
+    SHAPE_FETCH_FAILED
+}
+
 /**
  * Creates and activates trip map overlays from an API response.
  *
- * Calls [onReady] on the main thread once overlays are created, or [onError] if the
- * response lacks required data (schedule, refs, trip, or shape).
+ * Calls [onReady] on the main thread once overlays are created, or [onError] with a
+ * [TripMapOverlayFailure] describing which required data was missing or failed to load.
  */
 internal object TripMapOverlayFactory {
 
@@ -50,12 +60,15 @@ internal object TripMapOverlayFactory {
             selectedStopId: String?,
             response: ObaTripDetailsResponse,
             onReady: (TripMapOverlays) -> Unit,
-            onError: (() -> Unit)? = null
+            onError: (TripMapOverlayFailure) -> Unit
     ) {
-        val schedule = response.schedule ?: run { onError?.invoke(); return }
+        val schedule = response.schedule
+                ?: run { onError(TripMapOverlayFailure.MISSING_SCHEDULE); return }
         val status = response.status
-        val refs = response.refs ?: run { onError?.invoke(); return }
-        val trip = refs.getTrip(tripId) ?: run { onError?.invoke(); return }
+        val refs = response.refs
+                ?: run { onError(TripMapOverlayFailure.MISSING_REFERENCES); return }
+        val trip = refs.getTrip(tripId)
+                ?: run { onError(TripMapOverlayFailure.TRIP_NOT_IN_REFERENCES); return }
         val route = refs.getRoute(trip.routeId)
 
         cacheResponseData(tripId, schedule, status)
@@ -89,10 +102,10 @@ internal object TripMapOverlayFactory {
         val shapeId = trip.shapeId
         if (shapeId != null) {
             TripDataManager.ensureShape(tripId, shapeId, ::build) {
-                onError?.invoke()
+                onError(TripMapOverlayFailure.SHAPE_FETCH_FAILED)
             }
         } else {
-            onError?.invoke()
+            onError(TripMapOverlayFailure.MISSING_SHAPE_ID)
         }
     }
 

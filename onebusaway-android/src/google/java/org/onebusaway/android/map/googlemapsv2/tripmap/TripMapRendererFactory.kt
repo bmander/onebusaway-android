@@ -67,7 +67,7 @@ internal object TripMapOverlayFactory {
                     MapHelpV2.makeLatLng(it)
                 }
         val scheduleDeviation =
-                status?.takeIf { it.activeTripId == tripId }?.scheduleDeviation ?: 0L
+                status?.takeIf { it.activeTripId == tripId }?.scheduleDeviation
         val stopNames = buildStopNameMap(schedule, refs)
 
         fun build(sd: Polyline) {

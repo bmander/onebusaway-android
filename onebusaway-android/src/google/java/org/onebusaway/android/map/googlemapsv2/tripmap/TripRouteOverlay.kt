@@ -55,7 +55,7 @@ class TripRouteOverlay(
         private val routeColor: Int,
         private val stopNames: Map<String, String>,
         private val selectedStopId: String?,
-        private val scheduleDeviation: Long
+        private val scheduleDeviation: Long?
 ) {
     private val stampFactory = StampedPolylineFactory(
             context.resources, R.drawable.ic_navigation_expand_more, 4)
@@ -117,14 +117,34 @@ class TripRouteOverlay(
 
     private fun computeEtaSnippet(arrivalTimeSec: Long, now: Long): String? {
         val serviceDate = TripDataManager.getServiceDate(tripId) ?: return null
-        val predictedMs = serviceDate + arrivalTimeSec * 1000 + scheduleDeviation * 1000
+        val scheduledMs = serviceDate + arrivalTimeSec * 1000
+        return if (scheduleDeviation == null) {
+            formatEta(scheduledMs, now,
+                    R.string.eta_scheduled_departed,
+                    R.string.eta_scheduled_less_than_one_min,
+                    R.string.eta_scheduled_minutes)
+        } else {
+            formatEta(scheduledMs + scheduleDeviation * 1000, now,
+                    R.string.eta_departed,
+                    R.string.eta_less_than_one_min,
+                    R.string.eta_minutes)
+        }
+    }
+
+    private fun formatEta(
+            predictedMs: Long,
+            now: Long,
+            departedRes: Int,
+            lessThanOneMinRes: Int,
+            minutesRes: Int
+    ): String {
         val diffMs = predictedMs - now
         val diffMin = TimeUnit.MILLISECONDS.toMinutes(diffMs)
         val clockTime = UIUtils.formatTime(context, predictedMs)
         return when {
-            diffMs <= 0 -> context.getString(R.string.eta_departed, clockTime)
-            diffMin < 1 -> context.getString(R.string.eta_less_than_one_min, clockTime)
-            else -> context.getString(R.string.eta_minutes, clockTime, diffMin)
+            diffMs <= 0 -> context.getString(departedRes, clockTime)
+            diffMin < 1 -> context.getString(lessThanOneMinRes, clockTime)
+            else -> context.getString(minutesRes, clockTime, diffMin)
         }
     }
 

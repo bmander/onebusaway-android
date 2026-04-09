@@ -49,8 +49,21 @@ class Trip(val tripId: String) {
     /** The most recent status by timestamp, with GPS winning ties. */
     var anchor: ObaTripStatus? = null
         private set
-    /** Effective timestamp of the anchor (lastUpdateTime, or serverTimeMs as fallback). */
+    /**
+     * Effective timestamp of the anchor in the **server** clock domain
+     * (lastUpdateTime, or serverTimeMs as fallback). Used for plotting against
+     * other server-clock values such as [ObaTripStatus.lastUpdateTime] and
+     * service-date-based schedule times.
+     */
     var anchorTimeMs: Long = 0L
+        private set
+    /**
+     * Same instant as [anchorTimeMs], in the local device clock domain.
+     * Used for extrapolation — comparing `System.currentTimeMillis()`
+     * against a server timestamp would silently classify fresh data as
+     * stale under client/server clock skew.
+     */
+    var anchorLocalTimeMs: Long = 0L
         private set
 
     // --- Caches ---
@@ -89,12 +102,14 @@ class Trip(val tripId: String) {
 
         // Update anchor: newest timestamp wins; GPS wins ties
         val effectiveTime = if (status.lastUpdateTime > 0) status.lastUpdateTime else serverTimeMs
+        val serverLocalOffset = serverTimeMs - localTimeMs
         if (effectiveTime > anchorTimeMs
                 || (effectiveTime == anchorTimeMs
                         && status.isLocationRealtime
                         && anchor?.isLocationRealtime != true)) {
             anchor = status
             anchorTimeMs = effectiveTime
+            anchorLocalTimeMs = effectiveTime - serverLocalOffset
         }
 
         if (history.size > MAX_ENTRIES) {
@@ -110,9 +125,9 @@ class Trip(val tripId: String) {
         val currentAnchor = anchor ?: return ExtrapolationResult.NoData
         val lastDist = currentAnchor.distanceAlongTrip
                 ?: return ExtrapolationResult.NoData
-        if (anchorTimeMs <= 0) return ExtrapolationResult.NoData
+        if (anchorLocalTimeMs <= 0) return ExtrapolationResult.NoData
 
-        val dtMs = queryTimeMs - anchorTimeMs
+        val dtMs = queryTimeMs - anchorLocalTimeMs
         if (dtMs < 0 || dtMs > MAX_HORIZON_MS) return ExtrapolationResult.Stale
         if (lastDist <= PRE_DEPARTURE_DISTANCE_THRESHOLD) return ExtrapolationResult.TripNotStarted
         val totalDist = currentAnchor.totalDistanceAlongTrip
@@ -121,7 +136,7 @@ class Trip(val tripId: String) {
             return ExtrapolationResult.TripEnded
         }
 
-        return getOrCreateExtrapolator().doExtrapolate(lastDist, anchorTimeMs, queryTimeMs)
+        return getOrCreateExtrapolator().doExtrapolate(lastDist, anchorLocalTimeMs, queryTimeMs)
     }
 
     private fun getOrCreateExtrapolator(): Extrapolator {

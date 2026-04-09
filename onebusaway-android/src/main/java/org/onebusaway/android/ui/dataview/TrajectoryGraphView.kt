@@ -61,6 +61,11 @@ class TrajectoryGraphView @JvmOverloads constructor(
     private var anchorTimeMs: Long = 0L
     private var schedule: ObaTripSchedule? = null
     private var serviceDate = 0L
+    // TODO: clock-domain mismatch. currentTime is local clock (System.currentTimeMillis),
+    //  but the time axis is laid out against server-clock values — history[].lastUpdateTime
+    //  and serviceDate + stopTime*1000. Any client/server clock skew shifts the red "now"
+    //  line away from the latest trajectory dot. Fix by translating currentTime into server
+    //  clock via Trip's fetchTimes/localFetchTimes offset.
     private var currentTime = System.currentTimeMillis()
     private var distribution: ProbDistribution? = null
     private var cachedCiLoDist = 0.0

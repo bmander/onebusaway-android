@@ -39,5 +39,10 @@ sealed class ExtrapolationResult {
  * The [Trip] class handles strategy selection and common validation; this is just the model.
  */
 abstract class Extrapolator(protected val trip: Trip) {
+    /**
+     * [lastTimeMs] and [queryTimeMs] must be in the same clock domain;
+     * [Trip.extrapolate] passes device-local clock values so the interval
+     * is unaffected by server/device clock skew.
+     */
     abstract fun doExtrapolate(lastDist: Double, lastTimeMs: Long, queryTimeMs: Long): ExtrapolationResult
 }

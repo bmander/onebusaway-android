@@ -43,5 +43,6 @@ class VehicleMarkerState {
     VehicleMarkerState(Trip trip, ObaTripStatus status) {
         this.trip = trip;
         this.status = status;
+        this.lastAnimatedAnchor = trip.getAnchor();
     }
 }

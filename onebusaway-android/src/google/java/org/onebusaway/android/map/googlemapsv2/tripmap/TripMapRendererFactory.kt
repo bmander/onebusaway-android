@@ -78,7 +78,7 @@ internal object TripMapOverlayFactory {
                     map, context, sd, routeColor, route?.type)
 
             routeOverlay.activate()
-            TripDataManager.getLastState(tripId)?.let {
+            TripDataManager.getAnchor(tripId)?.let {
                 vehicleOverlay.showOrUpdateDataReceivedMarker(it, System.currentTimeMillis())
             }
             vehicleOverlay.activate(vehiclePosition)

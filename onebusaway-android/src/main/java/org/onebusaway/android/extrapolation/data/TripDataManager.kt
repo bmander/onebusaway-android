@@ -178,6 +178,14 @@ object TripDataManager {
     fun getLastState(activeTripId: String?): ObaTripStatus? =
             getTrip(activeTripId)?.history?.lastOrNull()
 
+    /**
+     * Returns the filtered extrapolation anchor — the newest-by-timestamp status with
+     * GPS winning ties. Use this (not [getLastState]) when surfacing "the data the
+     * prediction is based on" to the user; [getLastState] is for raw debug views.
+     */
+    fun getAnchor(activeTripId: String?): ObaTripStatus? =
+            getTrip(activeTripId)?.anchor
+
     fun getTrackedTripIds(): Set<String> = trips.keys.toSet()
 
     // --- Trip details response cache ---

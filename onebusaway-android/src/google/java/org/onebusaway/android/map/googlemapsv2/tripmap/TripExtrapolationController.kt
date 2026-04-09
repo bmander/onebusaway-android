@@ -75,7 +75,7 @@ internal constructor(
             }
         }
 
-        trip.history.lastOrNull()?.let {
+        trip.anchor?.let {
             vehicleOverlay.showOrUpdateDataReceivedMarker(it, now)
         }
     }

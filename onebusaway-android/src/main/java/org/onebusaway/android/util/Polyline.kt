@@ -82,15 +82,8 @@ class Polyline(val points: List<Location>) {
 
     /** Returns the sub-polyline between two distances, with interpolated endpoints. */
     fun subPolyline(startDist: Double, endDist: Double): List<Location>? {
-        val start = interpolate(startDist) ?: return null
-        val end = interpolate(endDist) ?: return null
-        return buildList {
-            add(start)
-            vertexRange(startDist, endDist)?.let { (from, to) ->
-                for (i in from until to) add(points[i])
-            }
-            add(end)
-        }
+        val result = mutableListOf<Location>()
+        return if (subPolylineInto(startDist, endDist, result)) result else null
     }
 
     /**

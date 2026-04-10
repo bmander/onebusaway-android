@@ -48,7 +48,7 @@ class DistanceEstimateOverlay(
     private val edgeDistances = DoubleArray(segmentCount + 1)
     private val pdfValues = DoubleArray(segmentCount)
     private val rgb = baseColor and 0x00FFFFFF
-    private val locationBuffer = mutableListOf<Location>()
+    private val scratchLocation = Location("")
     private val latLngBuffer = mutableListOf<LatLng>()
 
     private var segments: Array<MapPolyline>? = null
@@ -122,10 +122,8 @@ class DistanceEstimateOverlay(
         }
 
         segs.forEachIndexed { i, seg ->
-            if (shape.subPolylineInto(edgeDistances[i], edgeDistances[i + 1],
-                            locationBuffer)) {
-                latLngBuffer.clear()
-                locationBuffer.mapTo(latLngBuffer) { MapHelpV2.makeLatLng(it) }
+            if (shape.subPolylineMapInto(edgeDistances[i], edgeDistances[i + 1],
+                            latLngBuffer, scratchLocation) { MapHelpV2.makeLatLng(it) }) {
                 val alpha = if (maxPdf > 0) (255 * pdfValues[i] / maxPdf).toInt() else 0
                 seg.points = latLngBuffer
                 seg.color = (alpha shl 24) or rgb
@@ -139,10 +137,8 @@ class DistanceEstimateOverlay(
     private fun updateFastEstimateMarker(distribution: ProbDistribution) {
         val marker = fastEstimateMarker ?: return
         val dist = distribution.quantile(FAST_ESTIMATE_QUANTILE)
-        // Polyline.interpolate does not guard against NaN internally; check here.
-        val loc = if (dist.isFinite()) shape.interpolate(dist) else null
-        if (loc != null) {
-            marker.position = MapHelpV2.makeLatLng(loc)
+        if (dist.isFinite() && shape.interpolateInto(dist, scratchLocation)) {
+            marker.position = MapHelpV2.makeLatLng(scratchLocation)
             marker.isVisible = true
         } else {
             marker.isVisible = false

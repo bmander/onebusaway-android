@@ -51,24 +51,44 @@ class Polyline(val points: List<Location>) {
 
     /** Returns the interpolated position at the given distance along the polyline. */
     fun interpolate(distance: Double): Location? {
-        if (points.isEmpty()) return null
-        if (points.size < 2 || distance <= 0) return copyLocation(points.first())
-        return interpolate(distance, segmentIndex(distance))
+        val out = Location("")
+        return if (interpolateInto(distance, out)) out else null
     }
 
     /** Interpolates using a pre-computed [seg] from [segmentIndex]. */
     fun interpolate(distance: Double, seg: Int): Location? {
-        if (seg < 0) return if (points.isEmpty()) null else copyLocation(points.first())
+        val out = Location("")
+        return if (interpolateInto(distance, seg, out)) out else null
+    }
 
+    /** Writes the interpolated position into [out]. Returns false if the polyline is empty. */
+    fun interpolateInto(distance: Double, out: Location): Boolean {
+        if (points.isEmpty()) return false
+        if (points.size < 2 || distance <= 0) {
+            out.set(points.first())
+            return true
+        }
+        return interpolateInto(distance, segmentIndex(distance), out)
+    }
+
+    /** Interpolates into [out] using a pre-computed [seg] from [segmentIndex]. */
+    fun interpolateInto(distance: Double, seg: Int, out: Location): Boolean {
+        if (seg < 0) {
+            if (points.isEmpty()) return false
+            out.set(points.first())
+            return true
+        }
         val segLen = cumulativeDistances[seg + 1] - cumulativeDistances[seg]
-        if (segLen <= 0) return copyLocation(points[seg])
-
+        if (segLen <= 0) {
+            out.set(points[seg])
+            return true
+        }
         val fraction = ((distance - cumulativeDistances[seg]) / segLen).coerceIn(0.0, 1.0)
         val p0 = points[seg]
         val p1 = points[seg + 1]
-        return LocationUtils.makeLocation(
-                p0.latitude + fraction * (p1.latitude - p0.latitude),
-                p0.longitude + fraction * (p1.longitude - p0.longitude))
+        out.latitude = p0.latitude + fraction * (p1.latitude - p0.latitude)
+        out.longitude = p0.longitude + fraction * (p1.longitude - p0.longitude)
+        return true
     }
 
     /** Returns the bearing (0-360) of the polyline segment at the given distance, or NaN. */
@@ -104,6 +124,24 @@ class Polyline(val points: List<Location>) {
     }
 
     /**
+     * Maps the sub-polyline between two distances into [out] via [transform],
+     * using [scratch] for interpolated endpoints. The list is cleared first.
+     */
+    fun <T> subPolylineMapInto(startDist: Double, endDist: Double,
+                               out: MutableList<T>, scratch: Location,
+                               transform: (Location) -> T): Boolean {
+        out.clear()
+        if (!interpolateInto(startDist, scratch)) return false
+        out.add(transform(scratch))
+        vertexRange(startDist, endDist)?.let { (from, to) ->
+            for (i in from until to) out.add(transform(points[i]))
+        }
+        if (!interpolateInto(endDist, scratch)) return false
+        out.add(transform(scratch))
+        return true
+    }
+
+    /**
      * Finds the range of vertex indices whose cumulative distances fall strictly between
      * [startDist] and [endDist]. Returns a pair (from, to) for use as a half-open range,
      * or null if no vertices fall in range.
@@ -117,6 +155,4 @@ class Polyline(val points: List<Location>) {
         return if (from < to) Pair(from, to) else null
     }
 
-    private fun copyLocation(loc: Location) =
-            LocationUtils.makeLocation(loc.latitude, loc.longitude)
 }

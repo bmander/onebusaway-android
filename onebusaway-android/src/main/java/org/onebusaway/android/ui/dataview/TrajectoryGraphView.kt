@@ -183,6 +183,7 @@ class TrajectoryGraphView @JvmOverloads constructor(
             cachedCiHiDist = 0.0
         }
         currentTime = System.currentTimeMillis()
+        updateTicking()
         invalidate()
     }
 
@@ -204,7 +205,10 @@ class TrajectoryGraphView @JvmOverloads constructor(
     }
 
     private fun updateTicking() {
-        if (isAttachedToWindow && visibility == VISIBLE) startTicking() else stopTicking()
+        if (isAttachedToWindow && visibility == VISIBLE && distribution != null)
+            startTicking()
+        else
+            stopTicking()
     }
 
     private fun startTicking() {

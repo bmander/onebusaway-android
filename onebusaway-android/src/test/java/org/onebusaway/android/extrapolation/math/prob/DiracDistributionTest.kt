@@ -48,8 +48,8 @@ class DiracDistributionTest {
 
     @Test
     fun `quantile boundaries`() {
-        assertEquals(0.0, dist.quantile(0.0), 0.0)
-        assertEquals(Double.MAX_VALUE, dist.quantile(1.0), 0.0)
+        assertEquals(5.0, dist.quantile(0.0), 0.0)
+        assertEquals(5.0, dist.quantile(1.0), 0.0)
     }
 
     @Test

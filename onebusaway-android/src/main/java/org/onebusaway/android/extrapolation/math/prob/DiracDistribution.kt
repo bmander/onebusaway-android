@@ -21,10 +21,5 @@ class DiracDistribution(@JvmField val value: Double) : ProbDistribution {
         get() = value
     override fun pdf(x: Double): Double = 0.0
     override fun cdf(x: Double): Double = if (x >= value) 1.0 else 0.0
-    override fun quantile(p: Double): Double =
-            when {
-                p <= 0.0 -> 0.0
-                p >= 1.0 -> Double.MAX_VALUE
-                else -> value
-            }
+    override fun quantile(p: Double): Double = value
 }

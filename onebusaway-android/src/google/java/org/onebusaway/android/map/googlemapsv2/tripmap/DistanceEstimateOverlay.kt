@@ -16,6 +16,7 @@
 package org.onebusaway.android.map.googlemapsv2.tripmap
 
 import android.content.Context
+import android.location.Location
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
@@ -47,6 +48,8 @@ class DistanceEstimateOverlay(
     private val edgeDistances = DoubleArray(segmentCount + 1)
     private val pdfValues = DoubleArray(segmentCount)
     private val rgb = baseColor and 0x00FFFFFF
+    private val locationBuffer = mutableListOf<Location>()
+    private val latLngBuffer = mutableListOf<LatLng>()
 
     private var segments: Array<MapPolyline>? = null
     private var fastEstimateMarker: Marker? = null
@@ -119,11 +122,12 @@ class DistanceEstimateOverlay(
         }
 
         segs.forEachIndexed { i, seg ->
-            val pts = shape.subPolyline(edgeDistances[i], edgeDistances[i + 1])
-                    ?.map { MapHelpV2.makeLatLng(it) }
-            if (pts != null) {
+            if (shape.subPolylineInto(edgeDistances[i], edgeDistances[i + 1],
+                            locationBuffer)) {
+                latLngBuffer.clear()
+                locationBuffer.mapTo(latLngBuffer) { MapHelpV2.makeLatLng(it) }
                 val alpha = if (maxPdf > 0) (255 * pdfValues[i] / maxPdf).toInt() else 0
-                seg.points = pts
+                seg.points = latLngBuffer
                 seg.color = (alpha shl 24) or rgb
                 seg.isVisible = true
             } else {

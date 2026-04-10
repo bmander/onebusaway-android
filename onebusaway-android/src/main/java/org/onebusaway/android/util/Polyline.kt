@@ -94,6 +94,23 @@ class Polyline(val points: List<Location>) {
     }
 
     /**
+     * Fills [out] with the sub-polyline between two distances, with interpolated
+     * endpoints. The list is cleared first. Returns true if the sub-polyline was produced.
+     */
+    fun subPolylineInto(startDist: Double, endDist: Double,
+                        out: MutableList<Location>): Boolean {
+        out.clear()
+        val start = interpolate(startDist) ?: return false
+        val end = interpolate(endDist) ?: return false
+        out.add(start)
+        vertexRange(startDist, endDist)?.let { (from, to) ->
+            for (i in from until to) out.add(points[i])
+        }
+        out.add(end)
+        return true
+    }
+
+    /**
      * Finds the range of vertex indices whose cumulative distances fall strictly between
      * [startDist] and [endDist]. Returns a pair (from, to) for use as a half-open range,
      * or null if no vertices fall in range.

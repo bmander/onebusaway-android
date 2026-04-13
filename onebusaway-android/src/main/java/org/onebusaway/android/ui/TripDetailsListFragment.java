@@ -35,6 +35,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
@@ -164,7 +165,7 @@ public class TripDetailsListFragment extends ListFragment {
 
     private FirebaseAnalytics mFirebaseAnalytics;
 
-    private final Handler mPositionTickHandler = new Handler();
+    private final Handler mPositionTickHandler = new Handler(Looper.getMainLooper());
     private final Runnable mPositionTick = this::updateVehiclePosition;
 
     private TripDataCallback mTripDataCallback;

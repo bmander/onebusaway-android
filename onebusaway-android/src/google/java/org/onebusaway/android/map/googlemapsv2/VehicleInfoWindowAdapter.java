@@ -49,13 +49,16 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
 
     // Google Maps info windows always have a white background regardless of theme,
     // so force dark text to avoid white-on-white in dark mode
-    private static final int PRIMARY_TEXT_COLOR = 0xDE000000;   // 87% black
+    private static final int PRIMARY_TEXT_COLOR = 0xDE000000; // 87% black
     private static final int SECONDARY_TEXT_COLOR = 0x8A000000; // 54% black
 
     interface InfoSource {
         ObaTripStatus getStatusFromMarker(Marker marker);
+
         boolean isDataReceivedMarker(Marker marker);
+
         boolean isExtrapolating(Marker marker);
+
         ObaTripsForRouteResponse getLastResponse();
     }
 
@@ -85,15 +88,19 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
         }
 
         ObaTripStatus status = mSource.getStatusFromMarker(marker);
-        if (status == null) return null;
+        if (status == null)
+            return null;
 
         ObaTripsForRouteResponse response = mSource.getLastResponse();
-        if (response == null) return null;
+        if (response == null)
+            return null;
 
         ObaTrip trip = response.getTrip(status.getActiveTripId());
-        if (trip == null) return null;
+        if (trip == null)
+            return null;
         ObaRoute route = response.getRoute(trip.getRouteId());
-        if (route == null) return null;
+        if (route == null)
+            return null;
 
         InfoWindowViews views = inflateAndBind();
 
@@ -139,8 +146,10 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
                         : R.string.vehicle_last_updated_min_and_sec, elapsedMin, secMod60);
         views.lastUpdatedView.setText(lastUpdated);
 
-        UIUtils.setOccupancyVisibilityAndColor(views.occupancyView, status.getOccupancyStatus(), OccupancyState.REALTIME);
-        UIUtils.setOccupancyContentDescription(views.occupancyView, status.getOccupancyStatus(), OccupancyState.REALTIME);
+        UIUtils.setOccupancyVisibilityAndColor(views.occupancyView, status.getOccupancyStatus(),
+                OccupancyState.REALTIME);
+        UIUtils.setOccupancyContentDescription(views.occupancyView, status.getOccupancyStatus(),
+                OccupancyState.REALTIME);
 
         return views.root;
     }
@@ -179,8 +188,7 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
                 routeView,
                 view.findViewById(R.id.status),
                 lastUpdatedView,
-                view.findViewById(R.id.occupancy)
-        );
+                view.findViewById(R.id.occupancy));
     }
 
     private static class InfoWindowViews {
@@ -191,7 +199,7 @@ class VehicleInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
         final ViewGroup occupancyView;
 
         InfoWindowViews(View root, TextView routeView, TextView statusView,
-                        TextView lastUpdatedView, ViewGroup occupancyView) {
+                TextView lastUpdatedView, ViewGroup occupancyView) {
             this.root = root;
             this.routeView = routeView;
             this.statusView = statusView;

@@ -23,8 +23,8 @@ import kotlin.math.min
 import kotlin.math.pow
 
 /**
- * Distance-time coordinate system for the trajectory graph.
- * Manages data bounds, zoom/pan state, and pixel coordinate mapping.
+ * Distance-time coordinate system for the trajectory graph. Manages data bounds, zoom/pan state,
+ * and pixel coordinate mapping.
  */
 class GraphViewport(
         val marginLeft: Float,
@@ -33,10 +33,14 @@ class GraphViewport(
         val marginBottom: Float
 ) {
     // Full data bounds (set by setDataBounds)
-    var fullMinDist = 0.0; private set
-    var fullMaxDist = 0.0; private set
-    var fullMinTime = 0L; private set
-    var fullMaxTime = 0L; private set
+    var fullMinDist = 0.0
+        private set
+    var fullMaxDist = 0.0
+        private set
+    var fullMinTime = 0L
+        private set
+    var fullMaxTime = 0L
+        private set
 
     // Zoom/pan state (mutated by applyScale, applyPan, resetZoom)
     private var scaleX = 1f
@@ -45,16 +49,25 @@ class GraphViewport(
     private var offsetTime = 0L
 
     // Visible window (set by setupVisibleWindow)
-    var graphW = 0f; private set
-    var graphH = 0f; private set
-    var visMinDist = 0.0; private set
-    var visDistRange = 0.0; private set
-    var visMinTime = 0L; private set
-    var visTimeRange = 0L; private set
+    var graphW = 0f
+        private set
+    var graphH = 0f
+        private set
+    var visMinDist = 0.0
+        private set
+    var visDistRange = 0.0
+        private set
+    var visMinTime = 0L
+        private set
+    var visTimeRange = 0L
+        private set
 
-    val graphRight get() = marginLeft + graphW
-    val graphBottom get() = marginTop + graphH
-    val isZoomed get() = scaleX > 1f || scaleY > 1f
+    val graphRight
+        get() = marginLeft + graphW
+    val graphBottom
+        get() = marginTop + graphH
+    val isZoomed
+        get() = scaleX > 1f || scaleY > 1f
 
     fun setDataBounds(minDist: Double, maxDist: Double, minTime: Long, maxTime: Long) {
         fullMinDist = minDist
@@ -65,8 +78,8 @@ class GraphViewport(
     }
 
     /**
-     * Recomputes the visible window from view dimensions and current zoom/pan.
-     * Returns false if the graph area is too small to draw.
+     * Recomputes the visible window from view dimensions and current zoom/pan. Returns false if the
+     * graph area is too small to draw.
      */
     fun setupVisibleWindow(viewWidth: Float, viewHeight: Float): Boolean {
         graphW = viewWidth - marginLeft - marginRight
@@ -99,11 +112,16 @@ class GraphViewport(
     }
 
     /**
-     * Applies a focal-point-preserving pinch zoom.
-     * The data-space point under [focusX],[focusY] stays fixed on screen.
+     * Applies a focal-point-preserving pinch zoom. The data-space point under [focusX],[focusY]
+     * stays fixed on screen.
      */
-    fun applyScale(factor: Float, focusX: Float, focusY: Float,
-                   viewWidth: Float, viewHeight: Float) {
+    fun applyScale(
+            factor: Float,
+            focusX: Float,
+            focusY: Float,
+            viewWidth: Float,
+            viewHeight: Float
+    ) {
         val gw = viewWidth - marginLeft - marginRight
         val gh = viewHeight - marginTop - marginBottom
         if (gw <= 0 || gh <= 0) return
@@ -115,10 +133,10 @@ class GraphViewport(
         // Data-space point under the focal point before scaling
         val visDistRange = fullDistRange / scaleX
         val visTimeRange = (fullTimeRange / scaleY).toLong()
-        val focalDist = fullMinDist + offsetDist +
-                visDistRange * ((focusX - marginLeft) / gw)
-        val focalTime = fullMinTime + offsetTime +
-                visTimeRange - (visTimeRange * ((focusY - marginTop) / gh)).toLong()
+        val focalDist = fullMinDist + offsetDist + visDistRange * ((focusX - marginLeft) / gw)
+        val focalTime =
+                fullMinTime + offsetTime + visTimeRange -
+                        (visTimeRange * ((focusY - marginTop) / gh)).toLong()
 
         scaleX = max(1f, min(20f, scaleX * factor))
         scaleY = max(1f, min(20f, scaleY * factor))
@@ -126,19 +144,16 @@ class GraphViewport(
         // Adjust offsets so the focal data point stays under the finger
         val newVisDistRange = fullDistRange / scaleX
         val newVisTimeRange = (fullTimeRange / scaleY).toLong()
-        offsetDist = focalDist - fullMinDist -
-                newVisDistRange * ((focusX - marginLeft) / gw)
-        offsetTime = focalTime - fullMinTime -
-                newVisTimeRange + (newVisTimeRange * ((focusY - marginTop) / gh)).toLong()
+        offsetDist = focalDist - fullMinDist - newVisDistRange * ((focusX - marginLeft) / gw)
+        offsetTime =
+                focalTime - fullMinTime - newVisTimeRange +
+                        (newVisTimeRange * ((focusY - marginTop) / gh)).toLong()
 
         clampOffsets()
     }
 
-    /**
-     * Applies a pan gesture, converting pixel deltas to data-space offsets.
-     */
-    fun applyPan(distanceX: Float, distanceY: Float,
-                 viewWidth: Float, viewHeight: Float) {
+    /** Applies a pan gesture, converting pixel deltas to data-space offsets. */
+    fun applyPan(distanceX: Float, distanceY: Float, viewWidth: Float, viewHeight: Float) {
         val gw = viewWidth - marginLeft - marginRight
         val gh = viewHeight - marginTop - marginBottom
         if (gw <= 0 || gh <= 0) return

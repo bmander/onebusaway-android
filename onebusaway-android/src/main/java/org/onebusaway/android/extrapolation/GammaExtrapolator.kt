@@ -25,9 +25,9 @@ import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.io.elements.speedAtDistance
 
 // H34 two-gamma mixture parameters, fitted on span-weighted King County Metro data (in mph).
-private const val START_B0 = 0.571381   // 1/mph
-private const val END_B0 = 0.124442     // 1/mph
-private const val KINK = 21.918         // mph
+private const val START_B0 = 0.571381 // 1/mph
+private const val END_B0 = 0.124442 // 1/mph
+private const val KINK = 21.918 // mph
 private const val R_INTERCEPT = 0.006024
 private const val R_SLOPE = 0.026456
 private val SLOW_ALPHA = exp(-1.322671) // constant slow shape ≈ 0.266
@@ -37,32 +37,35 @@ private const val MW_SLOPE = -0.018838
 internal const val MPS_TO_MPH = 2.23694
 
 /**
- * Per-trip extrapolator for bus-like routes using the H34 two-gamma mixture
- * speed distribution model. Conditioned on scheduled speed only; the slow
- * component (constant shape) captures delayed/stopped vehicles while the fast
- * component is ensemble-mean-locked to the schedule speed.
+ * Per-trip extrapolator for bus-like routes using the H34 two-gamma mixture speed distribution
+ * model. Conditioned on scheduled speed only; the slow component (constant shape) captures
+ * delayed/stopped vehicles while the fast component is ensemble-mean-locked to the schedule speed.
  */
 class GammaExtrapolator(trip: Trip) : Extrapolator(trip) {
 
     private var cachedDistribution: Pair<Long, ProbDistribution>? = null
 
-    override fun doExtrapolate(lastDist: Double, lastTimeMs: Long, queryTimeMs: Long): ExtrapolationResult {
+    override fun doExtrapolate(
+            lastDist: Double,
+            lastTimeMs: Long,
+            queryTimeMs: Long
+    ): ExtrapolationResult {
         val dtSec = (queryTimeMs - lastTimeMs) / 1000.0
-        val speedDist = resolveDistribution(lastTimeMs)
-                ?: return ExtrapolationResult.MissingSchedule
+        val speedDist =
+                resolveDistribution(lastTimeMs) ?: return ExtrapolationResult.MissingSchedule
         return ExtrapolationResult.Success(
-                AffineTransformDistribution(speedDist, lastDist, dtSec / MPS_TO_MPH))
+                AffineTransformDistribution(speedDist, lastDist, dtSec / MPS_TO_MPH)
+        )
     }
 
     private fun resolveDistribution(lastFixTime: Long): ProbDistribution? {
-        cachedDistribution?.let { (cachedTime, dist) ->
-            if (cachedTime == lastFixTime) return dist
-        }
+        cachedDistribution?.let { (cachedTime, dist) -> if (cachedTime == lastFixTime) return dist }
 
         val lastState = trip.history.lastOrNull() ?: return null
         val schedule = trip.schedule
-        val scheduleSpeed = schedule?.speedAtDistance(
-                lastState.scheduledDistanceAlongTrip ?: return null) ?: return null
+        val scheduleSpeed =
+                schedule?.speedAtDistance(lastState.scheduledDistanceAlongTrip ?: return null)
+                        ?: return null
 
         return buildH34SpeedDistribution(scheduleSpeed).also {
             cachedDistribution = lastFixTime to it
@@ -73,13 +76,12 @@ class GammaExtrapolator(trip: Trip) : Extrapolator(trip) {
 // --- H34 two-gamma mixture speed model ---
 
 /**
- * Builds a frozen two-gamma mixture speed distribution from H34 parameters.
- * The returned distribution is over speed in mph.
+ * Builds a frozen two-gamma mixture speed distribution from H34 parameters. The returned
+ * distribution is over speed in mph.
  *
- * Guards against degenerate parameters: when the mixture weight [m] is very
- * close to 1.0, the fast-component scale can overflow to Infinity. In that
- * regime the slow component dominates, so we fall back to a single-component
- * Gamma distribution.
+ * Guards against degenerate parameters: when the mixture weight [m] is very close to 1.0, the
+ * fast-component scale can overflow to Infinity. In that regime the slow component dominates, so we
+ * fall back to a single-component Gamma distribution.
  *
  * @param schedSpeedMps scheduled speed in m/s (must be positive)
  */

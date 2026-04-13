@@ -29,20 +29,19 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.Marker
 import org.onebusaway.android.extrapolation.data.TripDataManager
 import org.onebusaway.android.extrapolation.data.TripDetailsPoller
-import org.onebusaway.android.ui.TripMapCallback
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
+import org.onebusaway.android.ui.TripMapCallback
 
 /**
- * Standalone map fragment for displaying a single trip's route, stops,
- * vehicle position, and speed estimate overlays within TripDetailsActivity.
+ * Standalone map fragment for displaying a single trip's route, stops, vehicle position, and speed
+ * estimate overlays within TripDetailsActivity.
  *
- * Holds two overlay layers: [TripRouteOverlay] (static skeleton) and
- * [TripVehicleOverlay] (live data). Per-frame extrapolation is driven
- * by [TripExtrapolationController], and API polling by [TripDetailsPoller].
+ * Holds two overlay layers: [TripRouteOverlay] (static skeleton) and [TripVehicleOverlay] (live
+ * data). Per-frame extrapolation is driven by [TripExtrapolationController], and API polling by
+ * [TripDetailsPoller].
  *
- * If the fragment cannot activate (missing trip data), it notifies the host
- * activity via [TripMapCallback] so it can fall back to
- * the list view.
+ * If the fragment cannot activate (missing trip data), it notifies the host activity via
+ * [TripMapCallback] so it can fall back to the list view.
  */
 class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
 
@@ -59,17 +58,20 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
                 options.camera(CameraPosition(bounds.center, DEFAULT_INITIAL_ZOOM, 0f, 0f))
             }
             return TripMapFragment().apply {
-                arguments = Bundle().apply {
-                    putParcelable("MapOptions", options)
-                    putString(ARG_TRIP_ID, tripId)
-                    stopId?.let { putString(ARG_STOP_ID, it) }
-                }
+                arguments =
+                        Bundle().apply {
+                            putParcelable("MapOptions", options)
+                            putString(ARG_TRIP_ID, tripId)
+                            stopId?.let { putString(ARG_STOP_ID, it) }
+                        }
             }
         }
     }
 
-    private val tripId: String get() = requireArguments().getString(ARG_TRIP_ID)!!
-    private val selectedStopId: String? get() = arguments?.getString(ARG_STOP_ID)
+    private val tripId: String
+        get() = requireArguments().getString(ARG_TRIP_ID)!!
+    private val selectedStopId: String?
+        get() = arguments?.getString(ARG_STOP_ID)
 
     private var map: GoogleMap? = null
     private var routeOverlay: TripRouteOverlay? = null
@@ -142,18 +144,26 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
 
     private fun activate() {
         val m = map ?: return
-        val response = TripDataManager.getTripDetails(tripId) ?: run {
-            Log.w(TAG, "No cached trip details for $tripId")
-            mapCallback?.onTripMapActivationFailed()
-            return
-        }
+        val response =
+                TripDataManager.getTripDetails(tripId)
+                        ?: run {
+                            Log.w(TAG, "No cached trip details for $tripId")
+                            mapCallback?.onTripMapActivationFailed()
+                            return
+                        }
 
         routeOverlay?.deactivate()
         vehicleOverlay?.deactivate()
         extrapolationController?.stop()
 
-        TripMapOverlayFactory.create(m, requireContext(), tripId,
-                selectedStopId, response, ::onOverlaysReady) { reason ->
+        TripMapOverlayFactory.create(
+                m,
+                requireContext(),
+                tripId,
+                selectedStopId,
+                response,
+                ::onOverlaysReady
+        ) { reason ->
             Log.w(TAG, "Overlay creation failed for $tripId: $reason")
             mapCallback?.onTripMapActivationFailed()
         }
@@ -163,8 +173,8 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         routeOverlay = overlays.route
         vehicleOverlay = overlays.vehicle
         val trip = TripDataManager.getOrCreateTrip(tripId)
-        extrapolationController = TripExtrapolationController(
-                overlays.vehicle, trip).also { it.start() }
+        extrapolationController =
+                TripExtrapolationController(overlays.vehicle, trip).also { it.start() }
         poller?.stop()
         poller = TripDetailsPoller(tripId).also { it.start() }
         activated = true
@@ -177,16 +187,20 @@ class TripMapFragment : SupportMapFragment(), OnMapReadyCallback, GoogleMap.OnMa
         val vehicle = vehicleOverlay
         val route = routeOverlay
         if (vehicle == null || route == null) return false
-        return vehicle.handleDataReceivedClick(marker)
-                || vehicle.handleEstimateLabelClick(marker)
-                || route.handleStopMarkerClick(marker)
+        return vehicle.handleDataReceivedClick(marker) ||
+                vehicle.handleEstimateLabelClick(marker) ||
+                route.handleStopMarkerClick(marker)
     }
 
     private fun hasLocationPermission(): Boolean {
         val ctx = context ?: return false
-        return ContextCompat.checkSelfPermission(ctx,
-                android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                || ContextCompat.checkSelfPermission(ctx,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        return ContextCompat.checkSelfPermission(
+                ctx,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(
+                        ctx,
+                        android.Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
     }
 }

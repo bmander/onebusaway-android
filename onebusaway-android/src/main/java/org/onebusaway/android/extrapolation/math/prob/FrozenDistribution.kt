@@ -16,19 +16,17 @@
 package org.onebusaway.android.extrapolation.math.prob
 
 /**
- * Pre-computes a quantile lookup table from a [ProbDistribution] so that subsequent
- * quantile evaluations are O(1) via linear interpolation instead of iterative root-finding.
+ * Pre-computes a quantile lookup table from a [ProbDistribution] so that subsequent quantile
+ * evaluations are O(1) via linear interpolation instead of iterative root-finding.
  *
- * The table covers probabilities from 0 to 1 at [resolution] evenly spaced points.
- * Quantile lookups between table entries are linearly interpolated.
+ * The table covers probabilities from 0 to 1 at [resolution] evenly spaced points. Quantile lookups
+ * between table entries are linearly interpolated.
  *
  * @param source the distribution to freeze
  * @param resolution number of table entries (higher = more accurate, default 200)
  */
-class FrozenDistribution(
-        private val source: ProbDistribution,
-        resolution: Int = 200
-) : ProbDistribution {
+class FrozenDistribution(private val source: ProbDistribution, resolution: Int = 200) :
+        ProbDistribution {
 
     private val table: DoubleArray
     private val step: Double
@@ -37,10 +35,11 @@ class FrozenDistribution(
     init {
         require(resolution >= 2) { "resolution must be >= 2, got $resolution" }
         step = 1.0 / (resolution - 1)
-        table = DoubleArray(resolution) { i ->
-            val p = (i * step).coerceAtMost(1.0 - 1e-9)
-            source.quantile(p)
-        }
+        table =
+                DoubleArray(resolution) { i ->
+                    val p = (i * step).coerceAtMost(1.0 - 1e-9)
+                    source.quantile(p)
+                }
     }
 
     override fun quantile(p: Double): Double {

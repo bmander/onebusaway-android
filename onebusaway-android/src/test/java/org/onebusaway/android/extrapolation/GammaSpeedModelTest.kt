@@ -60,8 +60,12 @@ class GammaSpeedModelTest {
         for (sched in listOf(mps5, mps15, mps30, mps60)) {
             val dist = h34Dist(sched)
             val expectedMph = sched * MPS_TO_MPH
-            assertEquals("mean should equal sched speed at $sched m/s",
-                    expectedMph, dist.mean, expectedMph * 0.01)
+            assertEquals(
+                    "mean should equal sched speed at $sched m/s",
+                    expectedMph,
+                    dist.mean,
+                    expectedMph * 0.01
+            )
         }
     }
 
@@ -187,12 +191,7 @@ class GammaSpeedModelTest {
         for (sched in listOf(mps5, mps15, mps40)) {
             val dist = h34Dist(sched)
             val q50 = dist.quantile(0.5)
-            assertEquals(
-                    "round-trip failed for sched=$sched",
-                    0.5,
-                    dist.cdf(q50),
-                    0.01
-            )
+            assertEquals("round-trip failed for sched=$sched", 0.5, dist.cdf(q50), 0.01)
         }
     }
 
@@ -204,7 +203,10 @@ class GammaSpeedModelTest {
         // which can overflow the fast component scale
         val dist = h34Dist(0.01)
         assertTrue("mean should be finite and positive", dist.mean.isFinite() && dist.mean > 0)
-        assertTrue("median should be finite and positive", dist.median().isFinite() && dist.median() > 0)
+        assertTrue(
+                "median should be finite and positive",
+                dist.median().isFinite() && dist.median() > 0
+        )
     }
 
     @Test
@@ -221,7 +223,10 @@ class GammaSpeedModelTest {
         // 100 m/s ≈ 224 mph — extreme high end
         val dist = h34Dist(100.0)
         assertTrue("mean should be finite and positive", dist.mean.isFinite() && dist.mean > 0)
-        assertTrue("median should be finite and positive", dist.median().isFinite() && dist.median() > 0)
+        assertTrue(
+                "median should be finite and positive",
+                dist.median().isFinite() && dist.median() > 0
+        )
     }
 
     @Test

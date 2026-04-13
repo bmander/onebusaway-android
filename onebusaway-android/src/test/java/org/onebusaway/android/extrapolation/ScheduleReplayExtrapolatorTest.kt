@@ -33,11 +33,12 @@ class ScheduleReplayExtrapolatorTest {
     // Segment 0→1: 1000m in 100s = 10 m/s
     // Segment 1→2: 2000m in 200s (depart@130 → arrive@330) = 10 m/s
 
-    private val schedule = makeSchedule(
-            Triple(0.0, 0L, 0L),
-            Triple(1000.0, 100L, 130L),
-            Triple(3000.0, 330L, 330L)
-    )
+    private val schedule =
+            makeSchedule(
+                    Triple(0.0, 0L, 0L),
+                    Triple(1000.0, 100L, 130L),
+                    Triple(3000.0, 330L, 330L)
+            )
 
     // --- Basic travel within a single segment ---
 
@@ -137,9 +138,7 @@ class ScheduleReplayExtrapolatorTest {
 
     // --- Helpers ---
 
-    private fun makeSchedule(
-            vararg stops: Triple<Double, Long, Long>
-    ): ObaTripSchedule {
+    private fun makeSchedule(vararg stops: Triple<Double, Long, Long>): ObaTripSchedule {
         val stClass = ObaTripSchedule.StopTime::class.java
         val ctor = stClass.getDeclaredConstructor()
         ctor.isAccessible = true

@@ -23,8 +23,8 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 
 /**
- * Stub MapLibre-based trip map fragment. Displays a placeholder message
- * until the full MapLibre trip map implementation is complete.
+ * Stub MapLibre-based trip map fragment. Displays a placeholder message until the full MapLibre
+ * trip map implementation is complete.
  */
 class TripMapFragment : Fragment() {
 
@@ -36,18 +36,19 @@ class TripMapFragment : Fragment() {
         @JvmStatic
         fun newInstance(tripId: String, stopId: String? = null): TripMapFragment {
             return TripMapFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_TRIP_ID, tripId)
-                    stopId?.let { putString(ARG_STOP_ID, it) }
-                }
+                arguments =
+                        Bundle().apply {
+                            putString(ARG_TRIP_ID, tripId)
+                            stopId?.let { putString(ARG_STOP_ID, it) }
+                        }
             }
         }
     }
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
+            inflater: LayoutInflater,
+            container: ViewGroup?,
+            savedInstanceState: Bundle?
     ): View {
         return TextView(requireContext()).apply {
             text = "Trip map is not yet available for MapLibre builds."

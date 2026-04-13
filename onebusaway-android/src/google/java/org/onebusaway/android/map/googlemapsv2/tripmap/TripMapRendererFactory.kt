@@ -62,13 +62,25 @@ internal object TripMapOverlayFactory {
             onReady: (TripMapOverlays) -> Unit,
             onError: (TripMapOverlayFailure) -> Unit
     ) {
-        val schedule = response.schedule
-                ?: run { onError(TripMapOverlayFailure.MISSING_SCHEDULE); return }
+        val schedule =
+                response.schedule
+                        ?: run {
+                            onError(TripMapOverlayFailure.MISSING_SCHEDULE)
+                            return
+                        }
         val status = response.status
-        val refs = response.refs
-                ?: run { onError(TripMapOverlayFailure.MISSING_REFERENCES); return }
-        val trip = refs.getTrip(tripId)
-                ?: run { onError(TripMapOverlayFailure.TRIP_NOT_IN_REFERENCES); return }
+        val refs =
+                response.refs
+                        ?: run {
+                            onError(TripMapOverlayFailure.MISSING_REFERENCES)
+                            return
+                        }
+        val trip =
+                refs.getTrip(tripId)
+                        ?: run {
+                            onError(TripMapOverlayFailure.TRIP_NOT_IN_REFERENCES)
+                            return
+                        }
         val route = refs.getRoute(trip.routeId)
 
         cacheResponseData(tripId, schedule, status)
@@ -79,16 +91,23 @@ internal object TripMapOverlayFactory {
                 status?.takeIf { it.activeTripId == tripId }?.position?.let {
                     MapHelpV2.makeLatLng(it)
                 }
-        val scheduleDeviation =
-                status?.takeIf { it.activeTripId == tripId }?.scheduleDeviation
+        val scheduleDeviation = status?.takeIf { it.activeTripId == tripId }?.scheduleDeviation
         val stopNames = buildStopNameMap(schedule, refs)
 
         fun build(sd: Polyline) {
-            val routeOverlay = TripRouteOverlay(
-                    map, context, tripId, sd, schedule,
-                    routeColor, stopNames, selectedStopId, scheduleDeviation)
-            val vehicleOverlay = TripVehicleOverlay(
-                    map, context, sd, routeColor, route?.type)
+            val routeOverlay =
+                    TripRouteOverlay(
+                            map,
+                            context,
+                            tripId,
+                            sd,
+                            schedule,
+                            routeColor,
+                            stopNames,
+                            selectedStopId,
+                            scheduleDeviation
+                    )
+            val vehicleOverlay = TripVehicleOverlay(map, context, sd, routeColor, route?.type)
 
             routeOverlay.activate()
             TripDataManager.getAnchor(tripId)?.let {

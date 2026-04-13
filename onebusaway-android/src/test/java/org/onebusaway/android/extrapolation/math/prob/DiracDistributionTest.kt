@@ -22,8 +22,7 @@ class DiracDistributionTest {
 
     private val dist = DiracDistribution(5.0)
 
-    @Test
-    fun `mean equals value`() = assertEquals(5.0, dist.mean, 0.0)
+    @Test fun `mean equals value`() = assertEquals(5.0, dist.mean, 0.0)
 
     @Test
     fun `pdf is always zero`() {
@@ -52,6 +51,5 @@ class DiracDistributionTest {
         assertEquals(5.0, dist.quantile(1.0), 0.0)
     }
 
-    @Test
-    fun `median equals value`() = assertEquals(5.0, dist.median(), 0.0)
+    @Test fun `median equals value`() = assertEquals(5.0, dist.median(), 0.0)
 }

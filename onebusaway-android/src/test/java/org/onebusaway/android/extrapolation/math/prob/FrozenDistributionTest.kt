@@ -67,8 +67,10 @@ class FrozenDistributionTest {
         val exact = source.quantile(p)
         val coarseErr = kotlin.math.abs(coarse.quantile(p) - exact)
         val fineErr = kotlin.math.abs(fine.quantile(p) - exact)
-        assertTrue("fine ($fineErr) should be more accurate than coarse ($coarseErr)",
-                fineErr <= coarseErr)
+        assertTrue(
+                "fine ($fineErr) should be more accurate than coarse ($coarseErr)",
+                fineErr <= coarseErr
+        )
     }
 
     @Test
@@ -77,5 +79,4 @@ class FrozenDistributionTest {
         val frozen = FrozenDistribution(source)
         assertEquals(source.mean, frozen.mean, 0.0)
     }
-
 }

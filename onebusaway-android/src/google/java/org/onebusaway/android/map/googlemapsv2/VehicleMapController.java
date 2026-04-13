@@ -48,7 +48,8 @@ import java.util.Map;
 /**
  * Manages all vehicle markers on the Google Map: creation, position updates
  * (including extrapolation), selection, data-received markers, and cleanup.
- * Reads/writes {@link VehicleMarkerState} as pure data; all map API calls live here.
+ * Reads/writes {@link VehicleMarkerState} as pure data; all map API calls live
+ * here.
  */
 class VehicleMapController {
 
@@ -67,7 +68,7 @@ class VehicleMapController {
     private BitmapDescriptor mDataReceivedIcon;
 
     VehicleMapController(GoogleMap map, Context context, VehicleIconFactory iconFactory,
-                         int animateDurationMs) {
+            int animateDurationMs) {
         mMap = map;
         mContext = context.getApplicationContext();
         mIconFactory = iconFactory;
@@ -83,15 +84,18 @@ class VehicleMapController {
 
         for (ObaTripDetails trip : response.getTrips()) {
             ObaTripStatus status = trip.getStatus();
-            if (status == null) continue;
+            if (status == null)
+                continue;
 
             ObaTrip activeTrip = response.getTrip(status.getActiveTripId());
-            if (activeTrip == null) continue;
+            if (activeTrip == null)
+                continue;
             String activeRoute = activeTrip.getRouteId();
             if (!routeIds.contains(activeRoute) || Status.CANCELED.equals(status.getStatus()))
                 continue;
 
-            if (status.getPosition() == null) continue;
+            if (status.getPosition() == null)
+                continue;
 
             boolean isRealtime = ObaElementExtensionsKt.isLocationRealtime(status);
 
@@ -124,16 +128,16 @@ class VehicleMapController {
     // --- Vehicle marker lifecycle ---
 
     private void addVehicle(String tripId, boolean isRealtime,
-                            ObaTripStatus status, ObaTripsForRouteResponse response) {
+            ObaTripStatus status, ObaTripsForRouteResponse response) {
         Location location = status.getPosition();
-        if (location == null) return;
+        if (location == null)
+            return;
         VehicleIconParams params = buildIconParams(isRealtime, status, response);
         Marker m = mMap.addMarker(new MarkerOptions()
                 .position(MapHelpV2.makeLatLng(location))
                 .title(status.getVehicleId())
                 .icon(mIconFactory.getIcon(params))
-                .zIndex(VEHICLE_MARKER_Z_INDEX)
-        );
+                .zIndex(VEHICLE_MARKER_Z_INDEX));
         VehicleMarkerState vehicle = new VehicleMarkerState(
                 mDataManager.getOrCreateTrip(tripId), status);
         vehicle.vehicleMarker = m;
@@ -143,7 +147,7 @@ class VehicleMapController {
     }
 
     private void updateVehicle(VehicleMarkerState vehicle, boolean isRealtime,
-                               ObaTripStatus status, ObaTripsForRouteResponse response) {
+            ObaTripStatus status, ObaTripsForRouteResponse response) {
         Marker m = vehicle.vehicleMarker;
         boolean showInfo = m.isInfoWindowShown();
         VehicleIconParams params = buildIconParams(isRealtime, status, response);
@@ -156,7 +160,7 @@ class VehicleMapController {
     }
 
     private static VehicleIconParams buildIconParams(boolean isRealtime, ObaTripStatus status,
-                                                       ObaTripsForRouteResponse response) {
+            ObaTripsForRouteResponse response) {
         ObaTrip trip = response.getTrip(status.getActiveTripId());
         ObaRoute route = trip != null ? response.getRoute(trip.getRouteId()) : null;
         int vehicleType = route != null ? route.getType() : ObaRoute.TYPE_BUS;
@@ -168,8 +172,7 @@ class VehicleMapController {
     }
 
     private void removeInactiveMarkers(HashSet<String> activeTripIds) {
-        Iterator<Map.Entry<String, VehicleMarkerState>> iterator =
-                mStates.entrySet().iterator();
+        Iterator<Map.Entry<String, VehicleMarkerState>> iterator = mStates.entrySet().iterator();
         while (iterator.hasNext()) {
             VehicleMarkerState vehicle = iterator.next().getValue();
             if (!activeTripIds.contains(vehicle.trip.getTripId())) {
@@ -196,7 +199,8 @@ class VehicleMapController {
     private void showDataReceivedMarker(VehicleMarkerState vehicle, ObaTripStatus anchor) {
         removeDataReceivedMarker(vehicle);
         Location loc = anchor.getPosition();
-        if (loc == null) return;
+        if (loc == null)
+            return;
         Marker m = mMap.addMarker(new MarkerOptions()
                 .position(MapHelpV2.makeLatLng(loc))
                 .icon(getOrCreateDataReceivedIcon())
@@ -210,7 +214,8 @@ class VehicleMapController {
     }
 
     private void updateDataReceivedMarker(VehicleMarkerState vehicle, ObaTripStatus anchor) {
-        if (anchor == null) return;
+        if (anchor == null)
+            return;
         if (vehicle.dataReceivedMarker == null) {
             showDataReceivedMarker(vehicle, anchor);
             return;
@@ -250,7 +255,8 @@ class VehicleMapController {
 
     boolean handleMarkerClick(Marker marker) {
         VehicleMarkerState vehicle = stateOf(marker);
-        if (vehicle == null) return false;
+        if (vehicle == null)
+            return false;
         if (marker.equals(vehicle.dataReceivedMarker)) {
             marker.showInfoWindow();
         } else {
@@ -261,7 +267,8 @@ class VehicleMapController {
 
     void selectVehicle(String tripId) {
         VehicleMarkerState vehicle = mStates.get(tripId);
-        if (vehicle != null) selectVehicleMarker(vehicle);
+        if (vehicle != null)
+            selectVehicleMarker(vehicle);
     }
 
     private void selectVehicleMarker(VehicleMarkerState vehicle) {
@@ -296,14 +303,16 @@ class VehicleMapController {
 
     String getTripIdForDataReceivedMarker(Marker marker) {
         VehicleMarkerState vs = stateOf(marker);
-        if (vs != null && marker.equals(vs.dataReceivedMarker)) return vs.trip.getTripId();
+        if (vs != null && marker.equals(vs.dataReceivedMarker))
+            return vs.trip.getTripId();
         return null;
     }
 
     // --- Per-frame position updates ---
 
     void updatePositions(long now) {
-        if (mStates.isEmpty()) return;
+        if (mStates.isEmpty())
+            return;
         for (VehicleMarkerState vehicle : mStates.values()) {
             try {
                 updatePosition(vehicle, now);
@@ -321,21 +330,33 @@ class VehicleMapController {
     private void updatePosition(VehicleMarkerState vehicle, long now) {
         Trip trip = vehicle.trip;
         ExtrapolationResult result = trip.extrapolate(now);
-        if (!(result instanceof ExtrapolationResult.Success)) { animateToRawPosition(vehicle); return; }
+        if (!(result instanceof ExtrapolationResult.Success)) {
+            animateToRawPosition(vehicle);
+            return;
+        }
 
         ProbDistribution dist = ((ExtrapolationResult.Success) result).getDistribution();
         Polyline polyline = trip.getPolyline();
-        if (polyline == null) { animateToRawPosition(vehicle); return; }
+        if (polyline == null) {
+            animateToRawPosition(vehicle);
+            return;
+        }
 
         double medianDist = dist.median();
         // Bisect can return NaN on pathological CDFs; fall back to the raw position
         // rather than propagating NaN into Polyline.segmentIndex/interpolate.
-        if (!Double.isFinite(medianDist)) { animateToRawPosition(vehicle); return; }
+        if (!Double.isFinite(medianDist)) {
+            animateToRawPosition(vehicle);
+            return;
+        }
         int seg = polyline.segmentIndex(medianDist);
         updateDirectionIcon(vehicle, polyline, seg);
 
         Location loc = polyline.interpolate(medianDist, seg);
-        if (loc == null) { animateToRawPosition(vehicle); return; }
+        if (loc == null) {
+            animateToRawPosition(vehicle);
+            return;
+        }
 
         LatLng target = MapHelpV2.makeLatLng(loc);
         // "Fresh data arrived" iff Trip.anchor has been reassigned since the previous
@@ -363,7 +384,8 @@ class VehicleMapController {
     }
 
     private void updateSelectedMarker(VehicleMarkerState vehicle, ObaTripStatus anchor) {
-        if (!vehicle.selected) return;
+        if (!vehicle.selected)
+            return;
         if (anchor != null) {
             updateDataReceivedMarker(vehicle, anchor);
         } else {
@@ -373,10 +395,14 @@ class VehicleMapController {
 
     // --- Extrapolation helpers ---
 
-    /** Returns the half-wind direction index for the given segment, or -1 if unavailable. */
+    /**
+     * Returns the half-wind direction index for the given segment, or -1 if
+     * unavailable.
+     */
     private static int halfWindAt(Polyline polyline, int seg) {
         float bearing = polyline.bearingAt(seg);
-        if (Float.isNaN(bearing)) return -1;
+        if (Float.isNaN(bearing))
+            return -1;
         return MathUtils.getHalfWindIndex(bearing, VehicleIconFactory.NUM_DIRECTIONS - 1);
     }
 
@@ -388,14 +414,13 @@ class VehicleMapController {
 
     private void animateToRawPosition(VehicleMarkerState vehicle) {
         Location loc = vehicle.status.getPosition();
-        if (loc == null || vehicle.animating) return;
+        if (loc == null || vehicle.animating)
+            return;
         LatLng target = MapHelpV2.makeLatLng(loc);
         if (positionChanged(vehicle, target)) {
             startTransitionAnimation(vehicle, target);
         }
     }
-
-
 
     private static boolean positionChanged(VehicleMarkerState vehicle, LatLng target) {
         LatLng current = vehicle.vehicleMarker.getPosition();

@@ -40,10 +40,12 @@ public final class MapIconUtils {
     private static final int STROKE_COLOR = 0xFF616161;
     private static final int FILL_COLOR = 0xDDFFFFFF;
 
-    private MapIconUtils() {}
+    private MapIconUtils() {
+    }
 
     /**
-     * Creates a circular icon with a dark stroke, translucent white fill, and the given
+     * Creates a circular icon with a dark stroke, translucent white fill, and the
+     * given
      * drawable centered inside. The drawable is rendered at its intrinsic color.
      */
     public static BitmapDescriptor createCircleIcon(Context context, @DrawableRes int drawableRes) {
@@ -51,11 +53,12 @@ public final class MapIconUtils {
     }
 
     /**
-     * Creates a circular icon with a dark stroke, translucent white fill, and the given
+     * Creates a circular icon with a dark stroke, translucent white fill, and the
+     * given
      * drawable centered inside. If tintColor is non-zero, the drawable is tinted.
      */
     public static BitmapDescriptor createCircleIcon(Context context, @DrawableRes int drawableRes,
-                                                     int tintColor) {
+            int tintColor) {
         float d = context.getResources().getDisplayMetrics().density;
         int sizePx = (int) (ICON_SIZE_DP * d);
         int padding = (int) (ICON_PADDING_DP * d);
@@ -90,7 +93,8 @@ public final class MapIconUtils {
     }
 
     /**
-     * Creates the standard data-received marker icon (signal indicator in stroke color).
+     * Creates the standard data-received marker icon (signal indicator in stroke
+     * color).
      */
     public static BitmapDescriptor createDataReceivedIcon(Context context) {
         return createCircleIcon(context, R.drawable.ic_signal_indicator, STROKE_COLOR);

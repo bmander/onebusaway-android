@@ -36,9 +36,9 @@ private const val PDF_HIGH_QUANTILE = 0.99
 private const val DEFAULT_SEGMENT_COUNT = 15
 
 /**
- * Renders the distance estimate visualization on the trip map: a set of opacity-graded
- * polyline segments showing the PDF over distance, plus a fast-estimate icon marker at
- * the 90th percentile position. Takes a [ProbDistribution] over distance each frame.
+ * Renders the distance estimate visualization on the trip map: a set of opacity-graded polyline
+ * segments showing the PDF over distance, plus a fast-estimate icon marker at the 90th percentile
+ * position. Takes a [ProbDistribution] over distance each frame.
  */
 class DistanceEstimateOverlay(
         private val shape: Polyline,
@@ -54,24 +54,26 @@ class DistanceEstimateOverlay(
     private var segments: Array<MapPolyline>? = null
     private var fastEstimateMarker: Marker? = null
 
-    fun create(map: GoogleMap, context: Context, polylineWidth: Float,
-               initialPosition: LatLng) {
+    fun create(map: GoogleMap, context: Context, polylineWidth: Float, initialPosition: LatLng) {
         val icon = MapIconUtils.createCircleIcon(context, R.drawable.ic_fast_estimate)
-        segments = Array(segmentCount) {
-            map.addPolyline(PolylineOptions()
-                    .width(polylineWidth)
-                    .color(0)
-                    .zIndex(SEGMENT_Z_INDEX))
-        }
-        fastEstimateMarker = map.addMarker(MarkerOptions()
-                .position(initialPosition)
-                .icon(icon)
-                .title(context.getString(R.string.marker_fast_estimate))
-                .snippet(context.getString(R.string.marker_fast_estimate_snippet))
-                .anchor(0.5f, 0.5f)
-                .flat(true)
-                .zIndex(MARKER_Z_INDEX)
-                .visible(false))
+        segments =
+                Array(segmentCount) {
+                    map.addPolyline(
+                            PolylineOptions().width(polylineWidth).color(0).zIndex(SEGMENT_Z_INDEX)
+                    )
+                }
+        fastEstimateMarker =
+                map.addMarker(
+                        MarkerOptions()
+                                .position(initialPosition)
+                                .icon(icon)
+                                .title(context.getString(R.string.marker_fast_estimate))
+                                .snippet(context.getString(R.string.marker_fast_estimate_snippet))
+                                .anchor(0.5f, 0.5f)
+                                .flat(true)
+                                .zIndex(MARKER_Z_INDEX)
+                                .visible(false)
+                )
     }
 
     fun destroy() {
@@ -89,8 +91,8 @@ class DistanceEstimateOverlay(
     // --- Per-frame update ---
 
     /**
-     * Updates all overlay geometry from the distance distribution. Quantiles are distances
-     * along the trip; PDF values determine segment opacity.
+     * Updates all overlay geometry from the distance distribution. Quantiles are distances along
+     * the trip; PDF values determine segment opacity.
      */
     fun update(distribution: ProbDistribution) {
         updatePdfSegments(distribution)
@@ -122,8 +124,13 @@ class DistanceEstimateOverlay(
         }
 
         segs.forEachIndexed { i, seg ->
-            if (shape.subPolylineMapInto(edgeDistances[i], edgeDistances[i + 1],
-                            latLngBuffer, scratchLocation) { MapHelpV2.makeLatLng(it) }) {
+            if (shape.subPolylineMapInto(
+                            edgeDistances[i],
+                            edgeDistances[i + 1],
+                            latLngBuffer,
+                            scratchLocation
+                    ) { MapHelpV2.makeLatLng(it) }
+            ) {
                 val alpha = if (maxPdf > 0) (255 * pdfValues[i] / maxPdf).toInt() else 0
                 seg.points = latLngBuffer
                 seg.color = (alpha shl 24) or rgb
@@ -152,5 +159,4 @@ class DistanceEstimateOverlay(
         if (m.isInfoWindowShown) m.hideInfoWindow() else m.showInfoWindow()
         return true
     }
-
 }

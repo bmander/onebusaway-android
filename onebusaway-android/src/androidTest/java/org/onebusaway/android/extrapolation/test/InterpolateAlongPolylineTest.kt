@@ -30,8 +30,7 @@ import org.onebusaway.android.util.Polyline
 @RunWith(AndroidJUnit4::class)
 class InterpolateAlongPolylineTest {
 
-    private fun loc(lat: Double, lng: Double): Location =
-            LocationUtils.makeLocation(lat, lng)
+    private fun loc(lat: Double, lng: Double): Location = LocationUtils.makeLocation(lat, lng)
 
     // Three points along the equator, each ~111km apart
     private val poly = Polyline(listOf(loc(0.0, 0.0), loc(0.0, 1.0), loc(0.0, 2.0)))
@@ -259,8 +258,11 @@ class InterpolateAlongPolylineTest {
     fun subPolylineMapIntoEmptyReturnsFalse() {
         val out = mutableListOf<Pair<Double, Double>>()
         val scratch = Location("")
-        assertFalse(Polyline(emptyList()).subPolylineMapInto(
-                0.0, 100.0, out, scratch) { it.latitude to it.longitude })
+        assertFalse(
+                Polyline(emptyList()).subPolylineMapInto(0.0, 100.0, out, scratch) {
+                    it.latitude to it.longitude
+                }
+        )
         assertTrue(out.isEmpty())
     }
 
@@ -270,8 +272,11 @@ class InterpolateAlongPolylineTest {
         val sub = poly.subPolyline(segLen * 0.25, segLen * 0.75)!!
         val out = mutableListOf<Pair<Double, Double>>()
         val scratch = Location("")
-        assertTrue(poly.subPolylineMapInto(segLen * 0.25, segLen * 0.75,
-                out, scratch) { it.latitude to it.longitude })
+        assertTrue(
+                poly.subPolylineMapInto(segLen * 0.25, segLen * 0.75, out, scratch) {
+                    it.latitude to it.longitude
+                }
+        )
         assertEquals(sub.size, out.size)
         for (i in sub.indices) {
             assertEquals(sub[i].latitude, out[i].first, 1e-12)
@@ -286,8 +291,11 @@ class InterpolateAlongPolylineTest {
         val segLen = loc(0.0, 0.0).distanceTo(loc(0.0, 1.0)).toDouble()
         val out = mutableListOf<Pair<Double, Double>>()
         val scratch = Location("")
-        assertTrue(poly.subPolylineMapInto(segLen * 0.5, segLen * 1.5,
-                out, scratch) { it.latitude to it.longitude })
+        assertTrue(
+                poly.subPolylineMapInto(segLen * 0.5, segLen * 1.5, out, scratch) {
+                    it.latitude to it.longitude
+                }
+        )
         assertEquals(0.5, out.first().second, 0.01)
         assertEquals(1.5, out.last().second, 0.01)
         assertTrue(out.size >= 3) // start + vertex + end
@@ -298,8 +306,9 @@ class InterpolateAlongPolylineTest {
         val segLen = loc(0.0, 0.0).distanceTo(loc(0.0, 1.0)).toDouble()
         val out = mutableListOf(0.0 to 0.0, 0.0 to 0.0, 0.0 to 0.0)
         val scratch = Location("")
-        poly.subPolylineMapInto(segLen * 0.25, segLen * 0.75,
-                out, scratch) { it.latitude to it.longitude }
+        poly.subPolylineMapInto(segLen * 0.25, segLen * 0.75, out, scratch) {
+            it.latitude to it.longitude
+        }
         // Should have cleared the pre-existing entries
         assertEquals(0.25, out.first().second, 0.01)
     }
@@ -310,11 +319,13 @@ class InterpolateAlongPolylineTest {
         val out = mutableListOf<Pair<Double, Double>>()
         val scratch = Location("")
         // Call twice with the same scratch and output list
-        poly.subPolylineMapInto(segLen * 0.1, segLen * 0.4,
-                out, scratch) { it.latitude to it.longitude }
+        poly.subPolylineMapInto(segLen * 0.1, segLen * 0.4, out, scratch) {
+            it.latitude to it.longitude
+        }
         assertEquals(0.1, out.first().second, 0.01)
-        poly.subPolylineMapInto(segLen * 0.6, segLen * 0.9,
-                out, scratch) { it.latitude to it.longitude }
+        poly.subPolylineMapInto(segLen * 0.6, segLen * 0.9, out, scratch) {
+            it.latitude to it.longitude
+        }
         assertEquals(0.6, out.first().second, 0.01)
     }
 }

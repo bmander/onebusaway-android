@@ -121,14 +121,18 @@ public class VehicleIconFactory {
     };
 
     // Uncolored bitmap cache: one entry per (vehicleType, halfWind) pair. The
-    // theoretical working set is VEHICLE_ICON_RES.length * NUM_DIRECTIONS (5 * 9 = 45).
-    // Anything smaller thrashes and runs BitmapFactory.decodeResource on the UI thread
+    // theoretical working set is VEHICLE_ICON_RES.length * NUM_DIRECTIONS (5 * 9 =
+    // 45).
+    // Anything smaller thrashes and runs BitmapFactory.decodeResource on the UI
+    // thread
     // every time a vehicle changes direction.
     private static final int UNCOLORED_CACHE_SIZE = 64;
 
-    // Colored descriptor cache: one entry per (vehicleType, halfWind, colorResource) triple.
+    // Colored descriptor cache: one entry per (vehicleType, halfWind,
+    // colorResource) triple.
     // Working set is VEHICLE_ICON_RES.length * NUM_DIRECTIONS * 4 deviation colors
-    // (delayed / early / ontime / scheduled) = 180. Headroom absorbs transient churn
+    // (delayed / early / ontime / scheduled) = 180. Headroom absorbs transient
+    // churn
     // when the user switches between routes with different vehicle types.
     private static final int DESCRIPTOR_CACHE_SIZE = 256;
 

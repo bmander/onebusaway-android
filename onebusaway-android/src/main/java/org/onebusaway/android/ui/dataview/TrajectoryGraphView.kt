@@ -29,16 +29,15 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
-import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
-
-import org.onebusaway.android.io.elements.ObaTripSchedule
-import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.util.PreferenceUtils
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
+import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
+import org.onebusaway.android.io.elements.ObaTripSchedule
+import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.util.PreferenceUtils
 
 private const val TICK_INTERVAL_MS = 1000L
 private val BG_COLOR = Color.parseColor("#1A1A1A")
@@ -49,11 +48,10 @@ private const val FEET_PER_MILE = 5280.0
 /**
  * Custom View that draws a distance-time graph comparing scheduled vs actual vehicle trajectory.
  */
-class TrajectoryGraphView @JvmOverloads constructor(
-        context: Context,
-        attrs: AttributeSet? = null,
-        defStyleAttr: Int = 0
-) : View(context, attrs, defStyleAttr) {
+class TrajectoryGraphView
+@JvmOverloads
+constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0) :
+        View(context, attrs, defStyleAttr) {
 
     // Data state
     private var history: List<ObaTripStatus> = emptyList()
@@ -74,7 +72,12 @@ class TrajectoryGraphView @JvmOverloads constructor(
 
     /** Index of the selected history point, or null. */
     var selectedIndex: Int? = null
-        set(value) { if (field != value) { field = value; invalidate() } }
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidate()
+            }
+        }
 
     /** Called when the user taps a data point (index) or empty space (null). */
     var onDataPointSelected: ((Int?) -> Unit)? = null
@@ -84,42 +87,47 @@ class TrajectoryGraphView @JvmOverloads constructor(
     private val useImperial = !PreferenceUtils.getUnitsAreMetricFromPreferences(context)
     private var tickingActive = false
 
-    private val viewport = GraphViewport(
-            marginLeft = 65 * density,
-            marginTop = 15 * density,
-            marginRight = 15 * density,
-            marginBottom = 35 * density
-    )
+    private val viewport =
+            GraphViewport(
+                    marginLeft = 65 * density,
+                    marginTop = 15 * density,
+                    marginRight = 15 * density,
+                    marginBottom = 35 * density
+            )
 
     // --- Paints ---
 
-    private fun strokePaint(colorStr: String, widthDp: Float,
-                            dashDp: FloatArray? = null) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor(colorStr)
-        style = Paint.Style.STROKE
-        strokeWidth = widthDp * density
-        dashDp?.let { pathEffect = DashPathEffect(FloatArray(it.size) { i -> it[i] * density }, 0f) }
-    }
+    private fun strokePaint(colorStr: String, widthDp: Float, dashDp: FloatArray? = null) =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(colorStr)
+                style = Paint.Style.STROKE
+                strokeWidth = widthDp * density
+                dashDp?.let {
+                    pathEffect = DashPathEffect(FloatArray(it.size) { i -> it[i] * density }, 0f)
+                }
+            }
 
-    private fun fillPaint(colorStr: String) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor(colorStr)
-        style = Paint.Style.FILL
-    }
+    private fun fillPaint(colorStr: String) =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(colorStr)
+                style = Paint.Style.FILL
+            }
 
-    private fun textPaint(colorStr: String, sizeDp: Float,
-                          bold: Boolean = false) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor(colorStr)
-        textSize = sizeDp * density
-        if (bold) typeface = Typeface.DEFAULT_BOLD
-    }
+    private fun textPaint(colorStr: String, sizeDp: Float, bold: Boolean = false) =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(colorStr)
+                textSize = sizeDp * density
+                if (bold) typeface = Typeface.DEFAULT_BOLD
+            }
 
     private val schedulePaint = strokePaint("#4488FF", 2f)
     private val scheduleDotPaint = fillPaint("#4488FF")
-    private val scheduleDwellPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#4488FF")
-        style = Paint.Style.STROKE
-        strokeCap = Paint.Cap.ROUND
-    }
+    private val scheduleDwellPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#4488FF")
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+            }
     private val trajectoryPaint = strokePaint("#44CC44", 3f)
     private val trajectoryDotPaint = fillPaint("#44CC44")
     private val selectedDotPaint = fillPaint("#FFFFFF")
@@ -150,13 +158,14 @@ class TrajectoryGraphView @JvmOverloads constructor(
     private val gestureDetector = GestureDetector(context, PanListener())
 
     private val tickHandler = Handler(Looper.getMainLooper())
-    private val tickRunnable = object : Runnable {
-        override fun run() {
-            currentTime = System.currentTimeMillis()
-            invalidate()
-            tickHandler.postDelayed(this, TICK_INTERVAL_MS)
-        }
-    }
+    private val tickRunnable =
+            object : Runnable {
+                override fun run() {
+                    currentTime = System.currentTimeMillis()
+                    invalidate()
+                    tickHandler.postDelayed(this, TICK_INTERVAL_MS)
+                }
+            }
 
     // --- Public API ---
 
@@ -165,13 +174,18 @@ class TrajectoryGraphView @JvmOverloads constructor(
         invalidate()
     }
 
-    fun setData(history: List<ObaTripStatus>?, schedule: ObaTripSchedule?,
-                serviceDate: Long, distribution: ProbDistribution?,
-                anchor: ObaTripStatus? = null, anchorTime: Long = 0L) {
+    fun setData(
+            history: List<ObaTripStatus>?,
+            schedule: ObaTripSchedule?,
+            serviceDate: Long,
+            distribution: ProbDistribution?,
+            anchor: ObaTripStatus? = null,
+            anchorTime: Long = 0L
+    ) {
         this.history = history?.toList() ?: emptyList()
         extrapolationAnchor = anchor ?: findExtrapolationAnchor(this.history)
-        this.anchorTimeMs = if (anchorTime > 0) anchorTime
-                else extrapolationAnchor?.lastUpdateTime ?: 0L
+        this.anchorTimeMs =
+                if (anchorTime > 0) anchorTime else extrapolationAnchor?.lastUpdateTime ?: 0L
         this.schedule = schedule
         this.serviceDate = serviceDate
         this.distribution = distribution
@@ -205,10 +219,8 @@ class TrajectoryGraphView @JvmOverloads constructor(
     }
 
     private fun updateTicking() {
-        if (isAttachedToWindow && visibility == VISIBLE && distribution != null)
-            startTicking()
-        else
-            stopTicking()
+        if (isAttachedToWindow && visibility == VISIBLE && distribution != null) startTicking()
+        else stopTicking()
     }
 
     private fun startTicking() {
@@ -251,8 +263,12 @@ class TrajectoryGraphView @JvmOverloads constructor(
         drawAxesAndLabels(canvas)
 
         canvas.save()
-        canvas.clipRect(viewport.marginLeft, viewport.marginTop,
-                viewport.graphRight, viewport.graphBottom)
+        canvas.clipRect(
+                viewport.marginLeft,
+                viewport.marginTop,
+                viewport.graphRight,
+                viewport.graphBottom
+        )
 
         drawGridLines(canvas)
         drawScheduleLine(canvas)
@@ -321,28 +337,50 @@ class TrajectoryGraphView @JvmOverloads constructor(
     }
 
     private fun drawNoData(canvas: Canvas) {
-        canvas.drawText("No data available",
-                viewport.marginLeft + 10 * density, height / 2f, noDataPaint)
+        canvas.drawText(
+                "No data available",
+                viewport.marginLeft + 10 * density,
+                height / 2f,
+                noDataPaint
+        )
     }
 
     private fun drawAxesAndLabels(canvas: Canvas) {
-        canvas.drawLine(viewport.marginLeft, viewport.marginTop,
-                viewport.marginLeft, viewport.graphBottom, axisPaint)
-        canvas.drawLine(viewport.marginLeft, viewport.graphBottom,
-                viewport.graphRight, viewport.graphBottom, axisPaint)
+        canvas.drawLine(
+                viewport.marginLeft,
+                viewport.marginTop,
+                viewport.marginLeft,
+                viewport.graphBottom,
+                axisPaint
+        )
+        canvas.drawLine(
+                viewport.marginLeft,
+                viewport.graphBottom,
+                viewport.graphRight,
+                viewport.graphBottom,
+                axisPaint
+        )
 
         viewport.forEachTimeTick { y, time ->
             if (y in viewport.marginTop..viewport.graphBottom) {
                 reusableDate.time = time
-                canvas.drawText(timeFmt.format(reusableDate),
-                        4 * density, y + 4 * density, labelPaint)
+                canvas.drawText(
+                        timeFmt.format(reusableDate),
+                        4 * density,
+                        y + 4 * density,
+                        labelPaint
+                )
             }
         }
 
         viewport.forEachDistTick { x, dist ->
             if (x in viewport.marginLeft..viewport.graphRight) {
-                canvas.drawText(formatDist(dist), x - 10 * density,
-                        viewport.graphBottom + 15 * density, labelPaint)
+                canvas.drawText(
+                        formatDist(dist),
+                        x - 10 * density,
+                        viewport.graphBottom + 15 * density,
+                        labelPaint
+                )
             }
         }
     }
@@ -367,8 +405,10 @@ class TrajectoryGraphView @JvmOverloads constructor(
             val x = viewport.toPixelX(st.distanceAlongTrip)
             val yArrive = viewport.toPixelY(serviceDate + st.arrivalTime * 1000L)
             val yDepart = viewport.toPixelY(serviceDate + st.departureTime * 1000L)
-            if (first) { schedulePath.moveTo(x, yArrive); first = false }
-            else schedulePath.lineTo(x, yArrive)
+            if (first) {
+                schedulePath.moveTo(x, yArrive)
+                first = false
+            } else schedulePath.lineTo(x, yArrive)
             val dotRadius = if (highlightedStopId == st.stopId) 8 * density else 4 * density
             if (st.departureTime != st.arrivalTime) {
                 schedulePath.lineTo(x, yDepart)
@@ -391,8 +431,10 @@ class TrajectoryGraphView @JvmOverloads constructor(
             if (t <= 0) continue
             val x = viewport.toPixelX(d)
             val y = viewport.toPixelY(t)
-            if (first) { trajectoryPath.moveTo(x, y); first = false }
-            else trajectoryPath.lineTo(x, y)
+            if (first) {
+                trajectoryPath.moveTo(x, y)
+                first = false
+            } else trajectoryPath.lineTo(x, y)
             val selected = i == selectedIndex
             val radius = if (selected) 6 * density else 3 * density
             val paint = if (selected) selectedDotPaint else trajectoryDotPaint
@@ -414,8 +456,12 @@ class TrajectoryGraphView @JvmOverloads constructor(
         canvas.drawLine(x1, y1, x2, y2, extrapolatePaint)
 
         canvas.drawLine(x2, y2, x2, viewport.graphBottom, extrapolateDashPaint)
-        canvas.drawText("~${formatDistPrecise(extrapolatedDist)}",
-                x2 - 10 * density, viewport.graphBottom - 5 * density, extrapolateLabelPaint)
+        canvas.drawText(
+                "~${formatDistPrecise(extrapolatedDist)}",
+                x2 - 10 * density,
+                viewport.graphBottom - 5 * density,
+                extrapolateLabelPaint
+        )
 
         val scheduledTime = interpolateScheduleTime(extrapolatedDist)
         if (scheduledTime > 0) {
@@ -423,8 +469,12 @@ class TrajectoryGraphView @JvmOverloads constructor(
             canvas.drawCircle(x2, schedY, 5 * density, deviationDotPaint)
             canvas.drawLine(x2, schedY, x2, y2, deviationLinePaint)
             val devLabel = formatDeviationLabel((currentTime - scheduledTime) / 1000)
-            canvas.drawText(devLabel, x2 + 5 * density,
-                    (schedY + y2) / 2 + 4 * density, deviationLabelPaint)
+            canvas.drawText(
+                    devLabel,
+                    x2 + 5 * density,
+                    (schedY + y2) / 2 + 4 * density,
+                    deviationLabelPaint
+            )
         }
     }
 
@@ -464,10 +514,20 @@ class TrajectoryGraphView @JvmOverloads constructor(
         val xStart = viewport.toPixelX(lastDist)
         val yStart = viewport.toPixelY(lastTime)
         val yNow = viewport.toPixelY(currentTime)
-        canvas.drawLine(xStart, yStart,
-                viewport.toPixelX(cachedCiLoDist), yNow, confidenceBandPaint)
-        canvas.drawLine(xStart, yStart,
-                viewport.toPixelX(cachedCiHiDist), yNow, confidenceBandPaint)
+        canvas.drawLine(
+                xStart,
+                yStart,
+                viewport.toPixelX(cachedCiLoDist),
+                yNow,
+                confidenceBandPaint
+        )
+        canvas.drawLine(
+                xStart,
+                yStart,
+                viewport.toPixelX(cachedCiHiDist),
+                yNow,
+                confidenceBandPaint
+        )
     }
 
     private fun drawNowLine(canvas: Canvas) {
@@ -475,8 +535,12 @@ class TrajectoryGraphView @JvmOverloads constructor(
         if (nowY in viewport.marginTop..viewport.graphBottom) {
             canvas.drawLine(viewport.marginLeft, nowY, viewport.graphRight, nowY, nowLinePaint)
             reusableDate.time = currentTime
-            canvas.drawText("now ${timeFmt.format(reusableDate)}",
-                    viewport.marginLeft + 5 * density, nowY - 4 * density, nowLabelPaint)
+            canvas.drawText(
+                    "now ${timeFmt.format(reusableDate)}",
+                    viewport.marginLeft + 5 * density,
+                    nowY - 4 * density,
+                    nowLabelPaint
+            )
         }
     }
 
@@ -530,35 +594,46 @@ class TrajectoryGraphView @JvmOverloads constructor(
 
     // --- Formatting ---
 
-    private fun formatDist(meters: Double): String = if (useImperial) {
-        val feet = meters / METERS_PER_FOOT
-        if (feet >= FEET_PER_MILE) "%.1fmi".format(Locale.US, feet / FEET_PER_MILE)
-        else "%.0fft".format(Locale.US, feet)
-    } else {
-        if (meters >= 1000) "%.1fkm".format(Locale.US, meters / 1000.0)
-        else "%.0fm".format(Locale.US, meters)
-    }
+    private fun formatDist(meters: Double): String =
+            if (useImperial) {
+                val feet = meters / METERS_PER_FOOT
+                if (feet >= FEET_PER_MILE) "%.1fmi".format(Locale.US, feet / FEET_PER_MILE)
+                else "%.0fft".format(Locale.US, feet)
+            } else {
+                if (meters >= 1000) "%.1fkm".format(Locale.US, meters / 1000.0)
+                else "%.0fm".format(Locale.US, meters)
+            }
 
-    private fun formatDistPrecise(meters: Double): String = if (useImperial) {
-        "%.0fft".format(Locale.US, meters / METERS_PER_FOOT)
-    } else {
-        "%.0fm".format(Locale.US, meters)
-    }
+    private fun formatDistPrecise(meters: Double): String =
+            if (useImperial) {
+                "%.0fft".format(Locale.US, meters / METERS_PER_FOOT)
+            } else {
+                "%.0fm".format(Locale.US, meters)
+            }
 
     // --- Gesture listeners ---
 
     private inner class ScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            viewport.applyScale(detector.scaleFactor, detector.focusX, detector.focusY,
-                    width.toFloat(), height.toFloat())
+            viewport.applyScale(
+                    detector.scaleFactor,
+                    detector.focusX,
+                    detector.focusY,
+                    width.toFloat(),
+                    height.toFloat()
+            )
             invalidate()
             return true
         }
     }
 
     private inner class PanListener : GestureDetector.SimpleOnGestureListener() {
-        override fun onScroll(e1: MotionEvent?, e2: MotionEvent,
-                              distanceX: Float, distanceY: Float): Boolean {
+        override fun onScroll(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                distanceX: Float,
+                distanceY: Float
+        ): Boolean {
             viewport.applyPan(distanceX, distanceY, width.toFloat(), height.toFloat())
             invalidate()
             return true
@@ -596,13 +671,14 @@ class TrajectoryGraphView @JvmOverloads constructor(
         private fun formatDeviationLabel(devSeconds: Long): String {
             if (devSeconds == 0L) return "on time"
             val absSeconds = abs(devSeconds)
-            val magnitude = if (absSeconds >= 60) {
-                val mins = absSeconds / 60
-                val secs = absSeconds % 60
-                "${mins}m" + if (secs > 0) "${secs}s" else ""
-            } else {
-                "${absSeconds}s"
-            }
+            val magnitude =
+                    if (absSeconds >= 60) {
+                        val mins = absSeconds / 60
+                        val secs = absSeconds % 60
+                        "${mins}m" + if (secs > 0) "${secs}s" else ""
+                    } else {
+                        "${absSeconds}s"
+                    }
             return magnitude + if (devSeconds > 0) " late" else " early"
         }
 

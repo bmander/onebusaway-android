@@ -16,37 +16,38 @@
 package org.onebusaway.android.io.elements
 
 /**
- * For display we always use [ObaTripStatus.getPosition] (the server-extrapolated location)
- * because it aligns with the polyline distance fraction (PDF) calculations exactly.
- * Do NOT substitute lastKnownLocation here — it has slightly different semantics
- * (raw GPS fix) and will disagree with the PDF overlay.
+ * For display we always use [ObaTripStatus.getPosition] (the server-extrapolated location) because
+ * it aligns with the polyline distance fraction (PDF) calculations exactly. Do NOT substitute
+ * lastKnownLocation here — it has slightly different semantics (raw GPS fix) and will disagree with
+ * the PDF overlay.
  */
 
 /**
- * True if the server provided a real-time location for this vehicle —
- * i.e. it has a last-known location *and* the trip is predicted.
+ * True if the server provided a real-time location for this vehicle — i.e. it has a last-known
+ * location *and* the trip is predicted.
  */
 val ObaTripStatus.isLocationRealtime: Boolean
     get() = lastKnownLocation != null && isPredicted
 
 /**
- * Computes the scheduled segment speed (m/s) at a given distance along the trip.
- * Returns null if the schedule has too few stops or the distance is out of bounds.
+ * Computes the scheduled segment speed (m/s) at a given distance along the trip. Returns null if
+ * the schedule has too few stops or the distance is out of bounds.
  */
 fun ObaTripSchedule.speedAtDistance(distanceAlongTrip: Double): Double? {
     val stopTimes = stopTimes ?: return null
     if (stopTimes.size < 2) return null
 
-    val segmentStart = try {
-        findSegmentStartIndex(distanceAlongTrip)
-    } catch (e: IndexOutOfBoundsException) {
-        return null
-    }
+    val segmentStart =
+            try {
+                findSegmentStartIndex(distanceAlongTrip)
+            } catch (e: IndexOutOfBoundsException) {
+                return null
+            }
 
-    val distDelta = stopTimes[segmentStart + 1].distanceAlongTrip -
-            stopTimes[segmentStart].distanceAlongTrip
-    val timeDelta = stopTimes[segmentStart + 1].arrivalTime -
-            stopTimes[segmentStart].departureTime
+    val distDelta =
+            stopTimes[segmentStart + 1].distanceAlongTrip -
+                    stopTimes[segmentStart].distanceAlongTrip
+    val timeDelta = stopTimes[segmentStart + 1].arrivalTime - stopTimes[segmentStart].departureTime
 
     return if (distDelta > 0 && timeDelta > 0) distDelta / timeDelta else null
 }

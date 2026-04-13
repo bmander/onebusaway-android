@@ -25,23 +25,26 @@ import org.onebusaway.android.io.elements.ObaTripSchedule
  */
 class ScheduleReplayExtrapolator(trip: Trip) : Extrapolator(trip) {
 
-    override fun doExtrapolate(lastDist: Double, lastTimeMs: Long, queryTimeMs: Long): ExtrapolationResult {
-        val schedule = trip.schedule
-                ?: return ExtrapolationResult.MissingSchedule
-        val distance = replaySchedule(schedule, lastDist, lastTimeMs, queryTimeMs)
-                ?: return ExtrapolationResult.MissingSchedule
+    override fun doExtrapolate(
+            lastDist: Double,
+            lastTimeMs: Long,
+            queryTimeMs: Long
+    ): ExtrapolationResult {
+        val schedule = trip.schedule ?: return ExtrapolationResult.MissingSchedule
+        val distance =
+                replaySchedule(schedule, lastDist, lastTimeMs, queryTimeMs)
+                        ?: return ExtrapolationResult.MissingSchedule
         return ExtrapolationResult.Success(DiracDistribution(distance))
     }
 }
 
 /**
- * Replays the schedule forward from [startDist] by the elapsed time between
- * [lastTimeMs] and [queryTimeMs].
+ * Replays the schedule forward from [startDist] by the elapsed time between [lastTimeMs] and
+ * [queryTimeMs].
  *
- * Finds the schedule segment bracketing startDist, computes the corresponding
- * schedule time, adds the elapsed time, then walks forward through stops —
- * traveling at segment speeds between stops and dwelling at stops for
- * scheduled dwell times.
+ * Finds the schedule segment bracketing startDist, computes the corresponding schedule time, adds
+ * the elapsed time, then walks forward through stops — traveling at segment speeds between stops
+ * and dwelling at stops for scheduled dwell times.
  *
  * @param schedule the trip schedule containing stop times
  * @param startDist the starting distance along the trip in meters
@@ -59,11 +62,12 @@ fun replaySchedule(
     val stopTimes = schedule.stopTimes ?: return null
     if (stopTimes.size < 2 || dtSec < 0) return null
 
-    val segIdx = try {
-        schedule.findSegmentStartIndex(startDist)
-    } catch (e: IndexOutOfBoundsException) {
-        return null
-    }
+    val segIdx =
+            try {
+                schedule.findSegmentStartIndex(startDist)
+            } catch (e: IndexOutOfBoundsException) {
+                return null
+            }
     val segStart = stopTimes[segIdx]
     val segEnd = stopTimes[segIdx + 1]
 
@@ -80,8 +84,8 @@ fun replaySchedule(
 }
 
 /**
- * Walks the schedule timeline forward from segment [startSegIdx] to find the
- * distance corresponding to [targetTime] (in seconds since service date).
+ * Walks the schedule timeline forward from segment [startSegIdx] to find the distance corresponding
+ * to [targetTime] (in seconds since service date).
  */
 private fun walkForward(
         stopTimes: Array<ObaTripSchedule.StopTime>,

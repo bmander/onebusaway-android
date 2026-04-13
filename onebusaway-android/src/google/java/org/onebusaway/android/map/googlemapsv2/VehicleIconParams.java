@@ -16,7 +16,8 @@
 package org.onebusaway.android.map.googlemapsv2;
 
 /**
- * The three parameters that select a vehicle marker icon: vehicle type, schedule
+ * The three parameters that select a vehicle marker icon: vehicle type,
+ * schedule
  * deviation color, and compass direction. Mutable only via {@link #halfWind}.
  */
 class VehicleIconParams {

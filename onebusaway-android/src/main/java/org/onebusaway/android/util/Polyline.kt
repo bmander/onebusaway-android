@@ -19,25 +19,29 @@ import android.location.Location
 import java.util.Arrays
 
 /**
- * An ordered sequence of geographic points with fast distance-based interpolation.
- * Cumulative distances are precomputed at construction so that [interpolate] and
- * [subPolyline] are O(log n) via binary search.
+ * An ordered sequence of geographic points with fast distance-based interpolation. Cumulative
+ * distances are precomputed at construction so that [interpolate] and [subPolyline] are O(log n)
+ * via binary search.
  */
 class Polyline(val points: List<Location>) {
 
-    private val cumulativeDistances: DoubleArray = points
-            .zipWithNext { prev, cur ->
-                LocationUtils.haversineDistance(
-                        prev.latitude, prev.longitude,
-                        cur.latitude, cur.longitude)
-            }
-            .runningFold(0.0) { acc, dist -> acc + dist }
-            .toDoubleArray()
+    private val cumulativeDistances: DoubleArray =
+            points
+                    .zipWithNext { prev, cur ->
+                        LocationUtils.haversineDistance(
+                                prev.latitude,
+                                prev.longitude,
+                                cur.latitude,
+                                cur.longitude
+                        )
+                    }
+                    .runningFold(0.0) { acc, dist -> acc + dist }
+                    .toDoubleArray()
 
     /**
-     * Returns the index of the segment start for the given distance, or -1 if the
-     * polyline has fewer than 2 points. The distance is clamped to the polyline bounds.
-     * Reuse the result across [interpolate] and [bearingAt] to avoid repeated binary searches.
+     * Returns the index of the segment start for the given distance, or -1 if the polyline has
+     * fewer than 2 points. The distance is clamped to the polyline bounds. Reuse the result across
+     * [interpolate] and [bearingAt] to avoid repeated binary searches.
      */
     fun segmentIndex(distance: Double): Int {
         if (points.size < 2) return -1
@@ -107,11 +111,10 @@ class Polyline(val points: List<Location>) {
     }
 
     /**
-     * Fills [out] with the sub-polyline between two distances, with interpolated
-     * endpoints. The list is cleared first. Returns true if the sub-polyline was produced.
+     * Fills [out] with the sub-polyline between two distances, with interpolated endpoints. The
+     * list is cleared first. Returns true if the sub-polyline was produced.
      */
-    fun subPolylineInto(startDist: Double, endDist: Double,
-                        out: MutableList<Location>): Boolean {
+    fun subPolylineInto(startDist: Double, endDist: Double, out: MutableList<Location>): Boolean {
         out.clear()
         val start = interpolate(startDist) ?: return false
         val end = interpolate(endDist) ?: return false
@@ -124,12 +127,16 @@ class Polyline(val points: List<Location>) {
     }
 
     /**
-     * Maps the sub-polyline between two distances into [out] via [transform],
-     * using [scratch] for interpolated endpoints. The list is cleared first.
+     * Maps the sub-polyline between two distances into [out] via [transform], using [scratch] for
+     * interpolated endpoints. The list is cleared first.
      */
-    fun <T> subPolylineMapInto(startDist: Double, endDist: Double,
-                               out: MutableList<T>, scratch: Location,
-                               transform: (Location) -> T): Boolean {
+    fun <T> subPolylineMapInto(
+            startDist: Double,
+            endDist: Double,
+            out: MutableList<T>,
+            scratch: Location,
+            transform: (Location) -> T
+    ): Boolean {
         out.clear()
         if (!interpolateInto(startDist, scratch)) return false
         out.add(transform(scratch))
@@ -143,8 +150,8 @@ class Polyline(val points: List<Location>) {
 
     /**
      * Finds the range of vertex indices whose cumulative distances fall strictly between
-     * [startDist] and [endDist]. Returns a pair (from, to) for use as a half-open range,
-     * or null if no vertices fall in range.
+     * [startDist] and [endDist]. Returns a pair (from, to) for use as a half-open range, or null if
+     * no vertices fall in range.
      */
     private fun vertexRange(startDist: Double, endDist: Double): Pair<Int, Int>? {
         if (cumulativeDistances.isEmpty() || startDist >= endDist) return null
@@ -154,5 +161,4 @@ class Polyline(val points: List<Location>) {
         val to = if (rawEnd >= 0) rawEnd else -rawEnd - 1
         return if (from < to) Pair(from, to) else null
     }
-
 }

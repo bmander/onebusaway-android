@@ -21,7 +21,8 @@ import org.onebusaway.android.extrapolation.data.Trip;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 
 /**
- * Per-vehicle display state on the main map view. One instance per tracked trip.
+ * Per-vehicle display state on the main map view. One instance per tracked
+ * trip.
  * Trip-level data (history, schedule, extrapolation) lives on {@link Trip};
  * this holds only display/animation state.
  */
@@ -31,7 +32,9 @@ class VehicleMarkerState {
     ObaTripStatus status;
     boolean animating;
     boolean selected;
-    /** The trip anchor we last animated to. Reference-compared to detect new data. */
+    /**
+     * The trip anchor we last animated to. Reference-compared to detect new data.
+     */
     ObaTripStatus lastAnimatedAnchor;
 
     VehicleIconParams iconParams;

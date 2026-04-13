@@ -30,10 +30,7 @@ private const val TAG = "TripExtrapolationCtl"
  * mutations are also main-thread, so [trip] fields are read directly without synchronization.
  */
 class TripExtrapolationController
-internal constructor(
-        private val vehicleOverlay: TripVehicleOverlay,
-        private val trip: Trip
-) {
+internal constructor(private val vehicleOverlay: TripVehicleOverlay, private val trip: Trip) {
     private val frameLoop = ThrottledFrameLoop(::doFrame)
 
     fun start() = frameLoop.start()
@@ -42,14 +39,17 @@ internal constructor(
 
     private fun doFrame(now: Long) {
         val shapeData = trip.polyline ?: return
-        val result = try {
-            trip.extrapolate(now)
-        } catch (e: RuntimeException) {
-            // Programming-error path (e.g. require() failure in the gamma model on a degenerate
-            // schedule). Log so it surfaces, then skip this frame; the next frame will retry.
-            Log.w(TAG, "Extrapolation failed for ${trip.tripId}", e)
-            return
-        }
+        val result =
+                try {
+                    trip.extrapolate(now)
+                } catch (e: RuntimeException) {
+                    // Programming-error path (e.g. require() failure in the gamma model on a
+                    // degenerate
+                    // schedule). Log so it surfaces, then skip this frame; the next frame will
+                    // retry.
+                    Log.w(TAG, "Extrapolation failed for ${trip.tripId}", e)
+                    return
+                }
 
         when (result) {
             is ExtrapolationResult.Success -> {
@@ -74,8 +74,6 @@ internal constructor(
             }
         }
 
-        trip.anchor?.let {
-            vehicleOverlay.showOrUpdateDataReceivedMarker(it, now)
-        }
+        trip.anchor?.let { vehicleOverlay.showOrUpdateDataReceivedMarker(it, now) }
     }
 }

@@ -31,15 +31,16 @@ import com.google.android.gms.maps.model.TextureStyle;
 import java.util.List;
 
 /**
- * Creates stamped polyline options using a single stamp built at construction time.
+ * Creates stamped polyline options using a single stamp built at construction
+ * time.
  */
 public final class StampedPolylineFactory {
 
     private final StampStyle mStamp;
 
     /**
-     * @param res              resources for decoding the drawable
-     * @param resId            drawable resource to use as the stamp
+     * @param res               resources for decoding the drawable
+     * @param resId             drawable resource to use as the stamp
      * @param spacingMultiplier 1 = default density, 4 = one-quarter as many stamps
      */
     public StampedPolylineFactory(Resources res, int resId, int spacingMultiplier) {

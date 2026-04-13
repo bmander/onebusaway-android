@@ -20,8 +20,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Tests for the [bisect] root-finding utility. These guard against infinite loops
- * and NaN propagation from degenerate inputs.
+ * Tests for the [bisect] root-finding utility. These guard against infinite loops and NaN
+ * propagation from degenerate inputs.
  */
 class BisectTest {
 
@@ -95,8 +95,10 @@ class BisectTest {
         // finite (astronomically small) value — the same shape as a legitimately
         // hyperconcentrated distribution, which bisect is allowed to return.
         val result = bisect({ Double.NaN }, 0.5, 1.0)
-        assertTrue("Result should be finite (refine cap returns best-effort midpoint)",
-                result.isFinite())
+        assertTrue(
+                "Result should be finite (refine cap returns best-effort midpoint)",
+                result.isFinite()
+        )
     }
 
     // --- Integration with real distributions ---

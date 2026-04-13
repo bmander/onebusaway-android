@@ -16,9 +16,8 @@
 package org.onebusaway.android.extrapolation.math.prob
 
 /**
- * Wraps a base distribution with an affine transform: Y = offset + scale * X.
- * Used to convert a speed distribution (m/s) into a distance distribution (m)
- * via offset = lastDist, scale = dt.
+ * Wraps a base distribution with an affine transform: Y = offset + scale * X. Used to convert a
+ * speed distribution (m/s) into a distance distribution (m) via offset = lastDist, scale = dt.
  */
 class AffineTransformDistribution(
         private val base: ProbDistribution,
@@ -26,14 +25,14 @@ class AffineTransformDistribution(
         private val scale: Double
 ) : ProbDistribution {
 
-    override val mean: Double get() = offset + base.mean * scale
+    override val mean: Double
+        get() = offset + base.mean * scale
 
     override fun pdf(x: Double): Double =
             if (scale > 0) base.pdf((x - offset) / scale) / scale else 0.0
 
     override fun cdf(x: Double): Double =
-            if (scale > 0) base.cdf((x - offset) / scale)
-            else if (x >= offset) 1.0 else 0.0
+            if (scale > 0) base.cdf((x - offset) / scale) else if (x >= offset) 1.0 else 0.0
 
     override fun quantile(p: Double): Double = offset + base.quantile(p) * scale
 }

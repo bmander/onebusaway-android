@@ -45,9 +45,8 @@ private fun contrastingColor(color: Int): Int {
 }
 
 /**
- * Renders the live vehicle data on the trip map: vehicle position marker,
- * data-received marker, and PDF estimate overlay. Updated per-frame by the
- * extrapolation controller.
+ * Renders the live vehicle data on the trip map: vehicle position marker, data-received marker, and
+ * PDF estimate overlay. Updated per-frame by the extrapolation controller.
  */
 class TripVehicleOverlay(
         private val map: GoogleMap,
@@ -72,9 +71,7 @@ class TripVehicleOverlay(
     private var dataReceivedInfoShown = false
     private var lastDataReceivedUpdateTime = 0L
 
-    private val dataReceivedIcon by lazy {
-        MapIconUtils.createDataReceivedIcon(context)
-    }
+    private val dataReceivedIcon by lazy { MapIconUtils.createDataReceivedIcon(context) }
 
     // --- Estimate overlay ---
     private var estimateOverlay: DistanceEstimateOverlay? = null
@@ -82,9 +79,10 @@ class TripVehicleOverlay(
     fun activate(vehiclePosition: LatLng?) {
         if (routeType == null || !ObaRoute.isGradeSeparated(routeType)) {
             if (vehiclePosition != null) {
-                estimateOverlay = DistanceEstimateOverlay(shapeData, overlayColor).also {
-                    it.create(map, context, POLYLINE_WIDTH_PX, vehiclePosition)
-                }
+                estimateOverlay =
+                        DistanceEstimateOverlay(shapeData, overlayColor).also {
+                            it.create(map, context, POLYLINE_WIDTH_PX, vehiclePosition)
+                        }
             }
         }
     }
@@ -108,14 +106,19 @@ class TripVehicleOverlay(
 
         val marker = vehicleMarker
         if (marker == null) {
-            vehicleMarker = map.addMarker(MarkerOptions()
-                    .position(MapHelpV2.makeLatLng(location))
-                    .icon(vehicleIcon)
-                    .title(context.getString(R.string.marker_best_estimate))
-                    .snippet(context.getString(R.string.marker_best_estimate_snippet))
-                    .anchor(0.5f, 0.5f)
-                    .flat(true)
-                    .zIndex(MARKER_Z_INDEX))
+            vehicleMarker =
+                    map.addMarker(
+                            MarkerOptions()
+                                    .position(MapHelpV2.makeLatLng(location))
+                                    .icon(vehicleIcon)
+                                    .title(context.getString(R.string.marker_best_estimate))
+                                    .snippet(
+                                            context.getString(R.string.marker_best_estimate_snippet)
+                                    )
+                                    .anchor(0.5f, 0.5f)
+                                    .flat(true)
+                                    .zIndex(MARKER_Z_INDEX)
+                    )
             return
         }
 
@@ -138,11 +141,16 @@ class TripVehicleOverlay(
 
     fun updateEstimateOverlays(distribution: ProbDistribution?) {
         val overlay = estimateOverlay ?: return
-        if (distribution == null) { overlay.hide(); return }
+        if (distribution == null) {
+            overlay.hide()
+            return
+        }
         overlay.update(distribution)
     }
 
-    fun hideEstimateOverlays() { estimateOverlay?.hide() }
+    fun hideEstimateOverlays() {
+        estimateOverlay?.hide()
+    }
 
     fun handleEstimateLabelClick(marker: Marker) = estimateOverlay?.handleClick(marker) ?: false
 
@@ -154,8 +162,7 @@ class TripVehicleOverlay(
         if (!newData && dataReceivedMarker != null) return
         lastDataReceivedUpdateTime = updateTime
 
-        val label = if (updateTime > 0)
-            UIUtils.formatElapsedTime(now - updateTime) else ""
+        val label = if (updateTime > 0) UIUtils.formatElapsedTime(now - updateTime) else ""
 
         val pos = latest.position ?: return
         val latLng = MapHelpV2.makeLatLng(pos)
@@ -166,14 +173,17 @@ class TripVehicleOverlay(
             marker.snippet = label
             if (dataReceivedInfoShown) marker.showInfoWindow()
         } else {
-            dataReceivedMarker = map.addMarker(MarkerOptions()
-                    .position(latLng)
-                    .icon(dataReceivedIcon)
-                    .anchor(0.5f, 0.5f)
-                    .flat(true)
-                    .title(context.getString(R.string.marker_most_recent_data))
-                    .snippet(label)
-                    .zIndex(MARKER_Z_INDEX))
+            dataReceivedMarker =
+                    map.addMarker(
+                            MarkerOptions()
+                                    .position(latLng)
+                                    .icon(dataReceivedIcon)
+                                    .anchor(0.5f, 0.5f)
+                                    .flat(true)
+                                    .title(context.getString(R.string.marker_most_recent_data))
+                                    .snippet(label)
+                                    .zIndex(MARKER_Z_INDEX)
+                    )
         }
     }
 

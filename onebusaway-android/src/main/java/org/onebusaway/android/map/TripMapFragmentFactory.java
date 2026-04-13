@@ -22,7 +22,8 @@ import java.lang.reflect.Method;
 import androidx.fragment.app.Fragment;
 
 /**
- * Creates the flavor-specific TripMapFragment via reflection, following the same
+ * Creates the flavor-specific TripMapFragment via reflection, following the
+ * same
  * pattern as {@link ObaMapFragment#newInstance()}.
  */
 public class TripMapFragmentFactory {

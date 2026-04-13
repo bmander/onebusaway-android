@@ -28,21 +28,20 @@ import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.request.ObaShapeRequest
-import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
+import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.util.Polyline
 
 /**
- * Registry of [Trip] objects with background fetch support.
- * All per-trip data lives on Trip; this singleton manages the registry, eviction, and
- * background fetches for schedules and shapes.
+ * Registry of [Trip] objects with background fetch support. All per-trip data lives on Trip; this
+ * singleton manages the registry, eviction, and background fetches for schedules and shapes.
  *
- * Thread safety: **main thread only.** All public methods must be called from the
- * main thread. Background work (network fetches) lives in the pollers and the private
- * fetch helpers below; results are posted back to the main thread before they touch
- * any registry state. This invariant lets [Trip] hold plain (non-volatile, non-locked)
- * mutable fields and lets the per-frame extrapolation loop read them directly.
+ * Thread safety: **main thread only.** All public methods must be called from the main thread.
+ * Background work (network fetches) lives in the pollers and the private fetch helpers below;
+ * results are posted back to the main thread before they touch any registry state. This invariant
+ * lets [Trip] hold plain (non-volatile, non-locked) mutable fields and lets the per-frame
+ * extrapolation loop read them directly.
  */
 object TripDataManager {
 
@@ -58,13 +57,15 @@ object TripDataManager {
     // least-recently-used trip. evictOldTripsIfNeeded() removes from the head, which means a
     // trip that's currently being polled (via recordStatus / getOrCreateTrip / isScheduleCached)
     // stays alive even after MAX_TRACKED_TRIPS distinct trips have been observed.
-    private val trips = LinkedHashMap<String, Trip>(16, 0.75f, /*accessOrder=*/true)
+    private val trips = LinkedHashMap<String, Trip>(16, 0.75f, /*accessOrder=*/ true)
 
     // --- Change notifications ---
 
-    private val _changes = MutableSharedFlow<Unit>(
-            extraBufferCapacity = 1,
-            onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    private val _changes =
+            MutableSharedFlow<Unit>(
+                    extraBufferCapacity = 1,
+                    onBufferOverflow = BufferOverflow.DROP_OLDEST
+            )
 
     /** Emits Unit whenever any mutation method runs. Coalesces bursts via DROP_OLDEST. */
     val changes: SharedFlow<Unit> = _changes.asSharedFlow()
@@ -75,17 +76,15 @@ object TripDataManager {
 
     // --- Trip registry ---
 
-    fun getOrCreateTrip(tripId: String): Trip =
-            trips.getOrPut(tripId) { Trip(tripId) }
+    fun getOrCreateTrip(tripId: String): Trip = trips.getOrPut(tripId) { Trip(tripId) }
 
-    fun getTrip(tripId: String?): Trip? =
-            if (tripId != null) trips[tripId] else null
+    fun getTrip(tripId: String?): Trip? = if (tripId != null) trips[tripId] else null
 
     // --- Recording ---
 
     /**
-     * Records a trip status snapshot.
-     * Deduplicates history by distance — only adds an entry when the vehicle has moved.
+     * Records a trip status snapshot. Deduplicates history by distance — only adds an entry when
+     * the vehicle has moved.
      */
     fun recordStatus(status: ObaTripStatus?, serverTimeMs: Long, localTimeMs: Long) {
         if (status == null) return
@@ -96,7 +95,10 @@ object TripDataManager {
     }
 
     fun recordTripDetailsResponse(
-            polledTripId: String?, response: ObaTripDetailsResponse?, localTimeMs: Long) {
+            polledTripId: String?,
+            response: ObaTripDetailsResponse?,
+            localTimeMs: Long
+    ) {
         if (response == null) return
         val status = response.status ?: return
         var changed = false
@@ -176,8 +178,7 @@ object TripDataManager {
     fun getHistory(activeTripId: String?): List<ObaTripStatus> =
             getTrip(activeTripId)?.history?.toList().orEmpty()
 
-    fun getHistorySize(activeTripId: String?): Int =
-            getTrip(activeTripId)?.history?.size ?: 0
+    fun getHistorySize(activeTripId: String?): Int = getTrip(activeTripId)?.history?.size ?: 0
 
     fun getFetchTimes(activeTripId: String?): List<Long> =
             getTrip(activeTripId)?.fetchTimes?.toList().orEmpty()
@@ -189,12 +190,11 @@ object TripDataManager {
             getTrip(activeTripId)?.history?.lastOrNull()
 
     /**
-     * Returns the filtered extrapolation anchor — the newest-by-timestamp status with
-     * GPS winning ties. Use this (not [getLastState]) when surfacing "the data the
-     * prediction is based on" to the user; [getLastState] is for raw debug views.
+     * Returns the filtered extrapolation anchor — the newest-by-timestamp status with GPS winning
+     * ties. Use this (not [getLastState]) when surfacing "the data the prediction is based on" to
+     * the user; [getLastState] is for raw debug views.
      */
-    fun getAnchor(activeTripId: String?): ObaTripStatus? =
-            getTrip(activeTripId)?.anchor
+    fun getAnchor(activeTripId: String?): ObaTripStatus? = getTrip(activeTripId)?.anchor
 
     fun getTrackedTripIds(): Set<String> = trips.keys.toSet()
 
@@ -296,9 +296,9 @@ object TripDataManager {
 
     /**
      * Fetches a value off the main thread and applies the result on the main thread, with
-     * pending-fetch deduplication. Failed fetches are retried naturally on the next call
-     * (typically the next poll tick), which is already rate-limited by the polling interval —
-     * no extra failure-cap or backoff logic is needed.
+     * pending-fetch deduplication. Failed fetches are retried naturally on the next call (typically
+     * the next poll tick), which is already rate-limited by the polling interval — no extra
+     * failure-cap or backoff logic is needed.
      *
      * [fetch] runs on the fetch executor; [onSuccess] and [onError] run on the main thread.
      */
@@ -313,12 +313,13 @@ object TripDataManager {
         if (isCached()) return
         if (!pending.add(tripId)) return
         fetchExecutor.execute {
-            val result: T? = try {
-                fetch()
-            } catch (e: Exception) {
-                Log.e(TAG, "Fetch failed for $tripId", e)
-                null
-            }
+            val result: T? =
+                    try {
+                        fetch()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Fetch failed for $tripId", e)
+                        null
+                    }
             mainHandler.post {
                 pending.remove(tripId)
                 if (result != null) {
@@ -351,9 +352,9 @@ object TripDataManager {
 
     // TODO: Rename — "get trip id for trip id returning a different trip id" is confusing.
     //  This tracks when a vehicle switches trips (e.g. finishes one run, starts the next).
-    //  The parameter is the trip we're watching; the return is what the vehicle is actually running.
-    fun getLastActiveTripId(polledTripId: String): String? =
-            getTrip(polledTripId)?.lastActiveTripId
+    //  The parameter is the trip we're watching; the return is what the vehicle is actually
+    // running.
+    fun getLastActiveTripId(polledTripId: String): String? = getTrip(polledTripId)?.lastActiveTripId
 
     // --- Eviction and cleanup ---
 

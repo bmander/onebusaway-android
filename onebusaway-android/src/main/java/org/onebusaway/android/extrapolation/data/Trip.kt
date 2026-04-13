@@ -19,7 +19,6 @@ import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.GammaExtrapolator
 import org.onebusaway.android.extrapolation.ScheduleReplayExtrapolator
-
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
@@ -33,9 +32,9 @@ private const val PRE_DEPARTURE_DISTANCE_THRESHOLD = 50.0
 private const val TRIP_END_DISTANCE_THRESHOLD = 50.0
 
 /**
- * All data for a single tracked trip: vehicle history, extrapolation anchor, schedule,
- * polyline, and route metadata. Provides [extrapolate] which selects the appropriate
- * strategy (gamma, schedule replay, or schedule-only fallback) based on the data available.
+ * All data for a single tracked trip: vehicle history, extrapolation anchor, schedule, polyline,
+ * and route metadata. Provides [extrapolate] which selects the appropriate strategy (gamma,
+ * schedule replay, or schedule-only fallback) based on the data available.
  *
  * Thread safety: all mutable state is accessed under TripDataManager's @Synchronized lock.
  */
@@ -50,18 +49,16 @@ class Trip(val tripId: String) {
     var anchor: ObaTripStatus? = null
         private set
     /**
-     * Effective timestamp of the anchor in the **server** clock domain
-     * (lastUpdateTime, or serverTimeMs as fallback). Used for plotting against
-     * other server-clock values such as [ObaTripStatus.lastUpdateTime] and
-     * service-date-based schedule times.
+     * Effective timestamp of the anchor in the **server** clock domain (lastUpdateTime, or
+     * serverTimeMs as fallback). Used for plotting against other server-clock values such as
+     * [ObaTripStatus.lastUpdateTime] and service-date-based schedule times.
      */
     var anchorTimeMs: Long = 0L
         private set
     /**
-     * Same instant as [anchorTimeMs], in the local device clock domain.
-     * Used for extrapolation — comparing `System.currentTimeMillis()`
-     * against a server timestamp would silently classify fresh data as
-     * stale under client/server clock skew.
+     * Same instant as [anchorTimeMs], in the local device clock domain. Used for extrapolation —
+     * comparing `System.currentTimeMillis()` against a server timestamp would silently classify
+     * fresh data as stale under client/server clock skew.
      */
     var anchorLocalTimeMs: Long = 0L
         private set
@@ -91,9 +88,10 @@ class Trip(val tripId: String) {
 
         // Skip true duplicates (same distance and time as previous entry)
         val prev = history.lastOrNull()
-        if (prev != null
-                && status.distanceAlongTrip == prev.distanceAlongTrip
-                && status.lastUpdateTime == prev.lastUpdateTime) {
+        if (prev != null &&
+                        status.distanceAlongTrip == prev.distanceAlongTrip &&
+                        status.lastUpdateTime == prev.lastUpdateTime
+        ) {
             return false
         }
 
@@ -104,10 +102,11 @@ class Trip(val tripId: String) {
         // Update anchor: newest timestamp wins; GPS wins ties
         val effectiveTime = if (status.lastUpdateTime > 0) status.lastUpdateTime else serverTimeMs
         val serverLocalOffset = serverTimeMs - localTimeMs
-        if (effectiveTime > anchorTimeMs
-                || (effectiveTime == anchorTimeMs
-                        && status.isLocationRealtime
-                        && anchor?.isLocationRealtime != true)) {
+        if (effectiveTime > anchorTimeMs ||
+                        (effectiveTime == anchorTimeMs &&
+                                status.isLocationRealtime &&
+                                anchor?.isLocationRealtime != true)
+        ) {
             anchor = status
             anchorTimeMs = effectiveTime
             anchorLocalTimeMs = effectiveTime - serverLocalOffset
@@ -125,16 +124,15 @@ class Trip(val tripId: String) {
 
     fun extrapolate(queryTimeMs: Long): ExtrapolationResult {
         val currentAnchor = anchor ?: return ExtrapolationResult.NoData
-        val lastDist = currentAnchor.distanceAlongTrip
-                ?: return ExtrapolationResult.NoData
+        val lastDist = currentAnchor.distanceAlongTrip ?: return ExtrapolationResult.NoData
         if (anchorLocalTimeMs <= 0) return ExtrapolationResult.NoData
 
         val dtMs = queryTimeMs - anchorLocalTimeMs
         if (dtMs < 0 || dtMs > MAX_HORIZON_MS) return ExtrapolationResult.Stale
         if (lastDist <= PRE_DEPARTURE_DISTANCE_THRESHOLD) return ExtrapolationResult.TripNotStarted
         val totalDist = currentAnchor.totalDistanceAlongTrip
-        if (totalDist != null && totalDist > 0
-                && totalDist - lastDist < TRIP_END_DISTANCE_THRESHOLD) {
+        if (totalDist != null && totalDist > 0 && totalDist - lastDist < TRIP_END_DISTANCE_THRESHOLD
+        ) {
             return ExtrapolationResult.TripEnded
         }
 
@@ -142,11 +140,13 @@ class Trip(val tripId: String) {
     }
 
     private fun getOrCreateExtrapolator(): Extrapolator {
-        extrapolator?.let { return it }
-        val ext = if (routeType != null && ObaRoute.isGradeSeparated(routeType!!))
-            ScheduleReplayExtrapolator(this)
-        else
-            GammaExtrapolator(this)
+        extrapolator?.let {
+            return it
+        }
+        val ext =
+                if (routeType != null && ObaRoute.isGradeSeparated(routeType!!))
+                        ScheduleReplayExtrapolator(this)
+                else GammaExtrapolator(this)
         extrapolator = ext
         return ext
     }

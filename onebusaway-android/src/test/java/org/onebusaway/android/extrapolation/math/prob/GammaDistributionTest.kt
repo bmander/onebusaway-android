@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.extrapolation.math.prob
 
-import kotlin.math.abs
 import kotlin.math.ln
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

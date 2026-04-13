@@ -40,8 +40,7 @@ internal constructor(
 
     fun stop() = frameLoop.stop()
 
-    private fun doFrame() {
-        val now = System.currentTimeMillis()
+    private fun doFrame(now: Long) {
         val shapeData = trip.polyline ?: return
         val result = try {
             trip.extrapolate(now)

@@ -146,11 +146,11 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
         if (mController != null) mController.deselectAll();
     }
 
-    private void onExtrapolationTick() {
+    private void onExtrapolationTick(long nowMs) {
         if (mController == null || mActivity.isDestroyed()) {
             mFrameLoop.stop();
             return;
         }
-        mController.updatePositions(System.currentTimeMillis());
+        mController.updatePositions(nowMs);
     }
 }

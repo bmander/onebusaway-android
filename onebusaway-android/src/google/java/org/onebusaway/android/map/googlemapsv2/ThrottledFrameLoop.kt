@@ -22,8 +22,12 @@ import android.view.Choreographer
  * Throttled choreographer frame loop that fires [onTick] at most once per [intervalMs].
  * Callers may call [stop] from within [onTick]; the loop re-checks before re-posting.
  */
+internal fun interface FrameTick {
+    fun onTick(nowMs: Long)
+}
+
 internal class ThrottledFrameLoop @JvmOverloads constructor(
-        private val onTick: Runnable,
+        private val onTick: FrameTick,
         private val intervalMs: Long = 50L
 ) {
     private val choreographer: Choreographer = Choreographer.getInstance()
@@ -48,7 +52,7 @@ internal class ThrottledFrameLoop @JvmOverloads constructor(
         val uptime = SystemClock.uptimeMillis()
         if (uptime - lastFrameUptimeMs >= intervalMs) {
             lastFrameUptimeMs = uptime
-            onTick.run()
+            onTick.onTick(System.currentTimeMillis())
         }
         if (ticking) choreographer.postFrameCallback(callback)
     }

@@ -71,7 +71,7 @@ class VehicleMapController {
         mMap = map;
         mContext = context.getApplicationContext();
         mIconFactory = iconFactory;
-        mDataManager = TripDataManager.getInstance();
+        mDataManager = TripDataManager.INSTANCE;
         mAnimateDurationMs = animateDurationMs;
     }
 

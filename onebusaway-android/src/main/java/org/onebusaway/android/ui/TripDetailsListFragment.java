@@ -136,7 +136,7 @@ public class TripDetailsListFragment extends ListFragment {
 
     public static final int REQUEST_ENABLE_LOCATION = 1;
 
-    private final TripDataManager mDataManager = TripDataManager.getInstance();
+    private final TripDataManager mDataManager = TripDataManager.INSTANCE;
 
     private String mTripId;
     private TripDetailsPoller mPoller;

@@ -147,7 +147,7 @@ public class RouteMapController implements MapModeController {
         }
 
         // Clear trip data and speed estimation state
-        TripDataManager.getInstance().clearAll();
+        TripDataManager.INSTANCE.clearAll();
 
         // Clear the existing route and vehicle overlays
         mFragment.getMapView().removeRouteOverlay();

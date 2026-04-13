@@ -49,8 +49,6 @@ object TripDataManager {
     private const val TAG = "TripDataManager"
     private const val MAX_TRACKED_TRIPS = 100
 
-    @JvmStatic fun getInstance() = this
-
     private val fetchExecutor = Executors.newFixedThreadPool(2)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val pendingScheduleFetches: MutableSet<String> = HashSet()

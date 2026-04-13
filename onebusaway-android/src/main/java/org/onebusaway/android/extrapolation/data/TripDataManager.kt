@@ -86,50 +86,62 @@ object TripDataManager {
     // --- Recording ---
 
     /**
-     * Records a trip status snapshot. Always updates the extrapolation anchor.
+     * Records a trip status snapshot.
      * Deduplicates history by distance — only adds an entry when the vehicle has moved.
      */
     fun recordStatus(status: ObaTripStatus?, serverTimeMs: Long, localTimeMs: Long) {
         if (status == null) return
         val tripId = status.activeTripId ?: return
-        getOrCreateTrip(tripId).recordStatus(status, serverTimeMs, localTimeMs)
+        val changed = getOrCreateTrip(tripId).recordStatus(status, serverTimeMs, localTimeMs)
         evictOldTripsIfNeeded()
-        notifyChanged()
+        if (changed) notifyChanged()
     }
 
     fun recordTripDetailsResponse(
             polledTripId: String?, response: ObaTripDetailsResponse?, localTimeMs: Long) {
         if (response == null) return
         val status = response.status ?: return
+        var changed = false
         if (polledTripId != null) {
             val polledTrip = getOrCreateTrip(polledTripId)
-            polledTrip.lastActiveTripId = status.activeTripId
+            if (polledTrip.lastActiveTripId != status.activeTripId) {
+                polledTrip.lastActiveTripId = status.activeTripId
+                changed = true
+            }
             polledTrip.tripDetailsResponse = response
         }
         val activeTripId = status.activeTripId ?: return
         val trip = getOrCreateTrip(activeTripId)
-        trip.recordStatus(status, response.currentTime, localTimeMs)
-        if (status.serviceDate > 0) {
+        if (trip.recordStatus(status, response.currentTime, localTimeMs)) changed = true
+        if (status.serviceDate > 0 && trip.serviceDate != status.serviceDate) {
             trip.serviceDate = status.serviceDate
+            changed = true
         }
         evictOldTripsIfNeeded()
-        notifyChanged()
+        if (changed) notifyChanged()
     }
 
     fun recordTripsForRouteResponse(response: ObaTripsForRouteResponse, localTimeMs: Long) {
         val serverTime = response.currentTime
+        var changed = false
         for (tripDetails in response.trips) {
             val status = tripDetails.status ?: continue
             val activeTrip = response.getTrip(status.activeTripId) ?: continue
             val tripId = status.activeTripId ?: continue
 
             val trip = getOrCreateTrip(tripId)
-            trip.recordStatus(status, serverTime, localTimeMs)
-            if (status.serviceDate > 0) trip.serviceDate = status.serviceDate
+            if (trip.recordStatus(status, serverTime, localTimeMs)) changed = true
+            if (status.serviceDate > 0 && trip.serviceDate != status.serviceDate) {
+                trip.serviceDate = status.serviceDate
+                changed = true
+            }
             if (trip.routeType == null) {
                 val routeId = activeTrip.routeId
                 val route = if (routeId != null) response.getRoute(routeId) else null
-                if (route != null) trip.routeType = route.type
+                if (route != null) {
+                    trip.routeType = route.type
+                    changed = true
+                }
             }
             evictOldTripsIfNeeded()
 
@@ -139,7 +151,7 @@ object TripDataManager {
                 ensureShape(tripId, shapeId)
             }
         }
-        notifyChanged()
+        if (changed) notifyChanged()
     }
 
     // --- Delegating accessors (for callers not yet using Trip directly) ---

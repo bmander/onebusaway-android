@@ -130,7 +130,7 @@ class ProblemReportFragment : Fragment(), MenuProvider {
             return
         }
         reportAnalytics(form.kind)
-        viewModel.submit(Application.getLastKnownLocation(requireContext(), null))
+        viewModel.submit(Application.getLastKnownLocation(requireContext()))
     }
 
     private fun reportAnalytics(kind: ProblemKind) {

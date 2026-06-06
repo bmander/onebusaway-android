@@ -82,7 +82,7 @@ class DefaultRegionsRepository(private val context: Context) : RegionsRepository
             val usable = regions.filter { RegionUtils.isRegionUsable(it) }
             regionsById = usable.associateBy { it.id }
 
-            val location = Application.getLastKnownLocation(context, null)
+            val location = Application.getLastKnownLocation(context)
             val currentRegionId = Application.get().currentRegion?.id
             val items = usable.map { region ->
                 RegionItem(

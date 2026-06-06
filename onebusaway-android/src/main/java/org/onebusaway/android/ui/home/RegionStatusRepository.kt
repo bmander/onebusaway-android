@@ -71,9 +71,9 @@ interface RegionStatusRepository {
 /**
  * Default implementation porting `HomeActivity.checkRegionStatus()` plus
  * [org.onebusaway.android.region.ObaRegionsTask]'s `doInBackground` + `onPostExecute` selection
- * into a single suspend call. Location is read via [Application.getLastKnownLocation] with a null
- * client (it falls back to the platform `LocationManager`), so this does not depend on the
- * deprecated `GoogleApiClient`.
+ * into a single suspend call. Location is read via [Application.getLastKnownLocation], which uses
+ * the fused provider when Google Play Services is available and otherwise falls back to the
+ * platform `LocationManager`.
  */
 class DefaultRegionStatusRepository(private val context: Context) : RegionStatusRepository {
 
@@ -114,7 +114,7 @@ class DefaultRegionStatusRepository(private val context: Context) : RegionStatus
             .getBoolean(context.getString(R.string.preference_key_auto_select_region), true)
         // getClosestRegion uses Location.distanceTo, so only compute it when auto-selecting.
         val closest = if (autoSelect) {
-            RegionUtils.getClosestRegion(results, Application.getLastKnownLocation(context, null), true)
+            RegionUtils.getClosestRegion(results, Application.getLastKnownLocation(context), true)
         } else {
             null
         }

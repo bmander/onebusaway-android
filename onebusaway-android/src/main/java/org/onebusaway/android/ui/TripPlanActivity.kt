@@ -212,7 +212,7 @@ class TripPlanActivity : AppCompatActivity() {
     // -- Current location + contacts (platform) --------------------------------------------------
 
     private fun setCurrentLocation(target: (PlaceItem) -> Unit) {
-        val location = Application.getLastKnownLocation(applicationContext, null)
+        val location = Application.getLastKnownLocation(applicationContext)
         if (location == null) {
             Toast.makeText(this, getString(R.string.no_location_permission), Toast.LENGTH_SHORT).show()
         }
@@ -359,7 +359,7 @@ class TripPlanActivity : AppCompatActivity() {
             Toast.makeText(this, getString(R.string.tripplanner_no_contact), Toast.LENGTH_SHORT).show()
             return
         }
-        val location = Application.getLastKnownLocation(applicationContext, null)
+        val location = Application.getLastKnownLocation(applicationContext)
         val locationString = location?.let { LocationUtils.printLocationDetails(it) }
         UIUtils.sendEmail(this, email, locationString, null, true)
         ObaAnalytics.reportUiEvent(

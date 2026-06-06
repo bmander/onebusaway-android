@@ -44,9 +44,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.launch
-import com.google.android.gms.common.ConnectionResult
-import com.google.android.gms.common.GoogleApiAvailability
-import com.google.android.gms.common.api.GoogleApiClient
 import com.google.firebase.analytics.FirebaseAnalytics
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
@@ -123,8 +120,6 @@ class HomeActivity : AppCompatActivity(),
 
     private var mSurveyView: View? = null
 
-    /** GoogleApiClient being used for Location Services. TODO(PR #1569): migrate to FusedLocation. */
-    private var mGoogleApiClient: GoogleApiClient? = null
 
     // The inflated map content + toolbar are hosted by the Compose HomeScreen
     // (ModalNavigationDrawer + BottomSheetScaffold) via AndroidView; the arrivals sheet content is a
@@ -236,8 +231,6 @@ class HomeActivity : AppCompatActivity(),
 
         setupMapState()
 
-        setupGooglePlayServices()
-
         pushEnvironment()
 
         TravelBehaviorManager(this, applicationContext).registerTravelBehaviorParticipant()
@@ -335,11 +328,6 @@ class HomeActivity : AppCompatActivity(),
 
     override fun onStart() {
         super.onStart()
-        // Make sure GoogleApiClient is connected, if available
-        val client = mGoogleApiClient
-        if (client != null && !client.isConnected) {
-            client.connect()
-        }
         val am = getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
         val isTalkBackEnabled = am.isTouchExplorationEnabled
         ObaAnalytics.setAccessibility(mFirebaseAnalytics, isTalkBackEnabled)
@@ -363,11 +351,6 @@ class HomeActivity : AppCompatActivity(),
     }
 
     override fun onStop() {
-        // Tear down GoogleApiClient
-        val client = mGoogleApiClient
-        if (client != null && client.isConnected) {
-            client.disconnect()
-        }
         mMapHost?.onStop()
         super.onStop()
     }
@@ -709,14 +692,14 @@ class HomeActivity : AppCompatActivity(),
         if (focusedStop != null) {
             ReportActivity.start(
                 this, focusedStop.id, focusedStop.name, focusedStop.code,
-                focusedStop.lat, focusedStop.lon, mGoogleApiClient
+                focusedStop.lat, focusedStop.lon
             )
         } else {
-            val loc = Application.getLastKnownLocation(this, mGoogleApiClient)
+            val loc = Application.getLastKnownLocation(this)
             if (loc != null) {
-                ReportActivity.start(this, loc.latitude, loc.longitude, mGoogleApiClient)
+                ReportActivity.start(this, loc.latitude, loc.longitude)
             } else {
-                ReportActivity.start(this, mGoogleApiClient)
+                ReportActivity.start(this)
             }
         }
     }
@@ -885,16 +868,6 @@ class HomeActivity : AppCompatActivity(),
         }
         navSelectionApplied = true
         goToNavDrawerItem(item, reselect)
-    }
-
-    private fun setupGooglePlayServices() {
-        // Init Google Play Services as early as possible to give it time
-        val api = GoogleApiAvailability.getInstance()
-        if (api.isGooglePlayServicesAvailable(this) == ConnectionResult.SUCCESS) {
-            val client = LocationUtils.getGoogleApiClientWithCallbacks(this)
-            mGoogleApiClient = client
-            client.connect()
-        }
     }
 
     /**

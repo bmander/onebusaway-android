@@ -26,7 +26,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.google.android.gms.common.api.GoogleApiClient
 import com.google.firebase.analytics.FirebaseAnalytics
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
@@ -174,22 +173,21 @@ class ReportActivity : BaseReportActivity() {
             stopName: String?,
             stopCode: String?,
             lat: Double,
-            lon: Double,
-            googleApiClient: GoogleApiClient?
+            lon: Double
         ) {
             context.startActivity(
-                makeIntent(context, focusId, stopName, stopCode, lat, lon, googleApiClient)
+                makeIntent(context, focusId, stopName, stopCode, lat, lon)
             )
         }
 
         @JvmStatic
-        fun start(context: Context, lat: Double, lon: Double, googleApiClient: GoogleApiClient?) {
-            context.startActivity(makeIntent(context, null, null, null, lat, lon, googleApiClient))
+        fun start(context: Context, lat: Double, lon: Double) {
+            context.startActivity(makeIntent(context, null, null, null, lat, lon))
         }
 
         @JvmStatic
-        fun start(context: Context, googleApiClient: GoogleApiClient?) {
-            context.startActivity(makeIntent(context, null, null, null, 0.0, 0.0, googleApiClient))
+        fun start(context: Context) {
+            context.startActivity(makeIntent(context, null, null, null, 0.0, 0.0))
         }
 
         private fun makeIntent(
@@ -198,8 +196,7 @@ class ReportActivity : BaseReportActivity() {
             stopName: String?,
             stopCode: String?,
             lat: Double,
-            lon: Double,
-            googleApiClient: GoogleApiClient?
+            lon: Double
         ): Intent {
             val intent = Intent(context, ReportActivity::class.java)
                 .putExtra(MapParams.STOP_ID, focusId)
@@ -207,7 +204,7 @@ class ReportActivity : BaseReportActivity() {
                 .putExtra(MapParams.STOP_CODE, stopCode)
                 .putExtra(MapParams.CENTER_LAT, lat)
                 .putExtra(MapParams.CENTER_LON, lon)
-            Application.getLastKnownLocation(context, googleApiClient)?.let {
+            Application.getLastKnownLocation(context)?.let {
                 intent.putExtra(LOCATION_STRING, LocationUtils.printLocationDetails(it))
             }
             return intent

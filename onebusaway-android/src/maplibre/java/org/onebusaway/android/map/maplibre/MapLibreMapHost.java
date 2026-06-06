@@ -183,8 +183,7 @@ public class MapLibreMapHost
         mMapView.getMapAsync(this);
 
         // If we have a recent location, show this while we're waiting on the LocationHelper
-        Location l = Application
-                .getLastKnownLocation(activity, mLocationHelper.getGoogleApiClient());
+        Location l = Application.getLastKnownLocation(activity);
         if (l != null) {
             final long TIME_THRESHOLD = TimeUnit.MINUTES.toMillis(5);
             if (System.currentTimeMillis() - l.getTime() < TIME_THRESHOLD) {
@@ -644,8 +643,7 @@ public class MapLibreMapHost
             return false;
         }
 
-        Location lastLocation = Application.getLastKnownLocation(mActivity,
-                mLocationHelper != null ? mLocationHelper.getGoogleApiClient() : null);
+        Location lastLocation = Application.getLastKnownLocation(mActivity);
         if (lastLocation == null) {
             if (!PermissionUtils.hasGrantedAtLeastOnePermission(Application.get(), LOCATION_PERMISSIONS)) {
                 if (!PreferenceUtils.userDeniedLocationPermission()) {
@@ -735,9 +733,7 @@ public class MapLibreMapHost
             return;
         }
 
-        Location l = Application
-                .getLastKnownLocation(mActivity,
-                        mLocationHelper != null ? mLocationHelper.getGoogleApiClient() : null);
+        Location l = Application.getLastKnownLocation(mActivity);
         Location mapCenter = getMapCenterAsLocation();
         if (currentRegionChanged &&
                 (l == null ||

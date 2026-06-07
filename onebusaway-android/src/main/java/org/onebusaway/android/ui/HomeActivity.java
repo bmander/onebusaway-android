@@ -254,8 +254,6 @@ public class HomeActivity extends AppCompatActivity
 
     private boolean mShowStarredRoutesMenu = false;
 
-    private boolean mShowArrivalsMenu = false;
-
     /**
      * Stop that has current focus on the map.  We retain a reference to the StopId,
      * since during rapid rotations its possible that a reference to a ObaStop object in
@@ -723,9 +721,7 @@ public class HomeActivity extends AppCompatActivity
         showFloatingActionButtons();
         if (mLastMapProgressBarState) {
             showMapProgressBar();
-        }
-        mShowArrivalsMenu = true;
-        if (mFocusedStopId != null && mSlidingPanel != null) {
+        }        if (mFocusedStopId != null && mSlidingPanel != null) {
             // if we've focused on a stop, then show the panel that was previously hidden
             mSlidingPanel.setPanelState(PanelState.COLLAPSED);
         }
@@ -744,9 +740,7 @@ public class HomeActivity extends AppCompatActivity
         hideMapFragment();
         hideReminderFragment();
         hideStarredRoutesFragment();
-        hideSlidingPanel();
-        mShowArrivalsMenu = false;
-        showZoomControls(false);
+        hideSlidingPanel();        showZoomControls(false);
 
         /**
          * Show fragment (we use show instead of replace to keep the map state)
@@ -779,9 +773,7 @@ public class HomeActivity extends AppCompatActivity
         hideMapFragment();
         hideReminderFragment();
         hideSlidingPanel();
-        hideStarredStopsFragment();
-        mShowArrivalsMenu = false;
-        showZoomControls(false);
+        hideStarredStopsFragment();        showZoomControls(false);
 
         /**
          * Show fragment (we use show instead of replace to keep the map state)
@@ -814,9 +806,7 @@ public class HomeActivity extends AppCompatActivity
         hideStarredRoutesFragment();
         hideStarredStopsFragment();
         hideMapFragment();
-        hideSlidingPanel();
-        mShowArrivalsMenu = false;
-        mShowStarredStopsMenu = false;
+        hideSlidingPanel();        mShowStarredStopsMenu = false;
         showZoomControls(false);
         /**
          * Show fragment (we use show instead of replace to keep the map state)
@@ -903,7 +893,6 @@ public class HomeActivity extends AppCompatActivity
 
     private void setupOptionsMenu(Menu menu) {
         menu.setGroupVisible(R.id.main_options_menu_group, true);
-        menu.setGroupVisible(R.id.arrival_list_menu_group, mShowArrivalsMenu);
         menu.setGroupVisible(R.id.starred_stop_menu_group, mShowStarredStopsMenu);
         menu.setGroupVisible(R.id.starred_route_menu_group, mShowStarredRoutesMenu);
     }
@@ -1160,7 +1149,6 @@ public class HomeActivity extends AppCompatActivity
                 fm.beginTransaction().remove(mArrivalsPanelFragment).commit();
                 mArrivalsPanelFragment = null;
             }
-            mShowArrivalsMenu = false;
         }
     }
 
@@ -1357,8 +1345,6 @@ public class HomeActivity extends AppCompatActivity
         // until the first response), so no stop/route objects need to be pre-populated.
         mArrivalsPanelFragment = ArrivalsPanelFragment.newInstance(stopId, stopName);
         mArrivalsPanelFragment.setListener(this);
-        mShowArrivalsMenu = true;
-
         fm.beginTransaction().replace(R.id.slidingFragment, mArrivalsPanelFragment).commit();
         showSlidingPanel();
         moveFabsLocation();

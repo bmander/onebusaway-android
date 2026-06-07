@@ -267,7 +267,7 @@ fun ArrivalsScreen(
 }
 
 @Composable
-private fun OverflowMenu(
+internal fun OverflowMenu(
     onFilter: () -> Unit,
     onStopDetails: () -> Unit,
     onReportStopProblem: () -> Unit,
@@ -424,7 +424,7 @@ private fun FilterIndicator(shown: Int, total: Int, onShowAll: () -> Unit) {
 }
 
 @Composable
-private fun RouteFilterDialog(
+internal fun RouteFilterDialog(
     options: List<RouteFilterOption>,
     onDismiss: () -> Unit,
     onSave: (Set<String>) -> Unit

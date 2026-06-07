@@ -33,7 +33,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -82,18 +84,24 @@ fun ArrivalsPanel(
         onPreferredHeight(previewArrivals.size, filtering)
     }
 
+    var showFilterDialog by remember { mutableStateOf(false) }
+
     Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             ArrivalsPanelHeader(
                 title = content?.header?.name?.takeIf { it.isNotEmpty() } ?: initialTitle,
                 direction = content?.header?.direction,
                 isFavorite = content?.header?.isFavorite == true,
-                showFavorite = content != null,
+                showActions = content != null,
                 hasAlerts = content?.alerts?.isNotEmpty() == true,
                 filtering = filtering,
                 collapsed = collapsed,
                 onToggleExpand = onToggleExpand,
-                onToggleFavorite = viewModel::toggleFavorite
+                onToggleFavorite = viewModel::toggleFavorite,
+                onFilter = { showFilterDialog = true },
+                onStopDetails = handler::onShowStopDetails,
+                onReportStopProblem = handler::onReportStopProblem,
+                onHideAlerts = viewModel::hideAllAlerts
             )
             when {
                 content == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -121,6 +129,17 @@ fun ArrivalsPanel(
             }
         }
     }
+
+    if (showFilterDialog && content != null) {
+        RouteFilterDialog(
+            options = content.routeFilterOptions,
+            onDismiss = { showFilterDialog = false },
+            onSave = {
+                viewModel.setRouteFilter(it)
+                showFilterDialog = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -128,12 +147,16 @@ private fun ArrivalsPanelHeader(
     title: String,
     direction: String?,
     isFavorite: Boolean,
-    showFavorite: Boolean,
+    showActions: Boolean,
     hasAlerts: Boolean,
     filtering: Boolean,
     collapsed: Boolean,
     onToggleExpand: () -> Unit,
-    onToggleFavorite: () -> Unit
+    onToggleFavorite: () -> Unit,
+    onFilter: () -> Unit,
+    onStopDetails: () -> Unit,
+    onReportStopProblem: () -> Unit,
+    onHideAlerts: () -> Unit
 ) {
     val chevronRotation by animateFloatAsState(if (collapsed) 0f else 180f, label = "chevron")
     Row(
@@ -168,7 +191,7 @@ private fun ArrivalsPanelHeader(
                 tint = MaterialTheme.colorScheme.error
             )
         }
-        if (showFavorite) {
+        if (showActions) {
             IconButton(onClick = onToggleFavorite) {
                 Icon(
                     painter = painterResource(
@@ -178,6 +201,12 @@ private fun ArrivalsPanelHeader(
                     tint = MaterialTheme.colorScheme.onSurface
                 )
             }
+            OverflowMenu(
+                onFilter = onFilter,
+                onStopDetails = onStopDetails,
+                onReportStopProblem = onReportStopProblem,
+                onHideAlerts = onHideAlerts
+            )
         }
         Icon(
             painter = painterResource(R.drawable.ic_navigation_expand_more),

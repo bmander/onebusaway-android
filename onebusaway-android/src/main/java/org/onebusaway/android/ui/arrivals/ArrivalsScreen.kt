@@ -15,30 +15,45 @@
  */
 package org.onebusaway.android.ui.arrivals
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -49,12 +64,30 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.onebusaway.android.R
+import org.onebusaway.android.ui.ArrivalInfo
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.UIUtils
 import org.onebusaway.android.ui.compose.components.LoadingContent
 
 /** Refresh interval matching the legacy ArrivalsListFragment (fixed 60s, not the server value). */
 private const val REFRESH_PERIOD_MS = 60_000L
+
+/**
+ * Navigation/dialog actions for the arrivals screen, implemented by the host activity (it has the
+ * Context/FragmentManager the targets need). The route-filter and alert hide/show actions are pure
+ * ViewModel operations and so are passed as plain lambdas, not through this handler.
+ */
+interface ArrivalActionHandler {
+    fun onRouteFavorite(actions: ArrivalActions)
+    fun onShowVehiclesOnMap(arrival: ArrivalInfo)
+    fun onShowTripStatus(arrival: ArrivalInfo)
+    fun onSetReminder(arrival: ArrivalInfo)
+    fun onShowRouteSchedule(scheduleUrl: String)
+    fun onReportArrivalProblem(actions: ArrivalActions)
+    fun onShowAlert(alertId: String)
+    fun onShowStopDetails()
+    fun onReportStopProblem()
+}
 
 /**
  * Stateful entry point. The polling loop lives here so it follows the activity lifecycle:
@@ -67,6 +100,7 @@ private const val REFRESH_PERIOD_MS = 60_000L
 fun ArrivalsRoute(
     viewModel: ArrivalsViewModel,
     initialTitle: String,
+    handler: ArrivalActionHandler,
     onBack: () -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -82,13 +116,30 @@ fun ArrivalsRoute(
             }
         }
     }
+    val rowCallbacks = remember(handler, viewModel) {
+        ArrivalRowCallbacks(
+            onRouteFavorite = handler::onRouteFavorite,
+            onShowVehiclesOnMap = handler::onShowVehiclesOnMap,
+            onShowTripStatus = handler::onShowTripStatus,
+            onSetReminder = handler::onSetReminder,
+            onShowOnlyRoute = viewModel::showOnlyRoute,
+            onShowRouteSchedule = handler::onShowRouteSchedule,
+            onReportArrivalProblem = handler::onReportArrivalProblem
+        )
+    }
     ArrivalsScreen(
         state = state,
         initialTitle = initialTitle,
         onBack = onBack,
         onRefresh = viewModel::manualRefresh,
         onToggleFavorite = viewModel::toggleFavorite,
-        onLoadMore = viewModel::loadMore
+        onLoadMore = viewModel::loadMore,
+        rowCallbacks = rowCallbacks,
+        handler = handler,
+        onSetRouteFilter = viewModel::setRouteFilter,
+        onShowAllRoutes = viewModel::showAllRoutes,
+        onHideAllAlerts = viewModel::hideAllAlerts,
+        onShowHiddenAlerts = viewModel::showHiddenAlerts
     )
 }
 
@@ -100,9 +151,16 @@ fun ArrivalsScreen(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onLoadMore: () -> Unit
+    onLoadMore: () -> Unit,
+    rowCallbacks: ArrivalRowCallbacks,
+    handler: ArrivalActionHandler,
+    onSetRouteFilter: (Set<String>) -> Unit,
+    onShowAllRoutes: () -> Unit,
+    onHideAllAlerts: () -> Unit,
+    onShowHiddenAlerts: () -> Unit
 ) {
     val content = state as? ArrivalsUiState.Content
+    var showFilterDialog by remember { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -138,6 +196,14 @@ fun ArrivalsScreen(
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
+                    if (content != null) {
+                        OverflowMenu(
+                            onFilter = { showFilterDialog = true },
+                            onStopDetails = handler::onShowStopDetails,
+                            onReportStopProblem = handler::onReportStopProblem,
+                            onHideAlerts = onHideAllAlerts
+                        )
+                    }
                 }
             )
         }
@@ -150,7 +216,14 @@ fun ArrivalsScreen(
             when (state) {
                 ArrivalsUiState.Loading -> LoadingContent(Modifier.align(Alignment.Center))
 
-                is ArrivalsUiState.Content -> ArrivalsList(state, onLoadMore)
+                is ArrivalsUiState.Content -> ArrivalsList(
+                    content = state,
+                    rowCallbacks = rowCallbacks,
+                    handler = handler,
+                    onLoadMore = onLoadMore,
+                    onShowAllRoutes = onShowAllRoutes,
+                    onShowHiddenAlerts = onShowHiddenAlerts
+                )
 
                 is ArrivalsUiState.Error -> Text(
                     text = state.message,
@@ -163,17 +236,86 @@ fun ArrivalsScreen(
             }
         }
     }
+    if (showFilterDialog && content != null) {
+        RouteFilterDialog(
+            options = content.routeFilterOptions,
+            onDismiss = { showFilterDialog = false },
+            onSave = {
+                onSetRouteFilter(it)
+                showFilterDialog = false
+            }
+        )
+    }
 }
 
 @Composable
-private fun ArrivalsList(content: ArrivalsUiState.Content, onLoadMore: () -> Unit) {
+private fun OverflowMenu(
+    onFilter: () -> Unit,
+    onStopDetails: () -> Unit,
+    onReportStopProblem: () -> Unit,
+    onHideAlerts: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                painter = painterResource(R.drawable.ic_navigation_more_vert),
+                contentDescription = stringResource(R.string.stop_info_item_options_title),
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            MenuRow(R.string.stop_info_option_filter) { expanded = false; onFilter() }
+            MenuRow(R.string.stop_info_option_show_details) { expanded = false; onStopDetails() }
+            MenuRow(R.string.stop_info_option_report_problem) { expanded = false; onReportStopProblem() }
+            MenuRow(R.string.stop_info_option_hide_alerts) { expanded = false; onHideAlerts() }
+        }
+    }
+}
+
+@Composable
+private fun ArrivalsList(
+    content: ArrivalsUiState.Content,
+    rowCallbacks: ArrivalRowCallbacks,
+    handler: ArrivalActionHandler,
+    onLoadMore: () -> Unit,
+    onShowAllRoutes: () -> Unit,
+    onShowHiddenAlerts: () -> Unit
+) {
     val useCards = content.style == BuildFlavorUtils.ARRIVAL_INFO_STYLE_B &&
         UIUtils.canSupportArrivalInfoStyleB()
     // Sorting/grouping is non-trivial; keep it off the recomposition path
     val groups = remember(content.arrivals, useCards) {
         if (useCards) groupForStyleB(content.arrivals) else emptyList()
     }
+    val filterActive = content.filteredRouteCount > 0
     LazyColumn(Modifier.fillMaxSize()) {
+        items(content.alerts, key = { "alert:${it.id}" }) { alert ->
+            AlertRow(alert) { handler.onShowAlert(alert.id) }
+        }
+        if (content.hiddenAlertCount > 0) {
+            item(key = "hidden_alerts") {
+                TextButton(
+                    onClick = onShowHiddenAlerts,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                ) {
+                    Text(
+                        pluralStringResource(
+                            R.plurals.alert_filter_text,
+                            content.hiddenAlertCount,
+                            content.hiddenAlertCount
+                        )
+                    )
+                }
+            }
+        }
+        if (content.filteredRouteCount in 1 until content.header.routeCount) {
+            item(key = "filter_indicator") {
+                FilterIndicator(content.filteredRouteCount, content.header.routeCount, onShowAllRoutes)
+            }
+        }
         content.header.direction?.let { direction ->
             item(key = "direction") { DirectionLine(direction) }
         }
@@ -181,11 +323,21 @@ private fun ArrivalsList(content: ArrivalsUiState.Content, onLoadMore: () -> Uni
             item(key = "empty") { EmptyArrivals(content.minutesAfter) }
         } else if (useCards) {
             items(groups, key = { it.first().info.run { "$routeId:$headsign" } }) { group ->
-                ArrivalCardStyleB(group)
+                ArrivalCardStyleB(
+                    group = group,
+                    actions = content.actions[group.first().info.tripId],
+                    filterActive = filterActive,
+                    callbacks = rowCallbacks
+                )
             }
         } else {
             items(content.arrivals, key = { it.info.tripId }) { arrival ->
-                ArrivalRowStyleA(arrival)
+                ArrivalRowStyleA(
+                    arrival = arrival,
+                    actions = content.actions[arrival.info.tripId],
+                    filterActive = filterActive,
+                    callbacks = rowCallbacks
+                )
             }
         }
         item(key = "load_more") {
@@ -199,6 +351,101 @@ private fun ArrivalsList(content: ArrivalsUiState.Content, onLoadMore: () -> Uni
             }
         }
     }
+}
+
+@Composable
+private fun AlertRow(alert: AlertItem, onClick: () -> Unit) {
+    val (container, onContainer) = when (alert.severity) {
+        AlertSeverity.ERROR ->
+            MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+        AlertSeverity.WARNING ->
+            MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        AlertSeverity.INFO ->
+            MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+    }
+    Surface(
+        color = container,
+        contentColor = onContainer,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clickable { onClick() }
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                painter = painterResource(R.drawable.baseline_warning_24),
+                contentDescription = null
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(text = alert.summary, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun FilterIndicator(shown: Int, total: Int, onShowAll: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.stop_info_filter_header, shown, total),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onShowAll) {
+            Text(stringResource(R.string.bus_options_menu_show_all_routes))
+        }
+    }
+}
+
+@Composable
+private fun RouteFilterDialog(
+    options: List<RouteFilterOption>,
+    onDismiss: () -> Unit,
+    onSave: (Set<String>) -> Unit
+) {
+    val checked = remember(options) {
+        mutableStateListOf<Boolean>().apply { addAll(options.map { it.checked }) }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.stop_info_filter_title)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                options.forEachIndexed { index, option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { checked[index] = !checked[index] }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(checked = checked[index], onCheckedChange = { checked[index] = it })
+                        Text(option.displayName)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val selected = options
+                    .filterIndexed { index, _ -> checked[index] }
+                    .map { it.routeId }
+                    .toSet()
+                onSave(collapseRouteFilter(selected, options.size))
+            }) {
+                Text(stringResource(R.string.stop_info_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.stop_info_cancel)) }
+        }
+    )
 }
 
 @Composable

@@ -30,6 +30,25 @@ fun stopDisplayName(stop: ObaStop, userInfo: StopUserInfo?): String =
     userInfo?.userName?.takeIf { it.isNotEmpty() } ?: UIUtils.formatDisplayText(stop.name).orEmpty()
 
 /**
+ * Loads a single stop's favorite/custom-name customization with a targeted query, for screens
+ * (like arrivals) that only need the one stop. Returns null when the stop has no saved row.
+ */
+fun loadStopUserInfo(context: Context, stopId: String): StopUserInfo? =
+    context.contentResolver.query(
+        ObaContract.Stops.CONTENT_URI,
+        arrayOf(ObaContract.Stops.FAVORITE, ObaContract.Stops.USER_NAME),
+        "${ObaContract.Stops._ID} = ?",
+        arrayOf(stopId),
+        null
+    )?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            StopUserInfo(isFavorite = cursor.getInt(0) == 1, userName = cursor.getString(1))
+        } else {
+            null
+        }
+    }
+
+/**
  * Loads the user's favorite and custom-named stops from the ContentProvider, keyed by stop id.
  * The same query the legacy UIUtils.StopUserInfoMap ran; shared by the Compose stop repositories
  * so each row can show the star and the user's name.

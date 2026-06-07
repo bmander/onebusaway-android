@@ -17,15 +17,24 @@ package org.onebusaway.android.ui.arrivals
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import org.onebusaway.android.io.elements.ObaSituation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
+ * Collapses a route-filter selection to "show all" (empty) when every route is selected, matching
+ * the legacy RoutesFilterDialog. Kept as a pure function so it's unit-testable.
+ */
+internal fun collapseRouteFilter(selected: Set<String>, totalRoutes: Int): Set<String> =
+    if (selected.size >= totalRoutes) emptySet() else selected
+
+/**
  * ViewModel for the standalone arrivals screen. The 60-second polling loop lives in the screen
  * (driven by the activity lifecycle); this exposes [refresh] for it to call plus the user
- * actions. The current time window ([minutesAfter]) grows with "load more".
+ * actions. The current time window ([minutesAfter]) grows with "load more"; the route filter is
+ * seeded from the provider on the first load and then held in memory.
  */
 class ArrivalsViewModel(
     private val stopId: String,
@@ -39,6 +48,9 @@ class ArrivalsViewModel(
 
     private var routeFilter: Set<String> = emptySet()
 
+    /** Until the first load, let the repository seed the filter from the provider. */
+    private var filterLoaded = false
+
     /** Wall-clock time of the last completed load, read by the screen's polling loop. */
     var lastResponseTimeMs: Long = 0L
         private set
@@ -50,18 +62,14 @@ class ArrivalsViewModel(
      * when there is nothing to show.
      */
     suspend fun refresh() {
-        val result = repository.getArrivals(stopId, minutesAfter, routeFilter)
+        val result = repository.getArrivals(stopId, minutesAfter, routeFilter.takeIf { filterLoaded })
         lastResponseTimeMs = System.currentTimeMillis()
         result.fold(
             onSuccess = { data ->
                 minutesAfter = data.minutesAfter
-                _state.value = ArrivalsUiState.Content(
-                    header = data.header,
-                    arrivals = data.arrivals,
-                    minutesAfter = data.minutesAfter,
-                    style = data.style,
-                    isStale = data.isStale
-                )
+                routeFilter = data.effectiveRouteFilter
+                filterLoaded = true
+                _state.value = data.toContent()
             },
             onFailure = { error ->
                 if (_state.value !is ArrivalsUiState.Content) {
@@ -89,4 +97,64 @@ class ArrivalsViewModel(
         _state.value = content.copy(header = content.header.copy(isFavorite = newValue))
         viewModelScope.launch { repository.setStopFavorite(content.header.stopId, newValue) }
     }
+
+    /** Replaces the route filter (empty == show all), persists it, and reloads. */
+    fun setRouteFilter(filter: Set<String>) {
+        routeFilter = filter
+        filterLoaded = true
+        viewModelScope.launch {
+            repository.setRouteFilter(stopId, filter)
+            refresh()
+        }
+    }
+
+    /** The per-arrival "show only this route" toggle: select it, or clear if already narrowed. */
+    fun showOnlyRoute(routeId: String) {
+        val target = setOf(routeId)
+        // Legacy toggle: clear when already showing just this route, or when a broader filter is set
+        setRouteFilter(if (routeFilter == target || routeFilter.size > 1) emptySet() else target)
+    }
+
+    /** Clears the route filter (the header "show all" affordance). */
+    fun showAllRoutes() {
+        setRouteFilter(emptySet())
+    }
+
+    /** Hides every currently shown alert (the toolbar "hide alerts" action). */
+    fun hideAllAlerts() {
+        val ids = (_state.value as? ArrivalsUiState.Content)?.alerts?.map { it.id } ?: return
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            repository.hideAlerts(ids)
+            refresh()
+        }
+    }
+
+    /** Un-hides every alert (the "show hidden alerts" affordance). */
+    fun showHiddenAlerts() {
+        viewModelScope.launch {
+            repository.showAllAlerts()
+            refresh()
+        }
+    }
+
+    /** The full situation for an alert id, for the alert dialog (read from the last good response). */
+    fun situation(id: String): ObaSituation? = repository.situation(id)
+
+    private fun ArrivalsData.toContent() = ArrivalsUiState.Content(
+        header = header,
+        arrivals = arrivals,
+        minutesAfter = minutesAfter,
+        style = style,
+        isStale = isStale,
+        actions = actions,
+        alerts = alerts,
+        hiddenAlertCount = hiddenAlertCount,
+        routeFilterOptions = routeFilterOptions,
+        filteredRouteCount = filteredRouteCount,
+        stopCode = stopCode,
+        stopLat = stopLat,
+        stopLon = stopLon,
+        stopUserName = stopUserName
+    )
 }

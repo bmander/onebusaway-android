@@ -15,21 +15,32 @@
  */
 package org.onebusaway.android.ui.arrivals
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -38,6 +49,21 @@ import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.ui.ArrivalInfo
 import org.onebusaway.util.comparators.AlphanumComparator
+
+/**
+ * The per-arrival menu actions (legacy `showListItemMenu`). Implemented by the host activity,
+ * which has the Context/FragmentManager needed to launch the targets. The route-filter toggle is
+ * a ViewModel action; the rest are navigation/dialogs.
+ */
+class ArrivalRowCallbacks(
+    val onRouteFavorite: (ArrivalActions) -> Unit,
+    val onShowVehiclesOnMap: (ArrivalInfo) -> Unit,
+    val onShowTripStatus: (ArrivalInfo) -> Unit,
+    val onSetReminder: (ArrivalInfo) -> Unit,
+    val onShowOnlyRoute: (String) -> Unit,
+    val onShowRouteSchedule: (String) -> Unit,
+    val onReportArrivalProblem: (ArrivalActions) -> Unit
+)
 
 /**
  * Groups arrivals into per-(route, headsign) lists for the card style, matching the legacy
@@ -64,36 +90,54 @@ fun groupForStyleB(arrivals: List<ArrivalInfo>): List<List<ArrivalInfo>> {
     return groups
 }
 
-/** A single flat arrival row (Style A): route badge, headsign, status, and ETA. */
+/** A single flat arrival row (Style A): route badge, headsign, status, and ETA. Tapping opens the menu. */
 @Composable
-fun ArrivalRowStyleA(arrival: ArrivalInfo, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = arrival.info.shortName.orEmpty(),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.width(64.dp)
-        )
-        Column(Modifier.weight(1f)) {
+fun ArrivalRowStyleA(
+    arrival: ArrivalInfo,
+    actions: ArrivalActions?,
+    filterActive: Boolean,
+    callbacks: ArrivalRowCallbacks,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .clickable { expanded = true }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = arrival.info.headsign.orEmpty(),
-                style = MaterialTheme.typography.bodyLarge,
-                textDecoration = canceledDecoration(arrival)
+                text = arrival.info.shortName.orEmpty(),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.width(64.dp)
             )
-            StatusText(arrival)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = arrival.info.headsign.orEmpty(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    textDecoration = canceledDecoration(arrival)
+                )
+                StatusText(arrival)
+            }
+            EtaBlock(arrival)
         }
-        EtaBlock(arrival)
+        ArrivalActionsMenu(expanded, { expanded = false }, arrival, actions, filterActive, callbacks)
     }
 }
 
 /** A card grouping all upcoming arrivals for one route + headsign (Style B). */
 @Composable
-fun ArrivalCardStyleB(group: List<ArrivalInfo>, modifier: Modifier = Modifier) {
+fun ArrivalCardStyleB(
+    group: List<ArrivalInfo>,
+    actions: ArrivalActions?,
+    filterActive: Boolean,
+    callbacks: ArrivalRowCallbacks,
+    modifier: Modifier = Modifier
+) {
     val first = group.first()
+    var expanded by remember { mutableStateOf(false) }
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -102,16 +146,29 @@ fun ArrivalCardStyleB(group: List<ArrivalInfo>, modifier: Modifier = Modifier) {
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text(
-                text = first.info.shortName.orEmpty(),
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                text = first.info.headsign.orEmpty(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textDecoration = canceledDecoration(first)
-            )
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = first.info.shortName.orEmpty(),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = first.info.headsign.orEmpty(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textDecoration = canceledDecoration(first)
+                    )
+                }
+                Box {
+                    IconButton(onClick = { expanded = true }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_navigation_more_vert),
+                            contentDescription = stringResource(R.string.stop_info_item_options_title)
+                        )
+                    }
+                    ArrivalActionsMenu(expanded, { expanded = false }, first, actions, filterActive, callbacks)
+                }
+            }
             group.forEachIndexed { index, arrival ->
                 if (index > 0) HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Row(
@@ -129,6 +186,60 @@ fun ArrivalCardStyleB(group: List<ArrivalInfo>, modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+/** The dropdown of per-arrival actions, gated like the legacy `UIUtils.buildTripOptions` (minus occupancy). */
+@Composable
+private fun ArrivalActionsMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    arrival: ArrivalInfo,
+    actions: ArrivalActions?,
+    filterActive: Boolean,
+    callbacks: ArrivalRowCallbacks
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        if (actions != null) {
+            val favLabel = if (actions.isRouteFavorite) {
+                R.string.bus_options_menu_remove_star
+            } else {
+                R.string.bus_options_menu_add_star
+            }
+            MenuRow(favLabel) { onDismiss(); callbacks.onRouteFavorite(actions) }
+        }
+        MenuRow(R.string.bus_options_menu_show_vehicles_on_map) {
+            onDismiss(); callbacks.onShowVehiclesOnMap(arrival)
+        }
+        MenuRow(R.string.bus_options_menu_show_trip_details) {
+            onDismiss(); callbacks.onShowTripStatus(arrival)
+        }
+        MenuRow(R.string.bus_options_menu_set_reminder) {
+            onDismiss(); callbacks.onSetReminder(arrival)
+        }
+        val filterLabel = if (filterActive) {
+            R.string.bus_options_menu_show_all_routes
+        } else {
+            R.string.bus_options_menu_show_only_this_route
+        }
+        MenuRow(filterLabel) { onDismiss(); callbacks.onShowOnlyRoute(arrival.info.routeId) }
+        val url = actions?.scheduleUrl
+        if (!url.isNullOrBlank()) {
+            MenuRow(R.string.bus_options_menu_show_route_schedule) {
+                onDismiss(); callbacks.onShowRouteSchedule(url)
+            }
+        }
+        if (actions != null) {
+            MenuRow(R.string.bus_options_menu_report_trip_problem) {
+                onDismiss(); callbacks.onReportArrivalProblem(actions)
+            }
+        }
+    }
+}
+
+/** A dropdown item that just shows a string resource; shared by the per-arrival and overflow menus. */
+@Composable
+internal fun MenuRow(textRes: Int, onClick: () -> Unit) {
+    DropdownMenuItem(text = { Text(stringResource(textRes)) }, onClick = onClick)
 }
 
 @Composable

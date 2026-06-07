@@ -22,15 +22,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,6 +47,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
+import org.onebusaway.android.ui.compose.components.ErrorContent
+import org.onebusaway.android.ui.compose.components.LoadingContent
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.util.UIUtils
 
@@ -101,7 +100,7 @@ fun AgenciesScreen(
                 .padding(padding)
         ) {
             when (state) {
-                AgenciesUiState.Loading -> CircularProgressIndicator(
+                AgenciesUiState.Loading -> LoadingContent(
                     Modifier.align(Alignment.Center)
                 )
 
@@ -160,21 +159,6 @@ private fun AgencyRow(agency: AgencyItem, onClick: (AgencyItem) -> Unit) {
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun ErrorContent(onRetry: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = stringResource(R.string.internal_error),
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = onRetry) {
-            Text(stringResource(R.string.retry))
         }
     }
 }

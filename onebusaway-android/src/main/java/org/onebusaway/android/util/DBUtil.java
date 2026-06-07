@@ -50,10 +50,6 @@ public class DBUtil {
     }
 
     public static void addRouteToDB(Context ctx, ObaRoute route){
-        if (Application.get().getCurrentRegion() == null) return;
-
-        ContentValues routeValues = new ContentValues();
-
         String shortName = route.getShortName();
         String longName = route.getLongName();
 
@@ -64,11 +60,23 @@ public class DBUtil {
             longName = route.getDescription();
         }
 
+        addRouteToDB(ctx, route.getId(), shortName, longName, route.getUrl());
+    }
+
+    /**
+     * Registers a route in the recents/search provider from already-resolved display fields.
+     * Used by callers that hold a Compose-side route model rather than an {@link ObaRoute}.
+     */
+    public static void addRouteToDB(Context ctx, String id, String shortName, String longName,
+            String url) {
+        if (Application.get().getCurrentRegion() == null) return;
+
+        ContentValues routeValues = new ContentValues();
         routeValues.put(ObaContract.Routes.SHORTNAME, shortName);
         routeValues.put(ObaContract.Routes.LONGNAME, longName);
-        routeValues.put(ObaContract.Routes.URL, route.getUrl());
+        routeValues.put(ObaContract.Routes.URL, url);
         routeValues.put(ObaContract.Routes.REGION_ID, Application.get().getCurrentRegion().getId());
 
-        ObaContract.Routes.insertOrUpdate(ctx, route.getId(), routeValues, true);
+        ObaContract.Routes.insertOrUpdate(ctx, id, routeValues, true);
     }
 }

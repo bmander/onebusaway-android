@@ -22,7 +22,8 @@ import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaStopsForLocationRequest
-import org.onebusaway.android.provider.ObaContract
+import org.onebusaway.android.provider.StopUserInfo
+import org.onebusaway.android.provider.loadStopUserInfo
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.UIUtils
 
@@ -57,8 +58,6 @@ interface StopSearchRepository {
  */
 class DefaultStopSearchRepository(private val context: Context) : StopSearchRepository {
 
-    private data class StopUserInfo(val isFavorite: Boolean, val userName: String?)
-
     override suspend fun search(query: String): Result<List<StopSearchResult>> =
         withContext(Dispatchers.IO) {
             val response = ObaStopsForLocationRequest.Builder(context, LocationUtils.getSearchCenter(context))
@@ -72,7 +71,7 @@ class DefaultStopSearchRepository(private val context: Context) : StopSearchRepo
                 // Server replied with an error code — legacy screens show "no results"
                 response.code != ObaApi.OBA_OK -> Result.success(emptyList())
                 else -> {
-                    val userInfo = loadStopUserInfo()
+                    val userInfo = loadStopUserInfo(context)
                     Result.success(response.stops.map { toResult(it, userInfo[it.id]) })
                 }
             }
@@ -88,24 +87,4 @@ class DefaultStopSearchRepository(private val context: Context) : StopSearchRepo
         latitude = stop.latitude,
         longitude = stop.longitude
     )
-
-    private fun loadStopUserInfo(): Map<String, StopUserInfo> {
-        val map = mutableMapOf<String, StopUserInfo>()
-        context.contentResolver.query(
-            ObaContract.Stops.CONTENT_URI,
-            arrayOf(ObaContract.Stops._ID, ObaContract.Stops.FAVORITE, ObaContract.Stops.USER_NAME),
-            "(" + ObaContract.Stops.USER_NAME + " IS NOT NULL) OR ("
-                    + ObaContract.Stops.FAVORITE + "=1)",
-            null,
-            null
-        )?.use { cursor ->
-            while (cursor.moveToNext()) {
-                map[cursor.getString(0)] = StopUserInfo(
-                    isFavorite = cursor.getInt(1) == 1,
-                    userName = cursor.getString(2)
-                )
-            }
-        }
-        return map
-    }
 }

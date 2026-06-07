@@ -31,6 +31,7 @@ import org.onebusaway.android.io.request.ObaStopsForRouteRequest
 import org.onebusaway.android.io.request.ObaStopsForRouteResponse
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.routeDisplayNames
 
 /** Loads a route's metadata and its stops grouped by direction. */
 interface RouteInfoRepository {
@@ -88,16 +89,17 @@ class DefaultRouteInfoRepository(private val context: Context) : RouteInfoReposi
         ObaContract.Routes.insertOrUpdate(context, route.id, values, true)
     }
 
-    private fun toRouteInfo(route: ObaRouteResponse, stops: ObaStopsForRouteResponse) = RouteInfo(
-        id = route.id,
-        // getRouteDisplayName / getRouteDescription apply the same short→long→description
-        // fallbacks the legacy header did
-        shortName = UIUtils.formatDisplayText(UIUtils.getRouteDisplayName(route)).orEmpty(),
-        longName = UIUtils.getRouteDescription(route)?.takeIf { it.isNotEmpty() },
-        agencyName = route.agency?.name,
-        url = route.url?.takeIf { it.isNotEmpty() },
-        directions = toDirections(stops)
-    )
+    private fun toRouteInfo(route: ObaRouteResponse, stops: ObaStopsForRouteResponse): RouteInfo {
+        val names = routeDisplayNames(route)
+        return RouteInfo(
+            id = route.id,
+            shortName = names.shortName,
+            longName = names.longName,
+            agencyName = route.agency?.name,
+            url = route.url?.takeIf { it.isNotEmpty() },
+            directions = toDirections(stops)
+        )
+    }
 
     private fun toDirections(stops: ObaStopsForRouteResponse): List<RouteDirection> {
         val stopsById = stops.stops.associateBy { it.id }

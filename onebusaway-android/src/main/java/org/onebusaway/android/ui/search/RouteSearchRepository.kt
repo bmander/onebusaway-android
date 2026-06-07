@@ -23,7 +23,7 @@ import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.request.ObaRoutesForLocationRequest
 import org.onebusaway.android.util.LocationUtils
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.routeDisplayNames
 
 /**
  * A route search match.
@@ -80,20 +80,12 @@ class DefaultRouteSearchRepository(private val context: Context) : RouteSearchRe
             }
         }
 
-    /** Applies the same display fallbacks as the legacy UIUtils.setRouteView(). */
     private fun toResult(route: ObaRoute): RouteSearchResult {
-        var shortName = route.shortName
-        var longName = UIUtils.formatDisplayText(route.longName)
-        if (shortName.isNullOrEmpty()) {
-            shortName = longName
-        }
-        if (longName.isNullOrEmpty() || shortName == longName) {
-            longName = UIUtils.formatDisplayText(route.description)
-        }
+        val names = routeDisplayNames(route)
         return RouteSearchResult(
             id = route.id,
-            shortName = shortName.orEmpty(),
-            longName = longName?.takeIf { it.isNotEmpty() },
+            shortName = names.shortName,
+            longName = names.longName,
             url = route.url?.takeIf { it.isNotEmpty() }
         )
     }

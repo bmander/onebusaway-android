@@ -16,9 +16,18 @@
 package org.onebusaway.android.provider
 
 import android.content.Context
+import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.util.UIUtils
 
 /** A user's customization of a stop: whether it's a favorite, and any custom name. */
 data class StopUserInfo(val isFavorite: Boolean, val userName: String?)
+
+/**
+ * The name to display for a stop: the user's custom name if they renamed it, otherwise the
+ * formatted server name.
+ */
+fun stopDisplayName(stop: ObaStop, userInfo: StopUserInfo?): String =
+    userInfo?.userName?.takeIf { it.isNotEmpty() } ?: UIUtils.formatDisplayText(stop.name).orEmpty()
 
 /**
  * Loads the user's favorite and custom-named stops from the ContentProvider, keyed by stop id.

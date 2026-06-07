@@ -31,8 +31,9 @@ import org.onebusaway.android.io.request.ObaStopsForLocationRequest
 import org.onebusaway.android.io.request.ObaStopsForLocationResponse
 import org.onebusaway.android.provider.StopUserInfo
 import org.onebusaway.android.provider.loadStopUserInfo
+import org.onebusaway.android.provider.stopDisplayName
 import org.onebusaway.android.util.LocationUtils
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.routeDisplayNames
 
 /** Searches routes and stops near the user and combines them into one result list. */
 interface SearchResultsRepository {
@@ -101,19 +102,20 @@ class DefaultSearchResultsRepository(private val context: Context) : SearchResul
             .build()
             .call()
 
-    private fun toRoute(route: ObaRoute) = SearchResultItem.Route(
-        id = route.id,
-        // Same display fallbacks as the legacy UIUtils.setRouteView()
-        shortName = UIUtils.formatDisplayText(UIUtils.getRouteDisplayName(route)).orEmpty(),
-        longName = UIUtils.getRouteDescription(route)?.takeIf { it.isNotEmpty() },
-        url = route.url?.takeIf { it.isNotEmpty() }
-    )
+    private fun toRoute(route: ObaRoute): SearchResultItem.Route {
+        val names = routeDisplayNames(route)
+        return SearchResultItem.Route(
+            id = route.id,
+            shortName = names.shortName,
+            longName = names.longName,
+            url = route.url?.takeIf { it.isNotEmpty() }
+        )
+    }
 
     private fun toStop(stop: ObaStop, userInfo: StopUserInfo?) =
         SearchResultItem.Stop(
             id = stop.id,
-            name = userInfo?.userName?.takeIf { it.isNotEmpty() }
-                ?: UIUtils.formatDisplayText(stop.name).orEmpty(),
+            name = stopDisplayName(stop, userInfo),
             direction = stop.direction.orEmpty(),
             isFavorite = userInfo?.isFavorite == true,
             latitude = stop.latitude,

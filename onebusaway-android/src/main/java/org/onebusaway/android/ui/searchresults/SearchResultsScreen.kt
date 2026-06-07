@@ -17,15 +17,10 @@ package org.onebusaway.android.ui.searchresults
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,8 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.colorResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -46,8 +39,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.ListUiState
 import org.onebusaway.android.ui.compose.components.ListScreenScaffold
+import org.onebusaway.android.ui.compose.components.MenuHeader
+import org.onebusaway.android.ui.compose.components.RouteRowContent
+import org.onebusaway.android.ui.compose.components.StopRowContent
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.util.UIUtils
 
 /**
  * Stateful entry point: collects the ViewModel's query (title) and results, and forwards each
@@ -127,21 +122,14 @@ private fun RouteResultRow(
     var menuExpanded by remember { mutableStateOf(false) }
     val options = stringArrayResource(R.array.search_route_options)
     Box {
-        Column(
-            Modifier
+        RouteRowContent(
+            shortName = route.shortName,
+            longName = route.longName,
+            modifier = Modifier
                 .fillMaxWidth()
                 .clickable { menuExpanded = true }
                 .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-            Text(route.shortName, style = MaterialTheme.typography.bodyLarge)
-            if (route.longName != null) {
-                Text(
-                    text = route.longName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+        )
         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
             MenuHeader(route.longName ?: route.shortName)
             DropdownMenuItem(
@@ -165,33 +153,15 @@ private fun StopResultRow(
     var menuExpanded by remember { mutableStateOf(false) }
     val options = stringArrayResource(R.array.search_stop_options)
     Box {
-        Row(
+        StopRowContent(
+            name = stop.name,
+            direction = stop.direction,
+            isFavorite = stop.isFavorite,
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { menuExpanded = true }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (stop.isFavorite) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_toggle_star),
-                    contentDescription = stringResource(R.string.stop_info_favorite),
-                    tint = colorResource(R.color.navdrawer_icon_tint)
-                )
-                Spacer(Modifier.width(8.dp))
-            }
-            Column {
-                Text(stop.name, style = MaterialTheme.typography.bodyLarge)
-                val direction = stringResource(UIUtils.getStopDirectionText(stop.direction))
-                if (direction.isNotEmpty()) {
-                    Text(
-                        text = direction,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        )
         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
             MenuHeader(stop.name)
             DropdownMenuItem(
@@ -204,16 +174,6 @@ private fun StopResultRow(
             )
         }
     }
-}
-
-@Composable
-private fun MenuHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-    )
 }
 
 @Preview(showBackground = true)

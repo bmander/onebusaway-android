@@ -57,8 +57,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.components.LoadingContent
+import org.onebusaway.android.ui.compose.components.MenuHeader
+import org.onebusaway.android.ui.compose.components.StopRowContent
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.util.UIUtils
 
 /** Stateful entry point: collects the ViewModel's state and wires UI events to the host. */
 @Composable
@@ -263,32 +264,22 @@ private fun StopRow(
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     Box {
-        Column(
-            Modifier
+        // Route info stops are never favorites here, and the start padding indents them under
+        // their direction group
+        StopRowContent(
+            name = stop.name,
+            direction = stop.direction,
+            isFavorite = false,
+            modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
                     onClick = { onStopClick(stop) },
                     onLongClick = { menuExpanded = true }
                 )
                 .padding(start = 32.dp, end = 16.dp, top = 12.dp, bottom = 12.dp)
-        ) {
-            Text(stop.name, style = MaterialTheme.typography.bodyLarge)
-            val direction = stringResource(UIUtils.getStopDirectionText(stop.direction))
-            if (direction.isNotEmpty()) {
-                Text(
-                    text = direction,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+        )
         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-            Text(
-                text = stop.name,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
+            MenuHeader(stop.name)
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.route_info_context_get_stop_info)) },
                 onClick = {

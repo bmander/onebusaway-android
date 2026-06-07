@@ -24,8 +24,8 @@ import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaStopsForLocationRequest
 import org.onebusaway.android.provider.StopUserInfo
 import org.onebusaway.android.provider.loadStopUserInfo
+import org.onebusaway.android.provider.stopDisplayName
 import org.onebusaway.android.util.LocationUtils
-import org.onebusaway.android.util.UIUtils
 
 /**
  * A stop search match.
@@ -79,8 +79,7 @@ class DefaultStopSearchRepository(private val context: Context) : StopSearchRepo
 
     private fun toResult(stop: ObaStop, userInfo: StopUserInfo?) = StopSearchResult(
         id = stop.id,
-        name = userInfo?.userName?.takeIf { it.isNotEmpty() }
-            ?: UIUtils.formatDisplayText(stop.name).orEmpty(),
+        name = stopDisplayName(stop, userInfo),
         serverName = stop.name,
         direction = stop.direction.orEmpty(),
         isFavorite = userInfo?.isFavorite == true,

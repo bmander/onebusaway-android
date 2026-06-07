@@ -19,7 +19,7 @@
         <item>Show Tutorial</item>
         <item>Legend</item>
         <item>What\'s New?</item>
-        <item>Supported Agencies</item>
+        <item>@string/agencies_title</item>
         <item>Twitter Feed</item>
         <item>Contact Us</item>
     </string-array>
@@ -27,7 +27,7 @@
         <item>Show Tutorial</item>
         <item>Legend</item>
         <item>What\'s New?</item>
-        <item>Supported Agencies</item>
+        <item>@string/agencies_title</item>
         <item>Twitter Feed</item>
     </string-array>
     <string-array name="route_favorite_options">

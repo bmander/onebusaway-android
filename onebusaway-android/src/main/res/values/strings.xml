@@ -1333,4 +1333,10 @@
     <string name="arrival_options_first_description">Options for first arrival</string>
     <string name="arrival_options_second_description">Options for second arrival</string>
     <string name="map_option_layers">Maps Layers Button</string>
+
+    <!-- Supported agencies screen -->
+    <string name="agencies_title">Supported Agencies</string>
+    <string name="agencies_empty">No agencies found for the current region.</string>
+    <string name="retry">Retry</string>
+    <string name="navigate_up">Navigate up</string>
 </resources>

@@ -90,21 +90,26 @@ fun groupForStyleB(arrivals: List<ArrivalInfo>): List<List<ArrivalInfo>> {
     return groups
 }
 
-/** A single flat arrival row (Style A): route badge, headsign, status, and ETA. Tapping opens the menu. */
+/**
+ * A single flat arrival row (Style A): route badge, headsign, status, and ETA. Tapping opens the
+ * per-arrival menu, unless [onRowClick] is set (picker mode), in which case the tap picks the row
+ * and the menu is suppressed.
+ */
 @Composable
 fun ArrivalRowStyleA(
     arrival: ArrivalInfo,
     actions: ArrivalActions?,
     filterActive: Boolean,
     callbacks: ArrivalRowCallbacks,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onRowClick: ((ArrivalInfo) -> Unit)? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         Row(
             modifier = modifier
                 .fillMaxWidth()
-                .clickable { expanded = true }
+                .clickable { if (onRowClick != null) onRowClick(arrival) else expanded = true }
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -123,7 +128,9 @@ fun ArrivalRowStyleA(
             }
             EtaBlock(arrival)
         }
-        ArrivalActionsMenu(expanded, { expanded = false }, arrival, actions, filterActive, callbacks)
+        if (onRowClick == null) {
+            ArrivalActionsMenu(expanded, { expanded = false }, arrival, actions, filterActive, callbacks)
+        }
     }
 }
 
@@ -190,7 +197,7 @@ fun ArrivalCardStyleB(
 
 /** The dropdown of per-arrival actions, gated like the legacy `UIUtils.buildTripOptions` (minus occupancy). */
 @Composable
-private fun ArrivalActionsMenu(
+internal fun ArrivalActionsMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     arrival: ArrivalInfo,
@@ -243,7 +250,7 @@ internal fun MenuRow(textRes: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun StatusText(arrival: ArrivalInfo) {
+internal fun StatusText(arrival: ArrivalInfo) {
     Text(
         text = arrival.statusText.orEmpty(),
         style = MaterialTheme.typography.bodyMedium,
@@ -252,7 +259,7 @@ private fun StatusText(arrival: ArrivalInfo) {
 }
 
 @Composable
-private fun EtaBlock(arrival: ArrivalInfo) {
+internal fun EtaBlock(arrival: ArrivalInfo) {
     val eta = arrival.eta
     Row(verticalAlignment = Alignment.Bottom) {
         if (eta == 0L) {

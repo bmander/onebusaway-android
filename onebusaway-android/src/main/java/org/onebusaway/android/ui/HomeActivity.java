@@ -26,6 +26,7 @@ import com.google.firebase.analytics.FirebaseAnalytics;
 
 import com.sothree.slidinguppanel.PanelSlideListener;
 import com.sothree.slidinguppanel.PanelState;
+import com.sothree.slidinguppanel.ScrollableViewHelper;
 import com.sothree.slidinguppanel.SlidingUpPanelLayout;
 
 import org.onebusaway.android.BuildConfig;
@@ -54,11 +55,11 @@ import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.report.ui.ReportActivity;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.travelbehavior.utils.TravelBehaviorUtils;
+import org.onebusaway.android.ui.arrivals.ArrivalsPanelFragment;
 import org.onebusaway.android.ui.survey.SurveyManager;
 import org.onebusaway.android.ui.survey.utils.SurveyViewUtils;
 import org.onebusaway.android.ui.weather.RegionCallback;
 import org.onebusaway.android.ui.weather.WeatherUtils;
-import org.onebusaway.android.util.FragmentUtils;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.PermissionUtils;
 import org.onebusaway.android.util.PreferenceUtils;
@@ -152,7 +153,7 @@ import static uk.co.markormesher.android_fab.FloatingActionButton.POSITION_START
 public class HomeActivity extends AppCompatActivity
         implements ObaMapFragment.OnFocusChangedListener,
         ObaMapFragment.OnProgressBarChangedListener,
-        ArrivalsListFragment.Listener, NavigationDrawerCallbacks, WeatherRequestListener , RegionCallback,
+        ArrivalsPanelFragment.Listener, NavigationDrawerCallbacks, WeatherRequestListener , RegionCallback,
         ObaRegionsTask.Callback {
 
 
@@ -194,13 +195,7 @@ public class HomeActivity extends AppCompatActivity
 
     WeakReference<AppCompatActivity> mActivityWeakRef;
 
-    ArrivalsListFragment mArrivalsListFragment;
-
-    ArrivalsListHeader mArrivalsListHeader;
-
-    View mArrivalsListHeaderView;
-
-    View mArrivalsListHeaderSubView;
+    ArrivalsPanelFragment mArrivalsPanelFragment;
 
     CardView weatherView;
 
@@ -276,8 +271,6 @@ public class HomeActivity extends AppCompatActivity
     String mBikeRentalStationId = null;
 
     ObaStop mFocusedStop = null;
-
-    ImageView mExpandCollapse = null;
 
     ProgressBar mMapProgressBar = null;
 
@@ -515,9 +508,9 @@ public class HomeActivity extends AppCompatActivity
         if(WeatherUtils.isWeatherViewHiddenPref()){
             WeatherUtils.toggleWeatherViewVisibility(false,weatherView);
         }
-        // Make sure header has sliding panel state
-        if (mArrivalsListHeader != null && mSlidingPanel != null) {
-            mArrivalsListHeader.setSlidingPanelCollapsed(isSlidingPanelCollapsed());
+        // Make sure the panel has the current sliding-panel state
+        if (mArrivalsPanelFragment != null && mSlidingPanel != null) {
+            mArrivalsPanelFragment.setPanelCollapsed(isSlidingPanelCollapsed());
         }
 
         // Check if the map zoom controls should be displayed
@@ -1150,8 +1143,7 @@ public class HomeActivity extends AppCompatActivity
             mBikeRentalStationId = null;
             mFocusedStopId = stop.getId();
             // A stop on the map was just tapped, show it in the sliding panel
-            updateArrivalListFragment(stop.getId(), stop.getName(), stop.getStopCode(), stop,
-                    routes);
+            updateArrivalListFragment(stop.getId(), stop.getName());
 
             ObaAnalytics.reportUiEvent(mFirebaseAnalytics,
                     Application.get().getPlausibleInstance(),
@@ -1164,8 +1156,9 @@ public class HomeActivity extends AppCompatActivity
             mFocusedStopId = null;
             moveFabsLocation();
             mSlidingPanel.setPanelState(PanelState.HIDDEN);
-            if (mArrivalsListFragment != null) {
-                fm.beginTransaction().remove(mArrivalsListFragment).commit();
+            if (mArrivalsPanelFragment != null) {
+                fm.beginTransaction().remove(mArrivalsPanelFragment).commit();
+                mArrivalsPanelFragment = null;
             }
             mShowArrivalsMenu = false;
         }
@@ -1204,23 +1197,12 @@ public class HomeActivity extends AppCompatActivity
     }
 
     /**
-     * Called by the ArrivalsListFragment when the ListView is created
-     *
-     * @param listView the ListView that was just created
-     */
-    @Override
-    public void onListViewCreated(ListView listView) {
-        // Set the scrollable view in the sliding panel
-        mSlidingPanel.setScrollableView(listView);
-    }
-
-    /**
-     * Called by the ArrivalsListFragment when we have new updated arrival information
+     * Called by the ArrivalsPanelFragment when we have new updated arrival information
      *
      * @param response new arrival information
      */
     @Override
-    public void onArrivalTimesUpdated(ObaArrivalInfoResponse response) {
+    public void onArrivalsLoaded(ObaArrivalInfoResponse response) {
         if (response == null || response.getStop() == null) {
             return;
         }
@@ -1293,15 +1275,12 @@ public class HomeActivity extends AppCompatActivity
     }
 
     /**
-     * Called by the ArrivalListFragment when the user selects the "Show route on map" for a
-     * particular route/trip
-     *
-     * @param arrivalInfo The arrival information for the route/trip that the user selected
-     * @return true if the listener has consumed the event, false otherwise
+     * Called by the ArrivalsPanelFragment when the user selects "Show vehicles on map" for a
+     * route. Collapses the panel and switches the existing map to route mode.
      */
     @Override
-    public boolean onShowRouteOnMapSelected(ArrivalInfo arrivalInfo) {
-        // If the panel is fully expanded, change it to anchored so the user can see the map
+    public void onShowRouteOnMap(String routeId) {
+        // Collapse the panel so the user can see the map
         if (mSlidingPanel != null) {
             mSlidingPanel.setPanelState(PanelState.COLLAPSED);
         }
@@ -1309,22 +1288,57 @@ public class HomeActivity extends AppCompatActivity
         Bundle bundle = new Bundle();
         bundle.putBoolean(MapParams.ZOOM_TO_ROUTE, false);
         bundle.putBoolean(MapParams.ZOOM_INCLUDE_CLOSEST_VEHICLE, true);
-        bundle.putString(MapParams.ROUTE_ID, arrivalInfo.getInfo().getRouteId());
+        bundle.putString(MapParams.ROUTE_ID, routeId);
         mMapFragment.setMapMode(MapParams.MODE_ROUTE, bundle);
-
-        return true;
     }
 
     /**
-     * Called when the user selects the "Sort by" option in ArrivalsListFragment
+     * Called when the user taps the panel header/chevron: toggle between collapsed and anchored.
      */
     @Override
-    public void onSortBySelected() {
-        // If the sliding panel isn't open, then open it to show what we're sorting
+    public void onToggleExpand() {
+        if (mSlidingPanel == null) {
+            return;
+        }
+        mSlidingPanel.setPanelState(
+                isSlidingPanelCollapsed() ? PanelState.ANCHORED : PanelState.COLLAPSED);
+    }
+
+    /**
+     * Called by the panel as the preferred-arrival preview changes, so the collapsed peek height
+     * matches the legacy header (no-arrivals / one / two, plus a filter-indicator offset).
+     */
+    @Override
+    public void onPreferredHeight(int previewCount, boolean filtering) {
+        int heightDimen;
+        if (previewCount >= 2) {
+            heightDimen = R.dimen.arrival_header_height_two_arrivals;
+        } else if (previewCount == 1) {
+            heightDimen = R.dimen.arrival_header_height_one_arrival;
+        } else {
+            heightDimen = R.dimen.arrival_header_height_no_arrivals;
+        }
+        int px = getResources().getDimensionPixelSize(heightDimen);
+        if (filtering) {
+            px += getResources().getDimensionPixelSize(
+                    R.dimen.arrival_header_height_offset_filter_routes);
+        }
+        if (mSlidingPanelController != null) {
+            mSlidingPanelController.setPanelHeightPixels(px);
+        }
+    }
+
+    /**
+     * Called when the panel's content view is created. Mirrors the legacy onListViewCreated:
+     * coordinate SlidingUpPanel drag-vs-scroll with the Compose list (drag the panel only when the
+     * list is at the top, otherwise scroll the list).
+     */
+    @Override
+    public void onPanelViewCreated(View panelView) {
+        // The scroll helper (installed once in setupSlidingPanel) reads the current panel
+        // fragment; here we just point the panel at the new content view.
         if (mSlidingPanel != null) {
-            if (isSlidingPanelCollapsed()) {
-                mSlidingPanel.setPanelState(PanelState.ANCHORED);
-            }
+            mSlidingPanel.setScrollableView(panelView);
         }
     }
 
@@ -1353,38 +1367,16 @@ public class HomeActivity extends AppCompatActivity
      *                 or
      *                 null if we don't have this yet.
      */
-    private void updateArrivalListFragment(@NonNull String stopId, @NonNull String stopName,
-                                           @NonNull String stopCode, ObaStop stop, HashMap<String, ObaRoute> routes) {
+    private void updateArrivalListFragment(@NonNull String stopId, @NonNull String stopName) {
         FragmentManager fm = getSupportFragmentManager();
-        Intent intent;
 
-        mArrivalsListFragment = new ArrivalsListFragment();
-        mArrivalsListFragment.setListener(this);
-
-        // Set the header for the arrival list to be the top of the sliding panel
-        mArrivalsListHeader = new ArrivalsListHeader(this, mArrivalsListFragment,
-                getSupportFragmentManager());
-        mArrivalsListFragment.setHeader(mArrivalsListHeader, mArrivalsListHeaderView);
-        mArrivalsListHeader.setSlidingPanelController(mSlidingPanelController);
-        mArrivalsListHeader.setSlidingPanelCollapsed(isSlidingPanelCollapsed());
+        // The Compose panel loads its own data from the stop id (it shows a brief loading state
+        // until the first response), so no stop/route objects need to be pre-populated.
+        mArrivalsPanelFragment = ArrivalsPanelFragment.newInstance(stopId, stopName);
+        mArrivalsPanelFragment.setListener(this);
         mShowArrivalsMenu = true;
-        mExpandCollapse = mArrivalsListHeaderView.findViewById(R.id.expand_collapse);
 
-        if (stop != null && routes != null) {
-            // Use ObaStop and ObaRoute objects, since we can pre-populate some of the fields
-            // before getting an API response
-            intent = new ArrivalsListFragment.IntentBuilder(this, stop, routes).build();
-        } else {
-            // We don't have an ObaStop (likely started from Intent or after rotating device)
-            // Some fields will be blank until we get an API response
-            intent = new ArrivalsListFragment.IntentBuilder(this, stopId)
-                    .setStopName(stopName)
-                    .setStopCode(stopCode)
-                    .build();
-        }
-
-        mArrivalsListFragment.setArguments(FragmentUtils.getIntentArgs(intent));
-        fm.beginTransaction().replace(R.id.slidingFragment, mArrivalsListFragment).commit();
+        fm.beginTransaction().replace(R.id.slidingFragment, mArrivalsPanelFragment).commit();
         showSlidingPanel();
         moveFabsLocation();
     }
@@ -1823,13 +1815,20 @@ public class HomeActivity extends AppCompatActivity
 
     private void setupSlidingPanel() {
         mSlidingPanel = findViewById(R.id.bottom_sliding_layout);
-        mArrivalsListHeaderView = findViewById(R.id.arrivals_list_header);
-        mArrivalsListHeaderSubView = mArrivalsListHeaderView.findViewById(R.id.main_header_content);
 
         mSlidingPanel.setPanelState(
                 PanelState.HIDDEN);  // Don't show the panel until we have content
         mSlidingPanel.setOverlayContent(true);
         mSlidingPanel.setAnchorPoint(MapModeController.OVERLAY_PERCENTAGE);
+        // Coordinate panel drag vs Compose list scroll: drag the panel only when the list is at
+        // the top, otherwise let the list scroll. Reads the currently-focused panel fragment.
+        mSlidingPanel.setScrollableViewHelper(new ScrollableViewHelper() {
+            @Override
+            public int getScrollableViewScrollPosition(View scrollableView, boolean isSlidingUp) {
+                return mArrivalsPanelFragment != null
+                        ? mArrivalsPanelFragment.scrollableViewScrollPosition() : 0;
+            }
+        });
         mSlidingPanel.addPanelSlideListener(new PanelSlideListener() {
 
             @Override
@@ -1857,22 +1856,12 @@ public class HomeActivity extends AppCompatActivity
             @Override
             public void onPanelSlide(View panel, float slideOffset) {
                 Log.d(TAG, "onPanelSlide, offset " + slideOffset);
-                if (mArrivalsListHeader != null) {
-                    mArrivalsListHeader.closeStatusPopups();
-                }
             }
 
             public void onPanelExpanded(View panel) {
                 Log.d(TAG, "onPanelExpanded");
-                if (mArrivalsListHeader != null) {
-                    mArrivalsListHeader.setSlidingPanelCollapsed(false);
-                    mArrivalsListHeader.refresh();
-                }
-
-                // Accessibility
-                if (mExpandCollapse != null) {
-                    mExpandCollapse.setContentDescription(Application.get().getResources()
-                            .getString(R.string.stop_header_sliding_panel_open));
+                if (mArrivalsPanelFragment != null) {
+                    mArrivalsPanelFragment.setPanelCollapsed(false);
                 }
             }
 
@@ -1882,17 +1871,10 @@ public class HomeActivity extends AppCompatActivity
                     mMapFragment.getMapView()
                             .setPadding(null, null, null, mSlidingPanel.getPanelHeight());
                 }
-                if (mArrivalsListHeader != null) {
-                    mArrivalsListHeader.setSlidingPanelCollapsed(true);
-                    mArrivalsListHeader.refresh();
+                if (mArrivalsPanelFragment != null) {
+                    mArrivalsPanelFragment.setPanelCollapsed(true);
                 }
                 moveFabsLocation();
-
-                // Accessibility
-                if (mExpandCollapse != null) {
-                    mExpandCollapse.setContentDescription(Application.get().getResources()
-                            .getString(R.string.stop_header_sliding_panel_collapsed));
-                }
             }
 
             public void onPanelAnchored(View panel) {
@@ -1904,15 +1886,8 @@ public class HomeActivity extends AppCompatActivity
                 if (mFocusedStop != null && mMapFragment != null) {
                     mMapFragment.setMapCenter(mFocusedStop.getLocation(), true, true);
                 }
-                if (mArrivalsListHeader != null) {
-                    mArrivalsListHeader.setSlidingPanelCollapsed(false);
-                    mArrivalsListHeader.refresh();
-                }
-
-                // Accessibility
-                if (mExpandCollapse != null) {
-                    mExpandCollapse.setContentDescription(Application.get().getResources()
-                            .getString(R.string.stop_header_sliding_panel_open));
+                if (mArrivalsPanelFragment != null) {
+                    mArrivalsPanelFragment.setPanelCollapsed(false);
                 }
             }
 
@@ -1920,15 +1895,9 @@ public class HomeActivity extends AppCompatActivity
                 Log.d(TAG, "onPanelHidden");
                 // We need to hide the panel when switching between fragments via the navdrawer,
                 // so we shouldn't put anything here that causes us to lose the state of the
-                // MapFragment or the ArrivalListFragment (e.g., removing the ArrivalListFragment)
+                // MapFragment or the arrivals panel (e.g., removing the panel fragment)
                 if (mMapFragment != null) {
                     mMapFragment.getMapView().setPadding(null, null, null, 0);
-                }
-
-                // Accessibility - reset it here so its ready for next showing
-                if (mExpandCollapse != null) {
-                    mExpandCollapse.setContentDescription(Application.get().getResources()
-                            .getString(R.string.stop_header_sliding_panel_collapsed));
                 }
             }
         });
@@ -1940,13 +1909,11 @@ public class HomeActivity extends AppCompatActivity
                     if (mSlidingPanel.getPanelState() == PanelState.DRAGGING ||
                             mSlidingPanel.getPanelState()
                                     == PanelState.HIDDEN) {
-                        // Don't resize header yet - see #294 - header size will be refreshed on panel state change
+                        // Don't resize the peek yet - see #294 - it's refreshed on panel state change
                         return;
                     }
                     if (mSlidingPanel.getPanelHeight() != heightInPixels) {
                         mSlidingPanel.setPanelHeight(heightInPixels);
-                        mArrivalsListHeaderView.getLayoutParams().height = heightInPixels;
-                        mArrivalsListHeaderSubView.getLayoutParams().height = heightInPixels;
                     }
                 }
             }
@@ -1978,8 +1945,7 @@ public class HomeActivity extends AppCompatActivity
 
             if (stopId != null) {
                 mFocusedStopId = stopId;
-                // We don't have an ObaStop or ObaRoute mapping, so just pass in null for those
-                updateArrivalListFragment(stopId, stopName, stopCode, null, null);
+                updateArrivalListFragment(stopId, stopName);
             }
         } else {
             // Check intent passed into Activity
@@ -1994,7 +1960,7 @@ public class HomeActivity extends AppCompatActivity
 
                 if (stopId != null && lat != 0.0 && lon != 0.0) {
                     mFocusedStopId = stopId;
-                    updateArrivalListFragment(stopId, stopName, stopCode, null, null);
+                    updateArrivalListFragment(stopId, stopName);
                 }
             }
         }
@@ -2045,10 +2011,6 @@ public class HomeActivity extends AppCompatActivity
     private boolean isSlidingPanelCollapsed() {
         return !(mSlidingPanel.getPanelState() == PanelState.EXPANDED ||
                 mSlidingPanel.getPanelState() == PanelState.ANCHORED);
-    }
-
-    public ArrivalsListFragment getArrivalsListFragment() {
-        return mArrivalsListFragment;
     }
 
     private void checkBatteryOptimizations() {

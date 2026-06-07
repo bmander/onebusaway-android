@@ -1039,10 +1039,6 @@ public class InfrastructureIssueActivity extends BaseReportActivity implements
     }
 
     private void showArrivalListFragment(ObaStop obaStop) {
-        LayoutInflater layoutInflater = LayoutInflater.from(this);
-        View v = layoutInflater.inflate(R.layout.arrivals_list_header, null);
-        v.setVisibility(View.GONE);
-
         mShowArrivalListFragment = true;
 
         SimpleArrivalListFragment.show(this, R.id.ri_report_stop_problem, obaStop, this);

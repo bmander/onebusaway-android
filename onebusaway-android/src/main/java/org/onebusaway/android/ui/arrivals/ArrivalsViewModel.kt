@@ -18,8 +18,12 @@ package org.onebusaway.android.ui.arrivals
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import org.onebusaway.android.io.elements.ObaSituation
+import org.onebusaway.android.io.request.ObaArrivalInfoResponse
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
@@ -43,6 +47,14 @@ class ArrivalsViewModel(
 
     private val _state = MutableStateFlow<ArrivalsUiState>(ArrivalsUiState.Loading)
     val state: StateFlow<ArrivalsUiState> = _state.asStateFlow()
+
+    /**
+     * Emits the raw response after each successful load. The map panel uses this to recenter the
+     * map, move the FABs, and fire arrival-info tutorials (which need the response object) without
+     * the ViewModel itself touching Android. Empty for the standalone screen, which ignores it.
+     */
+    private val _responses = MutableSharedFlow<ObaArrivalInfoResponse>(extraBufferCapacity = 1)
+    val responses: SharedFlow<ObaArrivalInfoResponse> = _responses.asSharedFlow()
 
     private var minutesAfter = DefaultArrivalsRepository.MINUTES_AFTER_DEFAULT
 
@@ -70,6 +82,7 @@ class ArrivalsViewModel(
                 routeFilter = data.effectiveRouteFilter
                 filterLoaded = true
                 _state.value = data.toContent()
+                repository.lastResponse()?.let { _responses.tryEmit(it) }
             },
             onFailure = { error ->
                 if (_state.value !is ArrivalsUiState.Content) {

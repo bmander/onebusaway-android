@@ -188,27 +188,17 @@
             </RelativeLayout>
 
             <!-- BOTTOM SLIDING PANEL (FOR ROUTE AND STOP-RELATED LISTS) -->
+            <!-- Content of bottom sliding panel: the Compose arrivals panel fragment (header +
+                 preview + list) is added here programmatically. -->
             <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:orientation="vertical"
                     android:clickable="true"
                     android:focusable="false"
-                    android:id="@+id/slidingPanel">
-
-                <!-- Header for bottom sliding panel -->
-                <include layout="@layout/arrivals_list_header"/>
-
-                <!-- Content of bottom sliding panel -->
-                <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:id="@+id/slidingFragment"
-                        android:background="@color/trip_details_background"
-                        android:orientation="horizontal">
-                    <!-- Fragment is added here programmatically -->
-                </LinearLayout>
-
+                    android:id="@+id/slidingFragment"
+                    android:background="@color/trip_details_background"
+                    android:orientation="vertical">
+                <!-- Fragment is added here programmatically -->
             </LinearLayout>
         </com.sothree.slidinguppanel.SlidingUpPanelLayout>
     </RelativeLayout>

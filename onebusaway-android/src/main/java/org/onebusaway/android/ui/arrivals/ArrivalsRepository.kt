@@ -80,6 +80,9 @@ interface ArrivalsRepository {
 
     /** The full situation for an alert id, from the last good response (for the alert dialog). */
     fun situation(id: String): ObaSituation?
+
+    /** The last good response, for the map panel's tutorials / map recentering. */
+    fun lastResponse(): ObaArrivalInfoResponse?
 }
 
 /**
@@ -264,6 +267,8 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
     }
 
     override fun situation(id: String): ObaSituation? = lastGood?.refs?.getSituation(id)
+
+    override fun lastResponse(): ObaArrivalInfoResponse? = lastGood
 
     companion object {
 

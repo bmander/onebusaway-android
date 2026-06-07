@@ -25,7 +25,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -73,6 +75,43 @@ import org.onebusaway.android.ui.compose.components.LoadingContent
 private const val REFRESH_PERIOD_MS = 60_000L
 
 /**
+ * The lifecycle-scoped 60s polling loop, shared by the standalone screen and the map panel.
+ * Runs only while RESUMED (cancelled on pause, like the legacy Handler) and refreshes immediately
+ * on resume if the window already elapsed.
+ */
+@Composable
+internal fun ArrivalsPolling(viewModel: ArrivalsViewModel) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(viewModel) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            val sinceLast = System.currentTimeMillis() - viewModel.lastResponseTimeMs
+            delay((REFRESH_PERIOD_MS - sinceLast).coerceIn(0L, REFRESH_PERIOD_MS))
+            while (isActive) {
+                viewModel.refresh()
+                delay(REFRESH_PERIOD_MS)
+            }
+        }
+    }
+}
+
+/** Builds the per-arrival menu callbacks, bridging ViewModel actions and the host [handler]. */
+@Composable
+internal fun rememberArrivalRowCallbacks(
+    handler: ArrivalActionHandler,
+    viewModel: ArrivalsViewModel
+): ArrivalRowCallbacks = remember(handler, viewModel) {
+    ArrivalRowCallbacks(
+        onRouteFavorite = handler::onRouteFavorite,
+        onShowVehiclesOnMap = handler::onShowVehiclesOnMap,
+        onShowTripStatus = handler::onShowTripStatus,
+        onSetReminder = handler::onSetReminder,
+        onShowOnlyRoute = viewModel::showOnlyRoute,
+        onShowRouteSchedule = handler::onShowRouteSchedule,
+        onReportArrivalProblem = handler::onReportArrivalProblem
+    )
+}
+
+/**
  * Navigation/dialog actions for the arrivals screen, implemented by the host activity (it has the
  * Context/FragmentManager the targets need). The route-filter and alert hide/show actions are pure
  * ViewModel operations and so are passed as plain lambdas, not through this handler.
@@ -104,29 +143,8 @@ fun ArrivalsRoute(
     onBack: () -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(viewModel) {
-        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            // Refresh immediately if the 60s timer would already have fired (legacy onResume)
-            val sinceLast = System.currentTimeMillis() - viewModel.lastResponseTimeMs
-            delay((REFRESH_PERIOD_MS - sinceLast).coerceIn(0L, REFRESH_PERIOD_MS))
-            while (isActive) {
-                viewModel.refresh()
-                delay(REFRESH_PERIOD_MS)
-            }
-        }
-    }
-    val rowCallbacks = remember(handler, viewModel) {
-        ArrivalRowCallbacks(
-            onRouteFavorite = handler::onRouteFavorite,
-            onShowVehiclesOnMap = handler::onShowVehiclesOnMap,
-            onShowTripStatus = handler::onShowTripStatus,
-            onSetReminder = handler::onSetReminder,
-            onShowOnlyRoute = viewModel::showOnlyRoute,
-            onShowRouteSchedule = handler::onShowRouteSchedule,
-            onReportArrivalProblem = handler::onReportArrivalProblem
-        )
-    }
+    ArrivalsPolling(viewModel)
+    val rowCallbacks = rememberArrivalRowCallbacks(handler, viewModel)
     ArrivalsScreen(
         state = state,
         initialTitle = initialTitle,
@@ -274,13 +292,15 @@ private fun OverflowMenu(
 }
 
 @Composable
-private fun ArrivalsList(
+internal fun ArrivalsList(
     content: ArrivalsUiState.Content,
     rowCallbacks: ArrivalRowCallbacks,
     handler: ArrivalActionHandler,
     onLoadMore: () -> Unit,
     onShowAllRoutes: () -> Unit,
-    onShowHiddenAlerts: () -> Unit
+    onShowHiddenAlerts: () -> Unit,
+    modifier: Modifier = Modifier,
+    listState: LazyListState = rememberLazyListState()
 ) {
     val useCards = content.style == BuildFlavorUtils.ARRIVAL_INFO_STYLE_B &&
         UIUtils.canSupportArrivalInfoStyleB()
@@ -289,7 +309,7 @@ private fun ArrivalsList(
         if (useCards) groupForStyleB(content.arrivals) else emptyList()
     }
     val filterActive = content.filteredRouteCount > 0
-    LazyColumn(Modifier.fillMaxSize()) {
+    LazyColumn(state = listState, modifier = modifier.fillMaxSize()) {
         items(content.alerts, key = { "alert:${it.id}" }) { alert ->
             AlertRow(alert) { handler.onShowAlert(alert.id) }
         }

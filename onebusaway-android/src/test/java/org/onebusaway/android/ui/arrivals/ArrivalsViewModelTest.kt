@@ -24,6 +24,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.io.elements.ObaSituation
+import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.testing.MainDispatcherRule
 
 private class FakeArrivalsRepository(
@@ -73,6 +74,8 @@ private class FakeArrivalsRepository(
     }
 
     override fun situation(id: String): ObaSituation? = null
+
+    override fun lastResponse(): ObaArrivalInfoResponse? = null
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

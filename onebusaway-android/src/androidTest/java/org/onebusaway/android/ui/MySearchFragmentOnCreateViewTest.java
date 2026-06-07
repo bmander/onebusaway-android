@@ -30,6 +30,7 @@ import org.onebusaway.android.R;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+import androidx.fragment.app.Fragment;
 import androidx.test.InstrumentationRegistry;
 import androidx.test.runner.AndroidJUnit4;
 
@@ -41,7 +42,9 @@ import static junit.framework.Assert.assertNotNull;
  * null view when their container was null. ViewPager2's FragmentStateAdapter
  * always passes a null container, so any tabbed activity hosting these
  * fragments crashed with "Content view not yet created" when the fragment's
- * lifecycle advanced.
+ * lifecycle advanced. The fragments are now Compose hosts; the contract under
+ * test is unchanged — onCreateView must return a non-null view regardless of
+ * the container, without requiring the fragment to be attached.
  */
 @RunWith(AndroidJUnit4.class)
 public class MySearchFragmentOnCreateViewTest {
@@ -97,11 +100,10 @@ public class MySearchFragmentOnCreateViewTest {
     }
 
     /**
-     * Construct the fragment and call {@code onCreateView} on the main thread. Both steps need a
-     * Looper — the fragments extend {@link ListFragment}, which instantiates a {@link
-     * android.os.Handler} in its constructor.
+     * Construct the fragment and call {@code onCreateView} on the main thread, where
+     * ComposeView creation belongs.
      */
-    private <T extends MySearchFragmentBase> View inflateOnMainThread(final Class<T> fragmentClass,
+    private <T extends Fragment> View inflateOnMainThread(final Class<T> fragmentClass,
             final ViewGroup container) {
         final AtomicReference<View> result = new AtomicReference<>();
         final AtomicReference<Throwable> error = new AtomicReference<>();

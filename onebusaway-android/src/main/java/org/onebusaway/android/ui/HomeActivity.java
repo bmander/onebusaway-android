@@ -920,15 +920,9 @@ public class HomeActivity extends AppCompatActivity
     public boolean onOptionsItemSelected(MenuItem item) {
         Log.d(TAG, "onOptionsItemSelected");
         final int id = item.getItemId();
-        if (id == R.id.search) {
-            onSearchRequested();
-            ObaAnalytics.reportUiEvent(mFirebaseAnalytics,
-                    Application.get().getPlausibleInstance(),
-                    PlausibleAnalytics.REPORT_SEARCH_EVENT_URL,
-                    getString(R.string.analytics_label_button_press_search_box),
-                    null);
-            return true;
-        } else if (id == R.id.recent_stops_routes) {
+        // Note: there is no handler for R.id.action_search here — it's an action-view menu
+        // item (SearchView), which expands inline rather than firing onOptionsItemSelected
+        if (id == R.id.recent_stops_routes) {
             ShowcaseViewUtils.doNotShowTutorial(ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES);
             Intent myIntent = new Intent(this, MyRecentStopsAndRoutesActivity.class);
             startActivity(myIntent);

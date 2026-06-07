@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -91,29 +92,33 @@ fun AgenciesScreen(
 
 @Composable
 private fun AgencyRow(agency: AgencyItem, onClick: (AgencyItem) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = agency.url != null) { onClick(agency) }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_maps_directions_bus),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary
-        )
-        Spacer(Modifier.width(16.dp))
-        Column {
-            Text(agency.name, style = MaterialTheme.typography.bodyLarge)
-            if (agency.url != null) {
-                Text(
-                    text = agency.url,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = agency.url != null) { onClick(agency) }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_maps_directions_bus),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(agency.name, style = MaterialTheme.typography.bodyLarge)
+                if (agency.url != null) {
+                    Text(
+                        text = agency.url,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
+        // Slight divider between agency entries, matching the pre-migration list.
+        HorizontalDivider()
     }
 }
 

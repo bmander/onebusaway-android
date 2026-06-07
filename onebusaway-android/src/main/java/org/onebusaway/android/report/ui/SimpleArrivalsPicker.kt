@@ -17,12 +17,12 @@ package org.onebusaway.android.report.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,7 +43,11 @@ import org.onebusaway.android.ui.compose.components.LoadingContent
 /**
  * A lightweight arrivals picker for the report flow: lists a stop's upcoming arrivals and reports
  * the chosen one back via [onPick]. Reuses the arrivals [ArrivalsViewModel] (configured to show all
- * routes) and the shared row content, but with no per-arrival menu — tapping a row simply picks it.
+ * routes) and the shared row content, but with no per-arrival menu — tapping a row picks it.
+ *
+ * Hosted inside the report flow's CustomScrollView (which measures children with unbounded height),
+ * so this uses a plain [Column], not a LazyColumn — a scrollable component can't be measured with
+ * infinite max height.
  */
 @Composable
 fun SimpleArrivalsPicker(
@@ -53,30 +57,44 @@ fun SimpleArrivalsPicker(
     val state by viewModel.state.collectAsStateWithLifecycle()
     // The picker is short-lived; a one-shot load is enough (no 60s polling like the live screens).
     LaunchedEffect(viewModel) { viewModel.refresh() }
-    when (val current = state) {
-        is ArrivalsUiState.Content ->
-            if (current.arrivals.isEmpty()) {
-                EmptyTrip()
-            } else {
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(current.arrivals, key = { it.info.tripId }) { arrival ->
-                        ArrivalRowContent(arrival, Modifier.clickable { onPick(arrival) })
-                        HorizontalDivider()
+    // Wrap in a Surface so the rows get the theme's content color (the report container has none,
+    // which would otherwise leave the default text black/invisible on its dark background).
+    Surface(Modifier.fillMaxWidth()) {
+        when (val current = state) {
+            is ArrivalsUiState.Content ->
+                if (current.arrivals.isEmpty()) {
+                    EmptyTrip()
+                } else {
+                    Column(Modifier.fillMaxWidth()) {
+                        current.arrivals.forEach { arrival ->
+                            ArrivalRowContent(arrival, Modifier.clickable { onPick(arrival) })
+                            HorizontalDivider()
+                        }
                     }
                 }
+
+            is ArrivalsUiState.Error -> EmptyTrip()
+
+            ArrivalsUiState.Loading -> Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                LoadingContent()
             }
-
-        is ArrivalsUiState.Error -> EmptyTrip()
-
-        ArrivalsUiState.Loading -> Box(Modifier.fillMaxSize()) {
-            LoadingContent(Modifier.align(Alignment.Center))
         }
     }
 }
 
 @Composable
 private fun EmptyTrip() {
-    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
         Text(
             text = stringResource(R.string.ri_no_trip),
             style = MaterialTheme.typography.bodyLarge,

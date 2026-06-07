@@ -352,6 +352,7 @@
     <string name="arrival_scheduled">Scheduled</string>
 
     <!-- Route Info  -->
+    <string name="route_info_title">Route information</string>
     <string name="route_info_context_get_stop_info">Show arrival information</string>
     <string name="route_info_context_showonmap">Show on map</string>
     <string name="route_info_goto_url">View schedule</string>

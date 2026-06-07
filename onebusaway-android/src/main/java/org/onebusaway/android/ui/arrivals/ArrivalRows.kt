@@ -90,47 +90,46 @@ fun groupForStyleB(arrivals: List<ArrivalInfo>): List<List<ArrivalInfo>> {
     return groups
 }
 
-/**
- * A single flat arrival row (Style A): route badge, headsign, status, and ETA. Tapping opens the
- * per-arrival menu, unless [onRowClick] is set (picker mode), in which case the tap picks the row
- * and the menu is suppressed.
- */
+/** The visual content of a flat arrival row: route badge, headsign, status, and ETA. Shared by
+ *  the interactive Style A row and the report-flow picker (which wraps it with its own click). */
+@Composable
+internal fun ArrivalRowContent(arrival: ArrivalInfo, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = arrival.info.shortName.orEmpty(),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.width(64.dp)
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = arrival.info.headsign.orEmpty(),
+                style = MaterialTheme.typography.bodyLarge,
+                textDecoration = canceledDecoration(arrival)
+            )
+            StatusText(arrival)
+        }
+        EtaBlock(arrival)
+    }
+}
+
+/** A single flat arrival row (Style A): the row content plus a tap-to-open per-arrival menu. */
 @Composable
 fun ArrivalRowStyleA(
     arrival: ArrivalInfo,
     actions: ArrivalActions?,
     filterActive: Boolean,
     callbacks: ArrivalRowCallbacks,
-    modifier: Modifier = Modifier,
-    onRowClick: ((ArrivalInfo) -> Unit)? = null
+    modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .clickable { if (onRowClick != null) onRowClick(arrival) else expanded = true }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = arrival.info.shortName.orEmpty(),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.width(64.dp)
-            )
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = arrival.info.headsign.orEmpty(),
-                    style = MaterialTheme.typography.bodyLarge,
-                    textDecoration = canceledDecoration(arrival)
-                )
-                StatusText(arrival)
-            }
-            EtaBlock(arrival)
-        }
-        if (onRowClick == null) {
-            ArrivalActionsMenu(expanded, { expanded = false }, arrival, actions, filterActive, callbacks)
-        }
+        ArrivalRowContent(arrival, modifier.clickable { expanded = true })
+        ArrivalActionsMenu(expanded, { expanded = false }, arrival, actions, filterActive, callbacks)
     }
 }
 

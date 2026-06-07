@@ -56,16 +56,7 @@ public class ShowcaseViewUtils {
 
     public static final String TUTORIAL_OPT_OUT_DIALOG = ".tutorial_opt_out_dialog";
 
-    public static final String TUTORIAL_ARRIVAL_HEADER_ARRIVAL_INFO
-            = ".tutorial_arrival_header_arrival_info";
-
-    public static final String TUTORIAL_ARRIVAL_HEADER_SLIDING_PANEL
-            = ".tutorial_arrival_header_sliding_panel";
-
     public static final String TUTORIAL_ARRIVAL_SORT = ".tutorial_arrival_sort";
-
-    public static final String TUTORIAL_ARRIVAL_HEADER_STAR_ROUTE
-            = ".tutorial_arrival_header_star_route";
 
     public static final String TUTORIAL_RECENT_STOPS_ROUTES = ".tutorial_recent_stops_routes";
 
@@ -99,10 +90,7 @@ public class ShowcaseViewUtils {
         if (activity == null) {
             return;
         }
-        if (isShowcaseViewShowing()
-                && !tutorialType.equals(TUTORIAL_ARRIVAL_HEADER_SLIDING_PANEL)) {
-            // Only tutorials that are chained (fired from listeners when another ShowcaseView
-            // closes) should pass this point - otherwise, return
+        if (isShowcaseViewShowing()) {
             return;
         }
 
@@ -140,66 +128,10 @@ public class ShowcaseViewUtils {
                 title = r.getString(R.string.tutorial_welcome_title, appName);
                 text = new SpannableString(r.getString(R.string.tutorial_welcome_text));
                 break;
-            case TUTORIAL_ARRIVAL_HEADER_ARRIVAL_INFO:
-                if (response == null) {
-                    throw new IllegalArgumentException(
-                            "ObaArrivalInfoResponse must be provided for the '" + tutorialType
-                                    + "' tutorial type.");
-                }
-                if (response.getArrivalInfo().length < 1) {
-                    // We need at least one arrival time
-                    return;
-                }
-                title = r.getString(R.string.tutorial_arrival_header_arrival_info_title);
-                text = new SpannableString(
-                        r.getString(R.string.tutorial_arrival_header_arrival_info_text));
-                target = new ViewTarget(R.id.eta_and_min, activity);
-                moveButtonLeft = true;
-                listener = new OnShowcaseEventListener() {
-                    @Override
-                    public void onShowcaseViewHide(ShowcaseView showcaseView) {
-                        showTutorial(TUTORIAL_ARRIVAL_HEADER_SLIDING_PANEL, activity, response, false);
-                    }
-
-                    @Override
-                    public void onShowcaseViewDidHide(ShowcaseView showcaseView) {
-                    }
-
-                    @Override
-                    public void onShowcaseViewShow(ShowcaseView showcaseView) {
-                    }
-
-                    @Override
-                    public void onShowcaseViewTouchBlocked(MotionEvent motionEvent) {
-                    }
-                };
-                break;
-            case TUTORIAL_ARRIVAL_HEADER_SLIDING_PANEL:
-                title = r.getString(R.string.tutorial_arrival_header_sliding_panel_title);
-                text = new SpannableString(
-                        r.getString(R.string.tutorial_arrival_header_sliding_panel_text));
-                target = new ViewTarget(R.id.expand_collapse, activity);
-                moveButtonLeft = true;
-                break;
             case TUTORIAL_ARRIVAL_SORT:
                 title = r.getString(R.string.tutorial_arrival_sort_title);
                 text = new SpannableString(r.getString(R.string.tutorial_arrival_sort_text));
                 addIcon(activity, text, R.drawable.ic_action_content_sort);
-                break;
-            case TUTORIAL_ARRIVAL_HEADER_STAR_ROUTE:
-                if (response == null) {
-                    throw new IllegalArgumentException(
-                            "ObaArrivalInfoResponse must be provided for the '" + tutorialType
-                                    + "' tutorial type.");
-                }
-                if (response.getArrivalInfo().length < 1) {
-                    // We need at least one arrival time
-                    return;
-                }
-                title = r.getString(R.string.tutorial_arrival_header_star_route_title);
-                text = new SpannableString(
-                        r.getString(R.string.tutorial_arrival_header_star_route_text));
-                target = new ViewTarget(R.id.eta_route_favorite, activity);
                 break;
             case TUTORIAL_RECENT_STOPS_ROUTES:
                 title = r.getString(R.string.tutorial_recent_stops_routes_title);
@@ -282,8 +214,6 @@ public class ShowcaseViewUtils {
     private static boolean giveUserTutorialBreak(Context context, String tutorialType) {
         final String TUTORIAL_COUNTER = context.getString(R.string.preference_key_tutorial_counter);
         if (!(tutorialType.equals(TUTORIAL_WELCOME) ||
-                tutorialType.equals(TUTORIAL_ARRIVAL_HEADER_ARRIVAL_INFO) ||
-                tutorialType.equals(TUTORIAL_ARRIVAL_HEADER_SLIDING_PANEL) ||
                 tutorialType.equals(TUTORIAL_TRIP_PLAN_GEOCODER))) {
 
             int counter = Application.getPrefs().getInt(TUTORIAL_COUNTER, 0);
@@ -400,10 +330,7 @@ public class ShowcaseViewUtils {
                         true);
 
         PreferenceUtils.saveBoolean(TUTORIAL_WELCOME, false);
-        PreferenceUtils.saveBoolean(TUTORIAL_ARRIVAL_HEADER_ARRIVAL_INFO, false);
-        PreferenceUtils.saveBoolean(TUTORIAL_ARRIVAL_HEADER_SLIDING_PANEL, false);
         PreferenceUtils.saveBoolean(TUTORIAL_ARRIVAL_SORT, false);
-        PreferenceUtils.saveBoolean(TUTORIAL_ARRIVAL_HEADER_STAR_ROUTE, false);
         PreferenceUtils.saveBoolean(TUTORIAL_RECENT_STOPS_ROUTES, false);
         PreferenceUtils.saveBoolean(TUTORIAL_STARRED_STOPS_SORT, false);
         PreferenceUtils.saveBoolean(TUTORIAL_STARRED_STOPS_SHORTCUT, false);

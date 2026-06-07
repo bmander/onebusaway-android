@@ -80,7 +80,7 @@ import edu.usf.cutr.open311client.models.ServiceListResponse;
 public class InfrastructureIssueActivity extends BaseReportActivity implements
         ObaMapFragment.OnFocusChangedListener, ServiceListTask.Callback,
         ReportProblemFragmentCallback, IssueLocationHelper.Callback,
-        SimpleArrivalListFragment.Callback, GeocoderTask.Callback {
+        SimpleArrivalsPickerFragment.Callback, GeocoderTask.Callback {
 
     private static final int REQUEST_CODE = 0;
 
@@ -1041,7 +1041,7 @@ public class InfrastructureIssueActivity extends BaseReportActivity implements
     private void showArrivalListFragment(ObaStop obaStop) {
         mShowArrivalListFragment = true;
 
-        SimpleArrivalListFragment.show(this, R.id.ri_report_stop_problem, obaStop, this);
+        SimpleArrivalsPickerFragment.show(this, R.id.ri_report_stop_problem, obaStop, this);
     }
 
     @Override
@@ -1053,7 +1053,7 @@ public class InfrastructureIssueActivity extends BaseReportActivity implements
 
         mBlockId = blockId;
 
-        removeFragmentByTag(SimpleArrivalListFragment.TAG);
+        removeFragmentByTag(SimpleArrivalsPickerFragment.TAG);
 
         if (mSelectedTransitService != null &&
                 ReportConstants.DYNAMIC_TRANSIT_SERVICE_TRIP.equals(mSelectedTransitService.getType())) {
@@ -1101,7 +1101,7 @@ public class InfrastructureIssueActivity extends BaseReportActivity implements
 
         removeFragmentByTag(ReportTripProblemFragment.TAG);
 
-        removeFragmentByTag(SimpleArrivalListFragment.TAG);
+        removeFragmentByTag(SimpleArrivalsPickerFragment.TAG);
 
         ((LinearLayout) findViewById(R.id.ri_report_stop_problem)).removeAllViews();
     }

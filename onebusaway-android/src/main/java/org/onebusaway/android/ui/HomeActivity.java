@@ -1251,26 +1251,9 @@ public class HomeActivity extends AppCompatActivity
             return;
         }
 
-        /**
-         * The ShowcaseViewUtils.showTutorial() method takes care of checking if a tutorial has
-         * already been shown, so we can just list the tutorials in order of how they should be
-         * shown to the user.
-         */
-
-        // Show the tutorial explaining arrival times
-        ShowcaseViewUtils.showTutorial(ShowcaseViewUtils.TUTORIAL_ARRIVAL_HEADER_ARRIVAL_INFO, this,
-                response, false);
-
-        // Make sure the panel is stationary before showing the starred routes tutorial
-        if (mSlidingPanel != null &&
-                (isSlidingPanelCollapsed() ||
-                        mSlidingPanel.getPanelState() == PanelState.ANCHORED ||
-                        mSlidingPanel.getPanelState()
-                                == PanelState.EXPANDED)) {
-            ShowcaseViewUtils
-                    .showTutorial(ShowcaseViewUtils.TUTORIAL_ARRIVAL_HEADER_STAR_ROUTE, this,
-                            response, false);
-        }
+        // The arrival-header tutorials (arrival info / sliding panel / star route) anchored to the
+        // legacy header's Views, which the Compose panel no longer exposes, so they've been retired.
+        // The general "recent stops/routes" tutorial still applies.
         ShowcaseViewUtils.showTutorial(ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES, this, null, false);
     }
 

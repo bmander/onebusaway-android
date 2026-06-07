@@ -42,7 +42,9 @@ internal fun collapseRouteFilter(selected: Set<String>, totalRoutes: Int): Set<S
  */
 class ArrivalsViewModel(
     private val stopId: String,
-    private val repository: ArrivalsRepository
+    private val repository: ArrivalsRepository,
+    /** When true, always show all routes (the report-flow picker), ignoring the saved filter. */
+    ignorePersistedFilter: Boolean = false
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<ArrivalsUiState>(ArrivalsUiState.Loading)
@@ -60,8 +62,11 @@ class ArrivalsViewModel(
 
     private var routeFilter: Set<String> = emptySet()
 
-    /** Until the first load, let the repository seed the filter from the provider. */
-    private var filterLoaded = false
+    /**
+     * Until the first load, let the repository seed the filter from the provider — unless we're
+     * told to ignore it, in which case the empty (show-all) filter is used and never persisted.
+     */
+    private var filterLoaded = ignorePersistedFilter
 
     /** Wall-clock time of the last completed load, read by the screen's polling loop. */
     var lastResponseTimeMs: Long = 0L
@@ -153,6 +158,9 @@ class ArrivalsViewModel(
 
     /** The full situation for an alert id, for the alert dialog (read from the last good response). */
     fun situation(id: String): ObaSituation? = repository.situation(id)
+
+    /** The last good response, for the report-flow picker to resolve agency/block from refs. */
+    fun lastResponse(): ObaArrivalInfoResponse? = repository.lastResponse()
 
     private fun ArrivalsData.toContent() = ArrivalsUiState.Content(
         header = header,

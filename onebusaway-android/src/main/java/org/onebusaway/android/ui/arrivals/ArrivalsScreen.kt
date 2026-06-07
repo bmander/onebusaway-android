@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -351,7 +352,12 @@ internal fun ArrivalsList(
                 )
             }
         } else {
-            items(content.arrivals, key = { it.info.tripId }) { arrival ->
+            // tripId alone isn't unique (the same trip can appear twice, e.g. frequency-based
+            // service), so disambiguate the key by index to satisfy LazyColumn's unique-key rule.
+            itemsIndexed(
+                content.arrivals,
+                key = { index, arrival -> "${arrival.info.tripId}#$index" }
+            ) { _, arrival ->
                 ArrivalRowStyleA(
                     arrival = arrival,
                     actions = content.actions[arrival.info.tripId],

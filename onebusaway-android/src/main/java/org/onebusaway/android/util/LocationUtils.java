@@ -81,6 +81,18 @@ public class LocationUtils {
     }
 
     /**
+     * The location to center a search on: the device's last known location, falling back to the
+     * current region's center, or null when neither is available.
+     */
+    public static Location getSearchCenter(Context context) {
+        Location location = Application.getLastKnownLocation(context, null);
+        if (location == null) {
+            location = getDefaultSearchCenter();
+        }
+        return location;
+    }
+
+    /**
      * Compares Location A to Location B - prefers a non-null location that is more recent.  Does
      * NOT take estimated accuracy into account.
      * @param a first location to compare

@@ -23,6 +23,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.testing.MainDispatcherRule
+import org.onebusaway.android.ui.compose.ListUiState
 
 private class FakeAgenciesRepository(
     var result: Result<List<AgencyItem>>
@@ -46,7 +47,7 @@ class AgenciesViewModelTest {
     fun `initial state is Loading before the load completes`() = runTest {
         val viewModel = AgenciesViewModel(FakeAgenciesRepository(Result.success(agencies)))
 
-        assertEquals(AgenciesUiState.Loading, viewModel.state.value)
+        assertEquals(ListUiState.Loading, viewModel.state.value)
     }
 
     @Test
@@ -55,7 +56,7 @@ class AgenciesViewModelTest {
 
         advanceUntilIdle()
 
-        assertEquals(AgenciesUiState.Success(agencies), viewModel.state.value)
+        assertEquals(ListUiState.Success(agencies), viewModel.state.value)
     }
 
     @Test
@@ -64,7 +65,7 @@ class AgenciesViewModelTest {
 
         advanceUntilIdle()
 
-        assertEquals(AgenciesUiState.Error, viewModel.state.value)
+        assertEquals(ListUiState.Error, viewModel.state.value)
     }
 
     @Test
@@ -72,13 +73,13 @@ class AgenciesViewModelTest {
         val repository = FakeAgenciesRepository(Result.failure(IOException()))
         val viewModel = AgenciesViewModel(repository)
         advanceUntilIdle()
-        assertEquals(AgenciesUiState.Error, viewModel.state.value)
+        assertEquals(ListUiState.Error, viewModel.state.value)
 
         repository.result = Result.success(agencies)
         viewModel.load()
 
-        assertEquals(AgenciesUiState.Loading, viewModel.state.value)
+        assertEquals(ListUiState.Loading, viewModel.state.value)
         advanceUntilIdle()
-        assertEquals(AgenciesUiState.Success(agencies), viewModel.state.value)
+        assertEquals(ListUiState.Success(agencies), viewModel.state.value)
     }
 }

@@ -16,25 +16,15 @@
 package org.onebusaway.android.ui.agencies
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -47,8 +37,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
-import org.onebusaway.android.ui.compose.components.ErrorContent
-import org.onebusaway.android.ui.compose.components.LoadingContent
+import org.onebusaway.android.ui.compose.ListUiState
+import org.onebusaway.android.ui.compose.components.ListScreenScaffold
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.util.UIUtils
 
@@ -70,68 +60,32 @@ fun AgenciesRoute(viewModel: AgenciesViewModel, onBack: () -> Unit) {
     )
 }
 
-/** Stateless screen content, fully driven by [AgenciesUiState] — previewable and testable. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Stateless screen content, fully driven by [ListUiState] — previewable and testable. */
 @Composable
 fun AgenciesScreen(
-    state: AgenciesUiState,
+    state: ListUiState<AgencyItem>,
     onRetry: () -> Unit,
     onAgencyClick: (AgencyItem) -> Unit,
     onBack: () -> Unit
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.agencies_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.navigate_up)
-                        )
-                    }
-                }
+    ListScreenScaffold(
+        title = stringResource(R.string.agencies_title),
+        onBack = onBack,
+        state = state,
+        onRetry = onRetry,
+        itemKey = { it.id },
+        emptyContent = {
+            Text(
+                text = stringResource(R.string.agencies_empty),
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(32.dp)
             )
         }
-    ) { padding ->
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            when (state) {
-                AgenciesUiState.Loading -> LoadingContent(
-                    Modifier.align(Alignment.Center)
-                )
-
-                is AgenciesUiState.Success -> if (state.agencies.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.agencies_empty),
-                        style = MaterialTheme.typography.bodyLarge,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(32.dp)
-                    )
-                } else {
-                    AgencyList(state.agencies, onAgencyClick)
-                }
-
-                AgenciesUiState.Error -> ErrorContent(
-                    onRetry = onRetry,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AgencyList(agencies: List<AgencyItem>, onAgencyClick: (AgencyItem) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize()) {
-        items(agencies, key = { it.id }) { agency ->
-            AgencyRow(agency, onAgencyClick)
-        }
+    ) { agency ->
+        AgencyRow(agency, onAgencyClick)
     }
 }
 
@@ -168,7 +122,7 @@ private fun AgencyRow(agency: AgencyItem, onClick: (AgencyItem) -> Unit) {
 private fun AgenciesScreenSuccessPreview() {
     ObaTheme {
         AgenciesScreen(
-            state = AgenciesUiState.Success(
+            state = ListUiState.Success(
                 listOf(
                     AgencyItem("1", "King County Metro", "https://kingcounty.gov/metro"),
                     AgencyItem("40", "Sound Transit", "https://soundtransit.org"),
@@ -184,7 +138,7 @@ private fun AgenciesScreenSuccessPreview() {
 @Composable
 private fun AgenciesScreenLoadingPreview() {
     ObaTheme {
-        AgenciesScreen(state = AgenciesUiState.Loading, onRetry = {}, onAgencyClick = {}, onBack = {})
+        AgenciesScreen(state = ListUiState.Loading, onRetry = {}, onAgencyClick = {}, onBack = {})
     }
 }
 
@@ -192,6 +146,6 @@ private fun AgenciesScreenLoadingPreview() {
 @Composable
 private fun AgenciesScreenErrorPreview() {
     ObaTheme {
-        AgenciesScreen(state = AgenciesUiState.Error, onRetry = {}, onAgencyClick = {}, onBack = {})
+        AgenciesScreen(state = ListUiState.Error, onRetry = {}, onAgencyClick = {}, onBack = {})
     }
 }

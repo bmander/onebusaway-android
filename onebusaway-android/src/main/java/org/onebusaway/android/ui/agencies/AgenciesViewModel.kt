@@ -15,34 +15,16 @@
  */
 package org.onebusaway.android.ui.agencies
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
+import org.onebusaway.android.ui.compose.ListLoadingViewModel
 
-/**
- * ViewModel for the supported agencies screen. Survives configuration changes, so an in-flight
- * load continues across rotation (unlike the AsyncTaskLoader it replaces).
- */
-class AgenciesViewModel(private val repository: AgenciesRepository) : ViewModel() {
-
-    private val _state = MutableStateFlow<AgenciesUiState>(AgenciesUiState.Loading)
-    val state: StateFlow<AgenciesUiState> = _state.asStateFlow()
+/** ViewModel for the supported agencies screen. */
+class AgenciesViewModel(private val repository: AgenciesRepository) :
+    ListLoadingViewModel<AgencyItem>() {
 
     init {
         load()
     }
 
-    /** Starts (or restarts, e.g. for retry-after-error) loading the agency list. */
-    fun load() {
-        _state.value = AgenciesUiState.Loading
-        viewModelScope.launch {
-            _state.value = repository.getAgencies().fold(
-                onSuccess = { AgenciesUiState.Success(it) },
-                onFailure = { AgenciesUiState.Error }
-            )
-        }
-    }
+    /** Loads (or retries loading) the agency list. */
+    fun load() = load { repository.getAgencies() }
 }

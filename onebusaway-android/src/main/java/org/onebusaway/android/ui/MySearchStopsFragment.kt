@@ -21,13 +21,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.onebusaway.android.ui.compose.composeFragmentView
 import org.onebusaway.android.ui.search.DefaultStopSearchRepository
 import org.onebusaway.android.ui.search.SearchViewModel
 import org.onebusaway.android.ui.search.StopSearchContent
@@ -51,26 +49,19 @@ class MySearchStopsFragment : Fragment() {
         }
     }
 
-    // ComposeView is built from the inflater's context (not requireContext()) so onCreateView
-    // works for an unattached fragment — see MySearchFragmentOnCreateViewTest (#1564)
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = ComposeView(inflater.context).apply {
-        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-        setContent {
-            ObaTheme {
-                StopSearchContent(
-                    viewModel = viewModel,
-                    shortcutMode = isShortcutMode(),
-                    onStopClick = ::onStopClicked,
-                    onShowOnMap = {
-                        HomeActivity.start(requireActivity(), it.id, it.latitude, it.longitude)
-                    }
-                )
+    ): View = composeFragmentView(inflater) {
+        StopSearchContent(
+            viewModel = viewModel,
+            shortcutMode = isShortcutMode(),
+            onStopClick = ::onStopClicked,
+            onShowOnMap = {
+                HomeActivity.start(requireActivity(), it.id, it.latitude, it.longitude)
             }
-        }
+        )
     }
 
     private fun isShortcutMode(): Boolean =

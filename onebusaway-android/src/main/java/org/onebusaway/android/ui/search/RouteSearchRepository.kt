@@ -54,7 +54,7 @@ class DefaultRouteSearchRepository(private val context: Context) : RouteSearchRe
 
     override suspend fun search(query: String): Result<List<RouteSearchResult>> =
         withContext(Dispatchers.IO) {
-            var response = ObaRoutesForLocationRequest.Builder(context, searchCenter(context))
+            var response = ObaRoutesForLocationRequest.Builder(context, LocationUtils.getSearchCenter(context))
                 .setQuery(query)
                 .build()
                 .call()

@@ -22,6 +22,18 @@ import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.request.ObaAgenciesWithCoverageRequest
 
+/**
+ * A transit agency as displayed on the supported agencies screen, decoupled from the
+ * io/elements response types.
+ *
+ * @param url the agency's website, or null if it has none (never blank)
+ */
+data class AgencyItem(
+    val id: String,
+    val name: String,
+    val url: String?
+)
+
 /** Provides the list of transit agencies covered by the current region. */
 interface AgenciesRepository {
 

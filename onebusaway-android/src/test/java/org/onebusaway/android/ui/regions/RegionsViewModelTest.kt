@@ -25,6 +25,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.testing.MainDispatcherRule
+import org.onebusaway.android.ui.compose.ListUiState
 
 private class FakeRegionsRepository(
     var result: Result<List<RegionItem>>,
@@ -62,7 +63,7 @@ class RegionsViewModelTest {
     fun `initial state is Loading before the load completes`() = runTest {
         val viewModel = RegionsViewModel(FakeRegionsRepository(Result.success(regions)))
 
-        assertEquals(RegionsUiState.Loading, viewModel.state.value)
+        assertEquals(ListUiState.Loading, viewModel.state.value)
     }
 
     @Test
@@ -72,7 +73,7 @@ class RegionsViewModelTest {
 
         advanceUntilIdle()
 
-        assertEquals(RegionsUiState.Success(regions), viewModel.state.value)
+        assertEquals(ListUiState.Success(regions), viewModel.state.value)
         assertEquals(false, repository.lastRefresh)
     }
 
@@ -82,7 +83,7 @@ class RegionsViewModelTest {
 
         advanceUntilIdle()
 
-        assertEquals(RegionsUiState.Error, viewModel.state.value)
+        assertEquals(ListUiState.Error, viewModel.state.value)
     }
 
     @Test
@@ -90,14 +91,14 @@ class RegionsViewModelTest {
         val repository = FakeRegionsRepository(Result.failure(IOException()))
         val viewModel = RegionsViewModel(repository)
         advanceUntilIdle()
-        assertEquals(RegionsUiState.Error, viewModel.state.value)
+        assertEquals(ListUiState.Error, viewModel.state.value)
 
         repository.result = Result.success(regions)
         viewModel.load()
 
-        assertEquals(RegionsUiState.Loading, viewModel.state.value)
+        assertEquals(ListUiState.Loading, viewModel.state.value)
         advanceUntilIdle()
-        assertEquals(RegionsUiState.Success(regions), viewModel.state.value)
+        assertEquals(ListUiState.Success(regions), viewModel.state.value)
     }
 
     @Test
@@ -110,7 +111,7 @@ class RegionsViewModelTest {
         advanceUntilIdle()
 
         assertEquals(true, repository.lastRefresh)
-        assertEquals(RegionsUiState.Success(regions), viewModel.state.value)
+        assertEquals(ListUiState.Success(regions), viewModel.state.value)
     }
 
     @Test

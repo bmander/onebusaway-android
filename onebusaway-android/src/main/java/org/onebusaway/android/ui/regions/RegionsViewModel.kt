@@ -15,18 +15,11 @@
  */
 package org.onebusaway.android.ui.regions
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
+import org.onebusaway.android.ui.compose.ListLoadingViewModel
 
 /** ViewModel for the region picker screen. */
-class RegionsViewModel(private val repository: RegionsRepository) : ViewModel() {
-
-    private val _state = MutableStateFlow<RegionsUiState>(RegionsUiState.Loading)
-    val state: StateFlow<RegionsUiState> = _state.asStateFlow()
+class RegionsViewModel(private val repository: RegionsRepository) :
+    ListLoadingViewModel<RegionItem>() {
 
     init {
         load()
@@ -37,15 +30,7 @@ class RegionsViewModel(private val repository: RegionsRepository) : ViewModel() 
      * [refresh] = false, which reads the local provider first), and the explicit refresh
      * action ([refresh] = true, which forces a server fetch).
      */
-    fun load(refresh: Boolean = false) {
-        _state.value = RegionsUiState.Loading
-        viewModelScope.launch {
-            _state.value = repository.getRegions(refresh).fold(
-                onSuccess = { RegionsUiState.Success(it) },
-                onFailure = { RegionsUiState.Error }
-            )
-        }
-    }
+    fun load(refresh: Boolean = false) = load { repository.getRegions(refresh) }
 
     /**
      * Makes [item] the current region.

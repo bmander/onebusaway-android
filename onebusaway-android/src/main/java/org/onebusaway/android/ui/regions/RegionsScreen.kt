@@ -16,25 +16,16 @@
 package org.onebusaway.android.ui.regions
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -50,8 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.NumberFormat
 import org.onebusaway.android.R
-import org.onebusaway.android.ui.compose.components.ErrorContent
-import org.onebusaway.android.ui.compose.components.LoadingContent
+import org.onebusaway.android.ui.compose.ListUiState
+import org.onebusaway.android.ui.compose.components.ListScreenScaffold
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.RegionUtils
@@ -77,67 +68,32 @@ fun RegionsRoute(
     )
 }
 
-/** Stateless screen content, fully driven by [RegionsUiState] — previewable and testable. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Stateless screen content, fully driven by [ListUiState] — previewable and testable. */
 @Composable
 fun RegionsScreen(
-    state: RegionsUiState,
+    state: ListUiState<RegionItem>,
     onRetry: () -> Unit,
     onRefresh: () -> Unit,
     onRegionClick: (RegionItem) -> Unit,
     onBack: () -> Unit
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.preferences_region_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.navigate_up)
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onRefresh) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_action_navigation_refresh),
-                            contentDescription = stringResource(R.string.region_option_refresh),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            when (state) {
-                RegionsUiState.Loading -> LoadingContent(
-                    Modifier.align(Alignment.Center)
-                )
-
-                is RegionsUiState.Success -> RegionList(state.regions, onRegionClick)
-
-                RegionsUiState.Error -> ErrorContent(
-                    onRetry = onRetry,
-                    modifier = Modifier.align(Alignment.Center)
+    ListScreenScaffold(
+        title = stringResource(R.string.preferences_region_title),
+        onBack = onBack,
+        state = state,
+        onRetry = onRetry,
+        itemKey = { it.id },
+        actions = {
+            IconButton(onClick = onRefresh) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_action_navigation_refresh),
+                    contentDescription = stringResource(R.string.region_option_refresh),
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun RegionList(regions: List<RegionItem>, onRegionClick: (RegionItem) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize()) {
-        items(regions, key = { it.id }) { region ->
-            RegionRow(region, onRegionClick)
-        }
+    ) { region ->
+        RegionRow(region, onRegionClick)
     }
 }
 
@@ -199,7 +155,7 @@ private fun distanceText(distanceMeters: Float?): String {
 private fun RegionsScreenSuccessPreview() {
     ObaTheme {
         RegionsScreen(
-            state = RegionsUiState.Success(
+            state = ListUiState.Success(
                 listOf(
                     RegionItem(1, "Puget Sound", 1500f, isCurrent = true),
                     RegionItem(2, "Tampa Bay", 4_500_000f, isCurrent = false),
@@ -216,7 +172,7 @@ private fun RegionsScreenSuccessPreview() {
 private fun RegionsScreenLoadingPreview() {
     ObaTheme {
         RegionsScreen(
-            state = RegionsUiState.Loading,
+            state = ListUiState.Loading,
             onRetry = {}, onRefresh = {}, onRegionClick = {}, onBack = {}
         )
     }
@@ -227,7 +183,7 @@ private fun RegionsScreenLoadingPreview() {
 private fun RegionsScreenErrorPreview() {
     ObaTheme {
         RegionsScreen(
-            state = RegionsUiState.Error,
+            state = ListUiState.Error,
             onRetry = {}, onRefresh = {}, onRegionClick = {}, onBack = {}
         )
     }

@@ -28,6 +28,21 @@ import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.RegionUtils
 
+/**
+ * A region as displayed on the region picker screen, decoupled from the io/elements
+ * response types.
+ *
+ * @param distanceMeters distance from the user's last known location, or null when no
+ * location (or no distance) is available
+ * @param isCurrent whether this is the currently selected region
+ */
+data class RegionItem(
+    val id: Long,
+    val name: String,
+    val distanceMeters: Float?,
+    val isCurrent: Boolean
+)
+
 /** Provides the list of available OBA regions and handles manual region selection. */
 interface RegionsRepository {
 

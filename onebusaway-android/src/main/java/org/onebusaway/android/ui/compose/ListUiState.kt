@@ -13,26 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.agencies
+package org.onebusaway.android.ui.compose
 
 /**
- * A transit agency as displayed on the supported agencies screen, decoupled from the
- * io/elements response types.
- *
- * @param url the agency's website, or null if it has none (never blank)
+ * UI state for a screen that loads a list once and renders Loading / Success / Error. Shared by
+ * the fetch-once Compose screens (agencies, regions). Query-driven screens that also need
+ * idle/searching states use their own state type instead.
  */
-data class AgencyItem(
-    val id: String,
-    val name: String,
-    val url: String?
-)
+sealed interface ListUiState<out T> {
 
-/** UI state for the supported agencies screen. */
-sealed interface AgenciesUiState {
+    data object Loading : ListUiState<Nothing>
 
-    data object Loading : AgenciesUiState
+    data class Success<T>(val items: List<T>) : ListUiState<T>
 
-    data class Success(val agencies: List<AgencyItem>) : AgenciesUiState
-
-    data object Error : AgenciesUiState
+    data object Error : ListUiState<Nothing>
 }

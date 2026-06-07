@@ -21,13 +21,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.onebusaway.android.ui.compose.composeFragmentView
 import org.onebusaway.android.ui.search.DefaultRouteSearchRepository
 import org.onebusaway.android.ui.search.RouteSearchContent
 import org.onebusaway.android.ui.search.RouteSearchResult
@@ -51,30 +49,23 @@ class MySearchRoutesFragment : Fragment() {
         }
     }
 
-    // ComposeView is built from the inflater's context (not requireContext()) so onCreateView
-    // works for an unattached fragment — see MySearchFragmentOnCreateViewTest (#1564)
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = ComposeView(inflater.context).apply {
-        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-        setContent {
-            ObaTheme {
-                RouteSearchContent(
-                    viewModel = viewModel,
-                    shortcutMode = isShortcutMode(),
-                    onRouteClick = ::onRouteClicked,
-                    onShowOnMap = { HomeActivity.start(requireActivity(), it.id) },
-                    onShowSchedule = { route ->
-                        route.url?.let { UIUtils.goToUrl(requireActivity(), it) }
-                    },
-                    onCreateShortcut = {
-                        UIUtils.createRouteShortcut(requireContext(), it.id, it.shortName)
-                    }
-                )
+    ): View = composeFragmentView(inflater) {
+        RouteSearchContent(
+            viewModel = viewModel,
+            shortcutMode = isShortcutMode(),
+            onRouteClick = ::onRouteClicked,
+            onShowOnMap = { HomeActivity.start(requireActivity(), it.id) },
+            onShowSchedule = { route ->
+                route.url?.let { UIUtils.goToUrl(requireActivity(), it) }
+            },
+            onCreateShortcut = {
+                UIUtils.createRouteShortcut(requireContext(), it.id, it.shortName)
             }
-        }
+        )
     }
 
     private fun isShortcutMode(): Boolean =

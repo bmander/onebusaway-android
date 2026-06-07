@@ -23,6 +23,7 @@ import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaStopsForLocationRequest
 import org.onebusaway.android.provider.ObaContract
+import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.UIUtils
 
 /**
@@ -60,7 +61,7 @@ class DefaultStopSearchRepository(private val context: Context) : StopSearchRepo
 
     override suspend fun search(query: String): Result<List<StopSearchResult>> =
         withContext(Dispatchers.IO) {
-            val response = ObaStopsForLocationRequest.Builder(context, searchCenter(context))
+            val response = ObaStopsForLocationRequest.Builder(context, LocationUtils.getSearchCenter(context))
                 .setQuery(query)
                 .build()
                 .call()

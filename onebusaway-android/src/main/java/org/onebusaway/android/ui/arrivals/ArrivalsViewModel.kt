@@ -116,6 +116,14 @@ class ArrivalsViewModel(
         viewModelScope.launch { repository.setStopFavorite(content.header.stopId, newValue) }
     }
 
+    /** Switches the arrival-info display style (the legacy "sort by" view-mode toggle) and reloads. */
+    fun setArrivalStyle(style: Int) {
+        viewModelScope.launch {
+            repository.setArrivalStyle(style)
+            refresh()
+        }
+    }
+
     /** Replaces the route filter (empty == show all), persists it, and reloads. */
     fun setRouteFilter(filter: Set<String>) {
         routeFilter = filter

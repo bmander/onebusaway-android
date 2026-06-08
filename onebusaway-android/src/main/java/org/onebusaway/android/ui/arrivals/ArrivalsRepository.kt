@@ -72,6 +72,9 @@ interface ArrivalsRepository {
     /** Persists the per-stop route filter (empty == show all). */
     suspend fun setRouteFilter(stopId: String, filter: Set<String>)
 
+    /** Persists the arrival-info display style (the legacy "sort by" view-mode toggle). */
+    suspend fun setArrivalStyle(style: Int)
+
     /** Marks the given service alerts as hidden. */
     suspend fun hideAlerts(ids: List<String>)
 
@@ -249,6 +252,12 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
     override suspend fun setRouteFilter(stopId: String, filter: Set<String>) {
         withContext(Dispatchers.IO) {
             ObaContract.StopRouteFilters.set(context, stopId, ArrayList(filter))
+        }
+    }
+
+    override suspend fun setArrivalStyle(style: Int) {
+        withContext(Dispatchers.IO) {
+            BuildFlavorUtils.setArrivalInfoStyle(style)
         }
     }
 

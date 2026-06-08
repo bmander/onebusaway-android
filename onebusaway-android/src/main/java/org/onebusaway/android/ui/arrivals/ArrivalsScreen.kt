@@ -40,6 +40,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -57,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -156,6 +158,7 @@ fun ArrivalsRoute(
         rowCallbacks = rowCallbacks,
         handler = handler,
         onSetRouteFilter = viewModel::setRouteFilter,
+        onSetArrivalStyle = viewModel::setArrivalStyle,
         onShowAllRoutes = viewModel::showAllRoutes,
         onHideAllAlerts = viewModel::hideAllAlerts,
         onShowHiddenAlerts = viewModel::showHiddenAlerts
@@ -174,12 +177,14 @@ fun ArrivalsScreen(
     rowCallbacks: ArrivalRowCallbacks,
     handler: ArrivalActionHandler,
     onSetRouteFilter: (Set<String>) -> Unit,
+    onSetArrivalStyle: (Int) -> Unit,
     onShowAllRoutes: () -> Unit,
     onHideAllAlerts: () -> Unit,
     onShowHiddenAlerts: () -> Unit
 ) {
     val content = state as? ArrivalsUiState.Content
     var showFilterDialog by remember { mutableStateOf(false) }
+    var showSortDialog by remember { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -216,6 +221,13 @@ fun ArrivalsScreen(
                         )
                     }
                     if (content != null) {
+                        IconButton(onClick = { showSortDialog = true }) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_action_content_sort),
+                                contentDescription = stringResource(R.string.menu_option_sort_by),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                         OverflowMenu(
                             onFilter = { showFilterDialog = true },
                             onStopDetails = handler::onShowStopDetails,
@@ -265,6 +277,54 @@ fun ArrivalsScreen(
             }
         )
     }
+    if (showSortDialog && content != null) {
+        SortByDialog(
+            selected = content.style,
+            onDismiss = { showSortDialog = false },
+            onSelect = {
+                onSetArrivalStyle(it)
+                showSortDialog = false
+            }
+        )
+    }
+}
+
+/**
+ * The legacy "Sort by" single-choice dialog: it doesn't reorder but switches the display style —
+ * "Estimated arrival" (the flat Style A list) vs "Route" (the route-grouped Style B cards).
+ * Selecting an option applies it immediately (legacy behavior).
+ */
+@Composable
+private fun SortByDialog(
+    selected: Int,
+    onDismiss: () -> Unit,
+    onSelect: (Int) -> Unit
+) {
+    val options = stringArrayResource(R.array.sort_arrivals)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.menu_option_sort_by)) },
+        text = {
+            Column {
+                options.forEachIndexed { index, label ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(index) }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = index == selected, onClick = { onSelect(index) })
+                        Spacer(Modifier.width(8.dp))
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+        }
+    )
 }
 
 @Composable

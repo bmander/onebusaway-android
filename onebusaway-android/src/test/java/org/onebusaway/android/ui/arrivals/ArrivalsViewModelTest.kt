@@ -65,6 +65,12 @@ private class FakeArrivalsRepository(
         persistedFilter = filter
     }
 
+    var lastSetStyle: Int? = null
+
+    override suspend fun setArrivalStyle(style: Int) {
+        lastSetStyle = style
+    }
+
     override suspend fun hideAlerts(ids: List<String>) {
         hiddenAlertIds = ids
     }

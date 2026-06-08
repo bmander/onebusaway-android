@@ -15,14 +15,21 @@
  */
 package org.onebusaway.android.ui.arrivals
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -39,15 +46,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.ui.ArrivalInfo
+import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.util.comparators.AlphanumComparator
 
 /**
@@ -90,34 +102,104 @@ fun groupForStyleB(arrivals: List<ArrivalInfo>): List<List<ArrivalInfo>> {
     return groups
 }
 
-/** The visual content of a flat arrival row: route badge, headsign, status, and ETA. Shared by
- *  the interactive Style A row and the report-flow picker (which wraps it with its own click). */
+/**
+ * The shaded rounded card that wraps each Style A arrival (and the report-flow picker rows),
+ * matching the legacy MaterialCardView. Pass [onClick] to make the whole card a single tap target
+ * (the picker); leave it null when the card holds its own buttons (the interactive list row).
+ */
 @Composable
-internal fun ArrivalRowContent(arrival: ArrivalInfo, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = arrival.info.shortName.orEmpty(),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.width(64.dp)
-        )
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = arrival.info.headsign.orEmpty(),
-                style = MaterialTheme.typography.bodyLarge,
-                textDecoration = canceledDecoration(arrival)
-            )
-            StatusText(arrival)
-        }
-        EtaBlock(arrival)
+internal fun ArrivalCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
+    val base = modifier
+        .fillMaxWidth()
+        .padding(horizontal = 12.dp, vertical = 6.dp)
+    val shape = MaterialTheme.shapes.medium
+    val color = MaterialTheme.colorScheme.surfaceContainerLow
+    if (onClick != null) {
+        Surface(onClick = onClick, modifier = base, shape = shape, color = color, content = content)
+    } else {
+        Surface(modifier = base, shape = shape, color = color, content = content)
     }
 }
 
-/** A single flat arrival row (Style A): the row content plus a tap-to-open per-arrival menu. */
+/**
+ * The visual content of a flat arrival row, driven by primitives so it stays previewable and
+ * testable (the [ArrivalInfo] model can't be built in a @Preview). [ArrivalRowContent] adapts the
+ * model onto it; the colored status pill and ETA both take the lateness [statusColor].
+ */
+@Composable
+private fun ArrivalRowVisual(
+    shortName: String,
+    headsign: String,
+    statusText: String,
+    statusColor: Color,
+    timeText: String,
+    eta: Long,
+    predicted: Boolean,
+    canceled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val decoration = strikeThroughIf(canceled)
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = shortName,
+            fontSize = 36.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            textDecoration = decoration,
+            modifier = Modifier.widthIn(min = 48.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = headsign,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                textDecoration = decoration
+            )
+            if (statusText.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                StatusPill(statusText, statusColor)
+            }
+            if (timeText.isNotEmpty()) {
+                // The scheduled/predicted clock time: "Arriving/Departing/Arrived/Departed at 4:27 PM"
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = timeText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        EtaContent(eta, statusColor, predicted, canceled)
+    }
+}
+
+/** Adapts the [ArrivalInfo] display model onto [ArrivalRowVisual]. Shared by the interactive Style
+ *  A row and the report-flow picker (which wrap it with their own click + card). */
+@Composable
+internal fun ArrivalRowContent(arrival: ArrivalInfo, modifier: Modifier = Modifier) {
+    ArrivalRowVisual(
+        shortName = arrival.info.shortName.orEmpty(),
+        headsign = arrival.info.headsign.orEmpty(),
+        statusText = arrival.statusText.orEmpty(),
+        statusColor = colorResource(arrival.color),
+        timeText = arrival.timeText.orEmpty(),
+        eta = arrival.eta,
+        predicted = arrival.predicted,
+        canceled = arrival.status == Status.CANCELED,
+        modifier = modifier
+    )
+}
+
+/**
+ * A single flat arrival row (Style A): a shaded card holding the tappable favorite star, the row
+ * content, and a horizontal-overflow menu — matching the legacy `arrivals_list_item` card.
+ */
 @Composable
 fun ArrivalRowStyleA(
     arrival: ArrivalInfo,
@@ -127,10 +209,93 @@ fun ArrivalRowStyleA(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box {
-        ArrivalRowContent(arrival, modifier.clickable { expanded = true })
-        ArrivalActionsMenu(expanded, { expanded = false }, arrival, actions, filterActive, callbacks)
+    StyleACard(
+        modifier = modifier,
+        isFavorite = actions?.isRouteFavorite,
+        onFavorite = { actions?.let { callbacks.onRouteFavorite(it) } },
+        onMore = { expanded = true },
+        onContentClick = { expanded = true },
+        overflow = {
+            ArrivalActionsMenu(expanded, { expanded = false }, arrival, actions, filterActive, callbacks)
+        }
+    ) {
+        ArrivalRowContent(arrival, Modifier.fillMaxWidth())
     }
+}
+
+/**
+ * The Style A card scaffold: the row content with a small favorite star tucked into the top-left
+ * corner and a horizontal-overflow into the top-right (legacy `route_favorite` / `more_horizontal`).
+ * Shared by the live row and its @Preview so the corner layout and padding can't drift apart.
+ *
+ * @param isFavorite the star's state, or null to omit the star (e.g. when there are no actions)
+ * @param onContentClick tap handler for the row body, or null for a non-interactive body (preview)
+ * @param overflow the dropdown menu anchored to the top-right overflow icon
+ */
+@Composable
+private fun StyleACard(
+    isFavorite: Boolean?,
+    onFavorite: () -> Unit,
+    onMore: () -> Unit,
+    onContentClick: (() -> Unit)?,
+    overflow: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    ArrivalCard(modifier) {
+        Box(Modifier.fillMaxWidth()) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .then(if (onContentClick != null) Modifier.clickable(onClick = onContentClick) else Modifier)
+                    // A little top room so the 36sp route/ETA clear the overlaid corner icons
+                    .padding(start = 10.dp, top = 8.dp, end = 10.dp, bottom = 6.dp)
+            ) {
+                content()
+            }
+            if (isFavorite != null) {
+                CornerIcon(
+                    iconRes = if (isFavorite) R.drawable.ic_toggle_star else R.drawable.ic_toggle_star_outline,
+                    contentDescription = stringResource(
+                        if (isFavorite) R.string.bus_options_menu_remove_star
+                        else R.string.bus_options_menu_add_star
+                    ),
+                    tint = colorResource(R.color.navdrawer_icon_tint),
+                    onClick = onFavorite,
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
+            }
+            Box(Modifier.align(Alignment.TopEnd)) {
+                CornerIcon(
+                    iconRes = R.drawable.ic_navigation_more_horiz,
+                    contentDescription = stringResource(R.string.stop_info_item_options_title),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = onMore
+                )
+                overflow()
+            }
+        }
+    }
+}
+
+/** A small tap target tucked into a card corner — the legacy overlaid star / overflow icons. */
+@Composable
+private fun CornerIcon(
+    iconRes: Int,
+    contentDescription: String,
+    tint: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Icon(
+        painter = painterResource(iconRes),
+        contentDescription = contentDescription,
+        tint = tint,
+        modifier = modifier
+            .clickable(onClick = onClick)
+            .padding(4.dp)
+            .size(18.dp)
+    )
 }
 
 /** A card grouping all upcoming arrivals for one route + headsign (Style B). */
@@ -248,35 +413,128 @@ internal fun MenuRow(textRes: Int, onClick: () -> Unit) {
     DropdownMenuItem(text = { Text(stringResource(textRes)) }, onClick = onClick)
 }
 
+private val PillShape = RoundedCornerShape(6.dp)
+
+/** The lateness-colored status pill (white text on the deviation color), the legacy status badge. */
 @Composable
-internal fun StatusText(arrival: ArrivalInfo) {
-    Text(
-        text = arrival.statusText.orEmpty(),
-        style = MaterialTheme.typography.bodyMedium,
-        color = colorResource(arrival.color)
-    )
+private fun StatusPill(text: String, color: Color) {
+    Surface(shape = PillShape, color = color) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
+    }
 }
 
+/** The prominent ETA, color-coded by lateness with a real-time dot, the legacy `eta`/`eta_min`. */
 @Composable
-internal fun EtaBlock(arrival: ArrivalInfo) {
-    val eta = arrival.eta
+private fun EtaContent(eta: Long, color: Color, predicted: Boolean, canceled: Boolean) {
+    val decoration = strikeThroughIf(canceled)
     Row(verticalAlignment = Alignment.Bottom) {
         if (eta == 0L) {
-            Text(stringResource(R.string.stop_info_eta_now), style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = stringResource(R.string.stop_info_eta_now),
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Bold,
+                color = color,
+                textDecoration = decoration
+            )
         } else {
             Text(
                 text = eta.toString(),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Medium
+                fontSize = 36.sp,
+                fontWeight = FontWeight.Bold,
+                color = color,
+                textDecoration = decoration
             )
             Text(
                 text = " " + stringResource(R.string.minutes_abbreviation),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.bodyMedium,
+                color = color,
+                textDecoration = decoration
             )
+        }
+        // Always reserve the real-time dot's column so every ETA right-justifies to the same
+        // point and the times line up; paint the dot only when there's real-time data.
+        Box(
+            Modifier
+                .align(Alignment.Top)
+                .padding(start = 2.dp)
+                .size(6.dp)
+                .then(if (predicted) Modifier.clip(CircleShape).background(color) else Modifier)
+        )
+    }
+}
+
+/** [ArrivalInfo]-driven status pill, for the Style B card and the map-panel preview. */
+@Composable
+internal fun StatusText(arrival: ArrivalInfo) {
+    val text = arrival.statusText.orEmpty()
+    if (text.isNotEmpty()) StatusPill(text, colorResource(arrival.color))
+}
+
+/** [ArrivalInfo]-driven ETA, for the Style B card and the map-panel preview. */
+@Composable
+internal fun EtaBlock(arrival: ArrivalInfo) {
+    EtaContent(arrival.eta, colorResource(arrival.color), arrival.predicted, arrival.status == Status.CANCELED)
+}
+
+private fun strikeThroughIf(canceled: Boolean): TextDecoration =
+    if (canceled) TextDecoration.LineThrough else TextDecoration.None
+
+private fun canceledDecoration(arrival: ArrivalInfo): TextDecoration =
+    strikeThroughIf(arrival.status == Status.CANCELED)
+
+// ---------------------------------------------------------------------------------------------
+// Previews — exercise the Style A card states without the (un-previewable) ArrivalInfo model.
+
+@Preview(showBackground = true)
+@Composable
+private fun ArrivalRowStyleAPreview() {
+    ObaTheme {
+        Column(Modifier.padding(vertical = 8.dp)) {
+            PreviewStyleACard("8", "Capitol Hill", "2 min late", R.color.stop_info_delayed, "Departing at 4:32 PM", 5, predicted = true, favorite = true)
+            PreviewStyleACard("12", "Downtown Seattle", "On time", R.color.stop_info_ontime, "Departing at 4:27 PM", 0, predicted = true, favorite = false)
+            PreviewStyleACard("40", "Northgate", "3 min early", R.color.stop_info_early, "Arriving at 4:39 PM", 12, predicted = true, favorite = false)
+            PreviewStyleACard("550", "Bellevue Transit Center", "Scheduled", R.color.stop_info_scheduled_time, "Departing at 4:49 PM", 22, predicted = false, favorite = false)
+            PreviewStyleACard("7", "Rainier Beach", "Departed 1 min late", R.color.stop_info_delayed, "Departed at 4:25 PM", -2, predicted = true, favorite = false)
+            PreviewStyleACard("49", "University District", "Canceled", R.color.stop_info_scheduled_time, "", 8, predicted = false, favorite = false, canceled = true)
         }
     }
 }
 
-private fun canceledDecoration(arrival: ArrivalInfo): TextDecoration =
-    if (arrival.status == Status.CANCELED) TextDecoration.LineThrough else TextDecoration.None
+/** Mirrors [ArrivalRowStyleA]'s layout with static icons so the @Preview can render every state. */
+@Composable
+private fun PreviewStyleACard(
+    shortName: String,
+    headsign: String,
+    status: String,
+    statusColorRes: Int,
+    timeText: String,
+    eta: Long,
+    predicted: Boolean,
+    favorite: Boolean,
+    canceled: Boolean = false
+) {
+    StyleACard(
+        isFavorite = favorite,
+        onFavorite = {},
+        onMore = {},
+        onContentClick = null,
+        overflow = {}
+    ) {
+        ArrivalRowVisual(
+            shortName = shortName,
+            headsign = headsign,
+            statusText = status,
+            statusColor = colorResource(statusColorRes),
+            timeText = timeText,
+            eta = eta,
+            predicted = predicted,
+            canceled = canceled,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}

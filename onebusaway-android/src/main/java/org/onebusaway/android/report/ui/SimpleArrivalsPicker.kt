@@ -15,12 +15,10 @@
  */
 package org.onebusaway.android.report.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.ArrivalInfo
+import org.onebusaway.android.ui.arrivals.ArrivalCard
 import org.onebusaway.android.ui.arrivals.ArrivalRowContent
 import org.onebusaway.android.ui.arrivals.ArrivalsUiState
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
@@ -67,8 +66,14 @@ fun SimpleArrivalsPicker(
                 } else {
                     Column(Modifier.fillMaxWidth()) {
                         current.arrivals.forEach { arrival ->
-                            ArrivalRowContent(arrival, Modifier.clickable { onPick(arrival) })
-                            HorizontalDivider()
+                            ArrivalCard(onClick = { onPick(arrival) }) {
+                                ArrivalRowContent(
+                                    arrival,
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                )
+                            }
                         }
                     }
                 }

@@ -29,7 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.onebusaway.android.R
 import org.onebusaway.android.util.UIUtils
 
@@ -84,18 +86,26 @@ fun StopRowContent(
 }
 
 /**
- * The visual content of a route result row: the prominent short name and an optional secondary
- * line. The caller supplies its own click handling and padding via [modifier].
+ * The visual content of a route result row: a prominent short name (route number) on the left and
+ * an optional description to its right, matching the legacy list. The caller supplies its own
+ * click handling and padding via [modifier].
  */
 @Composable
 fun RouteRowContent(shortName: String, longName: String?, modifier: Modifier = Modifier) {
-    Column(modifier) {
-        Text(shortName, style = MaterialTheme.typography.bodyLarge)
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = shortName,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            fontSize = 30.sp,
+            modifier = Modifier.width(64.dp)
+        )
         if (longName != null) {
             Text(
                 text = longName,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
             )
         }
     }

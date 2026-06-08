@@ -17,10 +17,12 @@ package org.onebusaway.android.ui.searchresults
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,10 +59,9 @@ fun SearchResultsRoute(
     onStopArrivals: (SearchResultItem.Stop) -> Unit,
     onStopShowOnMap: (SearchResultItem.Stop) -> Unit
 ) {
-    val query by viewModel.query.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
     SearchResultsScreen(
-        title = query,
+        title = stringResource(R.string.app_name),
         state = state,
         onRetry = viewModel::retry,
         onBack = onBack,
@@ -121,26 +122,29 @@ private fun RouteResultRow(
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val options = stringArrayResource(R.array.search_route_options)
-    Box {
-        RouteRowContent(
-            shortName = route.shortName,
-            longName = route.longName,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { menuExpanded = true }
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        )
-        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-            MenuHeader(route.longName ?: route.shortName)
-            DropdownMenuItem(
-                text = { Text(options[0]) },
-                onClick = { menuExpanded = false; onListStops(route) }
+    Column {
+        Box {
+            RouteRowContent(
+                shortName = route.shortName,
+                longName = route.longName,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { menuExpanded = true }
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             )
-            DropdownMenuItem(
-                text = { Text(options[1]) },
-                onClick = { menuExpanded = false; onShowOnMap(route) }
-            )
+            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                MenuHeader(route.longName ?: route.shortName)
+                DropdownMenuItem(
+                    text = { Text(options[0]) },
+                    onClick = { menuExpanded = false; onListStops(route) }
+                )
+                DropdownMenuItem(
+                    text = { Text(options[1]) },
+                    onClick = { menuExpanded = false; onShowOnMap(route) }
+                )
+            }
         }
+        HorizontalDivider()
     }
 }
 
@@ -152,27 +156,30 @@ private fun StopResultRow(
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val options = stringArrayResource(R.array.search_stop_options)
-    Box {
-        StopRowContent(
-            name = stop.name,
-            direction = stop.direction,
-            isFavorite = stop.isFavorite,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { menuExpanded = true }
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        )
-        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-            MenuHeader(stop.name)
-            DropdownMenuItem(
-                text = { Text(options[0]) },
-                onClick = { menuExpanded = false; onArrivals(stop) }
+    Column {
+        Box {
+            StopRowContent(
+                name = stop.name,
+                direction = stop.direction,
+                isFavorite = stop.isFavorite,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { menuExpanded = true }
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             )
-            DropdownMenuItem(
-                text = { Text(options[1]) },
-                onClick = { menuExpanded = false; onShowOnMap(stop) }
-            )
+            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                MenuHeader(stop.name)
+                DropdownMenuItem(
+                    text = { Text(options[0]) },
+                    onClick = { menuExpanded = false; onArrivals(stop) }
+                )
+                DropdownMenuItem(
+                    text = { Text(options[1]) },
+                    onClick = { menuExpanded = false; onShowOnMap(stop) }
+                )
+            }
         }
+        HorizontalDivider()
     }
 }
 

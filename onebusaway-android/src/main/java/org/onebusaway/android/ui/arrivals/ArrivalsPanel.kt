@@ -112,9 +112,12 @@ fun ArrivalsPanel(
     Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             DrawerHandle()
-            when {
-                content == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
-                collapsed -> previewArrivals.forEachIndexed { index, arrival ->
+            // The collapsed peek — up to two preferred arrivals — stays exactly as-is when the
+            // panel is pulled up (the legacy ArrivalsListHeader behavior).
+            if (content == null) {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            } else {
+                previewArrivals.forEachIndexed { index, arrival ->
                     if (index > 0) PeekDivider()
                     PeekRow(
                         arrival = arrival,
@@ -123,16 +126,6 @@ fun ArrivalsPanel(
                         callbacks = rowCallbacks
                     )
                 }
-                else -> ArrivalsList(
-                    content = content,
-                    rowCallbacks = rowCallbacks,
-                    handler = handler,
-                    onLoadMore = viewModel::loadMore,
-                    onShowAllRoutes = viewModel::showAllRoutes,
-                    onShowHiddenAlerts = viewModel::showHiddenAlerts,
-                    modifier = Modifier.weight(1f),
-                    listState = listState
-                )
             }
             ArrivalsPanelHeader(
                 title = content?.header?.name?.takeIf { it.isNotEmpty() } ?: initialTitle,
@@ -145,6 +138,24 @@ fun ArrivalsPanel(
                 onToggleExpand = onToggleExpand,
                 onToggleFavorite = viewModel::toggleFavorite
             )
+            // The full standalone-style list sits below the peek + header and is revealed as the
+            // panel slides up. It's always composed (not gated on `collapsed`, which only flips at
+            // the settle points), so the reveal tracks the drag; when collapsed the panel height
+            // clips it away below the header.
+            if (content != null) {
+                ArrivalsList(
+                    content = content,
+                    rowCallbacks = rowCallbacks,
+                    handler = handler,
+                    onLoadMore = viewModel::loadMore,
+                    onShowAllRoutes = viewModel::showAllRoutes,
+                    onShowHiddenAlerts = viewModel::showHiddenAlerts,
+                    modifier = Modifier.weight(1f),
+                    listState = listState,
+                    // The drawer header already shows the direction as a "(N)" tag.
+                    showDirection = false
+                )
+            }
         }
     }
 }

@@ -361,7 +361,10 @@ internal fun ArrivalsList(
     onShowAllRoutes: () -> Unit,
     onShowHiddenAlerts: () -> Unit,
     modifier: Modifier = Modifier,
-    listState: LazyListState = rememberLazyListState()
+    listState: LazyListState = rememberLazyListState(),
+    /** Hosts that show the stop's direction elsewhere (e.g. in their own header) set this false to
+     *  avoid duplicating it as a list item. */
+    showDirection: Boolean = true
 ) {
     val useCards = content.style == BuildFlavorUtils.ARRIVAL_INFO_STYLE_B &&
         UIUtils.canSupportArrivalInfoStyleB()
@@ -397,8 +400,10 @@ internal fun ArrivalsList(
                 FilterIndicator(content.filteredRouteCount, content.header.routeCount, onShowAllRoutes)
             }
         }
-        content.header.direction?.let { direction ->
-            item(key = "direction") { DirectionLine(direction) }
+        if (showDirection) {
+            content.header.direction?.let { direction ->
+                item(key = "direction") { DirectionLine(direction) }
+            }
         }
         if (content.arrivals.isEmpty()) {
             item(key = "empty") { EmptyArrivals(content.minutesAfter) }

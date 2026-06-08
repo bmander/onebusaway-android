@@ -45,10 +45,11 @@
     <dimen name="route_name_text_size_small">24sp</dimen>
     <dimen name="route_name_text_size_medium">30sp</dimen>
 
-    <!-- Arrival List Header -->
-    <dimen name="arrival_header_height_no_arrivals">50dp</dimen>
-    <dimen name="arrival_header_height_one_arrival">114dp</dimen>
-    <dimen name="arrival_header_height_two_arrivals">154dp</dimen>
+    <!-- Arrival List Header: collapsed drawer peek heights = drag handle (~20dp) + N peek rows
+         (~48dp each) + the stop header pinned at the bottom (~56dp). -->
+    <dimen name="arrival_header_height_no_arrivals">84dp</dimen>
+    <dimen name="arrival_header_height_one_arrival">132dp</dimen>
+    <dimen name="arrival_header_height_two_arrivals">182dp</dimen>
     <dimen name="arrival_header_height_offset_filter_routes">25dp</dimen>
     <dimen name="arrival_header_height_edit_name">100dp</dimen>
     <dimen name="arrival_header_left_margin">10dp</dimen>

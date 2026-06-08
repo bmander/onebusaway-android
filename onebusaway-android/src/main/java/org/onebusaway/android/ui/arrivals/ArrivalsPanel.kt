@@ -15,14 +15,7 @@
  */
 package org.onebusaway.android.ui.arrivals
 
-import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -57,7 +50,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -314,35 +306,6 @@ private fun EtaPill(eta: Long, color: Color, predicted: Boolean) {
                     }
                 }
             }
-        }
-    }
-}
-
-/**
- * The pulsing real-time "connectedness" indicator: concentric stroked circles expanding and
- * contracting at staggered durations, a Compose port of the legacy [org.onebusaway.android.view
- * .RealtimeIndicatorView] (transparent fill, stroked outline, FastOutLinearIn, REVERSE repeat).
- */
-@Composable
-private fun RealtimeIndicator(color: Color, modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "realtime")
-    // Staggered durations make the rings radiate out of phase, matching the legacy 1500/1800/2000.
-    val rings = listOf(1500, 1800, 2000).map { duration ->
-        transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = duration, easing = FastOutLinearInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "realtime-$duration"
-        )
-    }
-    Canvas(modifier) {
-        val maxRadius = size.minDimension / 2f
-        val stroke = Stroke(width = 1.2.dp.toPx())
-        rings.forEach { ring ->
-            drawCircle(color = color, radius = maxRadius * ring.value, style = stroke)
         }
     }
 }

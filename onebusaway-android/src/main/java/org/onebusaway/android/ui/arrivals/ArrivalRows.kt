@@ -15,20 +15,26 @@
  */
 package org.onebusaway.android.ui.arrivals
 
-import androidx.compose.foundation.background
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -46,8 +52,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -456,15 +462,48 @@ private fun EtaContent(eta: Long, color: Color, predicted: Boolean, canceled: Bo
                 textDecoration = decoration
             )
         }
-        // Always reserve the real-time dot's column so every ETA right-justifies to the same
-        // point and the times line up; paint the dot only when there's real-time data.
+        // Always reserve the real-time indicator's column so every ETA right-justifies to the
+        // same point and the times line up; animate it only when there's real-time data.
         Box(
             Modifier
                 .align(Alignment.Top)
                 .padding(start = 2.dp)
-                .size(6.dp)
-                .then(if (predicted) Modifier.clip(CircleShape).background(color) else Modifier)
+                .size(8.dp)
+        ) {
+            if (predicted) {
+                RealtimeIndicator(color = color, modifier = Modifier.fillMaxSize())
+            }
+        }
+    }
+}
+
+/**
+ * The pulsing real-time "connectedness" indicator: concentric stroked circles expanding and
+ * contracting at staggered durations, a Compose port of the legacy [org.onebusaway.android.view
+ * .RealtimeIndicatorView] (transparent fill, stroked outline, FastOutLinearIn, REVERSE repeat).
+ * Shared by the standalone/list ETA and the map drawer's ETA pill.
+ */
+@Composable
+internal fun RealtimeIndicator(color: Color, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "realtime")
+    // Staggered durations make the rings radiate out of phase, matching the legacy 1500/1800/2000.
+    val rings = listOf(1500, 1800, 2000).map { duration ->
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = duration, easing = FastOutLinearInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "realtime-$duration"
         )
+    }
+    Canvas(modifier) {
+        val maxRadius = size.minDimension / 2f
+        val stroke = Stroke(width = 1.2.dp.toPx())
+        rings.forEach { ring ->
+            drawCircle(color = color, radius = maxRadius * ring.value, style = stroke)
+        }
     }
 }
 

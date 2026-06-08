@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -99,33 +100,37 @@ fun RegionsScreen(
 
 @Composable
 private fun RegionRow(region: RegionItem, onClick: (RegionItem) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick(region) }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // alpha(0f) (rather than omitting the icon) keeps rows aligned, like the legacy
-        // layout's INVISIBLE check mark
-        Icon(
-            painter = painterResource(R.drawable.ic_checkmark_holo_light),
-            contentDescription = if (region.isCurrent) {
-                stringResource(R.string.checkmark_description)
-            } else {
-                null
-            },
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.alpha(if (region.isCurrent) 1f else 0f)
-        )
-        Spacer(Modifier.width(16.dp))
-        Column {
-            Text(region.name, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                text = distanceText(region.distanceMeters),
-                style = MaterialTheme.typography.bodyMedium
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onClick(region) }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // alpha(0f) (rather than omitting the icon) keeps rows aligned, like the legacy
+            // layout's INVISIBLE check mark
+            Icon(
+                painter = painterResource(R.drawable.ic_checkmark_holo_light),
+                contentDescription = if (region.isCurrent) {
+                    stringResource(R.string.checkmark_description)
+                } else {
+                    null
+                },
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.alpha(if (region.isCurrent) 1f else 0f)
             )
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(region.name, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = distanceText(region.distanceMeters),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
+        // Slight divider between region entries, matching the pre-migration list.
+        HorizontalDivider()
     }
 }
 

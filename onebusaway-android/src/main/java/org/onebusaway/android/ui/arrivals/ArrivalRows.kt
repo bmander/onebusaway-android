@@ -434,11 +434,12 @@ private fun StatusPill(text: String, color: Color) {
     }
 }
 
-/** The prominent ETA, color-coded by lateness with a real-time dot, the legacy `eta`/`eta_min`. */
+/** The prominent ETA, color-coded by lateness, with the real-time indicator as a superscript on
+ *  the "min" label (matching the drawer pill); the legacy `eta`/`eta_min`. */
 @Composable
 private fun EtaContent(eta: Long, color: Color, predicted: Boolean, canceled: Boolean) {
     val decoration = strikeThroughIf(canceled)
-    Row(verticalAlignment = Alignment.Bottom) {
+    Row {
         if (eta == 0L) {
             Text(
                 text = stringResource(R.string.stop_info_eta_now),
@@ -447,33 +448,36 @@ private fun EtaContent(eta: Long, color: Color, predicted: Boolean, canceled: Bo
                 color = color,
                 textDecoration = decoration
             )
+            EtaRealtimeIndicator(predicted, color)
         } else {
             Text(
                 text = eta.toString(),
                 fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
                 color = color,
-                textDecoration = decoration
+                textDecoration = decoration,
+                modifier = Modifier.alignByBaseline()
             )
-            Text(
-                text = " " + stringResource(R.string.minutes_abbreviation),
-                style = MaterialTheme.typography.bodyMedium,
-                color = color,
-                textDecoration = decoration
-            )
-        }
-        // Always reserve the real-time indicator's column so every ETA right-justifies to the
-        // same point and the times line up; animate it only when there's real-time data.
-        Box(
-            Modifier
-                .align(Alignment.Top)
-                .padding(start = 2.dp)
-                .size(8.dp)
-        ) {
-            if (predicted) {
-                RealtimeIndicator(color = color, modifier = Modifier.fillMaxSize())
+            // "min" shares the number's baseline; the indicator rides at its upper-right.
+            Row(modifier = Modifier.alignByBaseline(), verticalAlignment = Alignment.Top) {
+                Text(
+                    text = " " + stringResource(R.string.minutes_abbreviation),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = color,
+                    textDecoration = decoration,
+                    modifier = Modifier.alignByBaseline()
+                )
+                EtaRealtimeIndicator(predicted, color)
             }
         }
+    }
+}
+
+/** The real-time indicator's reserved column (so ETAs right-justify alike); animates when live. */
+@Composable
+private fun EtaRealtimeIndicator(predicted: Boolean, color: Color) {
+    Box(Modifier.padding(start = 2.dp).size(8.dp)) {
+        if (predicted) RealtimeIndicator(color = color, modifier = Modifier.fillMaxSize())
     }
 }
 

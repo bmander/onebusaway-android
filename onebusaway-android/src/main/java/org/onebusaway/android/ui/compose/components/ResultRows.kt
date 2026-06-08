@@ -133,3 +133,20 @@ private fun RouteRowContentPreview() {
         }
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+private fun StopRowContentPreview() {
+    val rowModifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 16.dp, vertical = 12.dp)
+    ObaTheme {
+        Column {
+            StopRowContent("Broadway & E Denny Way - Bay 4", "S", isFavorite = true, rowModifier)
+            HorizontalDivider()
+            StopRowContent("19th Ave E & E Republican St", "N", isFavorite = false, rowModifier)
+            HorizontalDivider()
+            StopRowContent("Stop with no direction", "", isFavorite = false, rowModifier)
+        }
+    }
+}

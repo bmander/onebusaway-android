@@ -58,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.components.LoadingContent
 import org.onebusaway.android.ui.compose.components.MenuHeader
+import org.onebusaway.android.ui.compose.components.RouteNumberBadge
 import org.onebusaway.android.ui.compose.components.StopRowContent
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 
@@ -67,7 +68,6 @@ fun RouteInfoRoute(
     viewModel: RouteInfoViewModel,
     onBack: () -> Unit,
     onShowRouteOnMap: () -> Unit,
-    onGotoUrl: (String) -> Unit,
     onStopClick: (RouteStopItem) -> Unit,
     onStopShowOnMap: (RouteStopItem) -> Unit
 ) {
@@ -76,7 +76,6 @@ fun RouteInfoRoute(
         state = state,
         onBack = onBack,
         onShowRouteOnMap = onShowRouteOnMap,
-        onGotoUrl = onGotoUrl,
         onStopClick = onStopClick,
         onStopShowOnMap = onStopShowOnMap
     )
@@ -89,15 +88,13 @@ fun RouteInfoScreen(
     state: RouteInfoUiState,
     onBack: () -> Unit,
     onShowRouteOnMap: () -> Unit,
-    onGotoUrl: (String) -> Unit,
     onStopClick: (RouteStopItem) -> Unit,
     onStopShowOnMap: (RouteStopItem) -> Unit
 ) {
-    val route = (state as? RouteInfoUiState.Success)?.route
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(route?.shortName ?: stringResource(R.string.route_info_title)) },
+                title = { Text(stringResource(R.string.app_name)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -113,15 +110,6 @@ fun RouteInfoScreen(
                             contentDescription = stringResource(R.string.stop_info_option_showonmap),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
-                    }
-                    if (route?.url != null) {
-                        IconButton(onClick = { onGotoUrl(route.url) }) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_menu_month),
-                                contentDescription = stringResource(R.string.route_info_goto_url),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
                     }
                 }
             )
@@ -186,16 +174,22 @@ private fun RouteInfoContent(
 
 @Composable
 private fun RouteHeader(route: RouteInfo) {
-    Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-        if (route.longName != null) {
-            Text(route.longName, style = MaterialTheme.typography.titleMedium)
-        }
-        if (route.agencyName != null) {
-            Text(
-                text = route.agencyName,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+    Row(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RouteNumberBadge(route.shortName)
+        Column(Modifier.weight(1f)) {
+            if (route.longName != null) {
+                Text(route.longName, style = MaterialTheme.typography.titleMedium)
+            }
+            if (route.agencyName != null) {
+                Text(
+                    text = route.agencyName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -225,7 +219,7 @@ private fun DirectionHeader(name: String, expanded: Boolean, onClick: () -> Unit
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -341,7 +335,7 @@ private fun RouteInfoScreenSuccessPreview() {
                     )
                 )
             ),
-            onBack = {}, onShowRouteOnMap = {}, onGotoUrl = {}, onStopClick = {}, onStopShowOnMap = {}
+            onBack = {}, onShowRouteOnMap = {}, onStopClick = {}, onStopShowOnMap = {}
         )
     }
 }
@@ -352,7 +346,7 @@ private fun RouteInfoScreenLoadingPreview() {
     ObaTheme {
         RouteInfoScreen(
             state = RouteInfoUiState.Loading,
-            onBack = {}, onShowRouteOnMap = {}, onGotoUrl = {}, onStopClick = {}, onStopShowOnMap = {}
+            onBack = {}, onShowRouteOnMap = {}, onStopClick = {}, onStopShowOnMap = {}
         )
     }
 }
@@ -363,7 +357,7 @@ private fun RouteInfoScreenErrorPreview() {
     ObaTheme {
         RouteInfoScreen(
             state = RouteInfoUiState.Error("Please check your Internet connection and try again."),
-            onBack = {}, onShowRouteOnMap = {}, onGotoUrl = {}, onStopClick = {}, onStopShowOnMap = {}
+            onBack = {}, onShowRouteOnMap = {}, onStopClick = {}, onStopShowOnMap = {}
         )
     }
 }

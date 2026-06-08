@@ -29,7 +29,6 @@ import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.routeinfo.DefaultRouteInfoRepository
 import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
 import org.onebusaway.android.ui.routeinfo.RouteInfoViewModel
-import org.onebusaway.android.util.UIUtils
 
 /**
  * Shows a route's metadata and its stops grouped by direction.
@@ -58,7 +57,6 @@ class RouteInfoActivity : AppCompatActivity() {
                     viewModel = viewModel,
                     onBack = { NavHelp.goHome(this, false) },
                     onShowRouteOnMap = { HomeActivity.start(this, routeId) },
-                    onGotoUrl = { UIUtils.goToUrl(this, it) },
                     onStopClick = { stop ->
                         ArrivalsListActivity.Builder(this, stop.id)
                             .setStopName(stop.name)

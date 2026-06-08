@@ -50,7 +50,6 @@ import org.onebusaway.android.io.elements.OccupancyState;
 import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.ui.TripDetailsActivity;
-import org.onebusaway.android.ui.TripDetailsListFragment;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.MathUtils;
 import org.onebusaway.android.util.UIUtils;
@@ -532,12 +531,12 @@ public class VehicleOverlay implements GoogleMap.OnInfoWindowClickListener, Mark
                 if (mController != null && mController.getFocusedStopId() != null) {
                     new TripDetailsActivity.Builder(mActivity, status.getActiveTripId())
                             .setStopId(mController.getFocusedStopId())
-                            .setScrollMode(TripDetailsListFragment.SCROLL_MODE_VEHICLE)
+                            .setScrollMode(TripDetailsActivity.SCROLL_MODE_VEHICLE)
                             .setUpMode("back")
                             .start();
                 } else {
                     new TripDetailsActivity.Builder(mActivity, status.getActiveTripId())
-                            .setScrollMode(TripDetailsListFragment.SCROLL_MODE_VEHICLE)
+                            .setScrollMode(TripDetailsActivity.SCROLL_MODE_VEHICLE)
                             .setUpMode("back")
                             .start();
                 }

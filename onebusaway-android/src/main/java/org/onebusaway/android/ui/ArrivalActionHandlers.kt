@@ -64,7 +64,7 @@ fun createArrivalActionHandler(
         DBUtil.addRouteToDB(activity, arrival)
         TripDetailsActivity.Builder(activity, arrival.info.tripId)
             .setStopId(arrival.info.stopId)
-            .setScrollMode(TripDetailsListFragment.SCROLL_MODE_STOP)
+            .setScrollMode(TripDetailsActivity.SCROLL_MODE_STOP)
             .setUpMode(NavHelp.UP_MODE_BACK)
             .start()
     }

@@ -120,6 +120,9 @@ public class ListFragment extends Fragment {
 
         // ------------------------------------------------------------------
 
+        // R.id.listContainer and R.id.internalEmpty are declared in res/values/ids.xml (this
+        // programmatic view has no backing layout); keep them there as long as anything subclasses
+        // this fragment.
         FrameLayout lframe = new FrameLayout(context);
         lframe.setId(R.id.listContainer);
 

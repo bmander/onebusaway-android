@@ -39,6 +39,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.NumberFormat
 import org.onebusaway.android.R
@@ -122,7 +123,10 @@ private fun RegionRow(region: RegionItem, onClick: (RegionItem) -> Unit) {
             )
             Spacer(Modifier.width(16.dp))
             Column {
-                Text(region.name, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = region.name,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 20.sp)
+                )
                 Text(
                     text = distanceText(region.distanceMeters),
                     style = MaterialTheme.typography.bodyMedium

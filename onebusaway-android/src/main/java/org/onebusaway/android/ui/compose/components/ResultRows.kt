@@ -31,10 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.util.UIUtils
@@ -90,29 +88,15 @@ fun StopRowContent(
 }
 
 /**
- * The route's short name (number) rendered as the prominent left-hand badge, shared by the route
- * result row and the route-info header so the two stay in visual lockstep.
- */
-@Composable
-fun RouteNumberBadge(shortName: String, modifier: Modifier = Modifier) {
-    Text(
-        text = shortName,
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.Bold,
-        fontSize = 32.sp,
-        modifier = modifier.width(64.dp)
-    )
-}
-
-/**
- * The visual content of a route result row: a prominent short name (route number) on the left and
+ * The visual content of a route result row: the prominent short-name [LineBadge] on the left and
  * an optional description to its right, matching the legacy list. The caller supplies its own
  * click handling and padding via [modifier].
  */
 @Composable
 fun RouteRowContent(shortName: String, longName: String?, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        RouteNumberBadge(shortName)
+        LineBadge(shortName)
+        Spacer(Modifier.width(12.dp))
         if (longName != null) {
             Text(
                 text = longName,

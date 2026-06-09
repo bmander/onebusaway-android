@@ -34,7 +34,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -65,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.ui.ArrivalInfo
+import org.onebusaway.android.ui.compose.components.LineBadge
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.util.comparators.AlphanumComparator
 
@@ -150,13 +150,10 @@ private fun ArrivalRowVisual(
 ) {
     val decoration = strikeThroughIf(canceled)
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text(
+        LineBadge(
             text = shortName,
-            fontSize = 36.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            textDecoration = decoration,
-            modifier = Modifier.widthIn(min = 48.dp)
+            maxFontSize = 36.sp,
+            textDecoration = decoration
         )
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

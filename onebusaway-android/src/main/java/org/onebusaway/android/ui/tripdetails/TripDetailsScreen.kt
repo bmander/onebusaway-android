@@ -75,8 +75,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.arrivals.RealtimeIndicator
+import org.onebusaway.android.ui.compose.components.LineBadge
 import org.onebusaway.android.ui.compose.components.LoadingContent
-import org.onebusaway.android.ui.compose.components.RouteNumberBadge
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 
 /** Refresh interval matching the legacy TripDetailsListFragment (fixed 60s). */
@@ -232,7 +232,7 @@ private fun TripHeaderSection(header: TripHeader) {
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        RouteNumberBadge(header.routeShortName)
+        LineBadge(header.routeShortName)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(

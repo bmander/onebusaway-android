@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -72,6 +73,7 @@ private const val SHRINK_STEP = 0.9f
  * @param maxFontSize the starting (largest) font size, used when the text already fits
  * @param minFontSize the floor the auto-shrink won't go below (it may then clip)
  * @param maxLines the most lines the text may wrap to within the rectangle
+ * @param textDecoration drawn on the text (e.g. strike-through for canceled trips); doesn't affect fit
  */
 @Composable
 fun LineBadge(
@@ -82,7 +84,8 @@ fun LineBadge(
     maxFontSize: TextUnit = 32.sp,
     minFontSize: TextUnit = 12.sp,
     maxLines: Int = 2,
-    color: Color = Color.Unspecified
+    color: Color = Color.Unspecified,
+    textDecoration: TextDecoration = TextDecoration.None
 ) {
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -118,7 +121,13 @@ fun LineBadge(
         .width(width)
         .let { if (maxHeight.isSpecified) it.heightIn(max = maxHeight) else it }
     Box(boxModifier, contentAlignment = Alignment.Center) {
-        Text(text = text, color = color, style = styleAt(fontSize), maxLines = maxLines)
+        Text(
+            text = text,
+            color = color,
+            style = styleAt(fontSize),
+            maxLines = maxLines,
+            textDecoration = textDecoration
+        )
     }
 }
 

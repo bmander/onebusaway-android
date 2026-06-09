@@ -88,7 +88,7 @@ private fun Context.contentChanges(uri: Uri): Flow<Unit> = callbackFlow {
 private const val RECENT_LIMIT = "20"
 private val RECENT_WINDOW_MS = 7 * DateUtils.DAY_IN_MILLIS
 
-/** The recent-list WHERE clause (port of [QueryUtils.newRecentQuery]); [cutoffMs] is the window start. */
+/** The recent-list WHERE clause (the legacy "recently used" query); [cutoffMs] is the window start. */
 private fun recentSelection(accessTime: String, useCount: String, cutoffMs: Long, regionWhere: String) =
     "(($accessTime IS NOT NULL AND $accessTime > $cutoffMs) OR ($useCount > 0))$regionWhere"
 

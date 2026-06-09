@@ -25,22 +25,9 @@
         <item name="android:background">@color/md_theme_surfaceContainer</item>
         <item name="android:padding">4dp</item>
     </style>
-    <style name="HeaderList">
-        <item name="android:headerDividersEnabled">false</item>
-    </style>
-    <style name="ListItem">
-        <item name="android:padding">10sp</item>
-    </style>
     <style name="HeaderText">
         <item name="android:textSize">18sp</item>
         <item name="android:textStyle">bold</item>
-    </style>
-    <style name="Header2Text">
-        <item name="android:textColor">@color/md_theme_onSurface</item>
-    </style>
-    <style name="Header3Text">
-        <item name="android:textSize">12sp</item>
-        <item name="android:textColor">@android:color/white</item>
     </style>
     <style name="Line1Text">
         <item name="android:textSize">16sp</item>
@@ -60,50 +47,13 @@
     <style name="LoadingProgress" parent="@style/Widget.AppCompat.ProgressBar">
         <item name="android:paddingRight">5sp</item>
     </style>
-    <style name="LoadingText">
-        <item name="android:textSize">18sp</item>
-    </style>
-    <style name="ListHintText">
-        <item name="android:gravity">center</item>
-        <item name="android:paddingTop">18sp</item>
-    </style>
-
-    <!-- Form styles -->
-    <style name="FormLabel">
-        <item name="android:paddingTop">8sp</item>
-        <item name="android:textStyle">bold</item>
-    </style>
-
-    <!-- Alert list -->
-    <style name="AlertListItem">
-        <item name="android:textSize">16sp</item>
-        <item name="android:paddingLeft">10dp</item>
-        <item name="android:paddingRight">10dp</item>
-        <item name="android:drawablePadding">3dp</item>
-        <item name="android:minHeight">42dp</item>
-    </style>
 
     <!-- StopInfo -->
-    <style name="StopInfoRoute">
-        <item name="android:textSize">36sp</item>
-        <item name="android:textStyle">bold</item>
-    </style>
     <style name="StopInfoDestination">
         <item name="android:textStyle">bold</item>
     </style>
     <style name="StopInfoTime">
         <item name="android:textSize">12sp</item>
-    </style>
-    <style name="StopInfoStatus">
-        <item name="android:textSize">12sp</item>
-    </style>
-    <style name="StopInfoEta">
-        <item name="android:textSize">36sp</item>
-        <item name="android:textStyle">bold</item>
-    </style>
-    <style name="LoadMoreArrivals">
-        <item name="android:textSize">18sp</item>
-        <item name="android:background">@drawable/load_more_arrivals_button</item>
     </style>
 
     <!--  RouteInfo -->
@@ -124,69 +74,8 @@
         <item name="android:textColor">@color/md_theme_onSurface</item>
     </style>
 
-    <style name="FindSearchBox">
-        <item name="android:background">@drawable/ab_stacked_solid_busbot</item>
-        <item name="android:paddingTop">8dp</item>
-        <item name="android:paddingBottom">8dp</item>
-        <item name="android:paddingLeft">4dip</item>
-        <item name="android:paddingRight">4dip</item>
-    </style>
 
     <!-- Arrivals list styles -->
-    <style name="ArrivalsListItemRouteName">
-        <item name="android:textSize">28sp</item>
-        <item name="android:textStyle">bold</item>
-    </style>
-    <style name="ArrivalsListItemDestination">
-        <item name="android:textSize">12sp</item>
-    </style>
-    <style name="ArrivalsListLabel">
-        <item name="android:background">@color/theme_primary</item>
-        <item name="android:paddingRight">20dp</item>
-    </style>
-    <style name="ArrivalsListLabelText">
-        <item name="android:textSize">10sp</item>
-        <item name="android:textColor">@android:color/white</item>
-        <item name="android:textStyle">bold</item>
-    </style>
-    <style name="ArrivalsListNextTime">
-        <item name="android:paddingTop">6dp</item>
-        <item name="android:paddingBottom">6dp</item>
-    </style>
-    <style name="ArrivalsListNextTimeETA">
-        <item name="android:textSize">22sp</item>
-        <item name="android:textColor">@color/body_text_1</item>
-        <item name="android:textStyle">bold</item>
-    </style>
-    <style name="ArrivalsListNextTimeSched">
-        <item name="android:textSize">22sp</item>
-        <item name="android:textColor">@color/stop_info_scheduled_time</item>
-    </style>
-    <style name="ArrivalsListSched">
-        <item name="android:textSize">14sp</item>
-        <item name="android:paddingTop">1dp</item>
-        <item name="android:paddingBottom">1dp</item>
-    </style>
-    <style name="ArrivalsListETA">
-        <item name="android:textSize">14sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:textColor">@color/stop_info_scheduled_time</item>
-        <item name="android:paddingTop">1dp</item>
-        <item name="android:paddingBottom">1dp</item>
-    </style>
-    <style name="ArrivalsListStatusLarge">
-        <item name="android:textSize">14sp</item>
-        <item name="android:textColor">@android:color/white</item>
-        <item name="android:padding">2dp</item>
-    </style>
-    <style name="ArrivalsListStatusSmall">
-        <item name="android:textSize">12sp</item>
-        <item name="android:textColor">@color/header_text_color</item>
-        <item name="android:paddingTop">2dp</item>
-        <item name="android:paddingBottom">2dp</item>
-        <item name="android:paddingLeft">5dp</item>
-        <item name="android:paddingRight">5dp</item>
-    </style>
     <style name="ArrivalsListStatusSmallStyleA">
         <item name="android:textSize">12sp</item>
         <item name="android:textColor">@android:color/white</item>
@@ -194,21 +83,6 @@
         <item name="android:paddingBottom">2dp</item>
         <item name="android:paddingLeft">5dp</item>
         <item name="android:paddingRight">5dp</item>
-    </style>
-
-    <!-- Trip details -->
-    <style name="TripDetailsAgency">
-        <item name="android:textSize">12sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:textColor">@color/header_text_color</item>
-    </style>
-    <style name="TripDetailsVehicle">
-        <item name="android:textSize">12sp</item>
-        <item name="android:textColor">@color/header_text_color</item>
-    </style>
-    <style name="TripDetailsStatus">
-        <item name="android:textSize">12sp</item>
-        <item name="android:textColor">@android:color/white</item>
     </style>
 
     <style name="MaterialLayout">
@@ -255,11 +129,6 @@
         <item name="sv_titleTextAppearance">@style/CustomTitle2</item>
         <item name="sv_detailTextAppearance">@style/CustomText2</item>
         <item name="sv_buttonBackgroundColor">@color/md_theme_surface</item>
-    </style>
-
-    <style name="ShowcaseButton">
-        <item name="android:textColor">@color/body_text_1_inverse</item>
-        <item name="android:background">@color/md_theme_surface</item>
     </style>
 
     <style name="CustomTitle2" parent="TextAppearance.ShowcaseView.Title.Light">

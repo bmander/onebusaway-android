@@ -16,7 +16,11 @@
 -->
 <resources>
     <!-- IDs assigned programmatically by the custom ListFragment when it builds its default list
-         view. These were previously defined only by the now-removed trip_details.xml layout. -->
+         view. These were previously defined only by now-removed layouts (trip_details.xml,
+         loading.xml, refresh_loading.xml). -->
     <item name="listContainer" type="id" />
     <item name="internalEmpty" type="id" />
+    <item name="loading" type="id" />
+    <item name="refresh_loading" type="id" />
+    <item name="refresh_progress_small" type="id" />
 </resources>

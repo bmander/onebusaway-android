@@ -1,0 +1,39 @@
+/*
+ * Copyright (C) 2026 Open Transit Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.onebusaway.android.ui.mylists
+
+import androidx.annotation.StringRes
+import androidx.fragment.app.Fragment
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.onebusaway.android.R
+
+/**
+ * Shows the "clear all" confirmation dialog (the legacy ClearConfirmDialog styling) and runs
+ * [onConfirm] when the user accepts. Shared by the My-tab list fragments' clear options-menu items.
+ */
+internal fun Fragment.confirmClear(
+    @StringRes titleRes: Int,
+    @StringRes messageRes: Int,
+    onConfirm: () -> Unit
+) {
+    MaterialAlertDialogBuilder(requireActivity(), R.style.ThemeOverlay_App_DeleteDialog)
+        .setTitle(titleRes)
+        .setMessage(messageRes)
+        .setIcon(android.R.drawable.ic_dialog_alert)
+        .setPositiveButton(android.R.string.yes) { _, _ -> onConfirm() }
+        .setNegativeButton(android.R.string.no, null)
+        .show()
+}

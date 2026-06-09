@@ -32,7 +32,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.android.material.color.MaterialColors
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import org.onebusaway.android.R
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.ui.compose.composeFragmentView
@@ -44,6 +43,7 @@ import org.onebusaway.android.ui.mylists.RemindersRepository
 import org.onebusaway.android.ui.mylists.RowAction
 import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.util.PreferenceUtils
+import org.onebusaway.android.util.ReminderUtils
 
 /**
  * Saved trip reminders, embedded by [HomeActivity] (via [TAG]) and hosted by [MyRemindersActivity]. A
@@ -94,17 +94,11 @@ class MyRemindersFragment : Fragment() {
     )
 
     private fun confirmDelete(reminder: ReminderItem) {
-        MaterialAlertDialogBuilder(requireActivity())
-            .setTitle(R.string.trip_info_delete)
-            .setMessage(R.string.trip_info_delete_trip)
-            .setIcon(R.drawable.baseline_delete_forever_48)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                TripInfoActivity.TripInfoFragment.requestDeleteAlarm(
-                    requireActivity(), ObaContract.Trips.buildUri(reminder.tripId, reminder.stopId)
-                )
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        confirmDeleteReminder(requireActivity()) {
+            ReminderUtils.requestDeleteAlarm(
+                requireActivity(), ObaContract.Trips.buildUri(reminder.tripId, reminder.stopId)
+            )
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {

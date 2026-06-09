@@ -18,6 +18,8 @@ package org.onebusaway.android.util;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.elements.ObaArrivalInfo;
+import org.onebusaway.android.io.request.reminders.DeleteRequestListener;
+import org.onebusaway.android.io.request.reminders.ObaReminderDeleteRequest;
 import org.onebusaway.android.provider.ObaContract;
 
 import android.content.ContentResolver;
@@ -89,6 +91,30 @@ public class ReminderUtils {
             Log.e(TAG, "Failed to get alarm delete path", e);
         }
         return alarmDeletePath;
+    }
+
+    /**
+     * Requests server-side deletion of the reminder alarm for the trip URI (fire-and-forget) and
+     * removes the trip row from the content provider.
+     *
+     * @param context the application context
+     * @param tripUri the URI of the trip
+     */
+    public static void requestDeleteAlarm(Context context, Uri tripUri) {
+        String alarmDeletePath = getAlarmDeletePath(context, tripUri);
+        new ObaReminderDeleteRequest().sendDeleteRequest(alarmDeletePath, new DeleteRequestListener() {
+            @Override
+            public void onDeleteSuccess() {
+                Log.d(TAG, "Delete request successful");
+            }
+
+            @Override
+            public void onDeleteFailed() {
+                Log.d(TAG, "Delete request failed");
+            }
+        });
+
+        context.getContentResolver().delete(tripUri, null, null);
     }
 
     /**

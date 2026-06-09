@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.ui.mylists
 
+import androidx.annotation.ArrayRes
 import androidx.annotation.StringRes
 import androidx.fragment.app.Fragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -39,13 +40,17 @@ internal fun Fragment.confirmClear(
 }
 
 /**
- * Shows the "Sort by" single-choice dialog (R.array.sort_stops) and invokes [onPick] with the chosen
- * index when it differs from [currentOrder]. Shared by the starred stop/route lists.
+ * Shows the "Sort by" single-choice dialog over [optionsRes] and invokes [onPick] with the chosen
+ * index when it differs from [currentOrder]. Shared by the starred lists and My Reminders.
  */
-internal fun Fragment.chooseSortOrder(currentOrder: Int, onPick: (Int) -> Unit) {
+internal fun Fragment.chooseSortOrder(
+    currentOrder: Int,
+    @ArrayRes optionsRes: Int,
+    onPick: (Int) -> Unit
+) {
     MaterialAlertDialogBuilder(requireActivity())
         .setTitle(R.string.menu_option_sort_by)
-        .setSingleChoiceItems(R.array.sort_stops, currentOrder) { dialog, which ->
+        .setSingleChoiceItems(optionsRes, currentOrder) { dialog, which ->
             dialog.dismiss()
             if (which != currentOrder) onPick(which)
         }

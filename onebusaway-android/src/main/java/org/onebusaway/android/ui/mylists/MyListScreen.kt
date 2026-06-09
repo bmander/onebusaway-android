@@ -219,6 +219,50 @@ fun RouteRow(item: RouteListItem, onClick: () -> Unit, actions: List<RowAction>)
     }
 }
 
+/**
+ * A saved-reminder row: the trip name over its route · headsign and the "Departs at …" time. Like the
+ * other My-tab rows the per-item [actions] (edit / delete / show stop / show route) are a long-press menu.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ReminderRow(item: ReminderItem, onClick: () -> Unit, actions: List<RowAction>) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = if (actions.isEmpty()) null else ({ expanded = true })
+                )
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_drawer_alarm),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    item.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                val subtitle = listOfNotNull(item.routeText, item.headsign).joinToString("  ·  ")
+                if (subtitle.isNotEmpty()) {
+                    Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(item.departureText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        RowActionsMenu(expanded, actions) { expanded = false }
+    }
+}
+
 /** A fixed-width leading slot holding the favorite star (or empty), so row content stays aligned. */
 @Composable
 private fun FavoriteStarSlot(favorite: Boolean) {

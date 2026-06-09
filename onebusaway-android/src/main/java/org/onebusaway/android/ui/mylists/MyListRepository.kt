@@ -22,7 +22,9 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.text.format.DateUtils
+import androidx.annotation.ArrayRes
 import androidx.annotation.ColorRes
+import androidx.annotation.StringRes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -51,24 +53,26 @@ import org.onebusaway.android.ui.ArrivalInfo
 import org.onebusaway.android.ui.QueryUtils
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.PreferenceUtils
+import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.UIUtils
 
 /**
- * A My-tab list backed by the content provider: [observe] re-queries whenever the underlying table
- * changes (the legacy `ContentObserver` behavior), plus per-item [remove] and [clearAll]. All
- * ContentResolver/cursor work is quarantined on [Dispatchers.IO] so [MyListViewModel] stays
- * Context-free and JVM-testable.
+ * A My-tab list backed by the content provider: [observe] re-emits whenever the underlying table
+ * changes (the legacy `ContentObserver` behavior). [remove], [clearAll], and [setSort] are optional
+ * capabilities — a list overrides the ones it supports and inherits a no-op otherwise (e.g. recents
+ * don't sort; reminders delete via the host, not the repository). All ContentResolver/cursor work is
+ * quarantined on [Dispatchers.IO] so [MyListViewModel] stays Context-free and JVM-testable.
  */
 interface MyListRepository<T> {
     fun observe(): Flow<List<T>>
-    suspend fun remove(id: String)
-    suspend fun clearAll()
+    suspend fun remove(id: String) {}
+    suspend fun clearAll() {}
 
-    /** Changes the sort order ([SORT_BY_NAME] / [SORT_BY_FREQUENCY]); no-op for lists that don't sort. */
+    /** Changes the sort order (a 0-based index into the list's own sort options). */
     fun setSort(order: Int) {}
 }
 
-/** R.array.sort_stops indices, shared by the starred stop/route lists (legacy used the stop pref for both). */
+/** Sort-options indices (index 0 is "name" in every list's sort array). */
 const val SORT_BY_NAME = 0
 const val SORT_BY_FREQUENCY = 1
 
@@ -208,13 +212,10 @@ class RecentRoutesRepository(private val context: Context) : MyListRepository<Ro
     }
 }
 
-/** Persists the chosen sort order to the shared stop-sort preference (as the legacy lists did). */
-private fun saveSortOrder(context: Context, order: Int) {
-    val options = context.resources.getStringArray(R.array.sort_stops)
-    PreferenceUtils.saveString(
-        context.getString(R.string.preference_key_default_stop_sort),
-        options[order.coerceIn(options.indices)]
-    )
+/** Persists the chosen sort order as the matching [optionsRes] string under [prefKeyRes] (legacy format). */
+private fun saveSortOrder(context: Context, order: Int, @ArrayRes optionsRes: Int, @StringRes prefKeyRes: Int) {
+    val options = context.resources.getStringArray(optionsRes)
+    PreferenceUtils.saveString(context.getString(prefKeyRes), options[order.coerceIn(options.indices)])
 }
 
 /** Starred stops, sorted by name or frequency, with live next-arrivals refreshed on a 60s poll. */
@@ -223,7 +224,7 @@ class StarredStopsRepository(private val context: Context) : MyListRepository<St
     private val sort = MutableStateFlow(PreferenceUtils.getStopSortOrderFromPreferences())
 
     override fun setSort(order: Int) {
-        saveSortOrder(context, order)
+        saveSortOrder(context, order, R.array.sort_stops, R.string.preference_key_default_stop_sort)
         sort.value = order
     }
 
@@ -289,7 +290,7 @@ class StarredRoutesRepository(private val context: Context) : MyListRepository<R
     private val sort = MutableStateFlow(PreferenceUtils.getStopSortOrderFromPreferences())
 
     override fun setSort(order: Int) {
-        saveSortOrder(context, order)
+        saveSortOrder(context, order, R.array.sort_stops, R.string.preference_key_default_stop_sort)
         sort.value = order
     }
 
@@ -324,6 +325,59 @@ class StarredRoutesRepository(private val context: Context) : MyListRepository<R
             ?.use { c -> buildList { while (c.moveToNext()) add(c.toRouteItem()) } }
             ?: emptyList()
     }
+}
+
+/** Saved trip reminders, sorted by name or departure time. Deletion is a host concern (it cancels the
+ *  scheduled alarm), so this only observes + sorts; the ContentObserver reflects deletions. */
+class RemindersRepository(private val context: Context) : MyListRepository<ReminderItem> {
+
+    private val sort = MutableStateFlow(PreferenceUtils.getReminderSortOrderFromPreferences())
+
+    override fun setSort(order: Int) {
+        saveSortOrder(context, order, R.array.sort_reminders, R.string.preference_key_default_reminder_sort)
+        sort.value = order
+    }
+
+    override fun observe(): Flow<List<ReminderItem>> =
+        combine(context.contentChanges(ObaContract.Trips.CONTENT_URI).conflate(), sort) { _, order ->
+            queryReminders(order)
+        }.flowOn(Dispatchers.IO)
+
+    private fun queryReminders(order: Int): List<ReminderItem> {
+        val sortOrder = if (order == SORT_BY_NAME) {
+            "${ObaContract.Trips.NAME} asc"
+        } else {
+            "${ObaContract.Trips.DEPARTURE} asc"
+        }
+        return context.contentResolver
+            .query(ObaContract.Trips.CONTENT_URI, TRIP_PROJECTION, null, null, sortOrder)
+            ?.use { c -> buildList { while (c.moveToNext()) add(c.toReminderItem(context)) } }
+            ?: emptyList()
+    }
+}
+
+private val TRIP_PROJECTION = arrayOf(
+    ObaContract.Trips._ID,
+    ObaContract.Trips.NAME,
+    ObaContract.Trips.HEADSIGN,
+    ObaContract.Trips.DEPARTURE,
+    ObaContract.Trips.ROUTE_ID,
+    ObaContract.Trips.STOP_ID
+)
+
+private fun Cursor.toReminderItem(context: Context): ReminderItem {
+    val routeId = getString(4)
+    val routeName = ReminderUtils.getRouteShortName(context, routeId)
+    val departureMs = ObaContract.Trips.convertDBToTime(getInt(3))
+    return ReminderItem(
+        tripId = getString(0),
+        stopId = getString(5),
+        routeId = routeId,
+        name = getString(1).orEmpty().ifEmpty { context.getString(R.string.trip_info_noname) },
+        headsign = getString(2)?.takeIf { it.isNotEmpty() }?.let { UIUtils.formatDisplayText(it) },
+        routeText = routeName?.let { context.getString(R.string.trip_info_route, it) },
+        departureText = context.getString(R.string.trip_info_depart, UIUtils.formatTime(context, departureMs))
+    )
 }
 
 // --- Starred-stops live arrivals -------------------------------------------------------------

@@ -58,3 +58,18 @@ data class RouteListItem(
     val longName: String?,
     val url: String?
 )
+
+/**
+ * A saved trip-reminder row (My Reminders). [tripId] + [stopId] identify the reminder; the display
+ * strings ([name] with a "(no name)" fallback, formatted [headsign], "Route X" [routeText], and the
+ * "Departs at …" [departureText]) are resolved in the repository.
+ */
+data class ReminderItem(
+    val tripId: String,
+    val stopId: String,
+    val routeId: String,
+    val name: String,
+    val headsign: String?,
+    val routeText: String?,
+    val departureText: String
+)

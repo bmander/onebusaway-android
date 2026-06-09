@@ -87,7 +87,9 @@ class MyStarredRoutesFragment : Fragment() {
             true
         }
         R.id.sort_stops -> {
-            chooseSortOrder(PreferenceUtils.getStopSortOrderFromPreferences()) { viewModel.setSort(it) }
+            chooseSortOrder(PreferenceUtils.getStopSortOrderFromPreferences(), R.array.sort_stops) {
+                viewModel.setSort(it)
+            }
             true
         }
         else -> false

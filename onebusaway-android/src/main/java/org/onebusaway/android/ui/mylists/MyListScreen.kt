@@ -17,6 +17,7 @@ package org.onebusaway.android.ui.mylists
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -28,7 +29,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -43,6 +47,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -82,9 +88,9 @@ fun <T> MyListContent(
                     EmptyText(emptyText)
                 } else {
                     LazyColumn(Modifier.fillMaxSize()) {
-                        itemsIndexed(state.items, key = { _, item -> itemKey(item) }) { index, item ->
+                        items(state.items, key = itemKey) { item ->
                             itemContent(item)
-                            if (index < state.items.lastIndex) HorizontalDivider()
+                            HorizontalDivider()
                         }
                     }
                 }
@@ -141,9 +147,45 @@ fun StopRow(item: StopListItem, onClick: () -> Unit, actions: List<RowAction>) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                ArrivalsRow(item.arrivals)
             }
         }
         RowActionsMenu(expanded, actions) { expanded = false }
+    }
+}
+
+/** The starred-stops live arrivals: a spinner while loading, then a scrollable row of badges (hidden
+ *  when there are none). Null means this list doesn't show arrivals (e.g. recents). */
+@Composable
+private fun ArrivalsRow(arrivals: StopArrivals?) {
+    when (arrivals) {
+        null -> {}
+        StopArrivals.Loading -> CircularProgressIndicator(
+            modifier = Modifier.padding(top = 6.dp).size(16.dp),
+            strokeWidth = 2.dp
+        )
+        is StopArrivals.Loaded -> if (arrivals.badges.isNotEmpty()) {
+            Row(
+                Modifier
+                    .padding(top = 6.dp)
+                    .horizontalScroll(rememberScrollState())
+            ) {
+                arrivals.badges.forEach { badge ->
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = colorResource(badge.colorRes),
+                        modifier = Modifier.padding(end = 6.dp)
+                    ) {
+                        Text(
+                            badge.text,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

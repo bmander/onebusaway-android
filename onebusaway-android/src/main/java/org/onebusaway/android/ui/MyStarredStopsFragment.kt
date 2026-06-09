@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Paul Watts (paulcwatts@gmail.com),
- * University of South  Florida (sjbarbeau@gmail.com)
+ * Copyright (C) 2012-2015 Paul Watts (paulcwatts@gmail.com), University of South Florida
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,20 +32,23 @@ import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.composeFragmentView
 import org.onebusaway.android.ui.mylists.MyListContent
 import org.onebusaway.android.ui.mylists.MyListViewModel
-import org.onebusaway.android.ui.mylists.RecentRoutesRepository
-import org.onebusaway.android.ui.mylists.RouteListItem
-import org.onebusaway.android.ui.mylists.RouteRow
+import org.onebusaway.android.ui.mylists.StarredStopsRepository
+import org.onebusaway.android.ui.mylists.StopListItem
+import org.onebusaway.android.ui.mylists.StopRow
+import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
+import org.onebusaway.android.util.PreferenceUtils
 
 /**
- * The recent-routes tab inside [MyRoutesActivity] / [MyRecentStopsAndRoutesActivity]. A thin Compose
- * host over [MyListViewModel]; tap/long-press wiring is shared with the other My-tab list fragments.
+ * The starred-stops tab (inside [MyStopsActivity]) and the home-screen starred view (embedded by
+ * [HomeActivity] via [TAG]). A thin Compose host over [MyListViewModel] with a [StarredStopsRepository]
+ * that supplies live next-arrivals; the options menu adds sort over the shared tap/long-press wiring.
  */
-class MyRecentRoutesFragment : Fragment() {
+class MyStarredStopsFragment : Fragment() {
 
-    private val viewModel: MyListViewModel<RouteListItem> by viewModels {
+    private val viewModel: MyListViewModel<StopListItem> by viewModels {
         viewModelFactory {
-            initializer { MyListViewModel(RecentRoutesRepository(requireContext().applicationContext)) }
+            initializer { MyListViewModel(StarredStopsRepository(requireContext().applicationContext)) }
         }
     }
 
@@ -56,11 +58,11 @@ class MyRecentRoutesFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View = composeFragmentView(inflater) {
         val state by viewModel.state.collectAsStateWithLifecycle()
-        MyListContent(state = state, emptyText = getString(R.string.my_no_recent_routes), itemKey = { it.id }) { route ->
-            RouteRow(
-                route,
-                onClick = { openRoute(route) },
-                actions = routeActions(route, R.string.my_context_remove_recent) { viewModel.remove(route.id) }
+        MyListContent(state = state, emptyText = getString(R.string.my_no_starred_stops), itemKey = { it.id }) { stop ->
+            StopRow(
+                stop,
+                onClick = { openStop(stop) },
+                actions = stopActions(stop, R.string.my_context_remove_star) { viewModel.remove(stop.id) }
             )
         }
     }
@@ -71,22 +73,27 @@ class MyRecentRoutesFragment : Fragment() {
     }
 
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
-        inflater.inflate(R.menu.my_recent_route_options, menu)
+        inflater.inflate(R.menu.my_starred_stop_options, menu)
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.clear_recent) {
+    override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        R.id.clear_starred -> {
             confirmClear(
-                R.string.my_option_clear_recent_routes_title,
-                R.string.my_option_clear_recent_routes_confirm
+                R.string.my_option_clear_starred_stops_title,
+                R.string.my_option_clear_starred_stops_confirm
             ) { viewModel.clearAll() }
-            return true
+            true
         }
-        return false
+        R.id.sort_stops -> {
+            chooseSortOrder(PreferenceUtils.getStopSortOrderFromPreferences()) { viewModel.setSort(it) }
+            true
+        }
+        else -> false
     }
 
     companion object {
 
-        const val TAB_NAME = "recent_routes"
+        const val TAG = "MyStarredStopsFragment"
+        const val TAB_NAME = "starred"
     }
 }

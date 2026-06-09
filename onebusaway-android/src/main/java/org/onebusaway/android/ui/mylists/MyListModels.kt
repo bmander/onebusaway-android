@@ -15,10 +15,15 @@
  */
 package org.onebusaway.android.ui.mylists
 
+import androidx.annotation.ColorRes
+
 /**
  * A stop row for the My-tab starred/recent lists. [name] is the user-facing `UI_NAME` (reused for
  * the arrivals screen title and any launcher shortcut); [rawDirection] (N/S/…) feeds the arrivals
  * builder, while [directionText] is its resolved long form ("Northbound") for display, or null.
+ *
+ * [arrivals] is null for lists that don't show live arrivals (recents); the starred-stops list sets
+ * it to [StopArrivals.Loading] until the first fetch, then [StopArrivals.Loaded].
  */
 data class StopListItem(
     val id: String,
@@ -27,7 +32,23 @@ data class StopListItem(
     val directionText: String?,
     val lat: Double,
     val lon: Double,
-    val isFavorite: Boolean
+    val isFavorite: Boolean,
+    val arrivals: StopArrivals? = null
+)
+
+/** Per-stop live-arrivals state for the starred-stops list. */
+sealed interface StopArrivals {
+    /** Fetch in flight (no result yet) — the row shows a spinner. */
+    data object Loading : StopArrivals
+
+    /** Fetch complete; [badges] may be empty (no upcoming arrivals). */
+    data class Loaded(val badges: List<ArrivalBadge>) : StopArrivals
+}
+
+/** One "route · ETA" arrival badge; [colorRes] is the lateness color. */
+data class ArrivalBadge(
+    val text: String,
+    @ColorRes val colorRes: Int
 )
 
 /** A route row for the My-tab starred/recent lists. */

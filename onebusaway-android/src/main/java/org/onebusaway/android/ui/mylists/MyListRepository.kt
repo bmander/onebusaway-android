@@ -22,17 +22,35 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.text.format.DateUtils
+import androidx.annotation.ColorRes
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
+import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
+import org.onebusaway.android.io.ObaApi
+import org.onebusaway.android.io.request.ObaArrivalInfoRequest
 import org.onebusaway.android.provider.ObaContract
+import org.onebusaway.android.ui.ArrivalInfo
 import org.onebusaway.android.ui.QueryUtils
+import org.onebusaway.android.util.ArrivalInfoUtils
+import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.UIUtils
 
 /**
@@ -45,7 +63,14 @@ interface MyListRepository<T> {
     fun observe(): Flow<List<T>>
     suspend fun remove(id: String)
     suspend fun clearAll()
+
+    /** Changes the sort order ([SORT_BY_NAME] / [SORT_BY_FREQUENCY]); no-op for lists that don't sort. */
+    fun setSort(order: Int) {}
 }
+
+/** R.array.sort_stops indices, shared by the starred stop/route lists (legacy used the stop pref for both). */
+const val SORT_BY_NAME = 0
+const val SORT_BY_FREQUENCY = 1
 
 /** Emits once immediately, then again whenever [uri] (and its descendants) change. */
 private fun Context.contentChanges(uri: Uri): Flow<Unit> = callbackFlow {
@@ -181,4 +206,176 @@ class RecentRoutesRepository(private val context: Context) : MyListRepository<Ro
             ?.use { c -> buildList { while (c.moveToNext()) add(c.toRouteItem()) } }
             ?: emptyList()
     }
+}
+
+/** Persists the chosen sort order to the shared stop-sort preference (as the legacy lists did). */
+private fun saveSortOrder(context: Context, order: Int) {
+    val options = context.resources.getStringArray(R.array.sort_stops)
+    PreferenceUtils.saveString(
+        context.getString(R.string.preference_key_default_stop_sort),
+        options[order.coerceIn(options.indices)]
+    )
+}
+
+/** Starred stops, sorted by name or frequency, with live next-arrivals refreshed on a 60s poll. */
+class StarredStopsRepository(private val context: Context) : MyListRepository<StopListItem> {
+
+    private val sort = MutableStateFlow(PreferenceUtils.getStopSortOrderFromPreferences())
+
+    override fun setSort(order: Int) {
+        saveSortOrder(context, order)
+        sort.value = order
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observe(): Flow<List<StopListItem>> =
+        combine(context.contentChanges(ObaContract.Stops.CONTENT_URI).conflate(), sort) { _, order ->
+            queryStarredStops(order)
+        }.flatMapLatest { stops ->
+            // Restart the arrivals poll whenever the stop set (or sort) changes: show the stops with
+            // their Loading badges first, then re-emit them with each poll's results merged in.
+            if (stops.isEmpty()) {
+                flowOf(stops)
+            } else {
+                arrivalsPoll(stops.map { it.id })
+                    .map { byStop ->
+                        stops.map { it.copy(arrivals = StopArrivals.Loaded(byStop[it.id].orEmpty())) }
+                    }
+                    .onStart { emit(stops) }
+            }
+        }.flowOn(Dispatchers.IO)
+
+    override suspend fun remove(id: String) = withContext(Dispatchers.IO) {
+        ObaContract.Stops.markAsFavorite(
+            context, Uri.withAppendedPath(ObaContract.Stops.CONTENT_URI, id), false
+        )
+        Unit
+    }
+
+    override suspend fun clearAll() = withContext(Dispatchers.IO) {
+        ObaContract.Stops.markAsFavorite(context, ObaContract.Stops.CONTENT_URI, false)
+        Unit
+    }
+
+    private fun queryStarredStops(order: Int): List<StopListItem> {
+        val selection = "${ObaContract.Stops.FAVORITE}=1" + regionWhere(ObaContract.Stops.REGION_ID)
+        val sortOrder = if (order == SORT_BY_FREQUENCY) {
+            "${ObaContract.Stops.USE_COUNT} desc"
+        } else {
+            "${ObaContract.Stops.UI_NAME} asc"
+        }
+        return context.contentResolver
+            .query(ObaContract.Stops.CONTENT_URI, STOP_PROJECTION, selection, null, sortOrder)
+            ?.use { c ->
+                buildList {
+                    while (c.moveToNext()) add(c.toStopItem(context).copy(arrivals = StopArrivals.Loading))
+                }
+            }
+            ?: emptyList()
+    }
+
+    /** Emits the per-stop arrival badges immediately, then re-emits every [ARRIVALS_REFRESH_MS]. */
+    private fun arrivalsPoll(stopIds: List<String>): Flow<Map<String, List<ArrivalBadge>>> = flow {
+        while (true) {
+            emit(fetchArrivals(context, stopIds, System.currentTimeMillis()))
+            delay(ARRIVALS_REFRESH_MS)
+        }
+    }
+}
+
+/** Starred routes, sorted by name or frequency. */
+class StarredRoutesRepository(private val context: Context) : MyListRepository<RouteListItem> {
+
+    private val sort = MutableStateFlow(PreferenceUtils.getStopSortOrderFromPreferences())
+
+    override fun setSort(order: Int) {
+        saveSortOrder(context, order)
+        sort.value = order
+    }
+
+    override fun observe(): Flow<List<RouteListItem>> =
+        combine(context.contentChanges(ObaContract.Routes.CONTENT_URI).conflate(), sort) { _, order ->
+            queryStarredRoutes(order)
+        }.flowOn(Dispatchers.IO)
+
+    override suspend fun remove(id: String) = withContext(Dispatchers.IO) {
+        ObaContract.Routes.markAsFavorite(
+            context, Uri.withAppendedPath(ObaContract.Routes.CONTENT_URI, id), false
+        )
+        ObaContract.RouteHeadsignFavorites.markAsFavorite(context, id, null, null, false)
+        Unit
+    }
+
+    override suspend fun clearAll() = withContext(Dispatchers.IO) {
+        ObaContract.Routes.markAsFavorite(context, ObaContract.Routes.CONTENT_URI, false)
+        ObaContract.RouteHeadsignFavorites.clearAllFavorites(context)
+        Unit
+    }
+
+    private fun queryStarredRoutes(order: Int): List<RouteListItem> {
+        val selection = "${ObaContract.Routes.FAVORITE}=1" + regionWhere(ObaContract.Routes.REGION_ID)
+        val sortOrder = if (order == SORT_BY_FREQUENCY) {
+            "${ObaContract.Routes.USE_COUNT} desc"
+        } else {
+            "length(${ObaContract.Routes.SHORTNAME}), ${ObaContract.Routes.SHORTNAME} asc"
+        }
+        return context.contentResolver
+            .query(ObaContract.Routes.CONTENT_URI, ROUTE_PROJECTION, selection, null, sortOrder)
+            ?.use { c -> buildList { while (c.moveToNext()) add(c.toRouteItem()) } }
+            ?: emptyList()
+    }
+}
+
+// --- Starred-stops live arrivals -------------------------------------------------------------
+
+private const val ARRIVALS_REFRESH_MS = 60_000L
+private const val ARRIVALS_MINUTES_AFTER = 35
+private const val MAX_ARRIVALS_PER_STOP = 3
+
+/** Fetches each stop's next arrivals concurrently (the blocking per-stop calls fan out on IO) so the
+ *  refresh latency is the slowest single request, not their sum. */
+private suspend fun fetchArrivals(
+    context: Context,
+    stopIds: List<String>,
+    nowMs: Long
+): Map<String, List<ArrivalBadge>> = coroutineScope {
+    stopIds.map { stopId -> async { stopId to fetchStopBadges(context, stopId, nowMs) } }
+        .awaitAll()
+        .toMap()
+}
+
+/** One stop's badges (blocking — runs on IO). [convertObaArrivalInfo] already sorts by ETA. */
+private fun fetchStopBadges(context: Context, stopId: String, nowMs: Long): List<ArrivalBadge> =
+    runCatching {
+        val response = ObaArrivalInfoRequest.newRequest(context, stopId, ARRIVALS_MINUTES_AFTER).call()
+        val arrivals = response?.arrivalInfo
+        if (response?.code == ObaApi.OBA_OK && arrivals != null) {
+            ArrivalInfoUtils.convertObaArrivalInfo(context, arrivals, null, nowMs, false)
+                .take(MAX_ARRIVALS_PER_STOP)
+                .map { it.toBadge(context) }
+        } else {
+            emptyList()
+        }
+    }.getOrDefault(emptyList())
+
+private fun ArrivalInfo.toBadge(context: Context): ArrivalBadge {
+    val etaText = if (eta <= 0) {
+        context.getString(R.string.starred_stop_arrival_now)
+    } else {
+        context.getString(R.string.starred_stop_arrival_min, eta.toInt())
+    }
+    return ArrivalBadge(
+        text = context.getString(
+            R.string.starred_stop_arrival_badge, UIUtils.getRouteDisplayName(info), etaText
+        ),
+        colorRes = badgeColor(color)
+    )
+}
+
+@ColorRes
+private fun badgeColor(@ColorRes arrivalColor: Int): Int = when (arrivalColor) {
+    R.color.stop_info_ontime -> R.color.badge_ontime
+    R.color.stop_info_delayed -> R.color.badge_delayed
+    R.color.stop_info_early -> R.color.badge_early
+    else -> R.color.badge_scheduled
 }

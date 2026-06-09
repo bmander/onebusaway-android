@@ -37,3 +37,17 @@ internal fun Fragment.confirmClear(
         .setNegativeButton(android.R.string.no, null)
         .show()
 }
+
+/**
+ * Shows the "Sort by" single-choice dialog (R.array.sort_stops) and invokes [onPick] with the chosen
+ * index when it differs from [currentOrder]. Shared by the starred stop/route lists.
+ */
+internal fun Fragment.chooseSortOrder(currentOrder: Int, onPick: (Int) -> Unit) {
+    MaterialAlertDialogBuilder(requireActivity())
+        .setTitle(R.string.menu_option_sort_by)
+        .setSingleChoiceItems(R.array.sort_stops, currentOrder) { dialog, which ->
+            dialog.dismiss()
+            if (which != currentOrder) onPick(which)
+        }
+        .show()
+}

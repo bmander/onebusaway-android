@@ -44,4 +44,7 @@ class MyListViewModel<T>(private val repository: MyListRepository<T>) : ViewMode
     fun clearAll() {
         viewModelScope.launch { repository.clearAll() }
     }
+
+    /** Changes the sort order; the repository re-emits the list (no-op for non-sorting lists). */
+    fun setSort(order: Int) = repository.setSort(order)
 }

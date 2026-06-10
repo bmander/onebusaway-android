@@ -785,6 +785,8 @@
     <!-- report issue screen-->
     <string name="ri_others">Others</string>
     <string name="ri_desc_hint">Issue description</string>
+    <!-- %1$s is a dynamic Open311 field label; appends a required marker -->
+    <string name="ri_field_required_label">%1$s (required)</string>
     <string name="ri_button_camera">Camera</string>
     <string name="ri_button_image">ADD IMAGE</string>
     <string name="ri_button_gallery">Gallery</string>

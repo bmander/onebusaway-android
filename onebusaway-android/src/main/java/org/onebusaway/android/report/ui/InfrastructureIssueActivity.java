@@ -59,6 +59,7 @@ import org.onebusaway.android.util.UIUtils;
 import org.onebusaway.android.report.ui.dialog.ReportSuccessDialog;
 import org.onebusaway.android.report.ui.util.IssueLocationHelper;
 import org.onebusaway.android.report.ui.util.ServiceUtils;
+import org.onebusaway.android.ui.report.open311.Open311ProblemFragment;
 import org.onebusaway.android.ui.report.problem.ProblemReportFragment;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.PreferenceUtils;

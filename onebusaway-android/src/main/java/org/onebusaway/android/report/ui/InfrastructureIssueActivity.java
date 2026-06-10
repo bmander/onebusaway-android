@@ -59,6 +59,7 @@ import org.onebusaway.android.util.UIUtils;
 import org.onebusaway.android.report.ui.dialog.ReportSuccessDialog;
 import org.onebusaway.android.report.ui.util.IssueLocationHelper;
 import org.onebusaway.android.report.ui.util.ServiceUtils;
+import org.onebusaway.android.ui.report.problem.ProblemReportFragment;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.PreferenceUtils;
 import org.onebusaway.android.util.ShowcaseViewUtils;
@@ -1025,7 +1026,7 @@ public class InfrastructureIssueActivity extends BaseReportActivity implements
     }
 
     private void showStopProblemFragment(ObaStop obaStop) {
-        ReportStopProblemFragment.show(this, obaStop, R.id.ri_report_stop_problem);
+        ProblemReportFragment.showStop(this, obaStop, R.id.ri_report_stop_problem);
     }
 
     private void showTripProblemFragment(ObaStop obaStop) {
@@ -1033,7 +1034,7 @@ public class InfrastructureIssueActivity extends BaseReportActivity implements
             showArrivalListFragment(obaStop);
         } else {
             // Show default trip problem issue reporting
-            ReportTripProblemFragment.show(this, mArrivalInfo, R.id.ri_report_stop_problem);
+            ProblemReportFragment.showTrip(this, mArrivalInfo, R.id.ri_report_stop_problem);
             mArrivalInfo = null;
         }
     }
@@ -1061,7 +1062,7 @@ public class InfrastructureIssueActivity extends BaseReportActivity implements
             showOpen311ProblemFragment(mSelectedTransitService, obaArrivalInfo);
         } else {
             // Show default trip problem issue reporting
-            ReportTripProblemFragment.show(this, obaArrivalInfo, R.id.ri_report_stop_problem);
+            ProblemReportFragment.showTrip(this, obaArrivalInfo, R.id.ri_report_stop_problem);
         }
     }
 
@@ -1093,13 +1094,13 @@ public class InfrastructureIssueActivity extends BaseReportActivity implements
     }
 
     private void removeStopProblemFragment() {
-        removeFragmentByTag(ReportStopProblemFragment.TAG);
+        removeFragmentByTag(ProblemReportFragment.STOP_TAG);
     }
 
     private void removeTripProblemFragment() {
         mShowArrivalListFragment = false;
 
-        removeFragmentByTag(ReportTripProblemFragment.TAG);
+        removeFragmentByTag(ProblemReportFragment.TRIP_TAG);
 
         removeFragmentByTag(SimpleArrivalsPickerFragment.TAG);
 

@@ -18,8 +18,8 @@ package org.onebusaway.android.ui.tripplan
 import android.os.Bundle
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -46,7 +46,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentContainerView
@@ -95,11 +94,15 @@ fun TripPlanRoute(
     )
     val hasResults = planState is PlanResult.Success
     val scope = rememberCoroutineScope()
+    val sheetExpanded = scaffoldState.bottomSheetState.currentValue == SheetValue.Expanded
 
-    // Back collapses an expanded results sheet (mirrors the legacy sliding-panel behavior).
-    BackHandler(enabled = scaffoldState.bottomSheetState.currentValue == SheetValue.Expanded) {
-        scope.launch { scaffoldState.bottomSheetState.partialExpand() }
+    // Back (system or toolbar) collapses an expanded results sheet first, then exits — mirrors
+    // the legacy sliding-panel behavior (onBackPressed collapsed the panel before finishing).
+    val collapseOrBack: () -> Unit = {
+        if (sheetExpanded) scope.launch { scaffoldState.bottomSheetState.partialExpand() }
+        else onBack()
     }
+    BackHandler(enabled = sheetExpanded) { collapseOrBack() }
 
     // Expand the sheet when results arrive; hide it when the form is reset to Idle.
     LaunchedEffect(planState) {
@@ -110,47 +113,49 @@ fun TripPlanRoute(
         }
     }
 
-    val sheetHeight = (LocalConfiguration.current.screenHeightDp * 0.7f).dp
-
-    BottomSheetScaffold(
-        scaffoldState = scaffoldState,
-        sheetPeekHeight = if (hasResults) 220.dp else 0.dp,
-        topBar = { TripPlanTopBar(onBack = onBack, onReportProblem = onReportProblem) },
-        sheetContent = {
-            val result = planState
-            if (result is PlanResult.Success) {
-                ResultsFragmentHost(
-                    itineraries = result.itineraries,
-                    fragmentManager = fragmentManager,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(sheetHeight)
+    // The toolbar lives above the sheet (not in the scaffold's topBar slot) so the results sheet
+    // only ever fills the area *below* the toolbar — the toolbar stays visible even when the sheet
+    // is fully expanded, matching the legacy panel.
+    Column(Modifier.fillMaxSize()) {
+        TripPlanTopBar(onBack = collapseOrBack, onReportProblem = onReportProblem)
+        BottomSheetScaffold(
+            modifier = Modifier.weight(1f),
+            scaffoldState = scaffoldState,
+            sheetPeekHeight = if (hasResults) 220.dp else 0.dp,
+            sheetContent = {
+                val result = planState
+                if (result is PlanResult.Success) {
+                    ResultsFragmentHost(
+                        itineraries = result.itineraries,
+                        fragmentManager = fragmentManager,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        ) { padding ->
+            Column(Modifier.padding(padding)) {
+                if (planState is PlanResult.Loading) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+                TripPlanForm(
+                    state = formState,
+                    onFromQueryChange = viewModel::onFromQueryChange,
+                    onToQueryChange = viewModel::onToQueryChange,
+                    onSelectFrom = viewModel::setFrom,
+                    onSelectTo = viewModel::setTo,
+                    onFromCurrentLocation = onFromCurrentLocation,
+                    onToCurrentLocation = onToCurrentLocation,
+                    onFromContacts = onFromContacts,
+                    onToContacts = onToContacts,
+                    onFromPickOnMap = onFromPickOnMap,
+                    onToPickOnMap = onToPickOnMap,
+                    onSetArriving = viewModel::setArriving,
+                    onPickDate = onPickDate,
+                    onPickTime = onPickTime,
+                    onReverse = viewModel::reverseTrip,
+                    onAdvancedSettings = onAdvancedSettings
                 )
             }
-        }
-    ) { padding ->
-        Column(Modifier.padding(padding)) {
-            if (planState is PlanResult.Loading) {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
-            }
-            TripPlanForm(
-                state = formState,
-                onFromQueryChange = viewModel::onFromQueryChange,
-                onToQueryChange = viewModel::onToQueryChange,
-                onSelectFrom = viewModel::setFrom,
-                onSelectTo = viewModel::setTo,
-                onFromCurrentLocation = onFromCurrentLocation,
-                onToCurrentLocation = onToCurrentLocation,
-                onFromContacts = onFromContacts,
-                onToContacts = onToContacts,
-                onFromPickOnMap = onFromPickOnMap,
-                onToPickOnMap = onToPickOnMap,
-                onSetArriving = viewModel::setArriving,
-                onPickDate = onPickDate,
-                onPickTime = onPickTime,
-                onReverse = viewModel::reverseTrip,
-                onAdvancedSettings = onAdvancedSettings
-            )
         }
     }
 }

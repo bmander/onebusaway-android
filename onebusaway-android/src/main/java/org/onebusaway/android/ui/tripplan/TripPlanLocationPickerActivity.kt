@@ -26,7 +26,6 @@ import androidx.appcompat.widget.Toolbar
 import org.onebusaway.android.R
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.ObaMapFragment
-import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.UIUtils
 
 /**
@@ -48,18 +47,14 @@ class TripPlanLocationPickerActivity : AppCompatActivity() {
         UIUtils.setupActionBar(this)
         supportActionBar?.setTitle(R.string.trip_plan_pick_on_map)
 
-        val lat = intent.getDoubleExtra(MapParams.CENTER_LAT, 0.0)
-        val lon = intent.getDoubleExtra(MapParams.CENTER_LON, 0.0)
-        val hasCenter = lat != 0.0 || lon != 0.0
-        if (hasCenter) initialCenter = LocationUtils.makeLocation(lat, lon)
-
-        setupMapFragment(hasCenter, lat, lon)
+        initialCenter = UIUtils.getMapCenter(intent.extras)
+        setupMapFragment(initialCenter)
 
         findViewById<View>(R.id.use_this_location_button).setOnClickListener { confirmSelection() }
     }
 
     /** Mirrors InfrastructureIssueActivity.setupMapFragment: add the map, center on the initial point. */
-    private fun setupMapFragment(hasCenter: Boolean, lat: Double, lon: Double) {
+    private fun setupMapFragment(center: Location?) {
         val fm = supportFragmentManager
         val existing = fm.findFragmentByTag(ObaMapFragment.TAG) as? ObaMapFragment
         if (existing != null) {
@@ -68,9 +63,9 @@ class TripPlanLocationPickerActivity : AppCompatActivity() {
         }
         val fragment = ObaMapFragment.newInstance()
         fragment.asFragment().arguments = Bundle().apply {
-            if (hasCenter) {
-                putDouble(MapParams.CENTER_LAT, lat)
-                putDouble(MapParams.CENTER_LON, lon)
+            if (center != null) {
+                putDouble(MapParams.CENTER_LAT, center.latitude)
+                putDouble(MapParams.CENTER_LON, center.longitude)
                 putFloat(MapParams.ZOOM, INITIAL_ZOOM)
             }
         }
@@ -78,8 +73,8 @@ class TripPlanLocationPickerActivity : AppCompatActivity() {
             .add(R.id.map_picker_container, fragment.asFragment(), ObaMapFragment.TAG)
             .commit()
         mapFragment = fragment
-        if (hasCenter) {
-            fragment.setMapCenter(LocationUtils.makeLocation(lat, lon), true, false)
+        if (center != null) {
+            fragment.setMapCenter(center, true, false)
         }
     }
 

@@ -239,7 +239,7 @@ class TripPlanActivity : AppCompatActivity() {
         val center = if (initial?.hasCoordinates == true) {
             LocationUtils.makeLocation(initial.lat!!, initial.lon!!)
         } else {
-            Application.getLastKnownLocation(applicationContext, null)
+            LocationUtils.getSearchCenter(applicationContext)
         }
         mapPickLauncher.launch(TripPlanLocationPickerActivity.newIntent(this, center))
     }

@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.opentripplanner.api.model.Itinerary
 
 /**
  * Owns the trip-plan form ([formState]) and plan submission ([planState]). Address autocomplete runs
@@ -154,6 +155,34 @@ class TripPlanViewModel(
     /** Clears a surfaced error after the host shows it. */
     fun clearPlanResult() {
         _planState.value = PlanResult.Idle
+    }
+
+    /**
+     * Seeds the form and results from a re-entry (e.g. a RealtimeService trip-update notification)
+     * without re-planning, so the user lands back on the trip they were watching.
+     */
+    fun restoreFrom(
+        from: PlaceItem?,
+        to: PlaceItem?,
+        dateTimeMillis: Long,
+        arriving: Boolean,
+        itineraries: List<Itinerary>
+    ) {
+        _formState.update {
+            it.copy(
+                from = from ?: it.from,
+                to = to ?: it.to,
+                fromQuery = from?.displayName ?: it.fromQuery,
+                toQuery = to?.displayName ?: it.toQuery,
+                dateTimeMillis = dateTimeMillis,
+                dateLabel = formatDate(dateTimeMillis),
+                timeLabel = formatTime(dateTimeMillis),
+                arriving = arriving
+            )
+        }
+        if (itineraries.isNotEmpty()) {
+            _planState.value = PlanResult.Success(itineraries)
+        }
     }
 
     private fun autoSubmitIfReady() {

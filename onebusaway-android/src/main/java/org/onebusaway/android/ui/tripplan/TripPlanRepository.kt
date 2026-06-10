@@ -30,6 +30,7 @@ import org.onebusaway.android.app.Application
 import org.onebusaway.android.directions.util.CustomAddress
 import org.onebusaway.android.directions.util.JacksonConfig
 import org.onebusaway.android.directions.util.TripRequestBuilder
+import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.opentripplanner.api.model.Itinerary
 import org.opentripplanner.api.ws.Message
 import org.opentripplanner.api.ws.Request
@@ -66,17 +67,26 @@ class DefaultTripPlanRepository(private val context: Context) : TripPlanReposito
                 val baseUrl = builder.formattedOtpBaseUrl
                     ?: throw IOException(context.getString(R.string.tripplanner_no_server_selected_error))
 
-                val response = requestPlan(request, baseUrl, Application.get().useOldOtpApiUrlVersion)
+                val (response, requestUrl) = requestPlan(request, baseUrl, Application.get().useOldOtpApiUrlVersion)
                 val itineraries = response.plan?.itinerary
                 if (itineraries.isNullOrEmpty()) {
                     throw IOException(errorMessage(response.error?.id ?: -1))
                 }
+                // Record the plan for travel-behavior research (as the legacy onTripRequestComplete did).
+                TravelBehaviorManager.saveTripPlan(response.plan, requestUrl, context.applicationContext)
                 itineraries
             }
         }
 
-    /** Ports TripRequest.requestPlan: build the URL, fetch + parse, fall back to the old structure. */
-    private fun requestPlan(request: Request, baseUrl: String, useOldUrlStructure: Boolean): Response {
+    /**
+     * Ports TripRequest.requestPlan: build the URL, fetch + parse, fall back to the old structure.
+     * Returns the response paired with the final request URL (for travel-behavior logging).
+     */
+    private fun requestPlan(
+        request: Request,
+        baseUrl: String,
+        useOldUrlStructure: Boolean
+    ): Pair<Response, String> {
         val query = buildString {
             var first = true
             for (entry in request.parameters.entries) {
@@ -117,7 +127,7 @@ class DefaultTripPlanRepository(private val context: Context) : TripPlanReposito
             if (useOldUrlStructure) {
                 Application.get().useOldOtpApiUrlVersion = true
             }
-            return response
+            return response to url
         } catch (e: SocketTimeoutException) {
             throw IOException(errorMessage(Message.REQUEST_TIMEOUT.id), e)
         } catch (e: FileNotFoundException) {

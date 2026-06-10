@@ -23,4 +23,7 @@
     <item name="loading" type="id" />
     <item name="refresh_loading" type="id" />
     <item name="refresh_progress_small" type="id" />
+    <!-- Stable container id for the trip-plan results Fragment hosted inside the Compose
+         BottomSheetScaffold (see TripPlanScreen.ResultsFragmentHost). -->
+    <item name="trip_results_container" type="id" />
 </resources>

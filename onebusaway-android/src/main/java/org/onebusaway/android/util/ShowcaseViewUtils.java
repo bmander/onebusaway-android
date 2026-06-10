@@ -67,8 +67,6 @@ public class ShowcaseViewUtils {
     public static final String TUTORIAL_SEND_FEEDBACK_OPEN311_CATEGORIES
             = ".tutorial_send_feedback_open311_categories";
 
-    public static final String TUTORIAL_TRIP_PLAN_GEOCODER = ".tutorial_trip_plan_geocoder";
-
     private static ShowcaseView mShowcaseView;
 
     /**
@@ -155,12 +153,6 @@ public class ShowcaseViewUtils {
                         r.getString(R.string.tutorial_send_feedback_transit_service_text));
                 target = new ViewTarget(R.id.ri_spinnerServices, activity);
                 break;
-            case TUTORIAL_TRIP_PLAN_GEOCODER:
-                title = r.getString(R.string.tutorial_trip_plan_geocoder_title);
-                text = new SpannableString(
-                        r.getString(R.string.tutorial_trip_plan_geocoder_text));
-                target = new ViewTarget(R.id.toAddressTextArea, activity);
-                break;
             default:
                 throw new IllegalArgumentException(
                         "tutorialType must be one of the TUTORIAL_* constants in ShowcaseViewUtils");
@@ -213,8 +205,7 @@ public class ShowcaseViewUtils {
      */
     private static boolean giveUserTutorialBreak(Context context, String tutorialType) {
         final String TUTORIAL_COUNTER = context.getString(R.string.preference_key_tutorial_counter);
-        if (!(tutorialType.equals(TUTORIAL_WELCOME) ||
-                tutorialType.equals(TUTORIAL_TRIP_PLAN_GEOCODER))) {
+        if (!tutorialType.equals(TUTORIAL_WELCOME)) {
 
             int counter = Application.getPrefs().getInt(TUTORIAL_COUNTER, 0);
             counter++;

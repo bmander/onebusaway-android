@@ -27,7 +27,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
-import android.widget.ListView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -50,6 +49,7 @@ import org.onebusaway.android.directions.util.TripRequestBuilder;
 import org.onebusaway.android.io.ObaAnalytics;
 import org.onebusaway.android.io.PlausibleAnalytics;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
+import org.onebusaway.android.ui.tripresults.TripResultsFragment;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.UIUtils;
 import org.opentripplanner.api.model.Itinerary;
@@ -452,18 +452,17 @@ public class TripPlanActivity extends AppCompatActivity implements TripRequest.C
         mBuilder.getBundle().remove(PLAN_ERROR_URL);
     }
 
-    // Handle the sliding panel's interactions with the list view and the map view.
+    // Handle the sliding panel's interaction with the results container. The directions list is now
+    // a Compose LazyColumn, so we report "at top" (0) for the list (the panel collapses on a
+    // downward drag); the map can pan infinitely, so we report a positive value. This transitional
+    // coupling goes away in the BottomSheetScaffold container migration.
     @Override
-    public void onResultViewCreated(View container, final ListView listView, View mapView) {
+    public void onResultViewCreated(View container) {
         if (mPanel != null) {
             mPanel.setScrollableViewHelper(new ScrollableViewHelper() {
                 @Override
                 public int getScrollableViewScrollPosition(View scrollableView, boolean isSlidingUp) {
-                    if (mResultsFragment.isMapShowing()) {
-                        return 1; // Map can scroll infinitely, so return a positive value
-                    } else {
-                        return super.getScrollableViewScrollPosition(listView, isSlidingUp);
-                    }
+                    return (mResultsFragment != null && mResultsFragment.isMapShowing()) ? 1 : 0;
                 }
             });
             mPanel.setScrollableView(container);

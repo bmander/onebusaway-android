@@ -34,7 +34,7 @@ import org.onebusaway.android.util.UIUtils
  * The only behavioral difference is [onShowRouteOnMap]: the standalone launches HomeActivity in
  * route mode, while the panel drives the existing map. Everything else (favorite/alert dialogs,
  * navigation, report flow) is identical, so it lives here once. Kept in the `ui` package so it can
- * see the package-private [SituationDialogFragment.Listener] and the navigation activities.
+ * see the package-private QueryUtils helpers and the navigation activities.
  */
 fun createArrivalActionHandler(
     activity: AppCompatActivity,
@@ -44,15 +44,15 @@ fun createArrivalActionHandler(
 ): ArrivalActionHandler = object : ArrivalActionHandler {
 
     override fun onRouteFavorite(actions: ArrivalActions) {
-        val dialog = RouteFavoriteDialogFragment.Builder(actions.routeId, actions.headsign)
-            .setRouteShortName(actions.routeShortName)
-            .setRouteLongName(actions.routeLongName)
-            .setRouteUrl(actions.scheduleUrl)
-            .setStopId(actions.stopId)
-            .setFavorite(!actions.isRouteFavorite)
-            .build()
-        dialog.setCallback { saved -> if (saved) viewModel.manualRefresh() }
-        dialog.show(activity.supportFragmentManager, RouteFavoriteDialogFragment.TAG)
+        showRouteFavoriteDialog(
+            activity = activity,
+            routeId = actions.routeId,
+            routeShortName = actions.routeShortName,
+            routeLongName = actions.routeLongName,
+            headsign = actions.headsign,
+            stopId = actions.stopId,
+            favorite = !actions.isRouteFavorite
+        ) { saved -> if (saved) viewModel.manualRefresh() }
     }
 
     override fun onShowVehiclesOnMap(arrival: ArrivalInfo) {
@@ -109,17 +109,12 @@ fun createArrivalActionHandler(
 
     override fun onShowAlert(alertId: String) {
         val situation = viewModel.situation(alertId) ?: return
-        val dialog = SituationDialogFragment.newInstance(situation)
-        dialog.setListener(object : SituationDialogFragment.Listener {
-            override fun onDismiss(isAlertHidden: Boolean) {
-                if (isAlertHidden) viewModel.manualRefresh()
-            }
-
-            override fun onUndo() {
-                viewModel.manualRefresh()
-            }
-        })
-        dialog.show(activity.supportFragmentManager, SituationDialogFragment.TAG)
+        showSituationDialog(
+            activity = activity,
+            situation = situation,
+            onDismiss = { isAlertHidden -> if (isAlertHidden) viewModel.manualRefresh() },
+            onUndo = { viewModel.manualRefresh() }
+        )
     }
 
     override fun onShowStopDetails() {

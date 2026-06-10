@@ -21,8 +21,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,6 +29,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,7 +58,13 @@ fun ProblemReportRoute(viewModel: ProblemReportViewModel) {
     )
 }
 
-/** Stateless problem form, shared by the stop and trip flows (trip adds the vehicle fields). */
+/**
+ * Stateless problem form, shared by the stop and trip flows (trip adds the vehicle fields).
+ *
+ * Hosted inside the report container's CustomScrollView, so it must NOT scroll itself (an
+ * infinite-height measure crashes) and is wrapped in a [Surface] so text inherits a visible
+ * content color on the dark report background.
+ */
 @Composable
 fun ProblemReportForm(
     state: ProblemFormState,
@@ -69,55 +74,56 @@ fun ProblemReportForm(
     onVehicleNumberChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        if (state.kind == ProblemKind.TRIP && !state.headsign.isNullOrEmpty()) {
-            Text(text = state.headsign, style = MaterialTheme.typography.titleMedium)
-        }
-
-        ProblemCodeDropdown(
-            codes = state.codes,
-            selectedIndex = state.selectedCodeIndex,
-            onCodeSelected = onCodeSelected
-        )
-
-        OutlinedTextField(
-            value = state.comment,
-            onValueChange = onCommentChange,
-            label = { Text(stringResource(R.string.report_problem_comment_hint)) },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        if (state.kind == ProblemKind.TRIP) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onVehicleToggle(!state.onVehicle) },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(checked = state.onVehicle, onCheckedChange = onVehicleToggle)
-                Text(stringResource(R.string.report_problem_onvehicle_bus))
+    Surface(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (state.kind == ProblemKind.TRIP && !state.headsign.isNullOrEmpty()) {
+                Text(text = state.headsign, style = MaterialTheme.typography.titleMedium)
             }
 
+            ProblemCodeDropdown(
+                codes = state.codes,
+                selectedIndex = state.selectedCodeIndex,
+                onCodeSelected = onCodeSelected
+            )
+
             OutlinedTextField(
-                value = state.vehicleNumber,
-                onValueChange = onVehicleNumberChange,
-                enabled = state.onVehicle,
-                label = { Text(stringResource(R.string.report_problem_uservehicle_hint)) },
+                value = state.comment,
+                onValueChange = onCommentChange,
+                label = { Text(stringResource(R.string.report_problem_comment_hint)) },
                 modifier = Modifier.fillMaxWidth()
             )
-        }
 
-        Text(
-            text = stringResource(R.string.report_problem_hint, stringResource(R.string.app_name)),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+            if (state.kind == ProblemKind.TRIP) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onVehicleToggle(!state.onVehicle) },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(checked = state.onVehicle, onCheckedChange = onVehicleToggle)
+                    Text(stringResource(R.string.report_problem_onvehicle_bus))
+                }
+
+                OutlinedTextField(
+                    value = state.vehicleNumber,
+                    onValueChange = onVehicleNumberChange,
+                    enabled = state.onVehicle,
+                    label = { Text(stringResource(R.string.report_problem_uservehicle_hint)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Text(
+                text = stringResource(
+                    R.string.report_problem_hint, stringResource(R.string.app_name)
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

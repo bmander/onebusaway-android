@@ -24,18 +24,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -101,23 +100,27 @@ fun Open311Screen(
     onTakePhoto: () -> Unit,
     onPickFromGallery: () -> Unit
 ) {
-    when (loadState) {
-        Open311LoadState.LOADING -> LoadingContent()
-        Open311LoadState.ERROR -> ErrorContent(onRetry = onRetry)
-        Open311LoadState.LOADED -> Open311FormContent(
-            form = form,
-            onMainDescriptionChange = onMainDescriptionChange,
-            onFieldTextChange = onFieldTextChange,
-            onSingleChoice = onSingleChoice,
-            onMultiChoice = onMultiChoice,
-            onAnonymousChange = onAnonymousChange,
-            onFirstNameChange = onFirstNameChange,
-            onLastNameChange = onLastNameChange,
-            onEmailChange = onEmailChange,
-            onPhoneChange = onPhoneChange,
-            onTakePhoto = onTakePhoto,
-            onPickFromGallery = onPickFromGallery
-        )
+    // Hosted in the report container's CustomScrollView: the Surface supplies a visible content
+    // color on the dark report background, and the form must not scroll itself (the parent does).
+    Surface(modifier = Modifier.fillMaxWidth()) {
+        when (loadState) {
+            Open311LoadState.LOADING -> LoadingContent(Modifier.padding(32.dp))
+            Open311LoadState.ERROR -> ErrorContent(onRetry = onRetry)
+            Open311LoadState.LOADED -> Open311FormContent(
+                form = form,
+                onMainDescriptionChange = onMainDescriptionChange,
+                onFieldTextChange = onFieldTextChange,
+                onSingleChoice = onSingleChoice,
+                onMultiChoice = onMultiChoice,
+                onAnonymousChange = onAnonymousChange,
+                onFirstNameChange = onFirstNameChange,
+                onLastNameChange = onLastNameChange,
+                onEmailChange = onEmailChange,
+                onPhoneChange = onPhoneChange,
+                onTakePhoto = onTakePhoto,
+                onPickFromGallery = onPickFromGallery
+            )
+        }
     }
 }
 
@@ -139,7 +142,6 @@ private fun Open311FormContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {

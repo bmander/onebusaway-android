@@ -63,6 +63,8 @@ fun TripPlanForm(
     onToCurrentLocation: () -> Unit,
     onFromContacts: () -> Unit,
     onToContacts: () -> Unit,
+    onFromPickOnMap: () -> Unit,
+    onToPickOnMap: () -> Unit,
     onSetArriving: (Boolean) -> Unit,
     onPickDate: () -> Unit,
     onPickTime: () -> Unit,
@@ -81,7 +83,8 @@ fun TripPlanForm(
             onQueryChange = onFromQueryChange,
             onSelect = onSelectFrom,
             onCurrentLocation = onFromCurrentLocation,
-            onContacts = onFromContacts
+            onContacts = onFromContacts,
+            onPickOnMap = onFromPickOnMap
         )
         TextButton(onClick = onReverse, modifier = Modifier.align(Alignment.End)) {
             Text(stringResource(R.string.tripplanner_reverse))
@@ -93,7 +96,8 @@ fun TripPlanForm(
             onQueryChange = onToQueryChange,
             onSelect = onSelectTo,
             onCurrentLocation = onToCurrentLocation,
-            onContacts = onToContacts
+            onContacts = onToContacts,
+            onPickOnMap = onToPickOnMap
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -127,7 +131,8 @@ private fun AddressField(
     onQueryChange: (String) -> Unit,
     onSelect: (PlaceItem) -> Unit,
     onCurrentLocation: () -> Unit,
-    onContacts: () -> Unit
+    onContacts: () -> Unit,
+    onPickOnMap: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val showMenu = expanded && suggestions.isNotEmpty()
@@ -152,6 +157,12 @@ private fun AddressField(
                         Icon(
                             painter = painterResource(R.drawable.ic_my_location),
                             contentDescription = stringResource(R.string.tripplanner_current_location)
+                        )
+                    }
+                    IconButton(onClick = onPickOnMap) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_action_location_map),
+                            contentDescription = stringResource(R.string.trip_plan_pick_on_map)
                         )
                     }
                 }
@@ -230,6 +241,7 @@ private fun TripPlanFormPreview() {
             onSelectFrom = {}, onSelectTo = {},
             onFromCurrentLocation = {}, onToCurrentLocation = {},
             onFromContacts = {}, onToContacts = {},
+            onFromPickOnMap = {}, onToPickOnMap = {},
             onSetArriving = {}, onPickDate = {}, onPickTime = {},
             onReverse = {}, onAdvancedSettings = {}
         )

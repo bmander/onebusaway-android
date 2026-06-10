@@ -79,6 +79,8 @@ fun TripPlanRoute(
     onToCurrentLocation: () -> Unit,
     onFromContacts: () -> Unit,
     onToContacts: () -> Unit,
+    onFromPickOnMap: () -> Unit,
+    onToPickOnMap: () -> Unit,
     onAdvancedSettings: () -> Unit,
     onReportProblem: () -> Unit
 ) {
@@ -141,6 +143,8 @@ fun TripPlanRoute(
                 onToCurrentLocation = onToCurrentLocation,
                 onFromContacts = onFromContacts,
                 onToContacts = onToContacts,
+                onFromPickOnMap = onFromPickOnMap,
+                onToPickOnMap = onToPickOnMap,
                 onSetArriving = viewModel::setArriving,
                 onPickDate = onPickDate,
                 onPickTime = onPickTime,

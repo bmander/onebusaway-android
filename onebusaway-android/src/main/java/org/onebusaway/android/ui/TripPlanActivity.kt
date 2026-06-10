@@ -52,12 +52,14 @@ import org.onebusaway.android.directions.util.OTPConstants
 import org.onebusaway.android.directions.util.TripRequestBuilder
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
+import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.tripplan.AdvancedSettings
 import org.onebusaway.android.ui.tripplan.DefaultGeocodeRepository
 import org.onebusaway.android.ui.tripplan.DefaultTripPlanRepository
 import org.onebusaway.android.ui.tripplan.PlaceItem
 import org.onebusaway.android.ui.tripplan.PlanResult
+import org.onebusaway.android.ui.tripplan.TripPlanLocationPickerActivity
 import org.onebusaway.android.ui.tripplan.TripPlanRoute
 import org.onebusaway.android.ui.tripplan.TripPlanViewModel
 import org.onebusaway.android.util.LocationUtils
@@ -99,6 +101,23 @@ class TripPlanActivity : AppCompatActivity() {
         contactsTarget = null
     }
 
+    /** Which endpoint a pending map pick should populate. */
+    private var mapPickTarget: ((PlaceItem) -> Unit)? = null
+
+    private val mapPickLauncher = registerForActivityResult(StartActivityForResult()) { result ->
+        val data = result.data
+        if (result.resultCode == RESULT_OK && data != null) {
+            val lat = data.getDoubleExtra(MapParams.CENTER_LAT, Double.NaN)
+            val lon = data.getDoubleExtra(MapParams.CENTER_LON, Double.NaN)
+            if (!lat.isNaN() && !lon.isNaN()) {
+                mapPickTarget?.invoke(
+                    PlaceItem(displayName = getString(R.string.trip_plan_map_location), lat = lat, lon = lon)
+                )
+            }
+        }
+        mapPickTarget = null
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         firebaseAnalytics = FirebaseAnalytics.getInstance(this)
@@ -115,6 +134,8 @@ class TripPlanActivity : AppCompatActivity() {
                     onToCurrentLocation = { setCurrentLocation(viewModel::setTo) },
                     onFromContacts = { launchContacts(viewModel::setFrom) },
                     onToContacts = { launchContacts(viewModel::setTo) },
+                    onFromPickOnMap = { launchMapPicker(viewModel::setFrom, viewModel.formState.value.from) },
+                    onToPickOnMap = { launchMapPicker(viewModel::setTo, viewModel.formState.value.to) },
                     onAdvancedSettings = ::showAdvancedSettings,
                     onReportProblem = ::reportProblem
                 )
@@ -210,6 +231,17 @@ class TripPlanActivity : AppCompatActivity() {
         val intent = Intent(Intent.ACTION_PICK)
             .setType(ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_TYPE)
         contactsLauncher.launch(intent)
+    }
+
+    /** Opens the map picker centered on the endpoint's current point (or the device location). */
+    private fun launchMapPicker(target: (PlaceItem) -> Unit, initial: PlaceItem?) {
+        mapPickTarget = target
+        val center = if (initial?.hasCoordinates == true) {
+            LocationUtils.makeLocation(initial.lat!!, initial.lon!!)
+        } else {
+            Application.getLastKnownLocation(applicationContext, null)
+        }
+        mapPickLauncher.launch(TripPlanLocationPickerActivity.newIntent(this, center))
     }
 
     private fun formattedAddress(uri: Uri): String? {

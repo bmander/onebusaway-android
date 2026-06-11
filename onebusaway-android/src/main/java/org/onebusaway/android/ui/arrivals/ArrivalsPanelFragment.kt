@@ -36,11 +36,10 @@ import org.onebusaway.android.ui.compose.composeFragmentView
 import org.onebusaway.android.ui.createArrivalActionHandler
 
 /**
- * Hosts the Compose arrivals [ArrivalsPanel] inside HomeActivity's map slide-up panel. A fresh
+ * Hosts the Compose arrivals [ArrivalsPanel] inside HomeActivity's map bottom sheet. A fresh
  * instance is created per focused stop (replacing the previous one), giving each stop its own
  * ViewModel + polling lifecycle. The host (HomeActivity) drives panel state in via
- * [setPanelCollapsed] and reads the list scroll position via [scrollableViewScrollPosition] for the
- * SlidingUpPanel drag coordination; the panel reports out through [Listener].
+ * [setPanelCollapsed]; the panel reports out through [Listener].
  */
 class ArrivalsPanelFragment : Fragment() {
 
@@ -52,14 +51,11 @@ class ArrivalsPanelFragment : Fragment() {
         /** "Show vehicles on map": collapse the panel and drive the existing map to route mode. */
         fun onShowRouteOnMap(routeId: String)
 
-        /** The header/chevron was tapped: toggle the panel between collapsed and anchored. */
+        /** The header/chevron was tapped: toggle the panel between collapsed and expanded. */
         fun onToggleExpand()
 
         /** The preferred-arrival count / filter state changed: resize the collapsed peek. */
         fun onPreferredHeight(previewCount: Int, filtering: Boolean)
-
-        /** The panel content view is ready: wire it as the SlidingUpPanel's scrollable view. */
-        fun onPanelViewCreated(view: View)
     }
 
     private var listener: Listener? = null
@@ -100,10 +96,6 @@ class ArrivalsPanelFragment : Fragment() {
         panelCollapsed.value = collapsed
     }
 
-    /** The list scroll position for the SlidingUpPanel's ScrollableViewHelper (0 == at top). */
-    fun scrollableViewScrollPosition(): Int =
-        if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset else 1
-
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -122,7 +114,6 @@ class ArrivalsPanelFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        listener?.onPanelViewCreated(view)
         // Forward each loaded response to the host (map recenter / FABs / tutorials)
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {

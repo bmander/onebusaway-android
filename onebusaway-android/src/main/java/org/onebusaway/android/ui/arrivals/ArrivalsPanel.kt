@@ -16,7 +16,6 @@
 package org.onebusaway.android.ui.arrivals
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,7 +29,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -47,7 +45,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.colorResource
@@ -67,9 +64,10 @@ import org.onebusaway.android.util.ArrivalInfoUtils
 
 /**
  * The arrivals content for HomeActivity's map slide-up panel. Unlike the standalone screen, the
- * drawer is laid out top-to-bottom as: a drag handle, the arrivals (a compact 2-row peek when
- * [collapsed], the full scrollable list when expanded), then the stop header pinned at the bottom
- * with the expand/collapse chevron — matching the legacy ArrivalsListHeader.
+ * drawer is laid out top-to-bottom as: the arrivals (a compact 2-row peek when [collapsed], the full
+ * scrollable list when expanded), then the stop header pinned at the bottom with the expand/collapse
+ * chevron — matching the legacy ArrivalsListHeader. The hosting BottomSheetScaffold supplies the drag
+ * handle above this content.
  *
  * The peek height is driven by the host: this composable reports the preferred-arrival count +
  * filter state via [onPreferredHeight] so the host can size the collapsed panel. Polling, callbacks,
@@ -103,7 +101,6 @@ fun ArrivalsPanel(
 
     Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            DrawerHandle()
             // The collapsed peek — up to two preferred arrivals — stays exactly as-is when the
             // panel is pulled up (the legacy ArrivalsListHeader behavior).
             if (content == null) {
@@ -163,24 +160,6 @@ private fun ColumnScope.PeekDivider() {
     )
 }
 
-/** The small rounded drag affordance at the top of the panel. */
-@Composable
-private fun DrawerHandle() {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            Modifier
-                .width(36.dp)
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.onSurfaceVariant)
-        )
-    }
-}
 
 /** Adapts an [ArrivalInfo] onto [PeekRowVisual], wiring the favorite star and per-arrival menu. */
 @Composable
@@ -405,7 +384,6 @@ private fun DrawerCollapsedPreview() {
     ObaTheme {
         Surface(color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.fillMaxWidth()) {
-                DrawerHandle()
                 PeekRowVisual(
                     shortName = "12",
                     headsign = "Interlaken Park Via 19th Ave E",

@@ -24,11 +24,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
 
-import com.sothree.slidinguppanel.PanelSlideListener;
-import com.sothree.slidinguppanel.PanelState;
-import com.sothree.slidinguppanel.ScrollableViewHelper;
-import com.sothree.slidinguppanel.SlidingUpPanelLayout;
-
 import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
 import org.onebusaway.android.io.PlausibleAnalytics;
@@ -160,25 +155,6 @@ public class HomeActivity extends AppCompatActivity
         ObaRegionsTask.Callback {
 
 
-    interface SlidingPanelController {
-
-        /**
-         * Sets the height of the sliding panel in pixels
-         *
-         * @param heightInPixels height of panel in pixels
-         */
-        void setPanelHeightPixels(int heightInPixels);
-
-        /**
-         * Returns the current height of the sliding panel in pixels, or -1 if the panel isn't yet
-         * initialized
-         *
-         * @return the current height of the sliding panel in pixels, or -1 if the panel isn't yet
-         * initialized
-         */
-        int getPanelHeightPixels();
-    }
-
     public static final String TWITTER_URL = "http://mobile.twitter.com/onebusaway";
 
     private static final String WHATS_NEW_VER = "whatsNewVer";
@@ -223,9 +199,6 @@ public class HomeActivity extends AppCompatActivity
      */
     protected GoogleApiClient mGoogleApiClient;
 
-    // Bottom Sliding panel
-    SlidingUpPanelLayout mSlidingPanel;
-
     public static final int BATTERY_OPTIMIZATIONS_PERMISSION_REQUEST = 111;
 
     /**
@@ -233,10 +206,20 @@ public class HomeActivity extends AppCompatActivity
      */
     private NavigationDrawerFragment mNavigationDrawerFragment;
 
-    // P1 Compose shell: the inflated legacy content island + the ModalNavigationDrawer host.
-    private View mIslandRoot;
+    // Compose shell (P1 drawer + P2 BottomSheetScaffold): the inflated map content + arrivals sheet
+    // content are hosted inside mHomeShell, which replaces the DrawerLayout + SlidingUpPanelLayout.
+    private View mMapContent;
+
+    private View mSheetContent;
 
     private HomeShellHost mHomeShell;
+
+    // Current arrivals-sheet peek height in px (mirrors the old SlidingUpPanel.getPanelHeight()), used
+    // to offset the FABs above the collapsed sheet.
+    private int mSheetPeekPx;
+
+    // Previous arrivals-sheet resting state, so onSheetState() can ignore the initial reveal.
+    private HomeShellHost.Sheet mLastSheetState = HomeShellHost.Sheet.HIDDEN;
 
     // Matches NavigationDrawerFragment's remembered-tab pref key.
     private static final String STATE_SELECTED_POSITION = "selected_navigation_drawer_position";
@@ -387,19 +370,21 @@ public class HomeActivity extends AppCompatActivity
         return myIntent;
     }
 
-    SlidingPanelController mSlidingPanelController;
-
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
 
-        // P1: host the legacy content "island" inside a Compose ModalNavigationDrawer with a hosted
-        // toolbar, replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome.
-        mIslandRoot = getLayoutInflater().inflate(R.layout.home_content_island, null);
+        // Host the legacy content inside a Compose ModalNavigationDrawer + BottomSheetScaffold with a
+        // hosted toolbar, replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome
+        // and the third-party SlidingUpPanelLayout. The map chrome is the scaffold content; the
+        // arrivals panel is the scaffold's bottom sheet.
+        mMapContent = getLayoutInflater().inflate(R.layout.home_map_content, null);
+        mSheetContent = getLayoutInflater().inflate(R.layout.home_arrivals_sheet, null);
         Toolbar toolbar = (Toolbar) getLayoutInflater().inflate(R.layout.include_toolbar, null);
-        mHomeShell = new HomeShellHost(this, toolbar, mIslandRoot, this::onHomeNavItemSelected);
+        mHomeShell = new HomeShellHost(this, toolbar, mMapContent, mSheetContent,
+                this::onHomeNavItemSelected, this::onSheetState);
         setContentView(mHomeShell.getView());
         setSupportActionBar(toolbar);
         // Drive the drawer from the toolbar's own navigation icon. (The action-bar home button
@@ -421,15 +406,14 @@ public class HomeActivity extends AppCompatActivity
             @Override
             public void handleOnBackPressed() {
                 // Collapse the panel when the user presses the back button
-                if (mSlidingPanel != null) {
-                    // Collapse the sliding panel if its anchored or expanded
-                    if (mSlidingPanel.getPanelState() == PanelState.EXPANDED
-                            || mSlidingPanel.getPanelState() == PanelState.ANCHORED) {
-                        mSlidingPanel.setPanelState(PanelState.COLLAPSED);
+                if (mHomeShell != null) {
+                    // Collapse the sliding panel if it's expanded
+                    if (mHomeShell.isSheetExpanded()) {
+                        mHomeShell.collapseSheet();
                         return;
                     }
-                    // Clear focused stop and close the sliding panel if its collapsed
-                    if (mSlidingPanel.getPanelState() == PanelState.COLLAPSED) {
+                    // Clear focused stop and close the sliding panel if it's collapsed (peeking)
+                    if (!mHomeShell.isSheetHidden()) {
                         // Clear the stop focus in map fragment, which will trigger a callback to
                         // close the panel via ObaMapFragment.OnFocusChangedListener in onFocusChanged()
                         mMapFragment.setFocusStop(null, null);
@@ -527,7 +511,7 @@ public class HomeActivity extends AppCompatActivity
             WeatherUtils.toggleWeatherViewVisibility(false,weatherView);
         }
         // Make sure the panel has the current sliding-panel state
-        if (mArrivalsPanelFragment != null && mSlidingPanel != null) {
+        if (mArrivalsPanelFragment != null && mHomeShell != null) {
             mArrivalsPanelFragment.setPanelCollapsed(isSlidingPanelCollapsed());
         }
 
@@ -741,9 +725,9 @@ public class HomeActivity extends AppCompatActivity
         showFloatingActionButtons();
         if (mLastMapProgressBarState) {
             showMapProgressBar();
-        }        if (mFocusedStopId != null && mSlidingPanel != null) {
+        }        if (mFocusedStopId != null && mHomeShell != null) {
             // if we've focused on a stop, then show the panel that was previously hidden
-            mSlidingPanel.setPanelState(PanelState.COLLAPSED);
+            mHomeShell.collapseSheet();
         }
         setTitle(getResources().getString(R.string.navdrawer_item_nearby));
 
@@ -884,8 +868,8 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void hideSlidingPanel() {
-        if (mSlidingPanel != null) {
-            mSlidingPanel.setPanelState(PanelState.HIDDEN);
+        if (mHomeShell != null) {
+            mHomeShell.hideSheet();
         }
     }
 
@@ -1169,7 +1153,7 @@ public class HomeActivity extends AppCompatActivity
             // and clear the currently focused stopId
             mFocusedStopId = null;
             moveFabsLocation();
-            mSlidingPanel.setPanelState(PanelState.HIDDEN);
+            mHomeShell.hideSheet();
             if (mArrivalsPanelFragment != null) {
                 fm.beginTransaction().remove(mArrivalsPanelFragment).commit();
                 mArrivalsPanelFragment = null;
@@ -1228,9 +1212,9 @@ public class HomeActivity extends AppCompatActivity
             mFocusedStop = response.getStop();
 
             // Since mFocusedStop was null, the layout changed, and we should recenter map on stop
-            if (mMapFragment != null && mSlidingPanel != null) {
+            if (mMapFragment != null && mHomeShell != null) {
                 mMapFragment.setMapCenter(mFocusedStop.getLocation(), false,
-                        mSlidingPanel.getPanelState() == PanelState.ANCHORED);
+                        mHomeShell.isSheetExpanded());
             }
 
             // ...and we should add a focus marker for this stop
@@ -1260,7 +1244,7 @@ public class HomeActivity extends AppCompatActivity
         // If we can't see the map or sliding panel, we can't see the arrival info, so return
         Fragment mapFrag = mMapFragment.asFragment();
         if (mapFrag.isHidden() || !mapFrag.isVisible() ||
-                mSlidingPanel.getPanelState() == PanelState.HIDDEN) {
+                mHomeShell.isSheetHidden()) {
             return;
         }
 
@@ -1277,8 +1261,8 @@ public class HomeActivity extends AppCompatActivity
     @Override
     public void onShowRouteOnMap(String routeId) {
         // Collapse the panel so the user can see the map
-        if (mSlidingPanel != null) {
-            mSlidingPanel.setPanelState(PanelState.COLLAPSED);
+        if (mHomeShell != null) {
+            mHomeShell.collapseSheet();
         }
 
         Bundle bundle = new Bundle();
@@ -1293,11 +1277,14 @@ public class HomeActivity extends AppCompatActivity
      */
     @Override
     public void onToggleExpand() {
-        if (mSlidingPanel == null) {
+        if (mHomeShell == null) {
             return;
         }
-        mSlidingPanel.setPanelState(
-                isSlidingPanelCollapsed() ? PanelState.ANCHORED : PanelState.COLLAPSED);
+        if (isSlidingPanelCollapsed()) {
+            mHomeShell.expandSheet();
+        } else {
+            mHomeShell.collapseSheet();
+        }
     }
 
     /**
@@ -1319,22 +1306,9 @@ public class HomeActivity extends AppCompatActivity
             px += getResources().getDimensionPixelSize(
                     R.dimen.arrival_header_height_offset_filter_routes);
         }
-        if (mSlidingPanelController != null) {
-            mSlidingPanelController.setPanelHeightPixels(px);
-        }
-    }
-
-    /**
-     * Called when the panel's content view is created. Mirrors the legacy onListViewCreated:
-     * coordinate SlidingUpPanel drag-vs-scroll with the Compose list (drag the panel only when the
-     * list is at the top, otherwise scroll the list).
-     */
-    @Override
-    public void onPanelViewCreated(View panelView) {
-        // The scroll helper (installed once in setupSlidingPanel) reads the current panel
-        // fragment; here we just point the panel at the new content view.
-        if (mSlidingPanel != null) {
-            mSlidingPanel.setScrollableView(panelView);
+        mSheetPeekPx = px;
+        if (mHomeShell != null) {
+            mHomeShell.setSheetPeekHeightPx(px);
         }
     }
 
@@ -1374,10 +1348,9 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void showSlidingPanel() {
-        if (mSlidingPanel.getPanelState() == PanelState.HIDDEN) {
-            mSlidingPanel.setPanelState(PanelState.COLLAPSED);
+        if (mHomeShell != null && mHomeShell.isSheetHidden()) {
+            mHomeShell.collapseSheet();
         }
-
     }
 
     private void goToSendFeedBack() {
@@ -1486,15 +1459,15 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void setupZoomButtons() {
-        ImageButton mZoomInBtn = mIslandRoot.findViewById(R.id.btnZoomIn);
-        ImageButton mZoomOutBtn = mIslandRoot.findViewById(R.id.btnZoomOut);
+        ImageButton mZoomInBtn = mMapContent.findViewById(R.id.btnZoomIn);
+        ImageButton mZoomOutBtn = mMapContent.findViewById(R.id.btnZoomOut);
         mZoomInBtn.setOnClickListener(view -> mMapFragment.zoomIn());
         mZoomOutBtn.setOnClickListener(view -> mMapFragment.zoomOut());
     }
 
     private void setupMyLocationButton() {
         // Initialize the My Location button
-        mFabMyLocation = mIslandRoot.findViewById(R.id.btnMyLocation);
+        mFabMyLocation = mMapContent.findViewById(R.id.btnMyLocation);
         mFabMyLocation.setOnClickListener(view -> {
             if (mMapFragment != null) {
                 // Reset the preference to ask user to enable location
@@ -1533,7 +1506,7 @@ public class HomeActivity extends AppCompatActivity
      * @param showZoom true if the zoom controls should be visible, false if they should be hidden
      */
     private void showZoomControls(boolean showZoom) {
-        LinearLayout zoomLayout = mIslandRoot.findViewById(R.id.zoom_buttons_layout);
+        LinearLayout zoomLayout = mMapContent.findViewById(R.id.zoom_buttons_layout);
         if (zoomLayout != null) {
             if (showZoom) {
                 zoomLayout.setVisibility(LinearLayout.VISIBLE);
@@ -1610,14 +1583,16 @@ public class HomeActivity extends AppCompatActivity
 
                 int tempMargin = initialMargin;
 
-                if (mSlidingPanel.getPanelState() == PanelState.COLLAPSED) {
-                    tempMargin += mSlidingPanel.getPanelHeight();
+                if (mHomeShell != null && !mHomeShell.isSheetHidden()
+                        && !mHomeShell.isSheetExpanded()) {
+                    // Sheet is peeking (collapsed): lift the FAB above its peek height.
+                    tempMargin += mSheetPeekPx;
                     if (p.bottomMargin == tempMargin) {
                         // Button is already in the right position, do nothing
                         return;
                     }
                 } else {
-                    if (mSlidingPanel.getPanelState() == PanelState.HIDDEN) {
+                    if (mHomeShell == null || mHomeShell.isSheetHidden()) {
                         if (p.bottomMargin == tempMargin) {
                             // Button is already in the right position, do nothing
                             return;
@@ -1712,7 +1687,7 @@ public class HomeActivity extends AppCompatActivity
         final int position = initialPosition;
         // Defer the first content selection until the island is attached (the AndroidView host
         // attaches it during composition, after onCreate), so the fragment commit finds its container.
-        mIslandRoot.post(() -> onHomeNavItemSelected(toHomeNavItem(position)));
+        mMapContent.post(() -> onHomeNavItemSelected(toHomeNavItem(position)));
     }
 
     /** Rebuilds the region-gated drawer item list (mirrors NavigationDrawerFragment.populateNavDrawer). */
@@ -1789,7 +1764,7 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void setupLayersSpeedDial() {
-        mLayersFab = mIslandRoot.findViewById(R.id.layersSpeedDial);
+        mLayersFab = mMapContent.findViewById(R.id.layersSpeedDial);
         ViewGroup.MarginLayoutParams p = (ViewGroup.MarginLayoutParams) mLayersFab
                 .getLayoutParams();
         LAYERS_FAB_DEFAULT_BOTTOM_MARGIN = p.bottomMargin;
@@ -1867,74 +1842,32 @@ public class HomeActivity extends AppCompatActivity
 
 
     private void setupSlidingPanel() {
-        mSlidingPanel = mIslandRoot.findViewById(R.id.bottom_sliding_layout);
+        // The Compose BottomSheetScaffold (in mHomeShell) starts hidden; seed its peek height with
+        // the legacy default (two arrivals) so the first reveal doesn't flash an undersized peek.
+        // onPreferredHeight() then keeps it in sync with the actual arrival preview.
+        mSheetPeekPx = getResources().getDimensionPixelSize(
+                R.dimen.arrival_header_height_two_arrivals);
+        if (mHomeShell != null) {
+            mHomeShell.setSheetPeekHeightPx(mSheetPeekPx);
+        }
+    }
 
-        mSlidingPanel.setPanelState(
-                PanelState.HIDDEN);  // Don't show the panel until we have content
-        mSlidingPanel.setOverlayContent(true);
-        mSlidingPanel.setAnchorPoint(MapModeController.OVERLAY_PERCENTAGE);
-        // Coordinate panel drag vs Compose list scroll: drag the panel only when the list is at
-        // the top, otherwise let the list scroll. Reads the currently-focused panel fragment.
-        mSlidingPanel.setScrollableViewHelper(new ScrollableViewHelper() {
-            @Override
-            public int getScrollableViewScrollPosition(View scrollableView, boolean isSlidingUp) {
-                return mArrivalsPanelFragment != null
-                        ? mArrivalsPanelFragment.scrollableViewScrollPosition() : 0;
-            }
-        });
-        mSlidingPanel.addPanelSlideListener(new PanelSlideListener() {
-
-            @Override
-            public void onPanelStateChanged(View panel, PanelState previousState, PanelState newState) {
-                if (previousState == PanelState.HIDDEN) {
-                    return;
-                }
-
-                switch (newState) {
-                    case EXPANDED:
-                        onPanelExpanded(panel);
-                        break;
-                    case COLLAPSED:
-                        onPanelCollapsed(panel);
-                        break;
-                    case ANCHORED:
-                        onPanelAnchored(panel);
-                        break;
-                    case HIDDEN:
-                        onPanelHidden(panel);
-                        break;
-                }
-            }
-
-            @Override
-            public void onPanelSlide(View panel, float slideOffset) {
-                Log.d(TAG, "onPanelSlide, offset " + slideOffset);
-            }
-
-            public void onPanelExpanded(View panel) {
-                Log.d(TAG, "onPanelExpanded");
-                if (mArrivalsPanelFragment != null) {
-                    mArrivalsPanelFragment.setPanelCollapsed(false);
-                }
-            }
-
-            public void onPanelCollapsed(View panel) {
-                Log.d(TAG, "onPanelCollapsed");
+    /**
+     * Reacts to the arrivals sheet settling into a new state, replacing the legacy
+     * SlidingUpPanel PanelSlideListener. As before, the initial hidden->collapsed reveal is ignored
+     * here (it's handled by updateArrivalListFragment()/onArrivalsLoaded()); the legacy ANCHORED
+     * behavior (recenter on the focused stop) now happens on EXPANDED, since the half-anchor is gone.
+     */
+    private void onSheetState(HomeShellHost.Sheet state) {
+        HomeShellHost.Sheet previous = mLastSheetState;
+        mLastSheetState = state;
+        if (previous == HomeShellHost.Sheet.HIDDEN) {
+            return;
+        }
+        switch (state) {
+            case EXPANDED:
                 if (mMapFragment != null) {
-                    mMapFragment.getMapView()
-                            .setPadding(null, null, null, mSlidingPanel.getPanelHeight());
-                }
-                if (mArrivalsPanelFragment != null) {
-                    mArrivalsPanelFragment.setPanelCollapsed(true);
-                }
-                moveFabsLocation();
-            }
-
-            public void onPanelAnchored(View panel) {
-                Log.d(TAG, "onPanelAnchored");
-                if (mMapFragment != null) {
-                    mMapFragment.getMapView()
-                            .setPadding(null, null, null, mSlidingPanel.getPanelHeight());
+                    mMapFragment.getMapView().setPadding(null, null, null, mSheetPeekPx);
                 }
                 if (mFocusedStop != null && mMapFragment != null) {
                     mMapFragment.setMapCenter(mFocusedStop.getLocation(), true, true);
@@ -1942,43 +1875,24 @@ public class HomeActivity extends AppCompatActivity
                 if (mArrivalsPanelFragment != null) {
                     mArrivalsPanelFragment.setPanelCollapsed(false);
                 }
-            }
-
-            public void onPanelHidden(View panel) {
-                Log.d(TAG, "onPanelHidden");
-                // We need to hide the panel when switching between fragments via the navdrawer,
-                // so we shouldn't put anything here that causes us to lose the state of the
-                // MapFragment or the arrivals panel (e.g., removing the panel fragment)
+                break;
+            case COLLAPSED:
+                if (mMapFragment != null) {
+                    mMapFragment.getMapView().setPadding(null, null, null, mSheetPeekPx);
+                }
+                if (mArrivalsPanelFragment != null) {
+                    mArrivalsPanelFragment.setPanelCollapsed(true);
+                }
+                moveFabsLocation();
+                break;
+            case HIDDEN:
+                // We hide the panel when switching fragments via the navdrawer, so we shouldn't do
+                // anything here that loses the map/arrivals state (e.g. removing the panel fragment).
                 if (mMapFragment != null) {
                     mMapFragment.getMapView().setPadding(null, null, null, 0);
                 }
-            }
-        });
-
-        mSlidingPanelController = new SlidingPanelController() {
-            @Override
-            public void setPanelHeightPixels(int heightInPixels) {
-                if (mSlidingPanel != null) {
-                    if (mSlidingPanel.getPanelState() == PanelState.DRAGGING ||
-                            mSlidingPanel.getPanelState()
-                                    == PanelState.HIDDEN) {
-                        // Don't resize the peek yet - see #294 - it's refreshed on panel state change
-                        return;
-                    }
-                    if (mSlidingPanel.getPanelHeight() != heightInPixels) {
-                        mSlidingPanel.setPanelHeight(heightInPixels);
-                    }
-                }
-            }
-
-            @Override
-            public int getPanelHeightPixels() {
-                if (mSlidingPanel != null) {
-                    return mSlidingPanel.getPanelHeight();
-                }
-                return -1;
-            }
-        };
+                break;
+        }
     }
 
     /**
@@ -2017,7 +1931,7 @@ public class HomeActivity extends AppCompatActivity
                 }
             }
         }
-        mMapProgressBar = mIslandRoot.findViewById(R.id.progress_horizontal);
+        mMapProgressBar = mMapContent.findViewById(R.id.progress_horizontal);
     }
 
     /**
@@ -2052,18 +1966,13 @@ public class HomeActivity extends AppCompatActivity
     }
 
     /**
-     * Our definition of collapsed is consistent with SlidingPanel pre-v3.0.0 definition - we don't
-     * consider the panel changing from the hidden state to the collapsed state to be a "collapsed"
-     * event.  v3.0.0 and higher fire the "collapsed" event when coming from the hidden state.
-     * This method provides us with a collapsed state that is consistent with the pre-v3.0.0
-     * definition
-     * of a collapse event, to make our event model consistent with post v3.0.0 SlidingPanel.
+     * Collapsed means the arrivals sheet isn't fully expanded (it's peeking or hidden). This drives
+     * the preview-vs-full state of the Compose arrivals panel.
      *
-     * @return true if the panel isn't expanded or anchored, false if it is not
+     * @return true if the sheet isn't fully expanded, false if it is
      */
     private boolean isSlidingPanelCollapsed() {
-        return !(mSlidingPanel.getPanelState() == PanelState.EXPANDED ||
-                mSlidingPanel.getPanelState() == PanelState.ANCHORED);
+        return mHomeShell == null || mHomeShell.isSheetCollapsed();
     }
 
     private void checkBatteryOptimizations() {
@@ -2120,7 +2029,7 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void initWeatherView(){
-        weatherView = mIslandRoot.findViewById(R.id.weatherView);
+        weatherView = mMapContent.findViewById(R.id.weatherView);
     }
 
     private void setWeatherData() {
@@ -2176,7 +2085,7 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void setupDonationView(HomeActivity homeActivity) {
-        mDonationView = mIslandRoot.findViewById(R.id.donationView);
+        mDonationView = mMapContent.findViewById(R.id.donationView);
         AppCompatImageButton closeButton = mDonationView.findViewById(R.id.btnDonationViewClose);
         Button learnMoreButton = mDonationView.findViewById(R.id.btnDonationViewLearnMore);
         Button donateButton = mDonationView.findViewById(R.id.btnDonationViewDonate);
@@ -2207,7 +2116,7 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void updateDonationsUIVisibility() {
-        mDonationView = mIslandRoot.findViewById(R.id.donationView);
+        mDonationView = mMapContent.findViewById(R.id.donationView);
         if(mDonationView == null) return;
         DonationsManager donationsManager = Application.getDonationsManager();
 
@@ -2245,7 +2154,7 @@ public class HomeActivity extends AppCompatActivity
         return builder.create();
     }
     private void initSurveyView(){
-        mSurveyView = mIslandRoot.findViewById(R.id.surveyView);
+        mSurveyView = mMapContent.findViewById(R.id.surveyView);
     }
     private void setupSurvey() {
         if(Application.get().getCurrentRegion() == null || mCurrentNavDrawerPosition != NAVDRAWER_ITEM_NEARBY) return;

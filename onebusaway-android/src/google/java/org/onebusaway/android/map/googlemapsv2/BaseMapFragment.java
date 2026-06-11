@@ -21,7 +21,6 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.LocationSource;
 import com.google.android.gms.maps.OnMapReadyCallback;
-import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.UiSettings;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
@@ -64,6 +63,7 @@ import org.onebusaway.android.map.StopMapController;
 import org.onebusaway.android.map.LayerInfo;
 import org.onebusaway.android.map.bike.BikeshareMapController;
 import org.onebusaway.android.map.googlemapsv2.bike.BikeStationOverlay;
+import org.onebusaway.android.map.googlemapsv2.compose.ComposeMapHostKt;
 import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.ui.HomeActivity;
 import org.onebusaway.android.ui.LayersSpeedDialAdapter;
@@ -107,6 +107,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.fragment.app.DialogFragment;
+import androidx.fragment.app.Fragment;
 
 import static org.onebusaway.android.util.PermissionUtils.LOCATION_PERMISSIONS;
 import static org.onebusaway.android.util.PermissionUtils.LOCATION_PERMISSION_REQUEST;
@@ -127,7 +128,7 @@ import static org.onebusaway.android.util.UIUtils.canManageDialog;
  *
  * @author paulw, barbeau
  */
-public class BaseMapFragment extends SupportMapFragment
+public class BaseMapFragment extends Fragment
         implements ObaMapFragment, MapModeController.Callback, ObaRegionsTask.Callback,
         MapModeController.ObaMapView,
         LocationSource, LocationHelper.Listener,
@@ -253,22 +254,27 @@ public class BaseMapFragment extends SupportMapFragment
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        View v = super.onCreateView(inflater, container, savedInstanceState);
-
         mFirebaseAnalytics = FirebaseAnalytics.getInstance(getActivity());
 
         mUserDeniedPermission = PreferenceUtils.userDeniedLocationPermission();
 
         mLocationHelper = new LocationHelper(getActivity());
 
-        if (MapHelpV2.isMapsInstalled(getActivity())) {
-            // Save the savedInstanceState
-            mLastSavedInstanceState = savedInstanceState;
-            // Register for an async callback when the map is ready
-            getMapAsync(this);
-        } else {
+        if (!MapHelpV2.isMapsInstalled(getActivity())) {
             MapHelpV2.promptUserInstallMaps(getActivity());
+            return new View(getActivity());
         }
+
+        // Save the savedInstanceState; onMapReady() (invoked via the Compose MapEffect bridge)
+        // consumes it just like the old getMapAsync() callback did.
+        mLastSavedInstanceState = savedInstanceState;
+
+        // Host the map in a ComposeView via android-maps-compose. The fragment keeps driving the
+        // raw GoogleMap imperatively in onMapReady() + the overlays; the seed camera only avoids an
+        // initial flash before initMap() centers the map.
+        double[] seed = resolveInitialCamera(savedInstanceState);
+        View v = ComposeMapHostKt.createComposeMapView(
+                getActivity(), this, seed[0], seed[1], (float) seed[2]);
 
         // If we have a recent location, show this while we're waiting on the LocationHelper
         Location l = Application
@@ -281,6 +287,23 @@ public class BaseMapFragment extends SupportMapFragment
         }
 
         return v;
+    }
+
+    /** Resolves the initial map camera (lat, lon, zoom) from saved state, then intent extras. */
+    private double[] resolveInitialCamera(Bundle savedInstanceState) {
+        Bundle src = savedInstanceState;
+        if (src == null && getActivity() != null) {
+            src = getActivity().getIntent().getExtras();
+        }
+        double lat = 0.0;
+        double lon = 0.0;
+        float zoom = CAMERA_DEFAULT_ZOOM;
+        if (src != null) {
+            lat = src.getDouble(MapParams.CENTER_LAT, 0.0);
+            lon = src.getDouble(MapParams.CENTER_LON, 0.0);
+            zoom = src.getFloat(MapParams.ZOOM, CAMERA_DEFAULT_ZOOM);
+        }
+        return new double[]{lat, lon, zoom};
     }
 
     public void zoomIn() {

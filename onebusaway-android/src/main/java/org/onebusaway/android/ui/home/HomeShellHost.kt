@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,6 +39,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalDensity
@@ -89,6 +91,7 @@ class HomeShellHost(
         fun onZoomIn()
         fun onZoomOut()
         fun onToggleBikeshare()
+        fun onWeatherClick()
     }
 
     // --- Drawer state ---
@@ -107,6 +110,12 @@ class HomeShellHost(
     private var leftHandModeState by mutableStateOf(false)
     private var layersVisibleState by mutableStateOf(false)
     private var bikeshareActiveState by mutableStateOf(false)
+
+    // --- Weather chip state ---
+    private var weatherVisibleState by mutableStateOf(false)
+    private var weatherIconRes by mutableStateOf(0)
+    private var weatherTempText by mutableStateOf("")
+    private var weatherFitIcon by mutableStateOf(false)
 
     /** Last observed resting state, mirrored here so Java can query it synchronously (main thread). */
     @Volatile
@@ -173,6 +182,19 @@ class HomeShellHost(
     /** Tints the bikeshare layer item by whether the layer is currently active. */
     fun setBikeshareActive(active: Boolean) {
         bikeshareActiveState = active
+    }
+
+    /** Shows the weather chip with the given icon + formatted temperature. */
+    fun showWeather(iconRes: Int, tempText: String, fitIcon: Boolean) {
+        weatherIconRes = iconRes
+        weatherTempText = tempText
+        weatherFitIcon = fitIcon
+        weatherVisibleState = true
+    }
+
+    /** Hides the weather chip (no region / hidden by preference / not on NEARBY). */
+    fun hideWeather() {
+        weatherVisibleState = false
     }
 
     /** The view to pass to Activity.setContentView. */
@@ -274,6 +296,15 @@ class HomeShellHost(
                                     onZoomOut = { mapActions.onZoomOut() },
                                     onToggleBikeshare = { mapActions.onToggleBikeshare() }
                                 )
+                                if (weatherVisibleState) {
+                                    WeatherCard(
+                                        iconRes = weatherIconRes,
+                                        tempText = weatherTempText,
+                                        fitIcon = weatherFitIcon,
+                                        onClick = { mapActions.onWeatherClick() },
+                                        modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+                                    )
+                                }
                             }
                         }
                     }

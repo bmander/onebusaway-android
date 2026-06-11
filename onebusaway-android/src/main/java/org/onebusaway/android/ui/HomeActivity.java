@@ -113,7 +113,6 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.appcompat.widget.Toolbar;
-import androidx.cardview.widget.CardView;
 import androidx.core.view.AccessibilityDelegateCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
@@ -168,7 +167,6 @@ public class HomeActivity extends AppCompatActivity
 
     ArrivalsPanelFragment mArrivalsPanelFragment;
 
-    CardView weatherView;
 
     View mSurveyView;
 
@@ -444,7 +442,6 @@ public class HomeActivity extends AppCompatActivity
         if (savedInstanceState == null) {
             handleFcmNotificationIntent(getIntent());
         }
-        initWeatherView();
         setupSurvey();
     }
 
@@ -483,8 +480,8 @@ public class HomeActivity extends AppCompatActivity
         super.onResume();
 
         // Check if weather view visibility is changed to hidden
-        if(WeatherUtils.isWeatherViewHiddenPref()){
-            WeatherUtils.toggleWeatherViewVisibility(false,weatherView);
+        if (WeatherUtils.isWeatherViewHiddenPref() && mHomeShell != null) {
+            mHomeShell.hideWeather();
         }
         // Make sure the panel has the current sliding-panel state
         if (mArrivalsPanelFragment != null && mHomeShell != null) {
@@ -643,7 +640,9 @@ public class HomeActivity extends AppCompatActivity
         if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_NEARBY) {
             // Hide survey view unless it's on the map
             SurveyViewUtils.hideSurveyView(mSurveyView);
-            WeatherUtils.toggleWeatherViewVisibility(false,weatherView);
+            if (mHomeShell != null) {
+                mHomeShell.hideWeather();
+            }
         }else{
             setWeatherData();
         }
@@ -1841,36 +1840,36 @@ public class HomeActivity extends AppCompatActivity
             makeWeatherRequest();
             getGtfsAlerts();
         }else{
-            WeatherUtils.toggleWeatherViewVisibility(false,weatherView);
+            if (mHomeShell != null) {
+                mHomeShell.hideWeather();
+            }
             weatherResponse = null;
         }
     }
 
-    private void initWeatherView(){
-        weatherView = mMapContent.findViewById(R.id.weatherView);
+    private void setWeatherData() {
+        if (weatherResponse == null || mCurrentNavDrawerPosition != NAVDRAWER_ITEM_NEARBY
+                || WeatherUtils.isWeatherViewHiddenPref() || mHomeShell == null) {
+            return;
+        }
+        String weatherIcon = weatherResponse.getCurrent_forecast().getIcon();
+        double weatherTemp = weatherResponse.getCurrent_forecast().getTemperature();
+        String icon = weatherIcon != null ? weatherIcon : "";
+        mHomeShell.showWeather(
+                WeatherUtils.getWeatherIconRes(icon),
+                WeatherUtils.formatTemperature(weatherTemp),
+                WeatherUtils.isFitIcon(icon));
     }
 
-    private void setWeatherData() {
-        if(weatherResponse == null || mCurrentNavDrawerPosition != NAVDRAWER_ITEM_NEARBY || WeatherUtils.isWeatherViewHiddenPref()) return;
-        WeatherUtils.toggleWeatherViewVisibility(true,weatherView);
-        TextView tempTxtView = findViewById(R.id.weatherTextView);
-        ImageView weatherImageView = findViewById(R.id.weatherStateImageView);
-        String weatherIcon = weatherResponse.getCurrent_forecast().getIcon();
-        String weatherSummary = weatherResponse.getCurrent_forecast().getSummary();
-        double weatherTemp = weatherResponse.getCurrent_forecast().getTemperature();
-
-        if (weatherIcon != null && !weatherIcon.isEmpty()) {
-            WeatherUtils.setWeatherImage(weatherImageView, weatherIcon);
-        }else{
-            weatherImageView.setVisibility(View.GONE);
+    @Override
+    public void onWeatherClick() {
+        if (weatherResponse == null || weatherResponse.getCurrent_forecast() == null) {
+            return;
         }
-        WeatherUtils.setWeatherTemp(tempTxtView, weatherTemp);
-        // Show weather state when click.
-        weatherView.setOnClickListener(view -> {
-            if (weatherSummary != null) {
-                Toast.makeText(getApplicationContext(), weatherSummary.trim(), Toast.LENGTH_SHORT).show();
-            }
-        });
+        String summary = weatherResponse.getCurrent_forecast().getSummary();
+        if (summary != null) {
+            Toast.makeText(getApplicationContext(), summary.trim(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void makeWeatherRequest(){

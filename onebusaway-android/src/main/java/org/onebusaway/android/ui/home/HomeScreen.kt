@@ -97,18 +97,17 @@ fun HomeScreen(
         val peekHeaderDp = arrivalsPeekHeight(state.peekArrivalCount, state.routeFiltering)
         val peekHeaderPx = with(density) { peekHeaderDp.roundToPx() }
 
-        // Visibility is business state: the sheet shows iff a stop is focused on NEARBY. The key is the
-        // focused stop id while shown (else null), so the effect reacts to focus/tab changes but NOT to
-        // a user drag (same stop -> same key). When shown, only a *hidden* sheet is peeked open — a
-        // peek/full sheet keeps the user's position (mirrors the legacy showSlidingPanel/hideSheet).
-        val showSheet = state.focusedStop != null && state.selectedItem == HomeNavItem.NEARBY
+        // Visibility is business state. The key is the focused stop id while shown (else null), so the
+        // effect reacts to focus/tab changes but NOT to a user drag (same stop -> same key); the
+        // reconcile decision (hide / peek-open-if-hidden / leave) is the pure sheetReconcile().
+        val showSheet = shouldShowSheet(state.focusedStop, state.selectedItem)
         val sheetKey = if (showSheet) state.focusedStop?.id else null
         LaunchedEffect(sheetKey) {
             runCatching {
-                if (sheetKey == null) {
-                    sheetState.hide()
-                } else if (sheetState.currentValue == SheetValue.Hidden) {
-                    sheetState.partialExpand()
+                when (sheetReconcile(sheetKey != null, sheetState.currentValue.toArrivalsSheetState())) {
+                    SheetReconcile.HIDE -> sheetState.hide()
+                    SheetReconcile.PEEK_OPEN -> sheetState.partialExpand()
+                    SheetReconcile.LEAVE -> {}
                 }
             }
         }
@@ -125,8 +124,10 @@ fun HomeScreen(
             events.collect { event ->
                 when (event) {
                     HomeEvent.ToggleSheet -> runCatching {
-                        if (sheetState.currentValue == SheetValue.Expanded) sheetState.partialExpand()
-                        else sheetState.expand()
+                        when (toggleSheetTarget(sheetState.currentValue.toArrivalsSheetState())) {
+                            ArrivalsSheetState.Expanded -> sheetState.expand()
+                            else -> sheetState.partialExpand()
+                        }
                     }
                     HomeEvent.CollapseSheet -> runCatching { sheetState.partialExpand() }
                     HomeEvent.OpenDrawer -> drawerState.open()
@@ -138,10 +139,10 @@ fun HomeScreen(
         // Back collapses an expanded sheet first, then (from peek) clears the focus, which hides it.
         // A hidden sheet leaves back to the system (mirrors the legacy !isSheetHidden() gate).
         BackHandler(enabled = sheetState.currentValue != SheetValue.Hidden) {
-            if (sheetState.currentValue == SheetValue.Expanded) {
-                scope.launch { runCatching { sheetState.partialExpand() } }
-            } else {
-                onClearFocus()
+            when (sheetBackAction(sheetState.currentValue.toArrivalsSheetState())) {
+                SheetBackAction.COLLAPSE -> scope.launch { runCatching { sheetState.partialExpand() } }
+                SheetBackAction.CLEAR_FOCUS -> onClearFocus()
+                SheetBackAction.NONE -> {}
             }
         }
 
@@ -244,10 +245,10 @@ private fun SheetValue.toArrivalsSheetState() = when (this) {
 @Composable
 private fun arrivalsPeekHeight(arrivalCount: Int, filtering: Boolean): Dp {
     val base = dimensionResource(
-        when {
-            arrivalCount >= 2 -> R.dimen.arrival_header_height_two_arrivals
-            arrivalCount == 1 -> R.dimen.arrival_header_height_one_arrival
-            else -> R.dimen.arrival_header_height_no_arrivals
+        when (arrivalsPeekTier(arrivalCount)) {
+            ArrivalsPeekTier.TWO_OR_MORE -> R.dimen.arrival_header_height_two_arrivals
+            ArrivalsPeekTier.ONE -> R.dimen.arrival_header_height_one_arrival
+            ArrivalsPeekTier.NONE -> R.dimen.arrival_header_height_no_arrivals
         }
     )
     val offset = if (filtering) {

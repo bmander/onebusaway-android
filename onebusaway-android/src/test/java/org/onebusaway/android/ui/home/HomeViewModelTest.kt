@@ -32,7 +32,11 @@ import org.junit.Test
 import org.onebusaway.android.testing.MainDispatcherRule
 
 private class FakeWeatherRepository(var result: Result<WeatherData>) : WeatherRepository {
-    override suspend fun currentForecast(regionId: Long): Result<WeatherData> = result
+    val requestedRegions = mutableListOf<Long>()
+    override suspend fun currentForecast(regionId: Long): Result<WeatherData> {
+        requestedRegions.add(regionId)
+        return result
+    }
 }
 
 private class FakeWideAlertsRepository(private val alerts: List<WideAlert>) : WideAlertsRepository {
@@ -104,6 +108,65 @@ class HomeViewModelTest {
         assertNull(vm.uiState.value.weather)
     }
 
+    @Test
+    fun `weather is fetched once per region, again when the region changes`() = runTest {
+        val repo = FakeWeatherRepository(Result.success(forecast))
+        val vm = HomeViewModel(SavedStateHandle(), repo, FakeWideAlertsRepository(emptyList()))
+
+        vm.onRegionValid(1L)
+        advanceUntilIdle()
+        vm.onRegionValid(1L) // same region: no refetch
+        advanceUntilIdle()
+        assertEquals(listOf(1L), repo.requestedRegions)
+
+        vm.onRegionValid(2L) // new region: refetch
+        advanceUntilIdle()
+        assertEquals(listOf(1L, 2L), repo.requestedRegions)
+    }
+
+    // --- map loading + peek inputs ---
+
+    @Test
+    fun `map loading shows on nearby and is gated off other tabs`() = runTest {
+        val vm = viewModel()
+        vm.onMapLoading(true)
+        assertTrue(vm.uiState.value.mapLoading)
+        vm.onNavItemSelected(HomeNavItem.STARRED_STOPS)
+        assertFalse(vm.uiState.value.mapLoading)
+        vm.onMapLoading(false)
+        vm.onNavItemSelected(HomeNavItem.NEARBY)
+        assertFalse(vm.uiState.value.mapLoading)
+    }
+
+    @Test
+    fun `onPreferredHeight stores the preview count and filter flag`() = runTest {
+        val vm = viewModel()
+        vm.onPreferredHeight(arrivalCount = 1, filtering = true)
+        assertEquals(1, vm.uiState.value.peekArrivalCount)
+        assertTrue(vm.uiState.value.routeFiltering)
+    }
+
+    // --- one-shot sheet / drawer commands ---
+
+    @Test
+    fun `request commands emit the matching sheet and drawer events`() = runTest {
+        val vm = viewModel()
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.requestToggleSheet()
+        vm.requestCollapseSheet()
+        vm.requestOpenDrawer()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(HomeEvent.ToggleSheet, HomeEvent.CollapseSheet, HomeEvent.OpenDrawer),
+            events
+        )
+        job.cancel()
+    }
+
     // --- GTFS wide alerts (events) ---
 
     @Test
@@ -171,7 +234,12 @@ class HomeStateTest {
         selected: HomeNavItem,
         env: HomeEnvironment = HomeEnvironment(),
         weather: WeatherData? = WeatherData("clear-day", 70.0, null),
-    ) = buildState(selected, emptyList(), env, weather, HomeDialog.NONE, true)
+        mapLoading: Boolean = false,
+        focusedStop: FocusedStop? = null,
+    ) = buildState(
+        selected, emptyList(), env, weather, HomeDialog.NONE, true,
+        focusedStop = focusedStop, mapLoading = mapLoading,
+    )
 
     @Test
     fun `chrome FABs show only on nearby`() {
@@ -227,5 +295,19 @@ class HomeStateTest {
         assertFalse(state(HomeNavItem.STARRED_STOPS).showStarredRoutesMenu)
         assertTrue(state(HomeNavItem.STARRED_ROUTES).showStarredRoutesMenu)
         assertFalse(state(HomeNavItem.NEARBY).showStarredStopsMenu)
+    }
+
+    @Test
+    fun `the map loading indicator is gated to the nearby tab`() {
+        assertTrue(state(HomeNavItem.NEARBY, mapLoading = true).mapLoading)
+        assertFalse(state(HomeNavItem.NEARBY, mapLoading = false).mapLoading)
+        assertFalse(state(HomeNavItem.STARRED_STOPS, mapLoading = true).mapLoading)
+    }
+
+    @Test
+    fun `the focused stop passes through untouched`() {
+        val stop = FocusedStop("1", "Main St", "100", 47.6, -122.3)
+        assertEquals(stop, state(HomeNavItem.NEARBY, focusedStop = stop).focusedStop)
+        assertNull(state(HomeNavItem.NEARBY, focusedStop = null).focusedStop)
     }
 }

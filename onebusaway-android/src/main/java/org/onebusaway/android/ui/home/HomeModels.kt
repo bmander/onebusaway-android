@@ -69,7 +69,7 @@ data class HomeEnvironment(
 
 /**
  * Complete render state for the home screen's chrome, overlays, dialogs, and nav drawer — the single
- * source of truth the [HomeShellHost] collects and renders. The visibility gates are *derived* in the
+ * source of truth the [HomeScreen] collects and renders. The visibility gates are *derived* in the
  * ViewModel from [selectedItem] + the last [HomeEnvironment], replacing HomeActivity's scattered
  * updateLayersFab()/setWeatherData()/updateDonationsUIVisibility() recomputation at call sites.
  *
@@ -82,7 +82,11 @@ data class HomeUiState(
     // map focus (survives config change + process death via SavedStateHandle)
     val focusedStop: FocusedStop? = null,
     val focusedBikeStationId: String? = null,
+    // arrivals sheet peek size inputs (the screen maps these to a peek height)
+    val peekArrivalCount: Int = 0,
+    val routeFiltering: Boolean = false,
     // chrome — derived from selectedItem + environment
+    val mapLoading: Boolean = false,
     val fabsVisible: Boolean = true,
     val zoomControlsVisible: Boolean = false,
     val leftHandMode: Boolean = false,
@@ -99,8 +103,24 @@ data class HomeUiState(
     val showStarredRoutesMenu: Boolean = false,
 )
 
-/** One-shot effects the host carries out (driven from the ViewModel, collected by the activity). */
+/** The arrivals sheet's resting position, reported from the screen back to the activity. */
+enum class ArrivalsSheetState { Hidden, Collapsed, Expanded }
+
+/**
+ * One-shot effects driven from the ViewModel. [ShowWideAlert] is handled by the activity; the sheet
+ * /drawer commands are handled by [HomeScreen] (which alone holds the live `SheetState`/`DrawerState`).
+ * Both subscribe to the same multicast `events` flow and ignore the others.
+ */
 sealed interface HomeEvent {
     /** A region-wide GTFS alert arrived; the activity shows it in a dialog. */
     data class ShowWideAlert(val alert: WideAlert) : HomeEvent
+
+    /** The arrivals-sheet chevron was tapped — toggle peek <-> full. */
+    object ToggleSheet : HomeEvent
+
+    /** Collapse the sheet to its peek (e.g. after "show vehicles on map"). */
+    object CollapseSheet : HomeEvent
+
+    /** Open the navigation drawer (toolbar hamburger). */
+    object OpenDrawer : HomeEvent
 }

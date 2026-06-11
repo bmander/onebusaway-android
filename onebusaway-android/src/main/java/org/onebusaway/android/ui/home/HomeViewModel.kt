@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
  * weather + GTFS-wide-alert fetches through [viewModelScope] (replacing HomeActivity's
  * WeatherRequestTask and the Handler-based GTFS callback). The visibility gates are computed here
  * from the selected nav item plus the host-supplied [HomeEnvironment]; the activity feeds in the
- * inputs and renders the result via [HomeShellHost].
+ * inputs and renders the result via [HomeScreen].
  *
  * The focused stop is owned here and persisted through [SavedStateHandle] (replacing the activity's
  * `onSaveInstanceState`). The arrivals sheet, drawer-open command, and fragment management remain
@@ -57,6 +57,11 @@ class HomeViewModel(
     private var weatherData: WeatherData? = null
     private var dialog: HomeDialog = HomeDialog.NONE
     private var helpShowContactUs: Boolean = true
+    private var mapLoading: Boolean = false
+    // Seed the peek at the two-arrivals height so the first sheet reveal doesn't flash undersized
+    // (matches the legacy setupSlidingPanel default); onPreferredHeight refines it.
+    private var peekArrivalCount: Int = 2
+    private var routeFiltering: Boolean = false
     // Focus state — seeded from SavedStateHandle so it survives process death (the data class itself
     // isn't Parcelable, so the fields are stored individually).
     private var focusedStop: FocusedStop? = readFocusedStop(savedState)
@@ -104,6 +109,32 @@ class HomeViewModel(
         focusedBikeStationId = id
         savedState[KEY_BIKE_STATION] = id
         recompute()
+    }
+
+    /** The map fragment started/stopped loading data (drives the map-loading indicator on NEARBY). */
+    fun onMapLoading(loading: Boolean) {
+        mapLoading = loading
+        recompute()
+    }
+
+    /** The arrivals panel reported its preferred peek size (row count + whether filtering is on). */
+    fun onPreferredHeight(arrivalCount: Int, filtering: Boolean) {
+        peekArrivalCount = arrivalCount
+        routeFiltering = filtering
+        recompute()
+    }
+
+    /** Chevron tap — ask the screen to toggle the sheet (it holds the live SheetState). */
+    fun requestToggleSheet() = emit(HomeEvent.ToggleSheet)
+
+    /** Collapse the sheet to peek (after "show vehicles on map"). */
+    fun requestCollapseSheet() = emit(HomeEvent.CollapseSheet)
+
+    /** Open the navigation drawer (toolbar hamburger). */
+    fun requestOpenDrawer() = emit(HomeEvent.OpenDrawer)
+
+    private fun emit(event: HomeEvent) {
+        viewModelScope.launch { _events.emit(event) }
     }
 
     /** The host re-snapshotted preferences / app-global flags (onResume, nav change, layer toggle). */
@@ -164,7 +195,7 @@ class HomeViewModel(
     private fun recompute() {
         _uiState.value = buildState(
             selectedItem, navItems, environment, weatherData, dialog, helpShowContactUs,
-            focusedStop, focusedBikeStationId
+            focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering
         )
     }
 
@@ -204,6 +235,9 @@ internal fun buildState(
     helpShowContactUs: Boolean,
     focusedStop: FocusedStop? = null,
     focusedBikeStationId: String? = null,
+    mapLoading: Boolean = false,
+    peekArrivalCount: Int = 0,
+    routeFiltering: Boolean = false,
 ): HomeUiState {
     val nearby = selectedItem == HomeNavItem.NEARBY
     return HomeUiState(
@@ -211,6 +245,9 @@ internal fun buildState(
         selectedItem = selectedItem,
         focusedStop = focusedStop,
         focusedBikeStationId = focusedBikeStationId,
+        peekArrivalCount = peekArrivalCount,
+        routeFiltering = routeFiltering,
+        mapLoading = nearby && mapLoading,
         fabsVisible = nearby,
         zoomControlsVisible = nearby && environment.zoomControlsPref,
         leftHandMode = environment.leftHandMode,

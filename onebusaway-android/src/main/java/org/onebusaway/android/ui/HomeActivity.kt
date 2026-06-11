@@ -33,14 +33,15 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.accessibility.AccessibilityManager
-import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.OnBackPressedCallback
+import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -72,6 +73,7 @@ import org.onebusaway.android.region.ObaRegionsTask
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.arrivals.ArrivalsPanelFragment
+import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.DefaultWeatherRepository
 import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
 import org.onebusaway.android.ui.home.FocusedStop
@@ -79,7 +81,7 @@ import org.onebusaway.android.ui.home.HelpAction
 import org.onebusaway.android.ui.home.HomeEnvironment
 import org.onebusaway.android.ui.home.HomeEvent
 import org.onebusaway.android.ui.home.HomeNavItem
-import org.onebusaway.android.ui.home.HomeShellHost
+import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
 import org.onebusaway.android.ui.survey.SurveyManager
 import org.onebusaway.android.ui.survey.utils.SurveyViewUtils
@@ -102,9 +104,7 @@ class HomeActivity : AppCompatActivity(),
     ObaMapFragment.OnProgressBarChangedListener,
     ArrivalsPanelFragment.Listener,
     RegionCallback,
-    ObaRegionsTask.Callback,
-    HomeShellHost.MapActionListener,
-    HomeShellHost.DialogActionListener {
+    ObaRegionsTask.Callback {
 
     private val viewModel: HomeViewModel by viewModels {
         viewModelFactory {
@@ -125,20 +125,15 @@ class HomeActivity : AppCompatActivity(),
     /** GoogleApiClient being used for Location Services. TODO(PR #1569): migrate to FusedLocation. */
     private var mGoogleApiClient: GoogleApiClient? = null
 
-    // Compose shell (P1 drawer + P2 BottomSheetScaffold): the inflated map content + arrivals sheet
-    // content are hosted inside mHomeShell, which replaces the DrawerLayout + SlidingUpPanelLayout.
+    // The inflated map content + arrivals sheet content + toolbar are hosted by the Compose
+    // HomeScreen (ModalNavigationDrawer + BottomSheetScaffold) via AndroidView.
     private lateinit var mMapContent: View
 
     private lateinit var mSheetContent: View
 
-    private var mHomeShell: HomeShellHost? = null
-
-    // Current arrivals-sheet peek height in px (mirrors the old SlidingUpPanel.getPanelHeight()), used
-    // to offset the FABs above the collapsed sheet.
-    private var mSheetPeekPx = 0
-
-    // Previous arrivals-sheet resting state, so onSheetState() can ignore the initial reveal.
-    private var mLastSheetState = HomeShellHost.Sheet.HIDDEN
+    // Last settled arrivals-sheet position, reported by HomeScreen, so the activity can answer
+    // synchronous queries (the preview-vs-full flag) and ignore the initial reveal.
+    private var mLastSettledSheet = ArrivalsSheetState.Hidden
 
     /**
      * Currently selected navigation drawer position (so we don't unnecessarily swap fragments
@@ -159,10 +154,6 @@ class HomeActivity : AppCompatActivity(),
     // marker. A fresh map tap already shows the stop, so it doesn't set this.
     private var mPendingMapFocus = false
 
-    private var mMapProgressBar: ProgressBar? = null
-
-    private var mLastMapProgressBarState = true
-
     private var mInitialStartup = true
 
     private lateinit var mFirebaseAnalytics: FirebaseAnalytics
@@ -181,52 +172,43 @@ class HomeActivity : AppCompatActivity(),
         mMapContent = layoutInflater.inflate(R.layout.home_map_content, null)
         mSheetContent = layoutInflater.inflate(R.layout.home_arrivals_sheet, null)
         val toolbar = layoutInflater.inflate(R.layout.include_toolbar, null) as Toolbar
-        val shell = HomeShellHost(
-            this, toolbar, mMapContent, mSheetContent, viewModel,
-            ::onHomeNavItemSelected, ::onSheetState, this, this
-        )
-        mHomeShell = shell
-        setContentView(shell.view)
+        setContent {
+            val state by viewModel.uiState.collectAsStateWithLifecycle()
+            HomeScreen(
+                state = state,
+                events = viewModel.events,
+                toolbar = toolbar,
+                mapContent = mMapContent,
+                sheetContent = mSheetContent,
+                onNavItemSelected = ::onHomeNavItemSelected,
+                onMyLocation = ::onMyLocation,
+                onZoomIn = ::onZoomIn,
+                onZoomOut = ::onZoomOut,
+                onToggleBikeshare = ::onToggleBikeshare,
+                onWeatherClick = ::onWeatherClick,
+                onDonationClose = ::onDonationClose,
+                onDonationLearnMore = ::onDonationLearnMore,
+                onDonationDonate = ::onDonationDonate,
+                onHelpAction = ::onHelpAction,
+                onWhatsNewDismissed = ::onWhatsNewDismissed,
+                onDismissDialog = viewModel::dismissDialog,
+                onSheetSettled = ::onSheetSettled,
+                onClearFocus = ::onClearFocus,
+            )
+        }
         setSupportActionBar(toolbar)
         // Drive the drawer from the toolbar's own navigation icon. (The action-bar home button
         // doesn't route reliably here since the toolbar is hosted in a ComposeView and isn't
         // attached when setSupportActionBar runs.)
         toolbar.setNavigationIcon(R.drawable.ic_menu_hamburger)
         toolbar.setNavigationContentDescription(R.string.navigation_drawer_open)
-        toolbar.setNavigationOnClickListener { mHomeShell?.openDrawer() }
+        toolbar.setNavigationOnClickListener { viewModel.requestOpenDrawer() }
 
         mInitialStartup = Application.getPrefs().getBoolean(INITIAL_STARTUP, true)
 
         setupNavigationDrawer()
 
-        setupSlidingPanel()
-
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                // Collapse the panel when the user presses the back button
-                val shell = mHomeShell
-                if (shell != null) {
-                    // Collapse the sliding panel if it's expanded
-                    if (shell.isSheetExpanded()) {
-                        shell.collapseSheet()
-                        return
-                    }
-                    // Clear focused stop and close the sliding panel if it's collapsed (peeking)
-                    if (!shell.isSheetHidden()) {
-                        // Clear the stop focus in map fragment, which will trigger a callback to
-                        // close the panel via ObaMapFragment.OnFocusChangedListener in onFocusChanged()
-                        mMapFragment?.setFocusStop(null, null)
-                        return
-                    }
-                }
-                isEnabled = false
-                onBackPressedDispatcher.onBackPressed()
-            }
-        })
-
         setupMapState()
-
-        setupMapChrome()
 
         setupGooglePlayServices()
 
@@ -267,6 +249,8 @@ class HomeActivity : AppCompatActivity(),
                         is HomeEvent.ShowWideAlert -> GtfsAlertsHelper.showWideAlertDialog(
                             this@HomeActivity, event.alert.title, event.alert.message, event.alert.url
                         )
+                        // Sheet / drawer commands are carried out by HomeScreen.
+                        else -> Unit
                     }
                 }
             }
@@ -497,24 +481,17 @@ class HomeActivity : AppCompatActivity(),
 
         supportFragmentManager.beginTransaction().show(mapFragment.asFragment()).commit()
 
-        if (mLastMapProgressBarState) {
-            showMapProgressBar()
-        }
-        if (viewModel.uiState.value.focusedStop != null && mHomeShell != null) {
-            // if we've focused on a stop, then show the panel that was previously hidden
-            mHomeShell?.collapseSheet()
-        }
+        // The map-loading bar + arrivals sheet are now derived from state (mapLoading; focusedStop +
+        // the NEARBY tab), so no imperative show/collapse is needed here.
         title = resources.getString(R.string.navdrawer_item_nearby)
     }
 
     private fun showStarredStopsFragment() {
         val fm = supportFragmentManager
         // Hide everything that shouldn't be shown
-        hideMapProgressBar()
         hideMapFragment()
         hideReminderFragment()
         hideStarredRoutesFragment()
-        hideSlidingPanel()
 
         // Show fragment (we use show instead of replace to keep the map state)
         var fragment = mMyStarredStopsFragment
@@ -539,10 +516,8 @@ class HomeActivity : AppCompatActivity(),
     private fun showStarredRoutesFragment() {
         val fm = supportFragmentManager
         // Hide everything that shouldn't be shown
-        hideMapProgressBar()
         hideMapFragment()
         hideReminderFragment()
-        hideSlidingPanel()
         hideStarredStopsFragment()
 
         // Show fragment (we use show instead of replace to keep the map state)
@@ -568,11 +543,9 @@ class HomeActivity : AppCompatActivity(),
     private fun showMyRemindersFragment() {
         val fm = supportFragmentManager
         // Hide everything that shouldn't be shown
-        hideMapProgressBar()
         hideStarredRoutesFragment()
         hideStarredStopsFragment()
         hideMapFragment()
-        hideSlidingPanel()
         // Show fragment (we use show instead of replace to keep the map state)
         var fragment = mMyRemindersFragment
         if (fragment == null) {
@@ -629,10 +602,6 @@ class HomeActivity : AppCompatActivity(),
         }
     }
 
-    private fun hideSlidingPanel() {
-        mHomeShell?.hideSheet()
-    }
-
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_options, menu)
 
@@ -666,7 +635,7 @@ class HomeActivity : AppCompatActivity(),
         val id = item.itemId
         if (id == android.R.id.home) {
             // The toolbar up indicator opens the Compose navigation drawer.
-            mHomeShell?.openDrawer()
+            viewModel.requestOpenDrawer()
             return true
         }
         // Note: there is no handler for R.id.action_search here — it's an action-view menu
@@ -680,9 +649,9 @@ class HomeActivity : AppCompatActivity(),
         return super.onOptionsItemSelected(item)
     }
 
-    // --- HomeShellHost.DialogActionListener: the Compose Help / What's-New dialog actions ---
+    // --- Help / What's-New dialog actions (passed to HomeScreen as lambdas) ---
 
-    override fun onHelpAction(action: HelpAction) {
+    private fun onHelpAction(action: HelpAction) {
         when (action) {
             HelpAction.TUTORIALS -> {
                 ShowcaseViewUtils.resetAllTutorials(this)
@@ -711,7 +680,7 @@ class HomeActivity : AppCompatActivity(),
         }
     }
 
-    override fun onWhatsNewDismissed() {
+    private fun onWhatsNewDismissed() {
         val showOptOut = Application.getPrefs()
             .getBoolean(ShowcaseViewUtils.TUTORIAL_OPT_OUT_DIALOG, true)
         if (showOptOut) {
@@ -850,10 +819,9 @@ class HomeActivity : AppCompatActivity(),
                 null
             )
         } else {
-            // No stop is in focus (e.g., user tapped on the map), so hide the panel
-            // and clear the currently focused stop
+            // No stop is in focus (e.g., user tapped on the map), so clear the focus (the sheet
+            // hides itself once focusedStop is null) and remove the arrivals panel.
             viewModel.onStopFocused(null)
-            mHomeShell?.hideSheet()
             val panel = mArrivalsPanelFragment
             if (panel != null) {
                 fm.beginTransaction().remove(panel).commit()
@@ -880,12 +848,12 @@ class HomeActivity : AppCompatActivity(),
     }
 
     override fun onProgressBarChanged(showProgressBar: Boolean) {
-        mLastMapProgressBarState = showProgressBar
-        if (showProgressBar) {
-            showMapProgressBar()
-        } else {
-            hideMapProgressBar()
-        }
+        viewModel.onMapLoading(showProgressBar)
+    }
+
+    /** Clears the map focus (back-press from a peeking sheet); the sheet then hides itself. */
+    private fun onClearFocus() {
+        mMapFragment?.setFocusStop(null, null)
     }
 
     /**
@@ -899,8 +867,10 @@ class HomeActivity : AppCompatActivity(),
         // the stop in view, so mPendingMapFocus is false there and this is skipped.
         if (mPendingMapFocus) {
             mPendingMapFocus = false
-            if (mMapFragment != null && mHomeShell != null) {
-                mMapFragment?.setMapCenter(stop.location, false, mHomeShell?.isSheetExpanded() == true)
+            if (mMapFragment != null) {
+                mMapFragment?.setMapCenter(
+                    stop.location, false, mLastSettledSheet == ArrivalsSheetState.Expanded
+                )
             }
             mMapFragment?.setFocusStop(stop, response.routes)
         }
@@ -920,7 +890,7 @@ class HomeActivity : AppCompatActivity(),
 
         // If we can't see the map or sliding panel, we can't see the arrival info, so return
         val mapFrag = mMapFragment?.asFragment() ?: return
-        if (mapFrag.isHidden || !mapFrag.isVisible || mHomeShell?.isSheetHidden() != false) {
+        if (mapFrag.isHidden || !mapFrag.isVisible || mLastSettledSheet == ArrivalsSheetState.Hidden) {
             return
         }
 
@@ -938,7 +908,7 @@ class HomeActivity : AppCompatActivity(),
      */
     override fun onShowRouteOnMap(routeId: String) {
         // Collapse the panel so the user can see the map
-        mHomeShell?.collapseSheet()
+        viewModel.requestCollapseSheet()
 
         val bundle = Bundle()
         bundle.putBoolean(MapParams.ZOOM_TO_ROUTE, false)
@@ -948,33 +918,19 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Called when the user taps the panel header/chevron: toggle between collapsed and anchored.
+     * Called when the user taps the panel header/chevron: toggle between collapsed and full. The
+     * screen carries it out (it holds the live sheet state).
      */
     override fun onToggleExpand() {
-        val shell = mHomeShell ?: return
-        if (isSlidingPanelCollapsed) {
-            shell.expandSheet()
-        } else {
-            shell.collapseSheet()
-        }
+        viewModel.requestToggleSheet()
     }
 
     /**
-     * Called by the panel as the preferred-arrival preview changes, so the collapsed peek height
-     * matches the legacy header (no-arrivals / one / two, plus a filter-indicator offset).
+     * Called by the panel as the preferred-arrival preview changes; the ViewModel stores the count +
+     * filter flag and HomeScreen maps them to the collapsed peek height.
      */
     override fun onPreferredHeight(previewCount: Int, filtering: Boolean) {
-        val heightDimen = when {
-            previewCount >= 2 -> R.dimen.arrival_header_height_two_arrivals
-            previewCount == 1 -> R.dimen.arrival_header_height_one_arrival
-            else -> R.dimen.arrival_header_height_no_arrivals
-        }
-        var px = resources.getDimensionPixelSize(heightDimen)
-        if (filtering) {
-            px += resources.getDimensionPixelSize(R.dimen.arrival_header_height_offset_filter_routes)
-        }
-        mSheetPeekPx = px
-        mHomeShell?.setSheetPeekHeightPx(px)
+        viewModel.onPreferredHeight(previewCount, filtering)
     }
 
     /**
@@ -997,14 +953,7 @@ class HomeActivity : AppCompatActivity(),
         mArrivalsPanelFragment = panel
         panel.setListener(this)
         fm.beginTransaction().replace(R.id.slidingFragment, panel).commit()
-        showSlidingPanel()
-    }
-
-    private fun showSlidingPanel() {
-        val shell = mHomeShell
-        if (shell != null && shell.isSheetHidden()) {
-            shell.collapseSheet()
-        }
+        // The sheet reveals itself: HomeScreen peeks it whenever a stop is focused on NEARBY.
     }
 
     private fun goToSendFeedBack() {
@@ -1121,19 +1070,6 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Initializes the Compose map chrome (my-location FAB, zoom controls, layers FAB).
-     */
-    private fun setupMapChrome() {
-        // FAB / zoom / layers visibility is now derived in the ViewModel from the selected nav item;
-        // here we just seed the (imperative) map-loading progress bar for the initial selection.
-        if (mCurrentNavDrawerPosition == NAVDRAWER_ITEM_NEARBY) {
-            showMapProgressBar()
-        } else {
-            hideMapProgressBar()
-        }
-    }
-
-    /**
      * Snapshots the non-reactive environment (preferences + app-global flags) and feeds it to the
      * ViewModel, which recomputes the gated chrome/overlay visibility (zoom controls, left-hand
      * mode, layers FAB, weather chip, donation card). Called whenever those inputs may have changed:
@@ -1157,9 +1093,9 @@ class HomeActivity : AppCompatActivity(),
         )
     }
 
-    // --- HomeShellHost.MapActionListener: the Compose map-chrome FAB actions ---
+    // --- Map-chrome FAB actions (passed to HomeScreen as lambdas) ---
 
-    override fun onMyLocation() {
+    private fun onMyLocation() {
         val mapFragment = mMapFragment ?: return
         // Reset the preference to ask user to enable location
         PreferenceUtils.saveBoolean(
@@ -1177,15 +1113,15 @@ class HomeActivity : AppCompatActivity(),
         )
     }
 
-    override fun onZoomIn() {
+    private fun onZoomIn() {
         mMapFragment?.zoomIn()
     }
 
-    override fun onZoomOut() {
+    private fun onZoomOut() {
         mMapFragment?.zoomOut()
     }
 
-    override fun onToggleBikeshare() {
+    private fun onToggleBikeshare() {
         val mapFragment = mMapFragment ?: return
         val active = LayerUtils.isBikeshareLayerVisible()
         val layer: LayerInfo = LayerUtils.bikeshareLayerInfo
@@ -1200,20 +1136,6 @@ class HomeActivity : AppCompatActivity(),
         Application.getPrefs().edit()
             .putBoolean(layer.sharedPreferenceKey, !active).apply()
         pushEnvironment()
-    }
-
-    private fun showMapProgressBar() {
-        val bar = mMapProgressBar ?: return
-        if (bar.visibility != View.VISIBLE) {
-            bar.visibility = View.VISIBLE
-        }
-    }
-
-    private fun hideMapProgressBar() {
-        val bar = mMapProgressBar ?: return
-        if (bar.visibility != View.GONE) {
-            bar.visibility = View.GONE
-        }
     }
 
     private fun setupNavigationDrawer() {
@@ -1302,27 +1224,21 @@ class HomeActivity : AppCompatActivity(),
         }
     }
 
-    private fun setupSlidingPanel() {
-        // The Compose BottomSheetScaffold (in mHomeShell) starts hidden; seed its peek height with
-        // the legacy default (two arrivals) so the first reveal doesn't flash an undersized peek.
-        // onPreferredHeight() then keeps it in sync with the actual arrival preview.
-        mSheetPeekPx = resources.getDimensionPixelSize(R.dimen.arrival_header_height_two_arrivals)
-        mHomeShell?.setSheetPeekHeightPx(mSheetPeekPx)
-    }
-
     /**
-     * Reacts to the arrivals sheet settling into a new state, replacing the legacy
-     * SlidingUpPanel PanelSlideListener.
+     * Reacts to the arrivals sheet settling into a new resting state (reported by HomeScreen), with
+     * [peekPx] the current header peek height. Recenters the map on EXPANDED, keeps the map's bottom
+     * padding in sync with the peek, and drives the arrivals panel's preview-vs-full flag. The initial
+     * reveal from HIDDEN is ignored (it's handled by the focus flow), matching the legacy behavior.
      */
-    private fun onSheetState(state: HomeShellHost.Sheet) {
-        val previous = mLastSheetState
-        mLastSheetState = state
-        if (previous == HomeShellHost.Sheet.HIDDEN) {
+    private fun onSheetSettled(state: ArrivalsSheetState, peekPx: Int) {
+        val previous = mLastSettledSheet
+        mLastSettledSheet = state
+        if (previous == ArrivalsSheetState.Hidden) {
             return
         }
         when (state) {
-            HomeShellHost.Sheet.EXPANDED -> {
-                mMapFragment?.mapView?.setPadding(null, null, null, mSheetPeekPx)
+            ArrivalsSheetState.Expanded -> {
+                mMapFragment?.mapView?.setPadding(null, null, null, peekPx)
                 val focusedStop = viewModel.uiState.value.focusedStop
                 if (focusedStop != null && mMapFragment != null) {
                     val loc = Location("focusedStop").apply {
@@ -1333,13 +1249,11 @@ class HomeActivity : AppCompatActivity(),
                 }
                 mArrivalsPanelFragment?.setPanelCollapsed(false)
             }
-            HomeShellHost.Sheet.COLLAPSED -> {
-                mMapFragment?.mapView?.setPadding(null, null, null, mSheetPeekPx)
+            ArrivalsSheetState.Collapsed -> {
+                mMapFragment?.mapView?.setPadding(null, null, null, peekPx)
                 mArrivalsPanelFragment?.setPanelCollapsed(true)
             }
-            HomeShellHost.Sheet.HIDDEN -> {
-                // We hide the panel when switching fragments via the navdrawer, so we shouldn't do
-                // anything here that loses the map/arrivals state (e.g. removing the panel fragment).
+            ArrivalsSheetState.Hidden -> {
                 mMapFragment?.mapView?.setPadding(null, null, null, 0)
             }
         }
@@ -1372,7 +1286,6 @@ class HomeActivity : AppCompatActivity(),
                 }
             }
         }
-        mMapProgressBar = mMapContent.findViewById(R.id.progress_horizontal)
     }
 
     /**
@@ -1380,7 +1293,7 @@ class HomeActivity : AppCompatActivity(),
      * the preview-vs-full state of the Compose arrivals panel.
      */
     private val isSlidingPanelCollapsed: Boolean
-        get() = mHomeShell?.isSheetCollapsed() ?: true
+        get() = mLastSettledSheet != ArrivalsSheetState.Expanded
 
     // Getting a callback from the map fragment to check if we are in a valid region or not. The
     // ViewModel fetches the weather + streams GTFS wide alerts for a valid region (null clears them).
@@ -1388,24 +1301,24 @@ class HomeActivity : AppCompatActivity(),
         viewModel.onRegionValid(if (isValid) Application.get().currentRegion.id else null)
     }
 
-    override fun onWeatherClick() {
+    private fun onWeatherClick() {
         val summary = viewModel.uiState.value.weather?.summary
         if (summary != null) {
             Toast.makeText(applicationContext, summary.trim(), Toast.LENGTH_SHORT).show()
         }
     }
 
-    // --- HomeShellHost.MapActionListener: the Compose donation-card actions ---
+    // --- Donation-card actions (passed to HomeScreen as lambdas) ---
 
-    override fun onDonationClose() {
+    private fun onDonationClose() {
         buildDismissDonationsDialog().show()
     }
 
-    override fun onDonationLearnMore() {
+    private fun onDonationLearnMore() {
         startActivity(Intent(this, DonationLearnMoreActivity::class.java))
     }
 
-    override fun onDonationDonate() {
+    private fun onDonationDonate() {
         val donationsManager = Application.getDonationsManager()
         donationsManager.dismissDonationRequests()
         startActivity(donationsManager.buildOpenDonationsPageIntent())

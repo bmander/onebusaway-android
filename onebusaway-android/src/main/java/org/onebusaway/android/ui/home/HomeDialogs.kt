@@ -45,7 +45,7 @@ enum class HelpAction { TUTORIALS, LEGEND, WHATS_NEW, AGENCIES, TWITTER, CONTACT
 /**
  * Renders the Compose HELP and WHAT'S-NEW dialogs (the LEGEND dialog stays a hosted
  * MaterialAlertDialogBuilder owned by HomeActivity). State + actions are driven by the activity
- * through HomeShellHost.
+ * through HomeScreen.
  */
 @Composable
 fun HomeDialogs(

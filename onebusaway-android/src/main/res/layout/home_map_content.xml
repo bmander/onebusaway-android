@@ -53,12 +53,6 @@
              android:layout_alignParentTop="true"
              android:layout_alignParentLeft="true"
              android:visibility="gone"/>
-    <ProgressBar
-            android:id="@+id/progress_horizontal"
-            style="@style/Base.Widget.AppCompat.ProgressBar.Horizontal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="-7dp"
-            android:layout_below="@+id/route_info"
-            android:indeterminate="true"/>
+    <!-- The map-loading indicator is now the Compose LinearProgressIndicator in MapChrome,
+         driven by HomeUiState.mapLoading. -->
 </RelativeLayout>

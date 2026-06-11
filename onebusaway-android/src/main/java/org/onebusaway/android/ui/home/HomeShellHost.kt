@@ -69,7 +69,8 @@ class HomeShellHost(
     private val sheetContent: View,
     private val onItemSelected: NavItemSelectedListener,
     private val sheetListener: SheetStateListener,
-    private val mapActions: MapActionListener
+    private val mapActions: MapActionListener,
+    private val dialogActions: DialogActionListener
 ) {
 
     /** The three sheet positions (the legacy ANCHORED half-state is intentionally dropped). */
@@ -100,6 +101,12 @@ class HomeShellHost(
         fun onDonationDonate()
     }
 
+    /** Help-menu / what's-new dialog actions, dispatched to the (Java) activity. */
+    interface DialogActionListener {
+        fun onHelpAction(action: HelpAction)
+        fun onWhatsNewDismissed()
+    }
+
     // --- Drawer state ---
     private var itemsState by mutableStateOf<List<HomeNavItem>>(emptyList())
     private var selectedState by mutableStateOf(HomeNavItem.NEARBY)
@@ -125,6 +132,10 @@ class HomeShellHost(
 
     // --- Donation card state ---
     private var donationVisibleState by mutableStateOf(false)
+
+    // --- Help / what's-new dialog state ---
+    private var dialogState by mutableStateOf(HomeDialog.NONE)
+    private var helpShowContactUs by mutableStateOf(true)
 
     /** Last observed resting state, mirrored here so Java can query it synchronously (main thread). */
     @Volatile
@@ -209,6 +220,22 @@ class HomeShellHost(
     /** Shows/hides the donation card (DonationsManager.shouldShowDonationUI() && NEARBY). */
     fun setDonationVisible(visible: Boolean) {
         donationVisibleState = visible
+    }
+
+    /** Shows the help-menu dialog; [showContactUs] hides Contact Us when a custom API URL is set. */
+    fun showHelpDialog(showContactUs: Boolean) {
+        helpShowContactUs = showContactUs
+        dialogState = HomeDialog.HELP
+    }
+
+    /** Shows the what's-new dialog (from Help, or auto on a new app version). */
+    fun showWhatsNewDialog() {
+        dialogState = HomeDialog.WHATS_NEW
+    }
+
+    /** Dismisses the currently-shown Compose dialog. */
+    fun dismissHomeDialog() {
+        dialogState = HomeDialog.NONE
     }
 
     /** The view to pass to Activity.setContentView. */
@@ -334,6 +361,14 @@ class HomeShellHost(
                         }
                     }
                 }
+
+                HomeDialogs(
+                    dialog = dialogState,
+                    showContactUs = helpShowContactUs,
+                    onHelpAction = { dialogActions.onHelpAction(it) },
+                    onWhatsNewDismissed = { dialogActions.onWhatsNewDismissed() },
+                    onDismiss = { dialogState = HomeDialog.NONE }
+                )
             }
         }
     }

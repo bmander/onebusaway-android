@@ -67,9 +67,7 @@ import org.onebusaway.android.widealerts.GtfsAlertsHelper;
 import org.opentripplanner.routing.bike_rental.BikeRentalStation;
 
 import android.Manifest;
-import android.app.Dialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
@@ -116,6 +114,7 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
+import org.onebusaway.android.ui.home.HelpAction;
 import org.onebusaway.android.ui.home.HomeNavItem;
 import org.onebusaway.android.ui.home.HomeShellHost;
 
@@ -140,7 +139,8 @@ public class HomeActivity extends AppCompatActivity
         implements ObaMapFragment.OnFocusChangedListener,
         ObaMapFragment.OnProgressBarChangedListener,
         ArrivalsPanelFragment.Listener, NavigationDrawerCallbacks, WeatherRequestListener , RegionCallback,
-        ObaRegionsTask.Callback, HomeShellHost.MapActionListener {
+        ObaRegionsTask.Callback, HomeShellHost.MapActionListener,
+        HomeShellHost.DialogActionListener {
 
 
     public static final String TWITTER_URL = "http://mobile.twitter.com/onebusaway";
@@ -148,12 +148,6 @@ public class HomeActivity extends AppCompatActivity
     private static final String WHATS_NEW_VER = "whatsNewVer";
 
     private static final String CHECK_REGION_VER = "checkRegionVer";
-
-    private static final int HELP_DIALOG = 1;
-
-    private static final int WHATSNEW_DIALOG = 2;
-
-    private static final int LEGEND_DIALOG = 3;
 
     //One week, in milliseconds
     private static final long REGION_UPDATE_THRESHOLD = 1000 * 60 * 60 * 24 * 7;
@@ -357,7 +351,7 @@ public class HomeActivity extends AppCompatActivity
         mSheetContent = getLayoutInflater().inflate(R.layout.home_arrivals_sheet, null);
         Toolbar toolbar = (Toolbar) getLayoutInflater().inflate(R.layout.include_toolbar, null);
         mHomeShell = new HomeShellHost(this, toolbar, mMapContent, mSheetContent,
-                this::onHomeNavItemSelected, this::onSheetState, this);
+                this::onHomeNavItemSelected, this::onSheetState, this, this);
         setContentView(mHomeShell.getView());
         setSupportActionBar(toolbar);
         // Drive the drawer from the toolbar's own navigation icon. (The action-bar home button
@@ -605,7 +599,8 @@ public class HomeActivity extends AppCompatActivity
                         null);
                 break;
             case NAVDRAWER_ITEM_HELP:
-                showDialog(HELP_DIALOG);
+                // Hide "Contact Us" when a custom API URL is set (no contact email to use).
+                mHomeShell.showHelpDialog(TextUtils.isEmpty(Application.get().getCustomApiUrl()));
                 ObaAnalytics.reportUiEvent(mFirebaseAnalytics,
                         Application.get().getPlausibleInstance(),
                         PlausibleAnalytics.REPORT_MENU_EVENT_URL,
@@ -889,103 +884,57 @@ public class HomeActivity extends AppCompatActivity
         return super.onOptionsItemSelected(item);
     }
 
+    // --- HomeShellHost.DialogActionListener: the Compose Help / What's-New dialog actions ---
+
     @Override
-    protected Dialog onCreateDialog(int id) {
-        switch (id) {
-            case HELP_DIALOG:
-                return createHelpDialog();
-
-            case WHATSNEW_DIALOG:
-                return createWhatsNewDialog();
-
-            case LEGEND_DIALOG:
-                return createLegendDialog();
-        }
-        return super.onCreateDialog(id);
-    }
-
-    @SuppressWarnings("deprecation")
-    private Dialog createHelpDialog() {
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this);
-        builder.setTitle(R.string.main_help_title);
-        // If a custom API URL is set, hide Contact Us, as we don't have a contact email to use
-        int options;
-        if (TextUtils.isEmpty(Application.get().getCustomApiUrl())) {
-            options = R.array.main_help_options;
-        } else {
-            // Hide "Contact Us"
-            options = R.array.main_help_options_no_contact_us;
-        }
-        builder.setItems(options,
-                new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        switch (which) {
-                            case 0:
-                                ShowcaseViewUtils.resetAllTutorials(HomeActivity.this);
-                                NavHelp.goHome(HomeActivity.this, true);
-                                break;
-                            case 1:
-                                showDialog(LEGEND_DIALOG);
-                                break;
-                            case 2:
-                                showDialog(WHATSNEW_DIALOG);
-                                break;
-                            case 3:
-                                AgenciesActivity.start(HomeActivity.this);
-                                break;
-                            case 4:
-                                String twitterUrl = TWITTER_URL;
-                                if (Application.get().getCurrentRegion() != null &&
-                                        !TextUtils.isEmpty(Application.get().getCurrentRegion()
-                                                .getTwitterUrl())) {
-                                    twitterUrl = Application.get().getCurrentRegion()
-                                            .getTwitterUrl();
-                                }
-                                UIUtils.goToUrl(HomeActivity.this, twitterUrl);
-                                ObaAnalytics.reportUiEvent(mFirebaseAnalytics,
-                                        Application.get().getPlausibleInstance(),
-                                        PlausibleAnalytics.REPORT_MENU_EVENT_URL,
-                                        getString(R.string.analytics_label_twitter),
-                                        null);
-                                break;
-                            case 5:
-                                // Contact us
-                                goToSendFeedBack();
-                                break;
-                        }
-                    }
+    public void onHelpAction(HelpAction action) {
+        switch (action) {
+            case TUTORIALS:
+                ShowcaseViewUtils.resetAllTutorials(this);
+                NavHelp.goHome(this, true);
+                break;
+            case LEGEND:
+                showLegendDialog();
+                break;
+            case WHATS_NEW:
+                mHomeShell.showWhatsNewDialog();
+                break;
+            case AGENCIES:
+                AgenciesActivity.start(this);
+                break;
+            case TWITTER:
+                String twitterUrl = TWITTER_URL;
+                if (Application.get().getCurrentRegion() != null
+                        && !TextUtils.isEmpty(Application.get().getCurrentRegion().getTwitterUrl())) {
+                    twitterUrl = Application.get().getCurrentRegion().getTwitterUrl();
                 }
-        );
-        return builder.create();
+                UIUtils.goToUrl(this, twitterUrl);
+                ObaAnalytics.reportUiEvent(mFirebaseAnalytics,
+                        Application.get().getPlausibleInstance(),
+                        PlausibleAnalytics.REPORT_MENU_EVENT_URL,
+                        getString(R.string.analytics_label_twitter),
+                        null);
+                break;
+            case CONTACT_US:
+                goToSendFeedBack();
+                break;
+        }
     }
 
-    @SuppressWarnings("deprecation")
-    private Dialog createWhatsNewDialog() {
-        TextView textView = (TextView) getLayoutInflater().inflate(R.layout.whats_new_dialog, null);
-        textView.setText(R.string.main_help_whatsnew);
-
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this);
-        builder.setTitle(R.string.main_help_whatsnew_title);
-        builder.setIcon(R.mipmap.ic_launcher);
-        builder.setView(textView);
-        builder.setNeutralButton(R.string.main_help_close,
-                (dialog, which) -> dismissDialog(WHATSNEW_DIALOG)
-        );
-        builder.setOnDismissListener(new DialogInterface.OnDismissListener() {
-            @Override
-            public void onDismiss(DialogInterface dialog) {
-                boolean showOptOut = Application.getPrefs()
-                        .getBoolean(ShowcaseViewUtils.TUTORIAL_OPT_OUT_DIALOG, true);
-                if (showOptOut) {
-                    ShowcaseViewUtils.showOptOutDialog(HomeActivity.this);
-                }
-            }
-        });
-        return builder.create();
+    @Override
+    public void onWhatsNewDismissed() {
+        boolean showOptOut = Application.getPrefs()
+                .getBoolean(ShowcaseViewUtils.TUTORIAL_OPT_OUT_DIALOG, true);
+        if (showOptOut) {
+            ShowcaseViewUtils.showOptOutDialog(this);
+        }
     }
 
-    @SuppressWarnings("deprecation")
-    private Dialog createLegendDialog() {
+    /**
+     * The legend dialog stays a hosted MaterialAlertDialogBuilder (it inflates legend_dialog and
+     * recolors the ETA chips); shown directly rather than via the deprecated showDialog() API.
+     */
+    private void showLegendDialog() {
         MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this);
         builder.setTitle(R.string.main_help_legend_title);
 
@@ -1044,10 +993,9 @@ public class HomeActivity extends AppCompatActivity
 
         builder.setView(legendDialogView);
 
-        builder.setNeutralButton(R.string.main_help_close,
-                (dialog, which) -> dismissDialog(LEGEND_DIALOG)
-        );
-        return builder.create();
+        // The neutral button auto-dismisses the dialog (default AlertDialog behavior).
+        builder.setNeutralButton(R.string.main_help_close, (dialog, which) -> { });
+        builder.show();
     }
 
     /**
@@ -1074,7 +1022,7 @@ public class HomeActivity extends AppCompatActivity
         final int newVer = appInfo.versionCode;
 
         if (oldVer < newVer && mActivityWeakRef.get() != null && !mActivityWeakRef.get().isFinishing()) {
-            mActivityWeakRef.get().showDialog(WHATSNEW_DIALOG);
+            ((HomeActivity) mActivityWeakRef.get()).mHomeShell.showWhatsNewDialog();
             PreferenceUtils.saveInt(WHATS_NEW_VER, appInfo.versionCode);
             return true;
         }

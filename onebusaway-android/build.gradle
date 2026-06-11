@@ -261,6 +261,10 @@ dependencies {
     implementation 'com.google.firebase:firebase-messaging:24.1.0'
     // Google Play Services Maps (only for Google flavor)
     googleImplementation 'com.google.android.gms:play-services-maps:19.0.0'
+    // Jetpack Compose wrapper for the Maps SDK (Google flavor only). 4.4.1 is the LAST release that
+    // supports minSdk 21 (6.x+ require minSdk 23, which we will not adopt - see CLAUDE.md). It was
+    // built against Compose 1.6 but runs on the app's Compose 1.7.8 runtime.
+    googleImplementation 'com.google.maps.android:maps-compose:4.4.1'
     // MapLibre GL Native (only for MapLibre flavor)
     maplibreImplementation 'org.maplibre.gl:android-sdk:11.5.2'
     // Google Play Services Places is required by ProprietaryMapHelpV2 (only for Google flavor)

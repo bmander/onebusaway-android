@@ -19,30 +19,28 @@ import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.request.weather.ObaWeatherRequest
-import org.onebusaway.android.io.request.weather.models.ObaWeatherResponse
 
 /** Provides the current weather forecast for a region, for the home map's weather chip. */
 interface WeatherRepository {
 
-    suspend fun currentForecast(regionId: Long): Result<ObaWeatherResponse>
+    suspend fun currentForecast(regionId: Long): Result<WeatherData>
 }
 
 /**
- * Default implementation wrapping the blocking weather REST call (replaces WeatherRequestTask).
- * The legacy AsyncTask treated a null response or any thrown exception as a failure and only
- * surfaced a response whose current forecast was present, so the same is mapped to
- * [Result.failure] here.
+ * Default implementation wrapping the blocking weather REST call (replaces WeatherRequestTask) and
+ * mapping the io/elements response to the decoupled [WeatherData] at the IO boundary, so consumers
+ * never touch the Jackson model. The legacy AsyncTask treated a null response or any thrown
+ * exception as a failure and only surfaced a response whose current forecast was present, so the
+ * same is mapped to [Result.failure] here.
  */
 class DefaultWeatherRepository : WeatherRepository {
 
-    override suspend fun currentForecast(regionId: Long): Result<ObaWeatherResponse> =
+    override suspend fun currentForecast(regionId: Long): Result<WeatherData> =
         withContext(Dispatchers.IO) {
-            runCatching { ObaWeatherRequest.newRequest(regionId).call() }
-                .mapCatching { response ->
-                    if (response?.current_forecast == null) {
-                        throw IOException("No weather forecast for region $regionId")
-                    }
-                    response
-                }
+            runCatching {
+                val forecast = ObaWeatherRequest.newRequest(regionId).call()?.current_forecast
+                    ?: throw IOException("No weather forecast for region $regionId")
+                WeatherData(forecast.icon ?: "", forecast.temperature, forecast.summary)
+            }
         }
 }

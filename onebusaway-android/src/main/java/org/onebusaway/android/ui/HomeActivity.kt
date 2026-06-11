@@ -26,8 +26,6 @@ import android.graphics.drawable.GradientDrawable
 import android.location.Location
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.text.TextUtils
 import android.util.Log
 import android.view.LayoutInflater
@@ -39,8 +37,15 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.launch
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.common.api.GoogleApiClient
@@ -58,10 +63,6 @@ import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.io.request.survey.SurveyListener
 import org.onebusaway.android.io.request.survey.model.StudyResponse
 import org.onebusaway.android.io.request.survey.model.SubmitSurveyResponse
-import org.onebusaway.android.io.request.weather.ObaWeatherRequest
-import org.onebusaway.android.io.request.weather.WeatherRequestListener
-import org.onebusaway.android.io.request.weather.WeatherRequestTask
-import org.onebusaway.android.io.request.weather.models.ObaWeatherResponse
 import org.onebusaway.android.map.LayerActivationListener
 import org.onebusaway.android.map.LayerInfo
 import org.onebusaway.android.map.MapParams
@@ -70,9 +71,14 @@ import org.onebusaway.android.region.ObaRegionsTask
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.arrivals.ArrivalsPanelFragment
+import org.onebusaway.android.ui.home.DefaultWeatherRepository
+import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
 import org.onebusaway.android.ui.home.HelpAction
+import org.onebusaway.android.ui.home.HomeEnvironment
+import org.onebusaway.android.ui.home.HomeEvent
 import org.onebusaway.android.ui.home.HomeNavItem
 import org.onebusaway.android.ui.home.HomeShellHost
+import org.onebusaway.android.ui.home.HomeViewModel
 import org.onebusaway.android.ui.survey.SurveyManager
 import org.onebusaway.android.ui.survey.utils.SurveyViewUtils
 import org.onebusaway.android.ui.weather.RegionCallback
@@ -85,7 +91,6 @@ import org.onebusaway.android.util.RegionUtils
 import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.ShowcaseViewUtils
 import org.onebusaway.android.util.UIUtils
-import org.onebusaway.android.widealerts.GtfsAlertCallBack
 import org.onebusaway.android.widealerts.GtfsAlertsHelper
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
 import java.util.Date
@@ -94,11 +99,18 @@ class HomeActivity : AppCompatActivity(),
     ObaMapFragment.OnFocusChangedListener,
     ObaMapFragment.OnProgressBarChangedListener,
     ArrivalsPanelFragment.Listener,
-    WeatherRequestListener,
     RegionCallback,
     ObaRegionsTask.Callback,
     HomeShellHost.MapActionListener,
     HomeShellHost.DialogActionListener {
+
+    private val viewModel: HomeViewModel by viewModels {
+        viewModelFactory {
+            initializer {
+                HomeViewModel(DefaultWeatherRepository(), DefaultWideAlertsRepository())
+            }
+        }
+    }
 
     private var mArrivalsPanelFragment: ArrivalsPanelFragment? = null
 
@@ -136,10 +148,6 @@ class HomeActivity : AppCompatActivity(),
 
     private var mMyRemindersFragment: MyRemindersFragment? = null
 
-    private var mShowStarredStopsMenu = false
-
-    private var mShowStarredRoutesMenu = false
-
     /**
      * Stop that has current focus on the map.  We retain a reference to the StopId, since during
      * rapid rotations it's possible that a reference to a ObaStop object in mFocusedStop can still
@@ -160,8 +168,6 @@ class HomeActivity : AppCompatActivity(),
 
     private lateinit var mFirebaseAnalytics: FirebaseAnalytics
 
-    private var weatherResponse: ObaWeatherResponse? = null
-
     private var surveyManager: SurveyManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -177,7 +183,7 @@ class HomeActivity : AppCompatActivity(),
         mSheetContent = layoutInflater.inflate(R.layout.home_arrivals_sheet, null)
         val toolbar = layoutInflater.inflate(R.layout.include_toolbar, null) as Toolbar
         val shell = HomeShellHost(
-            this, toolbar, mMapContent, mSheetContent,
+            this, toolbar, mMapContent, mSheetContent, viewModel,
             ::onHomeNavItemSelected, ::onSheetState, this, this
         )
         mHomeShell = shell
@@ -227,7 +233,7 @@ class HomeActivity : AppCompatActivity(),
 
         UIUtils.setupActionBar(this)
 
-        updateDonationsUIVisibility()
+        pushEnvironment()
 
         TravelBehaviorManager(this, applicationContext).registerTravelBehaviorParticipant()
 
@@ -253,6 +259,19 @@ class HomeActivity : AppCompatActivity(),
             handleFcmNotificationIntent(intent)
         }
         setupSurvey()
+
+        // Carry out one-shot effects from the ViewModel (currently the GTFS wide-alert dialog).
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.events.collect { event ->
+                    when (event) {
+                        is HomeEvent.ShowWideAlert -> GtfsAlertsHelper.showWideAlertDialog(
+                            this@HomeActivity, event.alert.title, event.alert.message, event.alert.url
+                        )
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -288,25 +307,14 @@ class HomeActivity : AppCompatActivity(),
     override fun onResume() {
         super.onResume()
 
-        // Check if weather view visibility is changed to hidden
-        if (WeatherUtils.isWeatherViewHiddenPref() && mHomeShell != null) {
-            mHomeShell?.hideWeather()
-        }
-        // Make sure the panel has the current sliding-panel state
-        if (mArrivalsPanelFragment != null && mHomeShell != null) {
+        // Make sure the arrivals panel has the current sliding-panel state
+        if (mArrivalsPanelFragment != null) {
             mArrivalsPanelFragment?.setPanelCollapsed(isSlidingPanelCollapsed)
         }
 
-        // Check if the map zoom controls should be displayed
-        if (mCurrentNavDrawerPosition == NAVDRAWER_ITEM_NEARBY) {
-            checkDisplayZoomControls()
-        } else {
-            showZoomControls(false)
-        }
-        checkLeftHandMode()
-        updateLayersFab()
-
-        updateDonationsUIVisibility()
+        // Re-snapshot preferences + app-global flags so the ViewModel recomputes the chrome/overlay
+        // visibility gates (zoom controls, left-hand mode, layers FAB, weather, donation card).
+        pushEnvironment()
     }
 
     override fun onPause() {
@@ -428,7 +436,7 @@ class HomeActivity : AppCompatActivity(),
             }
             NAVDRAWER_ITEM_HELP -> {
                 // Hide "Contact Us" when a custom API URL is set (no contact email to use).
-                mHomeShell?.showHelpDialog(TextUtils.isEmpty(Application.get().customApiUrl))
+                viewModel.showHelp(TextUtils.isEmpty(Application.get().customApiUrl))
                 ObaAnalytics.reportUiEvent(
                     mFirebaseAnalytics,
                     Application.get().plausibleInstance,
@@ -460,14 +468,12 @@ class HomeActivity : AppCompatActivity(),
                 startActivity(i)
             }
         }
-        updateDonationsUIVisibility()
         if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_NEARBY) {
-            // Hide survey view unless it's on the map
+            // Hide survey view unless it's on the map (survey visibility isn't ViewModel state yet)
             SurveyViewUtils.hideSurveyView(mSurveyView)
-            mHomeShell?.hideWeather()
-        } else {
-            setWeatherData()
         }
+        // Recompute the donation / weather / layers gates for the new selection.
+        pushEnvironment()
         invalidateOptionsMenu()
     }
 
@@ -477,7 +483,6 @@ class HomeActivity : AppCompatActivity(),
         hideStarredRoutesFragment()
         hideStarredStopsFragment()
         hideReminderFragment()
-        mShowStarredStopsMenu = false
         // Show fragment (we use show instead of replace to keep the map state)
         var mapFragment = mMapFragment
         if (mapFragment == null) {
@@ -511,7 +516,6 @@ class HomeActivity : AppCompatActivity(),
 
         supportFragmentManager.beginTransaction().show(mapFragment.asFragment()).commit()
 
-        showFloatingActionButtons()
         if (mLastMapProgressBarState) {
             showMapProgressBar()
         }
@@ -520,23 +524,18 @@ class HomeActivity : AppCompatActivity(),
             mHomeShell?.collapseSheet()
         }
         title = resources.getString(R.string.navdrawer_item_nearby)
-
-        checkDisplayZoomControls()
     }
 
     private fun showStarredStopsFragment() {
         val fm = supportFragmentManager
         // Hide everything that shouldn't be shown
-        hideFloatingActionButtons()
         hideMapProgressBar()
         hideMapFragment()
         hideReminderFragment()
         hideStarredRoutesFragment()
         hideSlidingPanel()
-        showZoomControls(false)
 
         // Show fragment (we use show instead of replace to keep the map state)
-        mShowStarredStopsMenu = true
         var fragment = mMyStarredStopsFragment
         if (fragment == null) {
             // First check to see if an instance of MyStarredStopsFragment already exists (see #356)
@@ -559,16 +558,13 @@ class HomeActivity : AppCompatActivity(),
     private fun showStarredRoutesFragment() {
         val fm = supportFragmentManager
         // Hide everything that shouldn't be shown
-        hideFloatingActionButtons()
         hideMapProgressBar()
         hideMapFragment()
         hideReminderFragment()
         hideSlidingPanel()
         hideStarredStopsFragment()
-        showZoomControls(false)
 
         // Show fragment (we use show instead of replace to keep the map state)
-        mShowStarredRoutesMenu = true
         var fragment = mMyStarredRoutesFragment
         if (fragment == null) {
             // First check to see if an instance of MyStarredRoutesFragment already exists
@@ -591,14 +587,11 @@ class HomeActivity : AppCompatActivity(),
     private fun showMyRemindersFragment() {
         val fm = supportFragmentManager
         // Hide everything that shouldn't be shown
-        hideFloatingActionButtons()
         hideMapProgressBar()
         hideStarredRoutesFragment()
         hideStarredStopsFragment()
         hideMapFragment()
         hideSlidingPanel()
-        mShowStarredStopsMenu = false
-        showZoomControls(false)
         // Show fragment (we use show instead of replace to keep the map state)
         var fragment = mMyRemindersFragment
         if (fragment == null) {
@@ -680,9 +673,10 @@ class HomeActivity : AppCompatActivity(),
     }
 
     private fun setupOptionsMenu(menu: Menu) {
+        val state = viewModel.uiState.value
         menu.setGroupVisible(R.id.main_options_menu_group, true)
-        menu.setGroupVisible(R.id.starred_stop_menu_group, mShowStarredStopsMenu)
-        menu.setGroupVisible(R.id.starred_route_menu_group, mShowStarredRoutesMenu)
+        menu.setGroupVisible(R.id.starred_stop_menu_group, state.showStarredStopsMenu)
+        menu.setGroupVisible(R.id.starred_route_menu_group, state.showStarredRoutesMenu)
     }
 
     @Suppress("DEPRECATION")
@@ -714,7 +708,7 @@ class HomeActivity : AppCompatActivity(),
                 NavHelp.goHome(this, true)
             }
             HelpAction.LEGEND -> showLegendDialog()
-            HelpAction.WHATS_NEW -> mHomeShell?.showWhatsNewDialog()
+            HelpAction.WHATS_NEW -> viewModel.showWhatsNew()
             HelpAction.AGENCIES -> AgenciesActivity.start(this)
             HelpAction.TWITTER -> {
                 var twitterUrl = TWITTER_URL
@@ -834,7 +828,7 @@ class HomeActivity : AppCompatActivity(),
         val newVer = appInfo.versionCode
 
         if (oldVer < newVer && !isFinishing) {
-            mHomeShell?.showWhatsNewDialog()
+            viewModel.showWhatsNew()
             PreferenceUtils.saveInt(WHATS_NEW_VER, appInfo.versionCode)
             return true
         }
@@ -1153,58 +1147,44 @@ class HomeActivity : AppCompatActivity(),
                 Toast.LENGTH_LONG
             ).show()
         }
-        updateLayersFab()
+        pushEnvironment()
     }
 
     /**
      * Initializes the Compose map chrome (my-location FAB, zoom controls, layers FAB).
      */
     private fun setupMapChrome() {
-        checkLeftHandMode()
+        // FAB / zoom / layers visibility is now derived in the ViewModel from the selected nav item;
+        // here we just seed the (imperative) map-loading progress bar for the initial selection.
         if (mCurrentNavDrawerPosition == NAVDRAWER_ITEM_NEARBY) {
-            showFloatingActionButtons()
             showMapProgressBar()
         } else {
-            hideFloatingActionButtons()
             hideMapProgressBar()
         }
-        updateLayersFab()
-    }
-
-    private fun checkDisplayZoomControls() {
-        val displayZoom = Application.getPrefs().getBoolean(
-            getString(R.string.preference_key_show_zoom_controls), false
-        )
-        showZoomControls(displayZoom)
     }
 
     /**
-     * Shows zoom controls if state is true, hides the zoom controls if state is false
+     * Snapshots the non-reactive environment (preferences + app-global flags) and feeds it to the
+     * ViewModel, which recomputes the gated chrome/overlay visibility (zoom controls, left-hand
+     * mode, layers FAB, weather chip, donation card). Called whenever those inputs may have changed:
+     * onResume, after a nav selection, after a region update, and after toggling the bikeshare layer.
      */
-    private fun showZoomControls(showZoom: Boolean) {
-        mHomeShell?.setZoomVisible(showZoom)
-    }
-
-    private fun checkLeftHandMode() {
-        val leftHandMode = Application.getPrefs().getBoolean(
-            getString(R.string.preference_key_left_hand_mode), false
+    private fun pushEnvironment() {
+        val prefs = Application.getPrefs()
+        viewModel.onEnvironmentRefreshed(
+            HomeEnvironment(
+                bikeshareEnabled = Application.isBikeshareEnabled(),
+                bikeshareActive = LayerUtils.isBikeshareLayerVisible(),
+                zoomControlsPref = prefs.getBoolean(
+                    getString(R.string.preference_key_show_zoom_controls), false
+                ),
+                leftHandMode = prefs.getBoolean(
+                    getString(R.string.preference_key_left_hand_mode), false
+                ),
+                weatherHidden = WeatherUtils.isWeatherViewHiddenPref(),
+                donationAvailable = Application.getDonationsManager().shouldShowDonationUI()
+            )
         )
-        mHomeShell?.setLeftHandMode(leftHandMode)
-    }
-
-    private fun showFloatingActionButtons() {
-        val shell = mHomeShell ?: return
-        shell.setFabsVisible(true)
-        // This is the NEARBY path (showMapFragment), so the layers FAB shows whenever bikeshare
-        // is available. We gate on bikeshare only (not the nav position) because goToNavDrawerItem
-        // sets mCurrentNavDrawerPosition *after* calling showMapFragment; updateLayersFab() applies
-        // the position gate later (onResume / region updates).
-        shell.setLayersVisible(Application.isBikeshareEnabled())
-        shell.setBikeshareActive(LayerUtils.isBikeshareLayerVisible())
-    }
-
-    private fun hideFloatingActionButtons() {
-        mHomeShell?.setFabsVisible(false)
     }
 
     // --- HomeShellHost.MapActionListener: the Compose map-chrome FAB actions ---
@@ -1245,10 +1225,11 @@ class HomeActivity : AppCompatActivity(),
         } else {
             mapLayers.onActivateLayer(layer)
         }
-        // Persist + reflect the toggled state (mirrors the legacy LayersSpeedDialAdapter).
+        // Persist the toggled state (mirrors the legacy LayersSpeedDialAdapter), then re-snapshot the
+        // environment so the ViewModel reflects the new bikeshare-active tint.
         Application.getPrefs().edit()
             .putBoolean(layer.sharedPreferenceKey, !active).apply()
-        mHomeShell?.setBikeshareActive(!active)
+        pushEnvironment()
     }
 
     private fun showMapProgressBar() {
@@ -1287,7 +1268,6 @@ class HomeActivity : AppCompatActivity(),
 
     /** Rebuilds the region-gated drawer item list (mirrors NavigationDrawerFragment.populateNavDrawer). */
     private fun refreshDrawerItems() {
-        val shell = mHomeShell ?: return
         val region = Application.get().currentRegion
         val items = mutableListOf<HomeNavItem>()
         items.add(HomeNavItem.NEARBY)
@@ -1310,13 +1290,13 @@ class HomeActivity : AppCompatActivity(),
         items.add(HomeNavItem.SETTINGS)
         items.add(HomeNavItem.HELP)
         items.add(HomeNavItem.SEND_FEEDBACK)
-        shell.setItems(items)
+        viewModel.setNavItems(items)
     }
 
-    /** Bridges a Compose-drawer selection to the legacy int-based routing. */
+    /** Bridges a Compose-drawer selection to the legacy int-based routing + the ViewModel selection. */
     private fun onHomeNavItemSelected(item: HomeNavItem) {
         if (!item.launchesActivity) {
-            mHomeShell?.setSelected(item)
+            viewModel.onNavItemSelected(item)
             Application.getPrefs().edit().putInt(STATE_SELECTED_POSITION, toPosition(item)).apply()
         }
         goToNavDrawerItem(toPosition(item))
@@ -1350,18 +1330,6 @@ class HomeActivity : AppCompatActivity(),
             mGoogleApiClient = client
             client.connect()
         }
-    }
-
-    /**
-     * (Re)displays the Compose layers FAB and syncs its active tint when the activity restarts or
-     * region data updates. The FAB shows only for bikeshare-enabled regions on the NEARBY tab.
-     */
-    private fun updateLayersFab() {
-        val shell = mHomeShell ?: return
-        shell.setLayersVisible(
-            Application.isBikeshareEnabled() && mCurrentNavDrawerPosition == NAVDRAWER_ITEM_NEARBY
-        )
-        shell.setBikeshareActive(LayerUtils.isBikeshareLayerVisible())
     }
 
     private fun setupSlidingPanel() {
@@ -1446,78 +1414,17 @@ class HomeActivity : AppCompatActivity(),
     private val isSlidingPanelCollapsed: Boolean
         get() = mHomeShell?.isSheetCollapsed() ?: true
 
-    // Getting a callback from the map fragment to check if we are in a valid region or not
+    // Getting a callback from the map fragment to check if we are in a valid region or not. The
+    // ViewModel fetches the weather + streams GTFS wide alerts for a valid region (null clears them).
     override fun onValidRegion(isValid: Boolean) {
-        if (isValid) {
-            makeWeatherRequest()
-            getGtfsAlerts()
-        } else {
-            mHomeShell?.hideWeather()
-            weatherResponse = null
-        }
-    }
-
-    private fun setWeatherData() {
-        val response = weatherResponse
-        if (response == null || mCurrentNavDrawerPosition != NAVDRAWER_ITEM_NEARBY ||
-            WeatherUtils.isWeatherViewHiddenPref() || mHomeShell == null
-        ) {
-            return
-        }
-        val weatherIcon = response.current_forecast.icon
-        val weatherTemp = response.current_forecast.temperature
-        val icon = weatherIcon ?: ""
-        mHomeShell?.showWeather(
-            WeatherUtils.getWeatherIconRes(icon),
-            WeatherUtils.formatTemperature(weatherTemp),
-            WeatherUtils.isFitIcon(icon)
-        )
+        viewModel.onRegionValid(if (isValid) Application.get().currentRegion.id else null)
     }
 
     override fun onWeatherClick() {
-        val response = weatherResponse
-        if (response?.current_forecast == null) {
-            return
-        }
-        val summary = response.current_forecast.summary
+        val summary = viewModel.uiState.value.weather?.summary
         if (summary != null) {
             Toast.makeText(applicationContext, summary.trim(), Toast.LENGTH_SHORT).show()
         }
-    }
-
-    private fun makeWeatherRequest() {
-        if (WeatherUtils.isWeatherViewHiddenPref()) return
-        // If weather response is null that means we need to call the weather api to get the new data
-        // Adding this will avoid doing multiple requests to the weather API when updating the map.
-        if (weatherResponse == null) {
-            val weatherRequest = ObaWeatherRequest.newRequest(Application.get().currentRegion.id)
-            val task = WeatherRequestTask(this)
-            task.execute(weatherRequest)
-            Log.d(TAG, "Weather requested")
-        } else {
-            // We have weather data, no need to make a request
-            setWeatherData()
-        }
-    }
-
-    override fun onWeatherResponseReceived(response: ObaWeatherResponse?) {
-        if (response != null && response.current_forecast != null) {
-            weatherResponse = response
-            setWeatherData()
-        }
-    }
-
-    override fun onWeatherRequestFailed() {
-        Log.d(TAG, "Weather Request Fail")
-    }
-
-    private fun updateDonationsUIVisibility() {
-        val shell = mHomeShell ?: return
-        val donationsManager = Application.getDonationsManager()
-        shell.setDonationVisible(
-            donationsManager.shouldShowDonationUI() &&
-                mCurrentNavDrawerPosition == NAVDRAWER_ITEM_NEARBY
-        )
     }
 
     // --- HomeShellHost.MapActionListener: the Compose donation-card actions ---
@@ -1549,13 +1456,13 @@ class HomeActivity : AppCompatActivity(),
                 R.string.donation_dismiss_dialog_dont_want_to_help_button
             ) { _, _ ->
                 Application.getDonationsManager().dismissDonationRequests()
-                updateDonationsUIVisibility()
+                pushEnvironment()
             }
             .setNeutralButton(
                 R.string.donation_dismiss_dialog_remind_me_later_button
             ) { _, _ ->
                 Application.getDonationsManager().remindUserLater()
-                updateDonationsUIVisibility()
+                pushEnvironment()
             }
             .setPositiveButton(R.string.donation_dismiss_dialog_cancel_button) { _, _ -> }
             .setCancelable(true)
@@ -1609,17 +1516,6 @@ class HomeActivity : AppCompatActivity(),
         })
         surveyManager = manager
         manager.requestSurveyData()
-    }
-
-    private fun getGtfsAlerts() {
-        val regionId = Application.get().currentRegion.id.toString()
-        Application.getGtfsAlerts().fetchAlerts(regionId, object : GtfsAlertCallBack {
-            override fun onAlert(title: String, message: String, url: String?) {
-                Handler(Looper.getMainLooper()).post {
-                    GtfsAlertsHelper.showWideAlertDialog(this@HomeActivity, title, message, url)
-                }
-            }
-        })
     }
 
     companion object {

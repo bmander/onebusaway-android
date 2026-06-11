@@ -45,20 +45,24 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.onebusaway.android.ui.weather.WeatherUtils
 
 /**
  * Java-friendly bridge that wraps the legacy Home content in a Compose `ModalNavigationDrawer` +
- * a hosted toolbar + a Material3 `BottomSheetScaffold`. Lets `HomeActivity` (still Java) host the
- * Compose shell without a full Kotlin port: the activity passes its inflated map content + arrivals
- * sheet content + toolbar and a selection callback, and drives the drawer / sheet imperatively.
+ * a hosted toolbar + a Material3 `BottomSheetScaffold`. Renders the screen's chrome, overlays, nav
+ * drawer, and dialogs from [HomeViewModel.uiState] (state down); user taps are dispatched back to
+ * the activity through the [MapActionListener] / [DialogActionListener] / [NavItemSelectedListener]
+ * callbacks (events up).
  *
  * The `BottomSheetScaffold` replaces the third-party `SlidingUpPanelLayout`. There is no half-anchor:
  * [Sheet.COLLAPSED] is `PartiallyExpanded` (peek) and [Sheet.EXPANDED] is `Expanded` (full). The
- * activity drives it via [setSheetPeekHeightPx]/[collapseSheet]/[expandSheet]/[hideSheet] and reacts
- * to user drags via [SheetStateListener]. Same bridge approach as the maps-compose ComposeMapHost.
+ * arrivals sheet and the drawer-open command stay imperative ([setSheetPeekHeightPx]/[collapseSheet]
+ * /[expandSheet]/[hideSheet]/[openDrawer]); they invert to declarative when the map + arrivals
+ * fragments are dissolved (P10/P11).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 class HomeShellHost(
@@ -66,6 +70,7 @@ class HomeShellHost(
     private val toolbar: View,
     private val mapContent: View,
     private val sheetContent: View,
+    private val viewModel: HomeViewModel,
     private val onItemSelected: NavItemSelectedListener,
     private val sheetListener: SheetStateListener,
     private val mapActions: MapActionListener,
@@ -86,8 +91,8 @@ class HomeShellHost(
     }
 
     /**
-     * Map chrome + overlay actions, dispatched from the Compose FABs / cards to the (Java) activity
-     * (which owns the map fragment, weather response, and DonationsManager).
+     * Map chrome + overlay actions, dispatched from the Compose FABs / cards to the activity
+     * (which owns the map fragment and the DonationsManager).
      */
     interface MapActionListener {
         fun onMyLocation()
@@ -100,55 +105,23 @@ class HomeShellHost(
         fun onDonationDonate()
     }
 
-    /** Help-menu / what's-new dialog actions, dispatched to the (Java) activity. */
+    /** Help-menu / what's-new dialog actions, dispatched to the activity. */
     interface DialogActionListener {
         fun onHelpAction(action: HelpAction)
         fun onWhatsNewDismissed()
     }
 
-    // --- Drawer state ---
-    private var itemsState by mutableStateOf<List<HomeNavItem>>(emptyList())
-    private var selectedState by mutableStateOf(HomeNavItem.NEARBY)
+    // --- Drawer open command (imperative; not business state) ---
     private var openRequests by mutableStateOf(0)
 
-    // --- Sheet state ---
+    // --- Sheet state (imperative) ---
     private var peekPx by mutableStateOf(0)
     private var sheetCommandTarget = Sheet.HIDDEN
     private var sheetCommandNonce by mutableStateOf(0)
 
-    // --- Map chrome state (suffixed to avoid generated setters clashing with the explicit ones) ---
-    private var fabsVisibleState by mutableStateOf(false)
-    private var zoomVisibleState by mutableStateOf(false)
-    private var leftHandModeState by mutableStateOf(false)
-    private var layersVisibleState by mutableStateOf(false)
-    private var bikeshareActiveState by mutableStateOf(false)
-
-    // --- Weather chip state ---
-    private var weatherVisibleState by mutableStateOf(false)
-    private var weatherIconRes by mutableStateOf(0)
-    private var weatherTempText by mutableStateOf("")
-    private var weatherFitIcon by mutableStateOf(false)
-
-    // --- Donation card state ---
-    private var donationVisibleState by mutableStateOf(false)
-
-    // --- Help / what's-new dialog state ---
-    private var dialogState by mutableStateOf(HomeDialog.NONE)
-    private var helpShowContactUs by mutableStateOf(true)
-
     /** Last observed resting state, mirrored here so Java can query it synchronously (main thread). */
     @Volatile
     private var currentSheet = Sheet.HIDDEN
-
-    /** Updates the (already region-gated) drawer item list. */
-    fun setItems(items: List<HomeNavItem>) {
-        itemsState = items
-    }
-
-    /** Highlights the current in-place selection. */
-    fun setSelected(item: HomeNavItem) {
-        selectedState = item
-    }
 
     /** Opens the drawer (e.g. from the toolbar hamburger). */
     fun openDrawer() {
@@ -178,70 +151,12 @@ class HomeShellHost(
         sheetCommandNonce++
     }
 
-    /** Shows/hides the my-location FAB + layers FAB together (NEARBY only). */
-    fun setFabsVisible(visible: Boolean) {
-        fabsVisibleState = visible
-    }
-
-    /** Shows/hides the zoom controls (driven by the show-zoom-controls preference). */
-    fun setZoomVisible(visible: Boolean) {
-        zoomVisibleState = visible
-    }
-
-    /** Mirrors the left-hand-mode preference: FABs hug the left edge instead of the right. */
-    fun setLeftHandMode(left: Boolean) {
-        leftHandModeState = left
-    }
-
-    /** Shows/hides the layers FAB (bikeshare-enabled regions, NEARBY only). */
-    fun setLayersVisible(visible: Boolean) {
-        layersVisibleState = visible
-    }
-
-    /** Tints the bikeshare layer item by whether the layer is currently active. */
-    fun setBikeshareActive(active: Boolean) {
-        bikeshareActiveState = active
-    }
-
-    /** Shows the weather chip with the given icon + formatted temperature. */
-    fun showWeather(iconRes: Int, tempText: String, fitIcon: Boolean) {
-        weatherIconRes = iconRes
-        weatherTempText = tempText
-        weatherFitIcon = fitIcon
-        weatherVisibleState = true
-    }
-
-    /** Hides the weather chip (no region / hidden by preference / not on NEARBY). */
-    fun hideWeather() {
-        weatherVisibleState = false
-    }
-
-    /** Shows/hides the donation card (DonationsManager.shouldShowDonationUI() && NEARBY). */
-    fun setDonationVisible(visible: Boolean) {
-        donationVisibleState = visible
-    }
-
-    /** Shows the help-menu dialog; [showContactUs] hides Contact Us when a custom API URL is set. */
-    fun showHelpDialog(showContactUs: Boolean) {
-        helpShowContactUs = showContactUs
-        dialogState = HomeDialog.HELP
-    }
-
-    /** Shows the what's-new dialog (from Help, or auto on a new app version). */
-    fun showWhatsNewDialog() {
-        dialogState = HomeDialog.WHATS_NEW
-    }
-
-    /** Dismisses the currently-shown Compose dialog. */
-    fun dismissHomeDialog() {
-        dialogState = HomeDialog.NONE
-    }
-
     /** The view to pass to Activity.setContentView. */
     val view: View = ComposeView(context).apply {
         setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
         setContent {
             ObaTheme {
+                val state by viewModel.uiState.collectAsStateWithLifecycle()
                 val drawerState = rememberDrawerState(DrawerValue.Closed)
                 val scope = rememberCoroutineScope()
 
@@ -258,7 +173,7 @@ class HomeShellHost(
                     // scrim tap-to-close on this one flag, so tie it to the open state.
                     gesturesEnabled = drawerState.isOpen,
                     drawerContent = {
-                        HomeNavDrawerSheet(items = itemsState, selected = selectedState) { item ->
+                        HomeNavDrawerSheet(items = state.navItems, selected = state.selectedItem) { item ->
                             scope.launch { drawerState.close() }
                             onItemSelected.onSelected(item)
                         }
@@ -326,27 +241,28 @@ class HomeShellHost(
                             Box(Modifier.fillMaxSize()) {
                                 AndroidView(factory = { mapContent }, modifier = Modifier.fillMaxSize())
                                 MapChrome(
-                                    fabsVisible = fabsVisibleState,
-                                    zoomVisible = zoomVisibleState,
-                                    leftHandMode = leftHandModeState,
-                                    layersVisible = layersVisibleState,
-                                    bikeshareActive = bikeshareActiveState,
+                                    fabsVisible = state.fabsVisible,
+                                    zoomVisible = state.zoomControlsVisible,
+                                    leftHandMode = state.leftHandMode,
+                                    layersVisible = state.layersFabVisible,
+                                    bikeshareActive = state.bikeshareActive,
                                     fabBottomInsetTarget = fabInsetTarget,
                                     onMyLocation = { mapActions.onMyLocation() },
                                     onZoomIn = { mapActions.onZoomIn() },
                                     onZoomOut = { mapActions.onZoomOut() },
                                     onToggleBikeshare = { mapActions.onToggleBikeshare() }
                                 )
-                                if (weatherVisibleState) {
+                                val weather = state.weather
+                                if (weather != null) {
                                     WeatherCard(
-                                        iconRes = weatherIconRes,
-                                        tempText = weatherTempText,
-                                        fitIcon = weatherFitIcon,
+                                        iconRes = WeatherUtils.getWeatherIconRes(weather.icon),
+                                        tempText = WeatherUtils.formatTemperature(weather.temperatureF),
+                                        fitIcon = WeatherUtils.isFitIcon(weather.icon),
                                         onClick = { mapActions.onWeatherClick() },
                                         modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
                                     )
                                 }
-                                if (donationVisibleState) {
+                                if (state.donationVisible) {
                                     DonationCard(
                                         onClose = { mapActions.onDonationClose() },
                                         onLearnMore = { mapActions.onDonationLearnMore() },
@@ -363,11 +279,11 @@ class HomeShellHost(
                 }
 
                 HomeDialogs(
-                    dialog = dialogState,
-                    showContactUs = helpShowContactUs,
+                    dialog = state.dialog,
+                    showContactUs = state.helpShowContactUs,
                     onHelpAction = { dialogActions.onHelpAction(it) },
                     onWhatsNewDismissed = { dialogActions.onWhatsNewDismissed() },
-                    onDismiss = { dialogState = HomeDialog.NONE }
+                    onDismiss = { viewModel.dismissDialog() }
                 )
             }
         }

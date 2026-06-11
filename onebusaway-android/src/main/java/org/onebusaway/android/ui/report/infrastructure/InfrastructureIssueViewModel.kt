@@ -161,12 +161,9 @@ class InfrastructureIssueViewModel(
             )
         }
 
-        when (pendingDefaultIssueType) {
-            DefaultIssueType.NONE -> Unit
-            else -> {
-                selectDefaultCategory(result.items, pendingDefaultIssueType)
-                pendingDefaultIssueType = DefaultIssueType.NONE
-            }
+        if (pendingDefaultIssueType != DefaultIssueType.NONE) {
+            selectDefaultCategory(result.items, pendingDefaultIssueType)
+            pendingDefaultIssueType = DefaultIssueType.NONE
         }
     }
 
@@ -212,17 +209,9 @@ class InfrastructureIssueViewModel(
         val target = when (type) {
             ReportConstants.STATIC_TRANSIT_SERVICE_STOP -> ReportTarget.StopProblem(stop)
             ReportConstants.STATIC_TRANSIT_SERVICE_TRIP -> ReportTarget.TripProblem(stop, arrivalInfo)
-            ReportConstants.DYNAMIC_TRANSIT_SERVICE_STOP ->
-                selectedCategory?.let { ReportTarget.Open311(it, null) } ?: ReportTarget.None
-
-            ReportConstants.DYNAMIC_TRANSIT_SERVICE_TRIP -> {
-                val arrival = arrivalInfo
-                if (arrival != null) {
-                    selectedCategory?.let { ReportTarget.Open311(it, arrival) } ?: ReportTarget.None
-                } else {
-                    ReportTarget.TripProblem(stop, null)
-                }
-            }
+            ReportConstants.DYNAMIC_TRANSIT_SERVICE_STOP -> open311TargetOrNone(null)
+            ReportConstants.DYNAMIC_TRANSIT_SERVICE_TRIP ->
+                if (arrivalInfo != null) open311TargetOrNone(arrivalInfo) else ReportTarget.TripProblem(stop, null)
 
             else -> ReportTarget.None
         }
@@ -249,6 +238,9 @@ class InfrastructureIssueViewModel(
     fun tripContext(): Triple<ObaArrivalInfo?, String?, String?> = Triple(arrivalInfo, agencyName, blockId)
 
     // --- Helpers --------------------------------------------------------------------------------
+
+    private fun open311TargetOrNone(arrival: ObaArrivalInfo?): ReportTarget =
+        selectedCategory?.let { ReportTarget.Open311(it, arrival) } ?: ReportTarget.None
 
     private fun showTarget(target: ReportTarget, showMarker: Boolean) {
         _uiState.update {

@@ -34,7 +34,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -53,6 +52,7 @@ import kotlinx.coroutines.withContext
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.components.ErrorContent
 import org.onebusaway.android.ui.compose.components.LoadingContent
+import org.onebusaway.android.ui.report.ReportFormSurface
 import org.onebusaway.android.util.UIUtils
 
 /** Stateful entry point: binds the ViewModel's load/form state to the screen and image actions. */
@@ -100,9 +100,7 @@ fun Open311Screen(
     onTakePhoto: () -> Unit,
     onPickFromGallery: () -> Unit
 ) {
-    // Hosted in the report container's CustomScrollView: the Surface supplies a visible content
-    // color on the dark report background, and the form must not scroll itself (the parent does).
-    Surface(modifier = Modifier.fillMaxWidth()) {
+    ReportFormSurface {
         when (loadState) {
             Open311LoadState.LOADING -> LoadingContent(Modifier.padding(32.dp))
             Open311LoadState.ERROR -> ErrorContent(onRetry = onRetry)
@@ -203,18 +201,15 @@ private fun Open311FieldInput(
             Text(label, style = MaterialTheme.typography.bodyLarge)
             val selected = form.singleChoice(field.code)
             field.options.forEach { option ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .selectable(
-                            selected = option.key == selected,
-                            onClick = { onSingleChoice(field.code, option.key) }
-                        ),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(selected = option.key == selected, onClick = null)
-                    Text(option.name)
-                }
+                val isSelected = option.key == selected
+                ChoiceOptionRow(
+                    name = option.name,
+                    selectionModifier = Modifier.selectable(
+                        selected = isSelected,
+                        onClick = { onSingleChoice(field.code, option.key) }
+                    ),
+                    control = { RadioButton(selected = isSelected, onClick = null) }
+                )
             }
         }
 
@@ -223,20 +218,34 @@ private fun Open311FieldInput(
             val selected = form.multiChoice(field.code)
             field.options.forEach { option ->
                 val checked = option.key in selected
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .toggleable(
-                            value = checked,
-                            onValueChange = { onMultiChoice(field.code, option.key, it) }
-                        ),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(checked = checked, onCheckedChange = null)
-                    Text(option.name)
-                }
+                ChoiceOptionRow(
+                    name = option.name,
+                    selectionModifier = Modifier.toggleable(
+                        value = checked,
+                        onValueChange = { onMultiChoice(field.code, option.key, it) }
+                    ),
+                    control = { Checkbox(checked = checked, onCheckedChange = null) }
+                )
             }
         }
+    }
+}
+
+/** A single radio/checkbox option row: the control plus its label, sharing one click target. */
+@Composable
+private fun ChoiceOptionRow(
+    name: String,
+    selectionModifier: Modifier,
+    control: @Composable () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(selectionModifier),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        control()
+        Text(name)
     }
 }
 
@@ -288,37 +297,33 @@ private fun AnonymousAndContact(
         }
 
         val enabled = !form.anonymous
-        OutlinedTextField(
-            value = form.contact.firstName,
-            onValueChange = onFirstNameChange,
-            enabled = enabled,
-            label = { Text(stringResource(R.string.ri_user_name_hint)) },
-            modifier = Modifier.fillMaxWidth()
+        ContactField(form.contact.firstName, onFirstNameChange, R.string.ri_user_name_hint, enabled)
+        ContactField(form.contact.lastName, onLastNameChange, R.string.ri_user_lastname_hint, enabled)
+        ContactField(
+            form.contact.email, onEmailChange, R.string.ri_user_email_hint, enabled, KeyboardType.Email
         )
-        OutlinedTextField(
-            value = form.contact.lastName,
-            onValueChange = onLastNameChange,
-            enabled = enabled,
-            label = { Text(stringResource(R.string.ri_user_lastname_hint)) },
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = form.contact.email,
-            onValueChange = onEmailChange,
-            enabled = enabled,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            label = { Text(stringResource(R.string.ri_user_email_hint)) },
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = form.contact.phone,
-            onValueChange = onPhoneChange,
-            enabled = enabled,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            label = { Text(stringResource(R.string.ri_user_phone_hint)) },
-            modifier = Modifier.fillMaxWidth()
+        ContactField(
+            form.contact.phone, onPhoneChange, R.string.ri_user_phone_hint, enabled, KeyboardType.Phone
         )
     }
+}
+
+@Composable
+private fun ContactField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    labelRes: Int,
+    enabled: Boolean,
+    keyboardType: KeyboardType = KeyboardType.Text
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        enabled = enabled,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        label = { Text(stringResource(labelRes)) },
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 private fun Open311FieldType.keyboardType(): KeyboardType = when (this) {

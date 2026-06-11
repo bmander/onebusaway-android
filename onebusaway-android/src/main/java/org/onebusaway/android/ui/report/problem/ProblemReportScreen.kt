@@ -29,7 +29,6 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -44,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.onebusaway.android.ui.report.ReportFormSurface
 
 /** Stateful entry point: collects the form state and forwards edits to the ViewModel. */
 @Composable
@@ -58,13 +58,7 @@ fun ProblemReportRoute(viewModel: ProblemReportViewModel) {
     )
 }
 
-/**
- * Stateless problem form, shared by the stop and trip flows (trip adds the vehicle fields).
- *
- * Hosted inside the report container's CustomScrollView, so it must NOT scroll itself (an
- * infinite-height measure crashes) and is wrapped in a [Surface] so text inherits a visible
- * content color on the dark report background.
- */
+/** Stateless problem form, shared by the stop and trip flows (trip adds the vehicle fields). */
 @Composable
 fun ProblemReportForm(
     state: ProblemFormState,
@@ -74,7 +68,7 @@ fun ProblemReportForm(
     onVehicleNumberChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(modifier = modifier.fillMaxWidth()) {
+    ReportFormSurface(modifier = modifier) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)

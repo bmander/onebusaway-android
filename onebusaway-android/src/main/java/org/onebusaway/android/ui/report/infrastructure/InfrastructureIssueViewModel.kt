@@ -211,7 +211,7 @@ class InfrastructureIssueViewModel(
         }
         val target = when (type) {
             ReportConstants.STATIC_TRANSIT_SERVICE_STOP -> ReportTarget.StopProblem(stop)
-            ReportConstants.STATIC_TRANSIT_SERVICE_TRIP -> ReportTarget.TripProblem(stop)
+            ReportConstants.STATIC_TRANSIT_SERVICE_TRIP -> ReportTarget.TripProblem(stop, arrivalInfo)
             ReportConstants.DYNAMIC_TRANSIT_SERVICE_STOP ->
                 selectedCategory?.let { ReportTarget.Open311(it, null) } ?: ReportTarget.None
 
@@ -220,7 +220,7 @@ class InfrastructureIssueViewModel(
                 if (arrival != null) {
                     selectedCategory?.let { ReportTarget.Open311(it, arrival) } ?: ReportTarget.None
                 } else {
-                    ReportTarget.TripProblem(stop)
+                    ReportTarget.TripProblem(stop, null)
                 }
             }
 
@@ -237,7 +237,7 @@ class InfrastructureIssueViewModel(
         if (category != null && category.type == ReportConstants.DYNAMIC_TRANSIT_SERVICE_TRIP) {
             showTarget(ReportTarget.Open311(category, arrival), showMarker = true)
         } else {
-            showTarget(ReportTarget.TripProblem(stop), showMarker = false)
+            showTarget(ReportTarget.TripProblem(stop, arrival), showMarker = false)
         }
     }
 

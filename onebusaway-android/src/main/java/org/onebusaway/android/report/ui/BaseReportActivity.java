@@ -15,18 +15,12 @@
 */
 package org.onebusaway.android.report.ui;
 
-import org.onebusaway.android.R;
-
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Color;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.ProgressBar;
-import android.widget.RelativeLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.ActionBar;
@@ -43,10 +37,6 @@ public class BaseReportActivity extends AppCompatActivity {
     public static final String CLOSE_REQUEST = "BaseReportActivityClose";
 
     public static final String LOCATION_STRING = "locationString";
-
-    protected RelativeLayout mInfoHeader;
-
-    protected FrameLayout mInLineInstructions;
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -105,47 +95,5 @@ public class BaseReportActivity extends AppCompatActivity {
 
     protected void createToastMessage(String message) {
         Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
-    }
-
-    protected void addInfoText(String text) {
-        // Instructions in header of report
-        if (mInfoHeader == null){
-            mInfoHeader = (RelativeLayout) findViewById(R.id.ri_info_header);
-        }
-        ((TextView) mInfoHeader.findViewById(R.id.ri_info_text)).setText(text);
-        if (mInfoHeader.getVisibility() != View.VISIBLE) {
-            mInfoHeader.setVisibility(View.VISIBLE);
-        }
-        // Instructions in body of report
-        if (mInLineInstructions == null) {
-            mInLineInstructions = (FrameLayout) findViewById(R.id.in_line_instructions_container);
-        }
-        ((ImageView) findViewById(R.id.in_line_instructions_image)).setColorFilter(
-                getResources().getColor(R.color.material_gray));
-        ((TextView) mInLineInstructions.findViewById(R.id.in_line_instructions_text)).setText(text);
-        if (mInLineInstructions.getVisibility() != View.VISIBLE) {
-            mInLineInstructions.setVisibility(View.VISIBLE);
-        }
-    }
-
-    protected  boolean isInfoVisible() {
-        if (mInfoHeader == null){
-            mInfoHeader = (RelativeLayout) findViewById(R.id.ri_info_header);
-        }
-        return mInfoHeader.getVisibility() == View.VISIBLE;
-    }
-
-    protected void removeInfoText() {
-        if (mInfoHeader == null){
-            mInfoHeader = (RelativeLayout) findViewById(R.id.ri_info_header);
-        }
-        ((TextView) mInfoHeader.findViewById(R.id.ri_info_text)).setText("");
-        mInfoHeader.setVisibility(View.GONE);
-
-        if (mInLineInstructions == null) {
-            mInLineInstructions = (FrameLayout) findViewById(R.id.in_line_instructions_container);
-        }
-        ((TextView) mInLineInstructions.findViewById(R.id.in_line_instructions_text)).setText("");
-        mInLineInstructions.setVisibility(View.GONE);
     }
 }

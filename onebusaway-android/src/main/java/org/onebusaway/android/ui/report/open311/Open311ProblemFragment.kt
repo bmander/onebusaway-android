@@ -232,16 +232,9 @@ class Open311ProblemFragment : Fragment(), MenuProvider {
         val open311 = checkNotNull(open311) { "Open311 must be set before showing the fragment" }
         val service = checkNotNull(service) { "Service must be set before showing the fragment" }
         val activity = requireActivity() as InfrastructureIssueActivity
-        val helper = activity.issueLocationHelper
-        val location = helper.issueLocation
 
         // Snapshot the location/address/stop once; this screen is modal per chosen category.
-        val issueContext = Open311IssueContext(
-            latitude = location.latitude,
-            longitude = location.longitude,
-            address = activity.currentAddress?.takeIf { it.isNotEmpty() },
-            obaStop = helper.obaStop
-        )
+        val issueContext = activity.currentIssueContext()
         val tripContext = arrivalInfo?.let { Open311TripContext(it, agencyName, blockId) }
 
         val repository = DefaultOpen311Repository(

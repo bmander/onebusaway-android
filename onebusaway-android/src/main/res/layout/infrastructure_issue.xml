@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C)  University of South Florida (cagricetin@mail.usf.edu)
+<!-- Copyright (C) University of South Florida (cagricetin@mail.usf.edu),
+     Copyright (C) 2026 Open Transit Software Foundation
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -18,94 +19,14 @@
               android:layout_height="match_parent"
               android:focusableInTouchMode="true"
               android:background="@color/trip_details_background"
-              android:orientation="vertical"
-              android:configChanges="keyboardHidden|orientation|screenSize">
+              android:orientation="vertical">
 
-    <include layout="@layout/include_toolbar" />
-
-    <!-- Header aligned to top -->
-    <RelativeLayout
-            android:id="@+id/ri_info_header"
-            android:layout_width="match_parent"
-            android:background="@color/theme_primary_variant"
-            android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:animateLayoutChanges="true"
-            android:gravity="center"
-            android:visibility="gone">
-
-        <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:id="@+id/imageView"
-                android:src="@drawable/ic_stop_info"
-                android:layout_alignParentTop="true"
-                android:layout_toLeftOf="@+id/ri_info_text"
-                android:layout_toStartOf="@+id/ri_info_text"
-                android:layout_margin="4dp"
-        />
-
-        <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Fixed Header"
-                android:layout_margin="4dp"
-                android:id="@+id/ri_info_text"
-                android:textColor="@android:color/white"
-                android:textAppearance="?android:attr/textAppearanceMedium"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:layout_centerVertical="true" android:layout_centerHorizontal="true"/>
-    </RelativeLayout>
-    <RelativeLayout
-            android:id="@+id/bus_stop_header"
-            android:layout_width="match_parent"
-            android:background="@color/theme_primary_variant"
-            android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:animateLayoutChanges="true"
-            android:gravity="center"
-            android:visibility="gone"
-            android:weightSum="1">
-
-        <LinearLayout android:layout_width="wrap_content"
-                      android:layout_height="wrap_content"
-                      android:layout_weight="1"
-        >
-
-            <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:src="@drawable/ic_drawer_maps_place"
-                    android:id="@+id/ri_header_location"
-                    android:layout_alignParentTop="true"
-                    android:layout_toLeftOf="@+id/ri_bus_stop_text"
-                    android:layout_toStartOf="@+id/ri_bus_stop_text"
-                    android:layout_margin="4dp"
-            />
-
-            <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Fixed Header"
-                    android:ellipsize="end"
-                    android:singleLine="true"
-                    android:layout_margin="4dp"
-                    android:id="@+id/ri_bus_stop_text"
-                    android:textColor="@android:color/white"
-                    android:textAppearance="?android:attr/textAppearanceMedium"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:layout_centerVertical="true"
-                    android:layout_centerHorizontal="true"/>
-        </LinearLayout>
-    </RelativeLayout>
+    <include layout="@layout/include_toolbar"/>
 
     <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:id="@+id/ri_contact_info">
+            android:layout_weight="1">
 
         <org.onebusaway.android.report.ui.CustomScrollView
                 android:layout_width="match_parent"
@@ -115,95 +36,27 @@
 
             <LinearLayout
                     android:orientation="vertical"
-                    android:layout_width="fill_parent"
-                    android:layout_height="match_parent">
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
 
+                <!-- Native map fragment host -->
                 <FrameLayout
                         android:layout_width="match_parent"
                         android:layout_height="200dp"
-                        android:id="@+id/ri_frame_map_view"></FrameLayout>
+                        android:id="@+id/ri_frame_map_view"/>
 
-                <FrameLayout
+                <!-- Address field, service spinner, headers and prompt (Compose) -->
+                <androidx.compose.ui.platform.ComposeView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        style="@style/MaterialLayout"
-                        android:orientation="horizontal">
+                        android:id="@+id/ri_compose_view"/>
 
-                    <ImageView style="@style/MaterialSmallIcon"
-                               android:layout_gravity="center|left"
-                               android:src="@drawable/ic_drawer_maps_place"
-                               android:id="@+id/ri_ic_location"/>
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="@string/rt_address_hint">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/ri_address_editText"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:minHeight="48dp"
-                            android:imeOptions="actionSearch"
-                            android:inputType="textPostalAddress"
-                            android:maxLines="2"
-                            android:layout_marginStart="56dp" />
-
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                </FrameLayout>
-
-                <FrameLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        style="@style/MaterialLayout"
-                        android:id="@+id/ri_spinnerView"
-                        android:visibility="gone"
-                        android:orientation="horizontal">
-
-                    <ImageView style="@style/MaterialSmallIcon"
-                               android:layout_gravity="center|left"
-                               android:src="@drawable/ic_category"
-                               android:id="@+id/ri_ic_category"/>
-                    <Spinner
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginLeft="56dp"
-                            android:layout_gravity="center_vertical"
-                            style="@style/Base.Widget.AppCompat.Spinner.Underlined"
-                            android:id="@+id/ri_spinnerServices"/>
-
-                </FrameLayout>
-
-                <FrameLayout
-                        android:id="@+id/in_line_instructions_container"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        style="@style/MaterialLayout"
-                        android:orientation="horizontal"
-                        android:visibility="gone">
-
-                    <ImageView
-                            android:id="@+id/in_line_instructions_image"
-                            style="@style/MaterialSmallIcon"
-                            android:layout_gravity="center|left"
-                            android:src="@drawable/ic_stop_info"/>
-
-                    <TextView
-                            android:id="@+id/in_line_instructions_text"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            style="@style/MaterialItem"
-                            android:textSize="15sp"
-                            android:textAppearance="?android:attr/textAppearanceMedium"
-                            />
-                </FrameLayout>
-
+                <!-- Container the stop/trip/Open311/arrival-picker fragments are replaced into -->
                 <LinearLayout
                         android:orientation="vertical"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:id="@+id/ri_report_stop_problem"></LinearLayout>
+                        android:id="@+id/ri_report_stop_problem"/>
 
             </LinearLayout>
 

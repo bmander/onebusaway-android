@@ -147,12 +147,6 @@ public class ShowcaseViewUtils {
                 text = new SpannableString(
                         r.getString(R.string.tutorial_starred_stops_shortcut_text));
                 break;
-            case TUTORIAL_SEND_FEEDBACK_OPEN311_CATEGORIES:
-                title = r.getString(R.string.tutorial_send_feedback_transit_service_title);
-                text = new SpannableString(
-                        r.getString(R.string.tutorial_send_feedback_transit_service_text));
-                target = new ViewTarget(R.id.ri_spinnerServices, activity);
-                break;
             default:
                 throw new IllegalArgumentException(
                         "tutorialType must be one of the TUTORIAL_* constants in ShowcaseViewUtils");

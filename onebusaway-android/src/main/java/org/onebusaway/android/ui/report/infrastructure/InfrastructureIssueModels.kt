@@ -33,7 +33,9 @@ data class IssueLocation(
 sealed interface ReportTarget {
     data object None : ReportTarget
     data class StopProblem(val stop: ObaStop) : ReportTarget
-    data class TripProblem(val stop: ObaStop) : ReportTarget
+
+    /** A null [arrival] means the host shows the arrival picker first; non-null shows the form. */
+    data class TripProblem(val stop: ObaStop, val arrival: ObaArrivalInfo?) : ReportTarget
     data class Open311(val category: ServiceListItem.Category, val arrival: ObaArrivalInfo?) : ReportTarget
 }
 

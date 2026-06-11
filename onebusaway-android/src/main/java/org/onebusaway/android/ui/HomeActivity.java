@@ -118,27 +118,12 @@ import org.onebusaway.android.ui.home.HelpAction;
 import org.onebusaway.android.ui.home.HomeNavItem;
 import org.onebusaway.android.ui.home.HomeShellHost;
 
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_ACTIVITY_FEED;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_HELP;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_MY_REMINDERS;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_NEARBY;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_OPEN_SOURCE;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_PAY_FARE;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_PINS;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_PLAN_TRIP;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_PROFILE;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_SEND_FEEDBACK;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_SETTINGS;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_SIGN_IN;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_STARRED_ROUTES;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_STARRED_STOPS;
-import static org.onebusaway.android.ui.NavigationDrawerFragment.NavigationDrawerCallbacks;
 import static org.onebusaway.android.util.PermissionUtils.LOCATION_PERMISSIONS;
 
 public class HomeActivity extends AppCompatActivity
         implements ObaMapFragment.OnFocusChangedListener,
         ObaMapFragment.OnProgressBarChangedListener,
-        ArrivalsPanelFragment.Listener, NavigationDrawerCallbacks, WeatherRequestListener , RegionCallback,
+        ArrivalsPanelFragment.Listener, WeatherRequestListener , RegionCallback,
         ObaRegionsTask.Callback, HomeShellHost.MapActionListener,
         HomeShellHost.DialogActionListener {
 
@@ -148,6 +133,24 @@ public class HomeActivity extends AppCompatActivity
     private static final String WHATS_NEW_VER = "whatsNewVer";
 
     private static final String CHECK_REGION_VER = "checkRegionVer";
+
+    // The set of possible nav-drawer positions (relocated from the retired NavigationDrawerFragment).
+    // The int model is kept because mCurrentNavDrawerPosition and goToNavDrawerItem() are still
+    // int-based; the Compose drawer maps its HomeNavItem to these via toPosition()/toHomeNavItem().
+    private static final int NAVDRAWER_ITEM_NEARBY = 0;
+    private static final int NAVDRAWER_ITEM_STARRED_STOPS = 1;
+    private static final int NAVDRAWER_ITEM_STARRED_ROUTES = 2;
+    private static final int NAVDRAWER_ITEM_MY_REMINDERS = 3;
+    private static final int NAVDRAWER_ITEM_SETTINGS = 4;
+    private static final int NAVDRAWER_ITEM_HELP = 5;
+    private static final int NAVDRAWER_ITEM_SEND_FEEDBACK = 6;
+    private static final int NAVDRAWER_ITEM_PLAN_TRIP = 7;
+    private static final int NAVDRAWER_ITEM_PINS = 8;
+    private static final int NAVDRAWER_ITEM_ACTIVITY_FEED = 9;
+    private static final int NAVDRAWER_ITEM_PROFILE = 10;
+    private static final int NAVDRAWER_ITEM_SIGN_IN = 11;
+    private static final int NAVDRAWER_ITEM_OPEN_SOURCE = 12;
+    private static final int NAVDRAWER_ITEM_PAY_FARE = 13;
 
     //One week, in milliseconds
     private static final long REGION_UPDATE_THRESHOLD = 1000 * 60 * 60 * 24 * 7;
@@ -167,11 +170,6 @@ public class HomeActivity extends AppCompatActivity
     protected GoogleApiClient mGoogleApiClient;
 
     public static final int BATTERY_OPTIMIZATIONS_PERMISSION_REQUEST = 111;
-
-    /**
-     * Fragment managing the behaviors, interactions and presentation of the navigation drawer.
-     */
-    private NavigationDrawerFragment mNavigationDrawerFragment;
 
     // Compose shell (P1 drawer + P2 BottomSheetScaffold): the inflated map content + arrivals sheet
     // content are hosted inside mHomeShell, which replaces the DrawerLayout + SlidingUpPanelLayout.
@@ -518,11 +516,6 @@ public class HomeActivity extends AppCompatActivity
         if (mBikeRentalStationId != null) {
             outState.putString(MapParams.BIKE_STATION_ID, mBikeRentalStationId);
         }
-    }
-
-    @Override
-    public void onNavigationDrawerItemSelected(int position) {
-        goToNavDrawerItem(position);
     }
 
     private void goToNavDrawerItem(int item) {

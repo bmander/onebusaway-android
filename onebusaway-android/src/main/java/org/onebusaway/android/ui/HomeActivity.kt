@@ -41,6 +41,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.initializer
@@ -73,6 +74,7 @@ import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.arrivals.ArrivalsPanelFragment
 import org.onebusaway.android.ui.home.DefaultWeatherRepository
 import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
+import org.onebusaway.android.ui.home.FocusedStop
 import org.onebusaway.android.ui.home.HelpAction
 import org.onebusaway.android.ui.home.HomeEnvironment
 import org.onebusaway.android.ui.home.HomeEvent
@@ -107,7 +109,11 @@ class HomeActivity : AppCompatActivity(),
     private val viewModel: HomeViewModel by viewModels {
         viewModelFactory {
             initializer {
-                HomeViewModel(DefaultWeatherRepository(), DefaultWideAlertsRepository())
+                HomeViewModel(
+                    createSavedStateHandle(),
+                    DefaultWeatherRepository(),
+                    DefaultWideAlertsRepository()
+                )
             }
         }
     }
@@ -148,17 +154,10 @@ class HomeActivity : AppCompatActivity(),
 
     private var mMyRemindersFragment: MyRemindersFragment? = null
 
-    /**
-     * Stop that has current focus on the map.  We retain a reference to the StopId, since during
-     * rapid rotations it's possible that a reference to a ObaStop object in mFocusedStop can still
-     * be null, and we don't want to lose the state of which stopId is in focus.
-     */
-    private var mFocusedStopId: String? = null
-
-    /** Bike rental station ID that has the focus currently. */
-    private var mBikeRentalStationId: String? = null
-
-    private var mFocusedStop: ObaStop? = null
+    // True when a focused stop was restored (process death / rotation) or deep-linked but the map
+    // fragment hasn't been told yet, so the next arrivals load should recenter + add the focus
+    // marker. A fresh map tap already shows the stop, so it doesn't set this.
+    private var mPendingMapFocus = false
 
     private var mMapProgressBar: ProgressBar? = null
 
@@ -225,7 +224,7 @@ class HomeActivity : AppCompatActivity(),
             }
         })
 
-        setupMapState(savedInstanceState)
+        setupMapState()
 
         setupMapChrome()
 
@@ -329,24 +328,6 @@ class HomeActivity : AppCompatActivity(),
             client.disconnect()
         }
         super.onStop()
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        val focusedId = mFocusedStopId
-        if (focusedId != null) {
-            outState.putString(MapParams.STOP_ID, focusedId)
-
-            val focusedStop = mFocusedStop
-            if (focusedStop != null) {
-                outState.putString(MapParams.STOP_CODE, focusedStop.stopCode)
-                outState.putString(MapParams.STOP_NAME, focusedStop.name)
-            }
-        }
-        val bikeId = mBikeRentalStationId
-        if (bikeId != null) {
-            outState.putString(MapParams.BIKE_STATION_ID, bikeId)
-        }
     }
 
     private fun goToNavDrawerItem(item: Int) {
@@ -519,7 +500,7 @@ class HomeActivity : AppCompatActivity(),
         if (mLastMapProgressBarState) {
             showMapProgressBar()
         }
-        if (mFocusedStopId != null && mHomeShell != null) {
+        if (viewModel.uiState.value.focusedStop != null && mHomeShell != null) {
             // if we've focused on a stop, then show the panel that was previously hidden
             mHomeShell?.collapseSheet()
         }
@@ -844,7 +825,7 @@ class HomeActivity : AppCompatActivity(),
         location: Location?
     ) {
         // Check to see if we're already focused on this same stop - if so, we shouldn't do anything
-        val focusedId = mFocusedStopId
+        val focusedId = viewModel.uiState.value.focusedStop?.id
         if (focusedId != null && stop != null && focusedId.equals(stop.id, ignoreCase = true)) {
             return
         }
@@ -854,11 +835,10 @@ class HomeActivity : AppCompatActivity(),
             return
         }
 
-        mFocusedStop = stop
-
         if (stop != null) {
-            mBikeRentalStationId = null
-            mFocusedStopId = stop.id
+            viewModel.onStopFocused(
+                FocusedStop(stop.id, stop.name, stop.stopCode, stop.latitude, stop.longitude)
+            )
             // A stop on the map was just tapped, show it in the sliding panel
             updateArrivalListFragment(stop.id, stop.name)
 
@@ -871,8 +851,8 @@ class HomeActivity : AppCompatActivity(),
             )
         } else {
             // No stop is in focus (e.g., user tapped on the map), so hide the panel
-            // and clear the currently focused stopId
-            mFocusedStopId = null
+            // and clear the currently focused stop
+            viewModel.onStopFocused(null)
             mHomeShell?.hideSheet()
             val panel = mArrivalsPanelFragment
             if (panel != null) {
@@ -889,14 +869,14 @@ class HomeActivity : AppCompatActivity(),
         Log.d(TAG, "Bike Station Clicked on map")
 
         // Check to see if we're already focused on this same bike rental station
-        val bikeId = mBikeRentalStationId
+        val bikeId = viewModel.uiState.value.focusedBikeStationId
         if (bikeId != null && bikeRentalStation != null &&
             bikeId.equals(bikeRentalStation.id, ignoreCase = true)
         ) {
             return
         }
 
-        mBikeRentalStationId = bikeRentalStation?.id
+        viewModel.onBikeStationFocused(bikeRentalStation?.id)
     }
 
     override fun onProgressBarChanged(showProgressBar: Boolean) {
@@ -912,27 +892,17 @@ class HomeActivity : AppCompatActivity(),
      * Called by the ArrivalsPanelFragment when we have new updated arrival information
      */
     override fun onArrivalsLoaded(response: ObaArrivalInfoResponse) {
-        if (response.stop == null) {
-            return
-        }
+        val stop = response.stop ?: return
 
-        // If we're missing any local references (e.g., if orientation just changed), store the values
-        if (mFocusedStopId == null) {
-            mFocusedStopId = response.stop.id
-        }
-        if (mFocusedStop == null) {
-            val focusedStop = response.stop
-            mFocusedStop = focusedStop
-
-            // Since mFocusedStop was null, the layout changed, and we should recenter map on stop
+        // On restore / deep-link the map fragment hasn't been told which stop is focused, so recenter
+        // and add the focus marker when the first arrivals load arrives. A fresh map tap already has
+        // the stop in view, so mPendingMapFocus is false there and this is skipped.
+        if (mPendingMapFocus) {
+            mPendingMapFocus = false
             if (mMapFragment != null && mHomeShell != null) {
-                mMapFragment?.setMapCenter(
-                    focusedStop.location, false, mHomeShell?.isSheetExpanded() == true
-                )
+                mMapFragment?.setMapCenter(stop.location, false, mHomeShell?.isSheetExpanded() == true)
             }
-
-            // ...and we should add a focus marker for this stop
-            mMapFragment?.setFocusStop(focusedStop, response.routes)
+            mMapFragment?.setFocusStop(stop, response.routes)
         }
 
         // Show arrival info related tutorials
@@ -1038,11 +1008,11 @@ class HomeActivity : AppCompatActivity(),
     }
 
     private fun goToSendFeedBack() {
-        val focusedStop = mFocusedStop
+        val focusedStop = viewModel.uiState.value.focusedStop
         if (focusedStop != null) {
             ReportActivity.start(
-                this, mFocusedStopId, focusedStop.name, focusedStop.stopCode,
-                focusedStop.latitude, focusedStop.longitude, mGoogleApiClient
+                this, focusedStop.id, focusedStop.name, focusedStop.code,
+                focusedStop.lat, focusedStop.lon, mGoogleApiClient
             )
         } else {
             val loc = Application.getLastKnownLocation(this, mGoogleApiClient)
@@ -1353,9 +1323,13 @@ class HomeActivity : AppCompatActivity(),
         when (state) {
             HomeShellHost.Sheet.EXPANDED -> {
                 mMapFragment?.mapView?.setPadding(null, null, null, mSheetPeekPx)
-                val focusedStop = mFocusedStop
+                val focusedStop = viewModel.uiState.value.focusedStop
                 if (focusedStop != null && mMapFragment != null) {
-                    mMapFragment?.setMapCenter(focusedStop.location, true, true)
+                    val loc = Location("focusedStop").apply {
+                        latitude = focusedStop.lat
+                        longitude = focusedStop.lon
+                    }
+                    mMapFragment?.setMapCenter(loc, true, true)
                 }
                 mArrivalsPanelFragment?.setPanelCollapsed(false)
             }
@@ -1372,34 +1346,28 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Sets up the initial map state, based on a previous savedInstanceState for this activity,
-     * or an Intent that was passed into this activity
+     * Sets up the initial map state from the ViewModel's restored focus (process death / rotation,
+     * via SavedStateHandle) or from an Intent that deep-links into a specific stop.
      */
-    private fun setupMapState(savedInstanceState: Bundle?) {
-        val stopId: String?
-        val stopName: String?
-        // Check savedInstanceState to see if there is a previous state for this activity
-        if (savedInstanceState != null) {
-            // We're recreating an instance with a previous state, so show the focused stop in panel
-            stopId = savedInstanceState.getString(MapParams.STOP_ID)
-            stopName = savedInstanceState.getString(MapParams.STOP_NAME)
-
-            if (stopId != null) {
-                mFocusedStopId = stopId
-                updateArrivalListFragment(stopId, stopName)
-            }
+    private fun setupMapState() {
+        val restored = viewModel.uiState.value.focusedStop
+        if (restored != null) {
+            // Recreate the arrivals panel for the restored stop; recenter the map once it loads.
+            mPendingMapFocus = true
+            updateArrivalListFragment(restored.id, restored.name)
         } else {
-            // Check intent passed into Activity
+            // Check the intent for a deep link into a specific stop (via makeIntent()).
             val bundle = intent.extras
             if (bundle != null) {
-                // Did this activity start to focus on a stop?  If so, set focus and show arrival info
-                stopId = bundle.getString(MapParams.STOP_ID)
-                stopName = bundle.getString(MapParams.STOP_NAME)
+                val stopId = bundle.getString(MapParams.STOP_ID)
+                val stopName = bundle.getString(MapParams.STOP_NAME)
+                val stopCode = bundle.getString(MapParams.STOP_CODE)
                 val lat = bundle.getDouble(MapParams.CENTER_LAT)
                 val lon = bundle.getDouble(MapParams.CENTER_LON)
 
                 if (stopId != null && lat != 0.0 && lon != 0.0) {
-                    mFocusedStopId = stopId
+                    viewModel.onStopFocused(FocusedStop(stopId, stopName, stopCode, lat, lon))
+                    mPendingMapFocus = true
                     updateArrivalListFragment(stopId, stopName)
                 }
             }

@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.ui.home
 
+import androidx.lifecycle.SavedStateHandle
 import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -55,7 +56,8 @@ class HomeViewModelTest {
     private fun viewModel(
         weather: Result<WeatherData> = Result.success(forecast),
         alerts: List<WideAlert> = emptyList(),
-    ) = HomeViewModel(FakeWeatherRepository(weather), FakeWideAlertsRepository(alerts))
+        savedState: SavedStateHandle = SavedStateHandle(),
+    ) = HomeViewModel(savedState, FakeWeatherRepository(weather), FakeWideAlertsRepository(alerts))
 
     // --- weather (async) ---
 
@@ -117,6 +119,36 @@ class HomeViewModelTest {
 
         assertEquals(listOf(HomeEvent.ShowWideAlert(alert)), events)
         job.cancel()
+    }
+
+    // --- focus + SavedStateHandle ---
+
+    @Test
+    fun `onStopFocused sets and clears the focused stop`() = runTest {
+        val vm = viewModel()
+        val stop = FocusedStop("1", "Main St", "100", 47.6, -122.3)
+        vm.onStopFocused(stop)
+        assertEquals(stop, vm.uiState.value.focusedStop)
+        vm.onStopFocused(null)
+        assertNull(vm.uiState.value.focusedStop)
+    }
+
+    @Test
+    fun `focusing a stop clears the focused bike station`() = runTest {
+        val vm = viewModel()
+        vm.onBikeStationFocused("bike-7")
+        assertEquals("bike-7", vm.uiState.value.focusedBikeStationId)
+        vm.onStopFocused(FocusedStop("1", null, null, 1.0, 2.0))
+        assertNull(vm.uiState.value.focusedBikeStationId)
+    }
+
+    @Test
+    fun `focused stop is restored from SavedStateHandle on recreation`() = runTest {
+        val handle = SavedStateHandle()
+        val stop = FocusedStop("42", "Pike St", "577", 47.61, -122.34)
+        viewModel(savedState = handle).onStopFocused(stop)
+        // A fresh ViewModel over the same handle simulates process-death recreation.
+        assertEquals(stop, viewModel(savedState = handle).uiState.value.focusedStop)
     }
 
     // --- dialogs ---

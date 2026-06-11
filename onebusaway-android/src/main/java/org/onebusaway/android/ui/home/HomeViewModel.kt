@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.ui.home
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -33,10 +34,12 @@ import kotlinx.coroutines.launch
  * from the selected nav item plus the host-supplied [HomeEnvironment]; the activity feeds in the
  * inputs and renders the result via [HomeShellHost].
  *
- * The arrivals sheet, focused stop, drawer-open command, and fragment management remain imperative
- * in the activity for now; they move here when the map + arrivals fragments are dissolved (P10/P11).
+ * The focused stop is owned here and persisted through [SavedStateHandle] (replacing the activity's
+ * `onSaveInstanceState`). The arrivals sheet, drawer-open command, and fragment management remain
+ * imperative in the activity until the map + arrivals fragments are dissolved (P10b/P11).
  */
 class HomeViewModel(
+    private val savedState: SavedStateHandle,
     private val weatherRepo: WeatherRepository,
     private val wideAlertsRepo: WideAlertsRepository,
 ) : ViewModel() {
@@ -54,10 +57,19 @@ class HomeViewModel(
     private var weatherData: WeatherData? = null
     private var dialog: HomeDialog = HomeDialog.NONE
     private var helpShowContactUs: Boolean = true
+    // Focus state — seeded from SavedStateHandle so it survives process death (the data class itself
+    // isn't Parcelable, so the fields are stored individually).
+    private var focusedStop: FocusedStop? = readFocusedStop(savedState)
+    private var focusedBikeStationId: String? = savedState[KEY_BIKE_STATION]
 
     // Guards so weather + alerts are fetched once per region (not on every region-valid callback).
     private var weatherRegionId: Long? = null
     private var alertsJob: Job? = null
+
+    init {
+        // Reflect any SavedStateHandle-restored focus in the initial rendered state.
+        recompute()
+    }
 
     /** Updates the (already region-gated) drawer item list. */
     fun setNavItems(items: List<HomeNavItem>) {
@@ -69,6 +81,28 @@ class HomeViewModel(
     fun onNavItemSelected(item: HomeNavItem) {
         if (item.launchesActivity) return
         selectedItem = item
+        recompute()
+    }
+
+    /** A map stop gained focus (non-null) or focus was cleared (null). Persists across process death. */
+    fun onStopFocused(stop: FocusedStop?) {
+        focusedStop = stop
+        savedState[KEY_STOP_ID] = stop?.id
+        savedState[KEY_STOP_NAME] = stop?.name
+        savedState[KEY_STOP_CODE] = stop?.code
+        savedState[KEY_STOP_LAT] = stop?.lat
+        savedState[KEY_STOP_LON] = stop?.lon
+        if (stop != null) {
+            // Focusing a stop clears any bike-station focus (mirrors the legacy onFocusChanged).
+            focusedBikeStationId = null
+            savedState[KEY_BIKE_STATION] = null
+        }
+        recompute()
+    }
+
+    fun onBikeStationFocused(id: String?) {
+        focusedBikeStationId = id
+        savedState[KEY_BIKE_STATION] = id
         recompute()
     }
 
@@ -128,7 +162,30 @@ class HomeViewModel(
     }
 
     private fun recompute() {
-        _uiState.value = buildState(selectedItem, navItems, environment, weatherData, dialog, helpShowContactUs)
+        _uiState.value = buildState(
+            selectedItem, navItems, environment, weatherData, dialog, helpShowContactUs,
+            focusedStop, focusedBikeStationId
+        )
+    }
+
+    private companion object {
+        const val KEY_STOP_ID = "home.focusedStop.id"
+        const val KEY_STOP_NAME = "home.focusedStop.name"
+        const val KEY_STOP_CODE = "home.focusedStop.code"
+        const val KEY_STOP_LAT = "home.focusedStop.lat"
+        const val KEY_STOP_LON = "home.focusedStop.lon"
+        const val KEY_BIKE_STATION = "home.focusedBikeStation.id"
+
+        fun readFocusedStop(s: SavedStateHandle): FocusedStop? {
+            val id = s.get<String>(KEY_STOP_ID) ?: return null
+            return FocusedStop(
+                id = id,
+                name = s[KEY_STOP_NAME],
+                code = s[KEY_STOP_CODE],
+                lat = s.get<Double>(KEY_STOP_LAT) ?: 0.0,
+                lon = s.get<Double>(KEY_STOP_LON) ?: 0.0,
+            )
+        }
     }
 }
 
@@ -145,11 +202,15 @@ internal fun buildState(
     weatherData: WeatherData?,
     dialog: HomeDialog,
     helpShowContactUs: Boolean,
+    focusedStop: FocusedStop? = null,
+    focusedBikeStationId: String? = null,
 ): HomeUiState {
     val nearby = selectedItem == HomeNavItem.NEARBY
     return HomeUiState(
         navItems = navItems,
         selectedItem = selectedItem,
+        focusedStop = focusedStop,
+        focusedBikeStationId = focusedBikeStationId,
         fabsVisible = nearby,
         zoomControlsVisible = nearby && environment.zoomControlsPref,
         leftHandMode = environment.leftHandMode,

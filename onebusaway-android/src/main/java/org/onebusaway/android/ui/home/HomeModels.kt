@@ -34,6 +34,19 @@ enum class HomeNavItem(val launchesActivity: Boolean) {
 }
 
 /**
+ * The stop the user tapped on the map, decoupled from the io/elements `ObaStop`. Carries lat/lon so
+ * the host can recenter the map and launch feedback without holding the `ObaStop` object, and so the
+ * focus survives process death via the ViewModel's `SavedStateHandle`.
+ */
+data class FocusedStop(
+    val id: String,
+    val name: String?,
+    val code: String?,
+    val lat: Double,
+    val lon: Double,
+)
+
+/**
  * The current weather forecast, decoupled from the io/elements response. The raw icon string and
  * Fahrenheit temperature are kept so the WeatherCard can map them to a drawable + formatted string
  * (via [org.onebusaway.android.ui.weather.WeatherUtils]) at render time, leaving the ViewModel free
@@ -66,6 +79,9 @@ data class HomeEnvironment(
 data class HomeUiState(
     val navItems: List<HomeNavItem> = emptyList(),
     val selectedItem: HomeNavItem = HomeNavItem.NEARBY,
+    // map focus (survives config change + process death via SavedStateHandle)
+    val focusedStop: FocusedStop? = null,
+    val focusedBikeStationId: String? = null,
     // chrome — derived from selectedItem + environment
     val fabsVisible: Boolean = true,
     val zoomControlsVisible: Boolean = false,

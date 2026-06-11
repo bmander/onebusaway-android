@@ -147,6 +147,9 @@ class HomeShellHost(
 
                 ModalNavigationDrawer(
                     drawerState = drawerState,
+                    // Open only via the toolbar hamburger; without this an edge-swipe to pan the map
+                    // would instead drag the drawer open. The scrim tap / Back still close it.
+                    gesturesEnabled = false,
                     drawerContent = {
                         HomeNavDrawerSheet(items = itemsState, selected = selectedState) { item ->
                             scope.launch { drawerState.close() }

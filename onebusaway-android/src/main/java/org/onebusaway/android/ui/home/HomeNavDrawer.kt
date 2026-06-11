@@ -15,9 +15,12 @@
  */
 package org.onebusaway.android.ui.home
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
@@ -28,6 +31,7 @@ import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -44,9 +48,10 @@ fun HomeNavDrawerSheet(
     selected: HomeNavItem,
     onSelect: (HomeNavItem) -> Unit
 ) {
-    ModalDrawerSheet {
+    // Match the legacy drawer width; the Material3 default (360dp) is noticeably wider.
+    ModalDrawerSheet(Modifier.width(dimensionResource(R.dimen.navigation_drawer_width))) {
         Spacer(Modifier.height(12.dp))
-        androidx.compose.foundation.layout.Column(Modifier.verticalScroll(rememberScrollState())) {
+        Column(Modifier.verticalScroll(rememberScrollState())) {
             items.forEach { item ->
                 if (item == HomeNavItem.OPEN_SOURCE || item == HomeNavItem.SETTINGS) {
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -55,7 +60,9 @@ fun HomeNavDrawerSheet(
                     label = { Text(stringResource(item.titleRes())) },
                     selected = !item.launchesActivity && item == selected,
                     icon = item.iconRes()?.let { res ->
-                        { Icon(painterResource(res), contentDescription = null) }
+                        // Pin to the standard 24dp; some drawer drawables are hi-res PNGs whose
+                        // intrinsic size would otherwise render oversized.
+                        { Icon(painterResource(res), contentDescription = null, modifier = Modifier.size(24.dp)) }
                     },
                     onClick = { onSelect(item) },
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)

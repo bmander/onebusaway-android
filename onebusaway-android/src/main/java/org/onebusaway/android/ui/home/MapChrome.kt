@@ -16,6 +16,7 @@
 package org.onebusaway.android.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -54,9 +56,9 @@ import org.onebusaway.android.R
 /**
  * The map's Compose overlay chrome, replacing the XML my-location FAB, zoom buttons, and the
  * third-party android-fab layers speed-dial. Hosted over the map inside HomeShellHost's
- * BottomSheetScaffold content; [fabBottomInset] lifts the FABs above the arrivals sheet peek
- * (replacing the legacy `moveFabsLocation()` margin animation). All state + actions are driven by
- * HomeActivity through HomeShellHost.
+ * BottomSheetScaffold content; [fabBottomInsetTarget] is the sheet-driven lift target (the peek
+ * height when collapsed, else 0) that the FABs animate to — replacing the legacy
+ * `moveFabsLocation()` margin animation. All state + actions are driven by HomeActivity.
  */
 @Composable
 fun MapChrome(
@@ -65,13 +67,19 @@ fun MapChrome(
     leftHandMode: Boolean,
     layersVisible: Boolean,
     bikeshareActive: Boolean,
-    fabBottomInset: Dp,
+    fabBottomInsetTarget: Dp,
     onMyLocation: () -> Unit,
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
     onToggleBikeshare: () -> Unit,
 ) {
+    // Animate the lift here so the per-frame value only recomposes the FABs, not the hosting map
+    // AndroidView / overlay cards (which are siblings in HomeShellHost's Box).
+    val fabBottomInset by animateDpAsState(fabBottomInsetTarget, label = "fabInset")
     val sideAlign = if (leftHandMode) Alignment.BottomStart else Alignment.BottomEnd
+    val marginHorizontal = dimensionResource(R.dimen.fab_margin_horizontal)
+    val marginBottom = dimensionResource(R.dimen.fab_margin_vertical)
+    val accent = colorResource(R.color.theme_accent)
     Box(Modifier.fillMaxSize()) {
         if (zoomVisible) {
             ZoomControls(
@@ -79,7 +87,7 @@ fun MapChrome(
                 onZoomOut = onZoomOut,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = MY_LOCATION_MARGIN_BOTTOM + fabBottomInset)
+                    .padding(bottom = marginBottom + fabBottomInset)
             )
         }
         if (fabsVisible && layersVisible) {
@@ -89,19 +97,19 @@ fun MapChrome(
                 onToggleBikeshare = onToggleBikeshare,
                 modifier = Modifier
                     .align(sideAlign)
-                    .padding(horizontal = FAB_MARGIN_HORIZONTAL)
+                    .padding(horizontal = marginHorizontal)
                     .padding(bottom = LAYERS_MARGIN_BOTTOM + fabBottomInset)
             )
         }
         if (fabsVisible) {
             FloatingActionButton(
                 onClick = onMyLocation,
-                containerColor = colorResource(R.color.theme_accent),
+                containerColor = accent,
                 contentColor = Color.White,
                 modifier = Modifier
                     .align(sideAlign)
-                    .padding(horizontal = FAB_MARGIN_HORIZONTAL)
-                    .padding(bottom = MY_LOCATION_MARGIN_BOTTOM + fabBottomInset)
+                    .padding(horizontal = marginHorizontal)
+                    .padding(bottom = marginBottom + fabBottomInset)
             ) {
                 Icon(
                     painterResource(R.drawable.ic_maps_my_location),
@@ -233,6 +241,6 @@ private fun BikeshareItem(
     }
 }
 
-private val FAB_MARGIN_HORIZONTAL = 16.dp
-private val MY_LOCATION_MARGIN_BOTTOM = 32.dp
+// The my-location FAB uses @dimen/fab_margin_*; the layers FAB sits a fixed amount above it (the
+// legacy layout hardcoded this 80dp, with no dimen).
 private val LAYERS_MARGIN_BOTTOM = 80.dp

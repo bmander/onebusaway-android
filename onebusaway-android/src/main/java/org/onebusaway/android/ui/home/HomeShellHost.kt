@@ -17,7 +17,6 @@ package org.onebusaway.android.ui.home
 
 import android.content.Context
 import android.view.View
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -316,13 +315,14 @@ class HomeShellHost(
                             }
                         ) {
                             // Lift the FABs above the sheet peek when it's collapsed (replaces the
-                            // legacy moveFabsLocation() margin animation).
+                            // legacy moveFabsLocation() margin animation). The target changes only when
+                            // the sheet settles; MapChrome animates it so the per-frame value doesn't
+                            // recompose this Box (the map AndroidView + overlay cards).
                             val fabInsetTarget = if (sheetState.currentValue == SheetValue.PartiallyExpanded) {
                                 with(density) { peekPx.toDp() }
                             } else {
                                 0.dp
                             }
-                            val fabInset by animateDpAsState(fabInsetTarget, label = "fabInset")
                             Box(Modifier.fillMaxSize()) {
                                 AndroidView(factory = { mapContent }, modifier = Modifier.fillMaxSize())
                                 MapChrome(
@@ -331,7 +331,7 @@ class HomeShellHost(
                                     leftHandMode = leftHandModeState,
                                     layersVisible = layersVisibleState,
                                     bikeshareActive = bikeshareActiveState,
-                                    fabBottomInset = fabInset,
+                                    fabBottomInsetTarget = fabInsetTarget,
                                     onMyLocation = { mapActions.onMyLocation() },
                                     onZoomIn = { mapActions.onZoomIn() },
                                     onZoomOut = { mapActions.onZoomOut() },

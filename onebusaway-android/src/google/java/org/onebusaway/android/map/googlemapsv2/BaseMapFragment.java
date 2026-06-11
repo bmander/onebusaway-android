@@ -60,13 +60,13 @@ import org.onebusaway.android.map.ObaMapFragment.OnLocationPermissionResultListe
 import org.onebusaway.android.map.ObaMapFragment.OnProgressBarChangedListener;
 import org.onebusaway.android.map.RouteMapController;
 import org.onebusaway.android.map.StopMapController;
+import org.onebusaway.android.map.LayerActivationListener;
 import org.onebusaway.android.map.LayerInfo;
 import org.onebusaway.android.map.bike.BikeshareMapController;
 import org.onebusaway.android.map.googlemapsv2.bike.BikeStationOverlay;
 import org.onebusaway.android.map.googlemapsv2.compose.ComposeMapHostKt;
 import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.ui.HomeActivity;
-import org.onebusaway.android.ui.LayersSpeedDialAdapter;
 import org.onebusaway.android.ui.weather.RegionCallback;
 import org.onebusaway.android.util.LocationHelper;
 import org.onebusaway.android.util.LocationUtils;
@@ -134,7 +134,7 @@ public class BaseMapFragment extends Fragment
         LocationSource, LocationHelper.Listener,
         com.google.android.gms.maps.GoogleMap.OnCameraChangeListener,
         StopOverlay.OnFocusChangedListener, OnMapReadyCallback,
-        VehicleOverlay.Controller, LayersSpeedDialAdapter.LayerActivationListener {
+        VehicleOverlay.Controller, LayerActivationListener {
 
     private static final int REQUEST_NO_LOCATION = 41;
 

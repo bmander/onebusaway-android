@@ -21,7 +21,6 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.analytics.FirebaseAnalytics;
 
 import org.onebusaway.android.BuildConfig;
@@ -45,6 +44,7 @@ import org.onebusaway.android.io.request.weather.WeatherRequestTask;
 import org.onebusaway.android.map.MapModeController;
 import org.onebusaway.android.map.MapParams;
 import org.onebusaway.android.map.ObaMapFragment;
+import org.onebusaway.android.map.LayerActivationListener;
 import org.onebusaway.android.map.LayerInfo;
 import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.report.ui.ReportActivity;
@@ -57,6 +57,7 @@ import org.onebusaway.android.ui.weather.RegionCallback;
 import org.onebusaway.android.ui.weather.WeatherUtils;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.PermissionUtils;
+import org.onebusaway.android.util.LayerUtils;
 import org.onebusaway.android.util.PreferenceUtils;
 import org.onebusaway.android.util.RegionUtils;
 import org.onebusaway.android.util.ReminderUtils;
@@ -92,15 +93,10 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import android.view.accessibility.AccessibilityManager;
-import android.view.animation.Animation;
-import android.view.animation.Transformation;
 import android.widget.Button;
-import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ProgressBar;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -118,7 +114,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.appcompat.widget.Toolbar;
 import androidx.cardview.widget.CardView;
-import androidx.core.content.ContextCompat;
 import androidx.core.view.AccessibilityDelegateCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
@@ -144,15 +139,12 @@ import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_
 import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_STARRED_STOPS;
 import static org.onebusaway.android.ui.NavigationDrawerFragment.NavigationDrawerCallbacks;
 import static org.onebusaway.android.util.PermissionUtils.LOCATION_PERMISSIONS;
-import static uk.co.markormesher.android_fab.FloatingActionButton.POSITION_BOTTOM;
-import static uk.co.markormesher.android_fab.FloatingActionButton.POSITION_END;
-import static uk.co.markormesher.android_fab.FloatingActionButton.POSITION_START;
 
 public class HomeActivity extends AppCompatActivity
         implements ObaMapFragment.OnFocusChangedListener,
         ObaMapFragment.OnProgressBarChangedListener,
         ArrivalsPanelFragment.Listener, NavigationDrawerCallbacks, WeatherRequestListener , RegionCallback,
-        ObaRegionsTask.Callback {
+        ObaRegionsTask.Callback, HomeShellHost.MapActionListener {
 
 
     public static final String TWITTER_URL = "http://mobile.twitter.com/onebusaway";
@@ -181,18 +173,6 @@ public class HomeActivity extends AppCompatActivity
     View mSurveyView;
 
     View mDonationView;
-
-    private FloatingActionButton mFabMyLocation;
-
-    uk.co.markormesher.android_fab.FloatingActionButton mLayersFab;
-
-    private static int MY_LOC_DEFAULT_BOTTOM_MARGIN;
-
-    private static int LAYERS_FAB_DEFAULT_BOTTOM_MARGIN;
-
-    private static final int MY_LOC_BTN_ANIM_DURATION = 100;  // ms
-
-    Animation mMyLocationAnimation;
 
     /**
      * GoogleApiClient being used for Location Services
@@ -384,7 +364,7 @@ public class HomeActivity extends AppCompatActivity
         mSheetContent = getLayoutInflater().inflate(R.layout.home_arrivals_sheet, null);
         Toolbar toolbar = (Toolbar) getLayoutInflater().inflate(R.layout.include_toolbar, null);
         mHomeShell = new HomeShellHost(this, toolbar, mMapContent, mSheetContent,
-                this::onHomeNavItemSelected, this::onSheetState);
+                this::onHomeNavItemSelected, this::onSheetState, this);
         setContentView(mHomeShell.getView());
         setSupportActionBar(toolbar);
         // Drive the drawer from the toolbar's own navigation icon. (The action-bar home button
@@ -427,11 +407,7 @@ public class HomeActivity extends AppCompatActivity
 
         setupMapState(savedInstanceState);
 
-        setupLayersSpeedDial();
-
-        setupMyLocationButton();
-
-        setupZoomButtons();
+        setupMapChrome();
 
         setupGooglePlayServices();
 
@@ -524,8 +500,6 @@ public class HomeActivity extends AppCompatActivity
         checkLeftHandMode();
         updateLayersFab();
 
-        mFabMyLocation.requestLayout();
-
         updateDonationsUIVisibility();
     }
 
@@ -541,7 +515,6 @@ public class HomeActivity extends AppCompatActivity
         if (mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
             mGoogleApiClient.disconnect();
         }
-        mLayersFab.closeSpeedDialMenu();
         super.onStop();
     }
 
@@ -1152,7 +1125,6 @@ public class HomeActivity extends AppCompatActivity
             // No stop is in focus (e.g., user tapped on the map), so hide the panel
             // and clear the currently focused stopId
             mFocusedStopId = null;
-            moveFabsLocation();
             mHomeShell.hideSheet();
             if (mArrivalsPanelFragment != null) {
                 fm.beginTransaction().remove(mArrivalsPanelFragment).commit();
@@ -1222,9 +1194,6 @@ public class HomeActivity extends AppCompatActivity
                 mMapFragment.setFocusStop(mFocusedStop, response.getRoutes());
             }
         }
-
-        // Header might have changed height, so make sure my location button is set above the header
-        moveFabsLocation();
 
         // Show arrival info related tutorials
         showArrivalInfoTutorials(response);
@@ -1344,7 +1313,6 @@ public class HomeActivity extends AppCompatActivity
         mArrivalsPanelFragment.setListener(this);
         fm.beginTransaction().replace(R.id.slidingFragment, mArrivalsPanelFragment).commit();
         showSlidingPanel();
-        moveFabsLocation();
     }
 
     private void showSlidingPanel() {
@@ -1458,33 +1426,12 @@ public class HomeActivity extends AppCompatActivity
         updateLayersFab();
     }
 
-    private void setupZoomButtons() {
-        ImageButton mZoomInBtn = mMapContent.findViewById(R.id.btnZoomIn);
-        ImageButton mZoomOutBtn = mMapContent.findViewById(R.id.btnZoomOut);
-        mZoomInBtn.setOnClickListener(view -> mMapFragment.zoomIn());
-        mZoomOutBtn.setOnClickListener(view -> mMapFragment.zoomOut());
-    }
-
-    private void setupMyLocationButton() {
-        // Initialize the My Location button
-        mFabMyLocation = mMapContent.findViewById(R.id.btnMyLocation);
-        mFabMyLocation.setOnClickListener(view -> {
-            if (mMapFragment != null) {
-                // Reset the preference to ask user to enable location
-                PreferenceUtils.saveBoolean(getString(R.string.preference_key_never_show_location_dialog), false);
-                PreferenceUtils.setUserDeniedLocationPermissions(false);
-
-                mMapFragment.setMyLocation(true, true);
-                ObaAnalytics.reportUiEvent(mFirebaseAnalytics,
-                        Application.get().getPlausibleInstance(),
-                        PlausibleAnalytics.REPORT_MAP_EVENT_URL,
-                        getString(R.string.analytics_label_button_press_location),
-                        null);
-            }
-        });
-        ViewGroup.MarginLayoutParams p = (ViewGroup.MarginLayoutParams) mFabMyLocation
-                .getLayoutParams();
-        MY_LOC_DEFAULT_BOTTOM_MARGIN = p.bottomMargin;
+    /**
+     * Initializes the Compose map chrome (my-location FAB, zoom controls, layers FAB). The Views now
+     * live in the Compose MapChrome overlay (HomeShellHost); here we just push the initial visibility
+     * + left-hand-mode based on the nav selection and region.
+     */
+    private void setupMapChrome() {
         checkLeftHandMode();
         if (mCurrentNavDrawerPosition == NAVDRAWER_ITEM_NEARBY) {
             showFloatingActionButtons();
@@ -1493,6 +1440,7 @@ public class HomeActivity extends AppCompatActivity
             hideFloatingActionButtons();
             hideMapProgressBar();
         }
+        updateLayersFab();
     }
 
     private void checkDisplayZoomControls() {
@@ -1506,151 +1454,86 @@ public class HomeActivity extends AppCompatActivity
      * @param showZoom true if the zoom controls should be visible, false if they should be hidden
      */
     private void showZoomControls(boolean showZoom) {
-        LinearLayout zoomLayout = mMapContent.findViewById(R.id.zoom_buttons_layout);
-        if (zoomLayout != null) {
-            if (showZoom) {
-                zoomLayout.setVisibility(LinearLayout.VISIBLE);
-            } else {
-                zoomLayout.setVisibility(LinearLayout.GONE);
-            }
+        if (mHomeShell != null) {
+            mHomeShell.setZoomVisible(showZoom);
         }
     }
 
     private void checkLeftHandMode() {
         boolean leftHandMode = Application.getPrefs().getBoolean(
                 getString(R.string.preference_key_left_hand_mode), false);
-        setFABLocation(leftHandMode);
-    }
-
-
-    private void setFABLocation(boolean leftHandMode) {
-        if (mFabMyLocation != null) {
-            RelativeLayout.LayoutParams layoutParams = (RelativeLayout.LayoutParams) mFabMyLocation
-                    .getLayoutParams();
-            if (leftHandMode) {
-                layoutParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-                    layoutParams.removeRule(RelativeLayout.ALIGN_PARENT_RIGHT);
-                }
-            } else {
-                layoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-                    layoutParams.removeRule(RelativeLayout.ALIGN_PARENT_LEFT);
-                }
-            }
+        if (mHomeShell != null) {
+            mHomeShell.setLeftHandMode(leftHandMode);
         }
-        if (mLayersFab != null) {
-            if (leftHandMode) {
-                mLayersFab.setButtonPosition(POSITION_BOTTOM | POSITION_START);
-            } else {
-                mLayersFab.setButtonPosition(POSITION_BOTTOM | POSITION_END);
-            }
-        }
-    }
-
-    /**
-     * Moves both Floating Action Buttons as response to sliding panel height changes.
-     * <p>
-     * Currently there are two FAB that can be moved, the My location button and the Layers button.
-     */
-    synchronized private void moveFabsLocation() {
-        moveFabLocation(mFabMyLocation, MY_LOC_DEFAULT_BOTTOM_MARGIN);
-        moveFabLocation(mLayersFab, LAYERS_FAB_DEFAULT_BOTTOM_MARGIN);
-    }
-
-    private void moveFabLocation(final View fab, final int initialMargin) {
-        if (fab == null) {
-            return;
-        }
-        if (mMyLocationAnimation != null &&
-                (mMyLocationAnimation.hasStarted() && !mMyLocationAnimation.hasEnded())) {
-            // We're already animating - do nothing
-
-            //return;
-        }
-
-        if (mMyLocationAnimation != null) {
-            mMyLocationAnimation.reset();
-        }
-
-        // Post this to a handler to allow the header to settle before animating the button
-        final Handler h = new Handler();
-        h.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                final ViewGroup.MarginLayoutParams p = (ViewGroup.MarginLayoutParams) fab
-                        .getLayoutParams();
-
-                int tempMargin = initialMargin;
-
-                if (mHomeShell != null && !mHomeShell.isSheetHidden()
-                        && !mHomeShell.isSheetExpanded()) {
-                    // Sheet is peeking (collapsed): lift the FAB above its peek height.
-                    tempMargin += mSheetPeekPx;
-                    if (p.bottomMargin == tempMargin) {
-                        // Button is already in the right position, do nothing
-                        return;
-                    }
-                } else {
-                    if (mHomeShell == null || mHomeShell.isSheetHidden()) {
-                        if (p.bottomMargin == tempMargin) {
-                            // Button is already in the right position, do nothing
-                            return;
-                        }
-                    }
-                }
-
-                final int goalMargin = tempMargin;
-                final int currentMargin = p.bottomMargin;
-
-                mMyLocationAnimation = new Animation() {
-                    @Override
-                    protected void applyTransformation(float interpolatedTime, Transformation t) {
-                        int bottom;
-                        if (goalMargin > currentMargin) {
-                            bottom = currentMargin + (int) (Math.abs(currentMargin - goalMargin)
-                                    * interpolatedTime);
-                        } else {
-                            bottom = currentMargin - (int) (Math.abs(currentMargin - goalMargin)
-                                    * interpolatedTime);
-                        }
-                        UIUtils.setMargins(fab,
-                                p.leftMargin,
-                                p.topMargin,
-                                p.rightMargin,
-                                bottom);
-                    }
-                };
-                mMyLocationAnimation.setDuration(MY_LOC_BTN_ANIM_DURATION);
-                fab.startAnimation(mMyLocationAnimation);
-            }
-        }, 100);
     }
 
     private void showFloatingActionButtons() {
-        if (mFabMyLocation == null && mLayersFab == null) {
-            return;
-        }
-        if (mFabMyLocation != null && mFabMyLocation.getVisibility() != View.VISIBLE) {
-            mFabMyLocation.setVisibility(View.VISIBLE);
-        }
-        if (mLayersFab != null && mLayersFab.getVisibility() != View.VISIBLE) {
-            if (Application.isBikeshareEnabled()) {
-                mLayersFab.setVisibility(View.VISIBLE);
-            }
+        if (mHomeShell != null) {
+            mHomeShell.setFabsVisible(true);
+            // This is the NEARBY path (showMapFragment), so the layers FAB shows whenever bikeshare
+            // is available. We gate on bikeshare only (not the nav position) because goToNavDrawerItem
+            // sets mCurrentNavDrawerPosition *after* calling showMapFragment; updateLayersFab() applies
+            // the position gate later (onResume / region updates).
+            mHomeShell.setLayersVisible(Application.isBikeshareEnabled());
+            mHomeShell.setBikeshareActive(LayerUtils.isBikeshareLayerVisible());
         }
     }
 
     private void hideFloatingActionButtons() {
-        if (mFabMyLocation == null && mLayersFab == null) {
+        if (mHomeShell != null) {
+            mHomeShell.setFabsVisible(false);
+        }
+    }
+
+    // --- HomeShellHost.MapActionListener: the Compose map-chrome FAB actions ---
+
+    @Override
+    public void onMyLocation() {
+        if (mMapFragment != null) {
+            // Reset the preference to ask user to enable location
+            PreferenceUtils.saveBoolean(getString(R.string.preference_key_never_show_location_dialog), false);
+            PreferenceUtils.setUserDeniedLocationPermissions(false);
+
+            mMapFragment.setMyLocation(true, true);
+            ObaAnalytics.reportUiEvent(mFirebaseAnalytics,
+                    Application.get().getPlausibleInstance(),
+                    PlausibleAnalytics.REPORT_MAP_EVENT_URL,
+                    getString(R.string.analytics_label_button_press_location),
+                    null);
+        }
+    }
+
+    @Override
+    public void onZoomIn() {
+        if (mMapFragment != null) {
+            mMapFragment.zoomIn();
+        }
+    }
+
+    @Override
+    public void onZoomOut() {
+        if (mMapFragment != null) {
+            mMapFragment.zoomOut();
+        }
+    }
+
+    @Override
+    public void onToggleBikeshare() {
+        if (mMapFragment == null) {
             return;
         }
-        if (mFabMyLocation != null && mFabMyLocation.getVisibility() != View.GONE) {
-            mFabMyLocation.setVisibility(View.GONE);
+        boolean active = LayerUtils.isBikeshareLayerVisible();
+        LayerInfo layer = LayerUtils.bikeshareLayerInfo;
+        LayerActivationListener mapLayers = (LayerActivationListener) mMapFragment;
+        if (active) {
+            mapLayers.onDeactivateLayer(layer);
+        } else {
+            mapLayers.onActivateLayer(layer);
         }
-        if (mLayersFab != null && mLayersFab.getVisibility() != View.GONE) {
-            mLayersFab.setVisibility(View.GONE);
-        }
+        // Persist + reflect the toggled state (mirrors the legacy LayersSpeedDialAdapter).
+        Application.getPrefs().edit()
+                .putBoolean(layer.getSharedPreferenceKey(), !active).apply();
+        mHomeShell.setBikeshareActive(!active);
     }
 
     private void showMapProgressBar() {
@@ -1763,81 +1646,17 @@ public class HomeActivity extends AppCompatActivity
         }
     }
 
-    private void setupLayersSpeedDial() {
-        mLayersFab = mMapContent.findViewById(R.id.layersSpeedDial);
-        ViewGroup.MarginLayoutParams p = (ViewGroup.MarginLayoutParams) mLayersFab
-                .getLayoutParams();
-        LAYERS_FAB_DEFAULT_BOTTOM_MARGIN = p.bottomMargin;
-
-        mLayersFab.setButtonIconResource(R.drawable.ic_layers_white_24dp);
-        mLayersFab.setButtonBackgroundColour(ContextCompat.getColor(this, R.color.theme_accent));
-
-        // Find the card view (the actual clickable element) to set accessibility properties
-        View fabCard = mLayersFab.findViewById(R.id.fab_card);
-        if (fabCard != null) {
-            fabCard.setContentDescription(getString(R.string.map_option_layers));
-            fabCard.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
-        } else {
-            // Fallback to the main container if card isn't available
-            mLayersFab.setContentDescription(getString(R.string.map_option_layers));
-        }
-
-        LayersSpeedDialAdapter adapter = new LayersSpeedDialAdapter(this);
-        // Add the map fragment listener to activate the layer on the map
-        adapter.addLayerActivationListener((LayersSpeedDialAdapter.LayerActivationListener) mMapFragment);
-
-        // Add another listener to rebuild the menu options after selection. This other listener
-        // was added here because the call to rebuildSpeedDialMenu exists on the FAB and we have a
-        // reference to it only in the main activity.
-        adapter.addLayerActivationListener(new LayersSpeedDialAdapter.LayerActivationListener() {
-            @Override
-            public void onActivateLayer(LayerInfo layer) {
-                Handler h = new Handler(getMainLooper());
-                h.postDelayed(() -> mLayersFab.rebuildSpeedDialMenu(), 100);
-            }
-
-            @Override
-            public void onDeactivateLayer(LayerInfo layer) {
-                Handler h = new Handler(getMainLooper());
-                h.postDelayed(() -> mLayersFab.rebuildSpeedDialMenu(), 100);
-            }
-        });
-        mLayersFab.setSpeedDialMenuAdapter(adapter);
-        mLayersFab.setOnSpeedDialMenuOpenListener(
-                v -> {
-                    mLayersFab.setButtonIconResource(R.drawable.ic_add_white_24dp);
-                    // Update content description to match the new state
-                    if (fabCard != null) {
-                        fabCard.setContentDescription(getString(R.string.map_option_layers_close));
-                    } else {
-                        mLayersFab.setContentDescription(getString(R.string.map_option_layers_close));
-                    }
-                });
-        mLayersFab.setOnSpeedDialMenuCloseListener(
-                v -> {
-                    mLayersFab.setButtonIconResource(R.drawable.ic_layers_white_24dp);
-                    // Reset content description to default state
-                    if (fabCard != null) {
-                        fabCard.setContentDescription(getString(R.string.map_option_layers));
-                    } else {
-                        mLayersFab.setContentDescription(getString(R.string.map_option_layers));
-                    }
-                });
-        mLayersFab.setContentCoverEnabled(false);
-    }
-
     /**
-     * Method used to (re)display the layers FAB button when the activity restarts or regions data
-     * is updated
+     * (Re)displays the Compose layers FAB and syncs its active tint when the activity restarts or
+     * region data updates. The FAB shows only for bikeshare-enabled regions on the NEARBY tab.
      */
     private void updateLayersFab() {
-        if (Application.isBikeshareEnabled()
-                && mCurrentNavDrawerPosition == NAVDRAWER_ITEM_NEARBY) {
-            mLayersFab.setVisibility(View.VISIBLE);
-        } else {
-            mLayersFab.setVisibility(View.GONE);
+        if (mHomeShell == null) {
+            return;
         }
-        mLayersFab.rebuildSpeedDialMenu();
+        mHomeShell.setLayersVisible(Application.isBikeshareEnabled()
+                && mCurrentNavDrawerPosition == NAVDRAWER_ITEM_NEARBY);
+        mHomeShell.setBikeshareActive(LayerUtils.isBikeshareLayerVisible());
     }
 
 
@@ -1883,7 +1702,6 @@ public class HomeActivity extends AppCompatActivity
                 if (mArrivalsPanelFragment != null) {
                     mArrivalsPanelFragment.setPanelCollapsed(true);
                 }
-                moveFabsLocation();
                 break;
             case HIDDEN:
                 // We hide the panel when switching fragments via the navdrawer, so we shouldn't do

@@ -31,48 +31,8 @@
             android:id="@+id/main_fragment_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"/>
-    <!-- Floating Action Button for My Location, overlaid on map -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/btnMyLocation"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentBottom="true"
-            android:layout_alignParentRight="true"
-            android:layout_marginRight="@dimen/fab_margin_horizontal"
-            android:layout_marginLeft="@dimen/fab_margin_horizontal"
-            android:layout_marginBottom="@dimen/fab_margin_vertical"
-            android:src="@drawable/ic_maps_my_location"
-            android:contentDescription="@string/map_option_mylocation"
-            app:elevation="6dp"
-            app:pressedTranslationZ="12dp"/>
-
-    <!-- Zoom Buttons, overlaid on map -->
-    <LinearLayout
-            android:id="@+id/zoom_buttons_layout"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal" android:layout_centerHorizontal="true"
-            android:layout_alignBottom="@+id/btnMyLocation">
-
-        <ImageButton
-                android:id="@+id/btnZoomOut"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/zoom_btn_drop_shadow_left"
-                android:contentDescription="@string/map_option_zoom_out"
-                android:padding="8dp"
-                android:src="@drawable/zoom_out_button"/>
-
-        <ImageButton
-                android:id="@+id/btnZoomIn"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/zoom_btn_drop_shadow_right"
-                android:contentDescription="@string/map_option_zoom_in"
-                android:padding="8dp"
-                android:src="@drawable/zoom_in_button"/>
-
-    </LinearLayout>
+    <!-- The my-location FAB, zoom controls, and layers FAB are now the Compose MapChrome overlay
+         (see HomeShellHost / MapChrome.kt), so they no longer live here. -->
 
     <androidx.cardview.widget.CardView
         android:id="@+id/weatherView"
@@ -129,16 +89,6 @@
         android:layout_marginTop="58dp"
         android:layout_height="wrap_content"
         layout="@layout/item_survey"/>
-
-    <uk.co.markormesher.android_fab.FloatingActionButton
-            android:id="@+id/layersSpeedDial"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_marginBottom="80dp"
-            android:layout_alignParentBottom="true"
-            android:layout_alignParentRight="true"
-            android:drawable="@drawable/ic_layers_white_24dp"/>
 
     <!-- ROUTE MODE HEADER -->
     <include android:id="@+id/route_info"

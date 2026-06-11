@@ -17,6 +17,8 @@ package org.onebusaway.android.ui.home
 
 import android.content.Context
 import android.view.View
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -64,7 +66,8 @@ class HomeShellHost(
     private val mapContent: View,
     private val sheetContent: View,
     private val onItemSelected: NavItemSelectedListener,
-    private val sheetListener: SheetStateListener
+    private val sheetListener: SheetStateListener,
+    private val mapActions: MapActionListener
 ) {
 
     /** The three sheet positions (the legacy ANCHORED half-state is intentionally dropped). */
@@ -80,6 +83,14 @@ class HomeShellHost(
         fun onSheetState(state: Sheet)
     }
 
+    /** Map-chrome actions, dispatched from the Compose FABs to the (Java) activity + map fragment. */
+    interface MapActionListener {
+        fun onMyLocation()
+        fun onZoomIn()
+        fun onZoomOut()
+        fun onToggleBikeshare()
+    }
+
     // --- Drawer state ---
     private var itemsState by mutableStateOf<List<HomeNavItem>>(emptyList())
     private var selectedState by mutableStateOf(HomeNavItem.NEARBY)
@@ -89,6 +100,13 @@ class HomeShellHost(
     private var peekPx by mutableStateOf(0)
     private var sheetCommandTarget = Sheet.HIDDEN
     private var sheetCommandNonce by mutableStateOf(0)
+
+    // --- Map chrome state (suffixed to avoid generated setters clashing with the explicit ones) ---
+    private var fabsVisibleState by mutableStateOf(false)
+    private var zoomVisibleState by mutableStateOf(false)
+    private var leftHandModeState by mutableStateOf(false)
+    private var layersVisibleState by mutableStateOf(false)
+    private var bikeshareActiveState by mutableStateOf(false)
 
     /** Last observed resting state, mirrored here so Java can query it synchronously (main thread). */
     @Volatile
@@ -130,6 +148,31 @@ class HomeShellHost(
     private fun command(target: Sheet) {
         sheetCommandTarget = target
         sheetCommandNonce++
+    }
+
+    /** Shows/hides the my-location FAB + layers FAB together (NEARBY only). */
+    fun setFabsVisible(visible: Boolean) {
+        fabsVisibleState = visible
+    }
+
+    /** Shows/hides the zoom controls (driven by the show-zoom-controls preference). */
+    fun setZoomVisible(visible: Boolean) {
+        zoomVisibleState = visible
+    }
+
+    /** Mirrors the left-hand-mode preference: FABs hug the left edge instead of the right. */
+    fun setLeftHandMode(left: Boolean) {
+        leftHandModeState = left
+    }
+
+    /** Shows/hides the layers FAB (bikeshare-enabled regions, NEARBY only). */
+    fun setLayersVisible(visible: Boolean) {
+        layersVisibleState = visible
+    }
+
+    /** Tints the bikeshare layer item by whether the layer is currently active. */
+    fun setBikeshareActive(active: Boolean) {
+        bikeshareActiveState = active
     }
 
     /** The view to pass to Activity.setContentView. */
@@ -207,7 +250,29 @@ class HomeShellHost(
                                 )
                             }
                         ) {
-                            AndroidView(factory = { mapContent }, modifier = Modifier.fillMaxSize())
+                            // Lift the FABs above the sheet peek when it's collapsed (replaces the
+                            // legacy moveFabsLocation() margin animation).
+                            val fabInsetTarget = if (sheetState.currentValue == SheetValue.PartiallyExpanded) {
+                                with(density) { peekPx.toDp() }
+                            } else {
+                                0.dp
+                            }
+                            val fabInset by animateDpAsState(fabInsetTarget, label = "fabInset")
+                            Box(Modifier.fillMaxSize()) {
+                                AndroidView(factory = { mapContent }, modifier = Modifier.fillMaxSize())
+                                MapChrome(
+                                    fabsVisible = fabsVisibleState,
+                                    zoomVisible = zoomVisibleState,
+                                    leftHandMode = leftHandModeState,
+                                    layersVisible = layersVisibleState,
+                                    bikeshareActive = bikeshareActiveState,
+                                    fabBottomInset = fabInset,
+                                    onMyLocation = { mapActions.onMyLocation() },
+                                    onZoomIn = { mapActions.onZoomIn() },
+                                    onZoomOut = { mapActions.onZoomOut() },
+                                    onToggleBikeshare = { mapActions.onToggleBikeshare() }
+                                )
+                            }
                         }
                     }
                 }

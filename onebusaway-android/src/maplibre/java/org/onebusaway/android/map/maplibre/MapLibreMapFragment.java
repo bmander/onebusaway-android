@@ -44,6 +44,7 @@ import org.onebusaway.android.io.elements.ObaStop;
 import org.onebusaway.android.io.request.ObaResponse;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.DirectionsMapController;
+import org.onebusaway.android.map.LayerActivationListener;
 import org.onebusaway.android.map.LayerInfo;
 import org.onebusaway.android.map.MapModeController;
 import org.onebusaway.android.map.MapParams;
@@ -57,7 +58,6 @@ import org.onebusaway.android.map.StopMapController;
 import org.onebusaway.android.map.bike.BikeshareMapController;
 import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.ui.HomeActivity;
-import org.onebusaway.android.ui.LayersSpeedDialAdapter;
 import org.onebusaway.android.ui.weather.RegionCallback;
 import org.onebusaway.android.util.LocationHelper;
 import org.onebusaway.android.util.LocationUtils;
@@ -113,7 +113,7 @@ public class MapLibreMapFragment extends SupportMapFragment
         MapModeController.ObaMapView,
         LocationHelper.Listener,
         StopOverlay.OnFocusChangedListener, OnMapReadyCallback,
-        LayersSpeedDialAdapter.LayerActivationListener {
+        LayerActivationListener {
 
     private static final String TAG = "MapLibreMapFragment";
 

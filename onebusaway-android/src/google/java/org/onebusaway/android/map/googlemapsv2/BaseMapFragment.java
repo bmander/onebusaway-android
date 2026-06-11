@@ -355,6 +355,9 @@ public class BaseMapFragment extends Fragment
         mMap.setOnCameraChangeListener(this);
         // Hide MyLocation button on map, since we have our own button
         uiSettings.setMyLocationButtonEnabled(false);
+        // Hide the built-in zoom controls; the app shows its own (the preference-gated Compose zoom
+        // buttons), and the SDK ones otherwise sit bottom-end under our my-location FAB.
+        uiSettings.setZoomControlsEnabled(false);
         // Hide Toolbar
         uiSettings.setMapToolbarEnabled(false);
         // Check for map mode settings

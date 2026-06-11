@@ -190,9 +190,11 @@ class HomeShellHost(
 
                 ModalNavigationDrawer(
                     drawerState = drawerState,
-                    // Open only via the toolbar hamburger; without this an edge-swipe to pan the map
-                    // would instead drag the drawer open. The scrim tap / Back still close it.
-                    gesturesEnabled = false,
+                    // Gestures only while open: a left-edge drag on the map must NOT open the drawer
+                    // (it pans the map; the drawer opens via the toolbar hamburger), but once open a
+                    // scrim tap or swipe should close it. Material3 gates both the open-swipe and the
+                    // scrim tap-to-close on this one flag, so tie it to the open state.
+                    gesturesEnabled = drawerState.isOpen,
                     drawerContent = {
                         HomeNavDrawerSheet(items = itemsState, selected = selectedState) { item ->
                             scope.launch { drawerState.close() }

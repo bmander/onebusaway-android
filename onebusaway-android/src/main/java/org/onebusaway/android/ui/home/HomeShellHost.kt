@@ -20,6 +20,7 @@ import android.view.View
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.rememberDrawerState
@@ -96,7 +97,9 @@ class HomeShellHost(
                         }
                     }
                 ) {
-                    Column(Modifier.fillMaxSize()) {
+                    // Android 15 forces edge-to-edge at targetSdk 36, so inset the toolbar below
+                    // the status bar (the legacy XML toolbar sat below it).
+                    Column(Modifier.fillMaxSize().statusBarsPadding()) {
                         AndroidView(factory = { toolbar }, modifier = Modifier.fillMaxWidth())
                         AndroidView(factory = { content }, modifier = Modifier.weight(1f).fillMaxWidth())
                     }

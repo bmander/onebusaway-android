@@ -130,6 +130,9 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
+import org.onebusaway.android.ui.home.HomeNavItem;
+import org.onebusaway.android.ui.home.HomeShellHost;
+
 import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_ACTIVITY_FEED;
 import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_HELP;
 import static org.onebusaway.android.ui.NavigationDrawerFragment.NAVDRAWER_ITEM_MY_REMINDERS;
@@ -229,6 +232,14 @@ public class HomeActivity extends AppCompatActivity
      * Fragment managing the behaviors, interactions and presentation of the navigation drawer.
      */
     private NavigationDrawerFragment mNavigationDrawerFragment;
+
+    // P1 Compose shell: the inflated legacy content island + the ModalNavigationDrawer host.
+    private View mIslandRoot;
+
+    private HomeShellHost mHomeShell;
+
+    // Matches NavigationDrawerFragment's remembered-tab pref key.
+    private static final String STATE_SELECTED_POSITION = "selected_navigation_drawer_position";
 
     /**
      * Currently selected navigation drawer position (so we don't unnecessarily swap fragments
@@ -384,10 +395,19 @@ public class HomeActivity extends AppCompatActivity
 
         mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
 
-        setContentView(R.layout.main);
-
-        Toolbar toolbar = findViewById(R.id.toolbar);
+        // P1: host the legacy content "island" inside a Compose ModalNavigationDrawer with a hosted
+        // toolbar, replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome.
+        mIslandRoot = getLayoutInflater().inflate(R.layout.home_content_island, null);
+        Toolbar toolbar = (Toolbar) getLayoutInflater().inflate(R.layout.include_toolbar, null);
+        mHomeShell = new HomeShellHost(this, toolbar, mIslandRoot, this::onHomeNavItemSelected);
+        setContentView(mHomeShell.getView());
         setSupportActionBar(toolbar);
+        // Drive the drawer from the toolbar's own navigation icon. (The action-bar home button
+        // doesn't route reliably here since the toolbar is hosted in a ComposeView and isn't
+        // attached when setSupportActionBar runs.)
+        toolbar.setNavigationIcon(R.drawable.ic_menu_hamburger);
+        toolbar.setNavigationContentDescription(R.string.navigation_drawer_open);
+        toolbar.setNavigationOnClickListener(v -> mHomeShell.openDrawer());
 
         mActivityWeakRef = new WeakReference<>(this);
 
@@ -902,6 +922,11 @@ public class HomeActivity extends AppCompatActivity
     public boolean onOptionsItemSelected(MenuItem item) {
         Log.d(TAG, "onOptionsItemSelected");
         final int id = item.getItemId();
+        if (id == android.R.id.home) {
+            // The toolbar up indicator opens the Compose navigation drawer.
+            mHomeShell.openDrawer();
+            return true;
+        }
         // Note: there is no handler for R.id.action_search here — it's an action-view menu
         // item (SearchView), which expands inline rather than firing onOptionsItemSelected
         if (id == R.id.recent_stops_routes) {
@@ -1318,9 +1343,7 @@ public class HomeActivity extends AppCompatActivity
      * "Plan A Trip" option until a region is selected.
      */
     private void redrawNavigationDrawerFragment() {
-        if (mNavigationDrawerFragment != null) {
-            mNavigationDrawerFragment.populateNavDrawer();
-        }
+        refreshDrawerItems();
     }
 
     /**
@@ -1463,15 +1486,15 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void setupZoomButtons() {
-        ImageButton mZoomInBtn = findViewById(R.id.btnZoomIn);
-        ImageButton mZoomOutBtn = findViewById(R.id.btnZoomOut);
+        ImageButton mZoomInBtn = mIslandRoot.findViewById(R.id.btnZoomIn);
+        ImageButton mZoomOutBtn = mIslandRoot.findViewById(R.id.btnZoomOut);
         mZoomInBtn.setOnClickListener(view -> mMapFragment.zoomIn());
         mZoomOutBtn.setOnClickListener(view -> mMapFragment.zoomOut());
     }
 
     private void setupMyLocationButton() {
         // Initialize the My Location button
-        mFabMyLocation = findViewById(R.id.btnMyLocation);
+        mFabMyLocation = mIslandRoot.findViewById(R.id.btnMyLocation);
         mFabMyLocation.setOnClickListener(view -> {
             if (mMapFragment != null) {
                 // Reset the preference to ask user to enable location
@@ -1510,7 +1533,7 @@ public class HomeActivity extends AppCompatActivity
      * @param showZoom true if the zoom controls should be visible, false if they should be hidden
      */
     private void showZoomControls(boolean showZoom) {
-        LinearLayout zoomLayout = findViewById(R.id.zoom_buttons_layout);
+        LinearLayout zoomLayout = mIslandRoot.findViewById(R.id.zoom_buttons_layout);
         if (zoomLayout != null) {
             if (showZoom) {
                 zoomLayout.setVisibility(LinearLayout.VISIBLE);
@@ -1674,23 +1697,84 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void setupNavigationDrawer() {
-        mNavigationDrawerFragment = (NavigationDrawerFragment)
-                getSupportFragmentManager().findFragmentById(R.id.navigation_drawer);
+        refreshDrawerItems();
 
-        // Set up the drawer.
-        mNavigationDrawerFragment.setUp(
-                R.id.navigation_drawer,
-                findViewById(R.id.nav_drawer_left_pane),
-                findViewById(R.id.toolbar));
-
-        // Was this activity started to show a route or stop on the map? If so, switch to MapFragment
+        // Determine the initial selection: NEARBY if launched to show a route/stop, else the last
+        // remembered tab (mirrors NavigationDrawerFragment's saved-position behavior).
+        int initialPosition = Application.getPrefs()
+                .getInt(STATE_SELECTED_POSITION, NAVDRAWER_ITEM_NEARBY);
         Bundle bundle = getIntent().getExtras();
-        if (bundle != null) {
-            String routeId = bundle.getString(MapParams.ROUTE_ID);
-            String stopId = bundle.getString(MapParams.STOP_ID);
-            if (routeId != null || stopId != null) {
-                mNavigationDrawerFragment.selectItem(NAVDRAWER_ITEM_NEARBY, false);
+        if (bundle != null
+                && (bundle.getString(MapParams.ROUTE_ID) != null
+                || bundle.getString(MapParams.STOP_ID) != null)) {
+            initialPosition = NAVDRAWER_ITEM_NEARBY;
+        }
+        final int position = initialPosition;
+        // Defer the first content selection until the island is attached (the AndroidView host
+        // attaches it during composition, after onCreate), so the fragment commit finds its container.
+        mIslandRoot.post(() -> onHomeNavItemSelected(toHomeNavItem(position)));
+    }
+
+    /** Rebuilds the region-gated drawer item list (mirrors NavigationDrawerFragment.populateNavDrawer). */
+    private void refreshDrawerItems() {
+        if (mHomeShell == null) {
+            return;
+        }
+        ObaRegion region = Application.get().getCurrentRegion();
+        java.util.List<HomeNavItem> items = new java.util.ArrayList<>();
+        items.add(HomeNavItem.NEARBY);
+        items.add(HomeNavItem.STARRED_STOPS);
+        items.add(HomeNavItem.STARRED_ROUTES);
+        if (ReminderUtils.shouldShowReminders()) {
+            items.add(HomeNavItem.MY_REMINDERS);
+        }
+        if (region != null) {
+            if (!TextUtils.isEmpty(region.getOtpBaseUrl())
+                    || !TextUtils.isEmpty(Application.get().getCustomOtpApiUrl())) {
+                items.add(HomeNavItem.PLAN_TRIP);
             }
+            if (!TextUtils.isEmpty(region.getPaymentAndroidAppId())) {
+                items.add(HomeNavItem.PAY_FARE);
+            }
+        }
+        items.add(HomeNavItem.OPEN_SOURCE);
+        items.add(HomeNavItem.SETTINGS);
+        items.add(HomeNavItem.HELP);
+        items.add(HomeNavItem.SEND_FEEDBACK);
+        mHomeShell.setItems(items);
+    }
+
+    /** Bridges a Compose-drawer selection to the legacy int-based routing. */
+    private void onHomeNavItemSelected(HomeNavItem item) {
+        if (!item.getLaunchesActivity()) {
+            mHomeShell.setSelected(item);
+            Application.getPrefs().edit().putInt(STATE_SELECTED_POSITION, toPosition(item)).apply();
+        }
+        goToNavDrawerItem(toPosition(item));
+    }
+
+    private int toPosition(HomeNavItem item) {
+        switch (item) {
+            case STARRED_STOPS: return NAVDRAWER_ITEM_STARRED_STOPS;
+            case STARRED_ROUTES: return NAVDRAWER_ITEM_STARRED_ROUTES;
+            case MY_REMINDERS: return NAVDRAWER_ITEM_MY_REMINDERS;
+            case PLAN_TRIP: return NAVDRAWER_ITEM_PLAN_TRIP;
+            case PAY_FARE: return NAVDRAWER_ITEM_PAY_FARE;
+            case SETTINGS: return NAVDRAWER_ITEM_SETTINGS;
+            case HELP: return NAVDRAWER_ITEM_HELP;
+            case SEND_FEEDBACK: return NAVDRAWER_ITEM_SEND_FEEDBACK;
+            case OPEN_SOURCE: return NAVDRAWER_ITEM_OPEN_SOURCE;
+            case NEARBY:
+            default: return NAVDRAWER_ITEM_NEARBY;
+        }
+    }
+
+    private HomeNavItem toHomeNavItem(int position) {
+        switch (position) {
+            case NAVDRAWER_ITEM_STARRED_STOPS: return HomeNavItem.STARRED_STOPS;
+            case NAVDRAWER_ITEM_STARRED_ROUTES: return HomeNavItem.STARRED_ROUTES;
+            case NAVDRAWER_ITEM_MY_REMINDERS: return HomeNavItem.MY_REMINDERS;
+            default: return HomeNavItem.NEARBY;
         }
     }
 
@@ -1705,7 +1789,7 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void setupLayersSpeedDial() {
-        mLayersFab = findViewById(R.id.layersSpeedDial);
+        mLayersFab = mIslandRoot.findViewById(R.id.layersSpeedDial);
         ViewGroup.MarginLayoutParams p = (ViewGroup.MarginLayoutParams) mLayersFab
                 .getLayoutParams();
         LAYERS_FAB_DEFAULT_BOTTOM_MARGIN = p.bottomMargin;
@@ -1783,7 +1867,7 @@ public class HomeActivity extends AppCompatActivity
 
 
     private void setupSlidingPanel() {
-        mSlidingPanel = findViewById(R.id.bottom_sliding_layout);
+        mSlidingPanel = mIslandRoot.findViewById(R.id.bottom_sliding_layout);
 
         mSlidingPanel.setPanelState(
                 PanelState.HIDDEN);  // Don't show the panel until we have content
@@ -1933,7 +2017,7 @@ public class HomeActivity extends AppCompatActivity
                 }
             }
         }
-        mMapProgressBar = findViewById(R.id.progress_horizontal);
+        mMapProgressBar = mIslandRoot.findViewById(R.id.progress_horizontal);
     }
 
     /**
@@ -2036,7 +2120,7 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void initWeatherView(){
-        weatherView = findViewById(R.id.weatherView);
+        weatherView = mIslandRoot.findViewById(R.id.weatherView);
     }
 
     private void setWeatherData() {
@@ -2092,7 +2176,7 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void setupDonationView(HomeActivity homeActivity) {
-        mDonationView = findViewById(R.id.donationView);
+        mDonationView = mIslandRoot.findViewById(R.id.donationView);
         AppCompatImageButton closeButton = mDonationView.findViewById(R.id.btnDonationViewClose);
         Button learnMoreButton = mDonationView.findViewById(R.id.btnDonationViewLearnMore);
         Button donateButton = mDonationView.findViewById(R.id.btnDonationViewDonate);
@@ -2123,7 +2207,7 @@ public class HomeActivity extends AppCompatActivity
     }
 
     private void updateDonationsUIVisibility() {
-        mDonationView = findViewById(R.id.donationView);
+        mDonationView = mIslandRoot.findViewById(R.id.donationView);
         if(mDonationView == null) return;
         DonationsManager donationsManager = Application.getDonationsManager();
 
@@ -2161,7 +2245,7 @@ public class HomeActivity extends AppCompatActivity
         return builder.create();
     }
     private void initSurveyView(){
-        mSurveyView = findViewById(R.id.surveyView);
+        mSurveyView = mIslandRoot.findViewById(R.id.surveyView);
     }
     private void setupSurvey() {
         if(Application.get().getCurrentRegion() == null || mCurrentNavDrawerPosition != NAVDRAWER_ITEM_NEARBY) return;

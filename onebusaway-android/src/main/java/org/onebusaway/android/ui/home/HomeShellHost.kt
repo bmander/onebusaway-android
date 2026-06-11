@@ -47,8 +47,13 @@ class HomeShellHost(
     context: Context,
     private val toolbar: View,
     private val content: View,
-    private val onItemSelected: (HomeNavItem) -> Unit
+    private val onItemSelected: NavItemSelectedListener
 ) {
+
+    /** SAM interface so the Java HomeActivity can pass a method reference. */
+    fun interface NavItemSelectedListener {
+        fun onSelected(item: HomeNavItem)
+    }
 
     private var itemsState by mutableStateOf<List<HomeNavItem>>(emptyList())
     private var selectedState by mutableStateOf(HomeNavItem.NEARBY)
@@ -87,7 +92,7 @@ class HomeShellHost(
                     drawerContent = {
                         HomeNavDrawerSheet(items = itemsState, selected = selectedState) { item ->
                             scope.launch { drawerState.close() }
-                            onItemSelected(item)
+                            onItemSelected.onSelected(item)
                         }
                     }
                 ) {

@@ -93,8 +93,6 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import android.view.accessibility.AccessibilityManager;
-import android.widget.Button;
-import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -111,7 +109,6 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.AccessibilityDelegateCompat;
 import androidx.core.view.ViewCompat;
@@ -169,8 +166,6 @@ public class HomeActivity extends AppCompatActivity
 
 
     View mSurveyView;
-
-    View mDonationView;
 
     /**
      * GoogleApiClient being used for Location Services
@@ -413,7 +408,7 @@ public class HomeActivity extends AppCompatActivity
 
         UIUtils.setupActionBar(this);
 
-        setupDonationView(this);
+        updateDonationsUIVisibility();
 
         // To enable checkBatteryOptimizations, also uncomment the
         // REQUEST_IGNORE_BATTERY_OPTIMIZATIONS permission in AndroidManifest.xml
@@ -1901,48 +1896,32 @@ public class HomeActivity extends AppCompatActivity
         Log.d(TAG,"Weather Request Fail");
     }
 
-    private void setupDonationView(HomeActivity homeActivity) {
-        mDonationView = mMapContent.findViewById(R.id.donationView);
-        AppCompatImageButton closeButton = mDonationView.findViewById(R.id.btnDonationViewClose);
-        Button learnMoreButton = mDonationView.findViewById(R.id.btnDonationViewLearnMore);
-        Button donateButton = mDonationView.findViewById(R.id.btnDonationViewDonate);
-
-        // Update title with app name for white-label support
-        TextView titleView = mDonationView.findViewById(R.id.textView2);
-        titleView.setText(getString(R.string.donation_view_title, getString(R.string.app_name)));
-
-        closeButton.setOnClickListener(b -> {
-            AlertDialog dismissDialog = buildDismissDonationsDialog();
-            dismissDialog.show();
-        });
-
-        learnMoreButton.setOnClickListener(b -> {
-            Intent intent = new Intent(this, DonationLearnMoreActivity.class);
-            startActivity(intent);
-        });
-
-        donateButton.setOnClickListener(b -> {
-            DonationsManager donationsManager = Application.getDonationsManager();
-            donationsManager.dismissDonationRequests();
-
-            Intent intent = donationsManager.buildOpenDonationsPageIntent();
-            startActivity(intent);
-        });
-
-        updateDonationsUIVisibility();
+    private void updateDonationsUIVisibility() {
+        if (mHomeShell == null) {
+            return;
+        }
+        DonationsManager donationsManager = Application.getDonationsManager();
+        mHomeShell.setDonationVisible(donationsManager.shouldShowDonationUI()
+                && mCurrentNavDrawerPosition == NAVDRAWER_ITEM_NEARBY);
     }
 
-    private void updateDonationsUIVisibility() {
-        mDonationView = mMapContent.findViewById(R.id.donationView);
-        if(mDonationView == null) return;
-        DonationsManager donationsManager = Application.getDonationsManager();
+    // --- HomeShellHost.MapActionListener: the Compose donation-card actions ---
 
-        if (donationsManager.shouldShowDonationUI() && mCurrentNavDrawerPosition == NAVDRAWER_ITEM_NEARBY) {
-            mDonationView.setVisibility(View.VISIBLE);
-        }
-        else {
-            mDonationView.setVisibility(View.GONE);
-        }
+    @Override
+    public void onDonationClose() {
+        buildDismissDonationsDialog().show();
+    }
+
+    @Override
+    public void onDonationLearnMore() {
+        startActivity(new Intent(this, DonationLearnMoreActivity.class));
+    }
+
+    @Override
+    public void onDonationDonate() {
+        DonationsManager donationsManager = Application.getDonationsManager();
+        donationsManager.dismissDonationRequests();
+        startActivity(donationsManager.buildOpenDonationsPageIntent());
     }
 
     /**

@@ -85,13 +85,19 @@ class HomeShellHost(
         fun onSheetState(state: Sheet)
     }
 
-    /** Map-chrome actions, dispatched from the Compose FABs to the (Java) activity + map fragment. */
+    /**
+     * Map chrome + overlay actions, dispatched from the Compose FABs / cards to the (Java) activity
+     * (which owns the map fragment, weather response, and DonationsManager).
+     */
     interface MapActionListener {
         fun onMyLocation()
         fun onZoomIn()
         fun onZoomOut()
         fun onToggleBikeshare()
         fun onWeatherClick()
+        fun onDonationClose()
+        fun onDonationLearnMore()
+        fun onDonationDonate()
     }
 
     // --- Drawer state ---
@@ -116,6 +122,9 @@ class HomeShellHost(
     private var weatherIconRes by mutableStateOf(0)
     private var weatherTempText by mutableStateOf("")
     private var weatherFitIcon by mutableStateOf(false)
+
+    // --- Donation card state ---
+    private var donationVisibleState by mutableStateOf(false)
 
     /** Last observed resting state, mirrored here so Java can query it synchronously (main thread). */
     @Volatile
@@ -195,6 +204,11 @@ class HomeShellHost(
     /** Hides the weather chip (no region / hidden by preference / not on NEARBY). */
     fun hideWeather() {
         weatherVisibleState = false
+    }
+
+    /** Shows/hides the donation card (DonationsManager.shouldShowDonationUI() && NEARBY). */
+    fun setDonationVisible(visible: Boolean) {
+        donationVisibleState = visible
     }
 
     /** The view to pass to Activity.setContentView. */
@@ -303,6 +317,17 @@ class HomeShellHost(
                                         fitIcon = weatherFitIcon,
                                         onClick = { mapActions.onWeatherClick() },
                                         modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+                                    )
+                                }
+                                if (donationVisibleState) {
+                                    DonationCard(
+                                        onClose = { mapActions.onDonationClose() },
+                                        onLearnMore = { mapActions.onDonationLearnMore() },
+                                        onDonate = { mapActions.onDonationDonate() },
+                                        modifier = Modifier
+                                            .align(Alignment.TopCenter)
+                                            .fillMaxWidth()
+                                            .padding(start = 16.dp, end = 16.dp, top = 62.dp)
                                     )
                                 }
                             }

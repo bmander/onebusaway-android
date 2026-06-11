@@ -34,9 +34,9 @@
     <!-- The my-location FAB, zoom controls, and layers FAB are now the Compose MapChrome overlay
          (see HomeShellHost / MapChrome.kt), so they no longer live here. -->
 
-    <!-- The weather chip is now the Compose WeatherCard overlay (see HomeShellHost / WeatherCard.kt). -->
+    <!-- The weather chip + donation card are now Compose overlays (WeatherCard.kt / DonationCard.kt
+         in HomeShellHost), so they no longer live here. -->
 
-    <include layout="@layout/donation_view" />
     <include
         android:id="@+id/surveyView"
         android:layout_width="match_parent"

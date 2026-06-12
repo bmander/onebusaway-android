@@ -39,7 +39,7 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.onebusaway.android.R
-import org.onebusaway.android.ui.arrivals.EtaContent
+import org.onebusaway.android.ui.arrivals.EtaPill
 
 /** Which Home dialog is showing (replacing the deprecated showDialog/onCreateDialog ids). */
 enum class HomeDialog { NONE, HELP, WHATS_NEW, LEGEND, DISMISS_DONATION }
@@ -135,9 +135,10 @@ private fun WhatsNewDialog(onDismiss: () -> Unit) {
 }
 
 /**
- * The arrival-color legend. Each row reuses the real arrivals' [EtaContent] so the sample matches
- * what a stop's ETA actually looks like (a color-coded number + the pulsing real-time dot), beside
- * the explanation. Order mirrors the legacy legend: on-time / early / late / scheduled / canceled.
+ * The arrival-color legend. Each row reuses the drawer peek's [EtaPill] (the above-the-peek ETA
+ * style — white text on the deviation color, with the pulsing real-time dot) so the sample matches a
+ * stop's ETA, beside the explanation. Order mirrors the legacy legend: on-time / early / late /
+ * scheduled / canceled.
  */
 @Composable
 private fun LegendDialog(onDismiss: () -> Unit) {
@@ -175,7 +176,7 @@ private fun LegendRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        EtaContent(eta = 5L, color = colorResource(color), predicted = predicted, canceled = canceled)
+        EtaPill(eta = 5L, color = colorResource(color), predicted = predicted, canceled = canceled)
         Spacer(Modifier.width(16.dp))
         Text(stringResource(label), style = MaterialTheme.typography.bodyMedium)
     }

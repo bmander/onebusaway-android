@@ -51,7 +51,7 @@ unidirectional data flow, coroutines for all async work — within the hard `min
 > hamburger opens the drawer directly).
 >
 > **Update — 2026-06-12 (P13).** Home's last two View dialogs are now Compose: the **legend**
-> (`LegendDialog` reuses the real arrivals' `EtaContent` so its samples match a stop's actual ETA) and
+> (`LegendDialog` reuses the drawer peek's white-on-color `EtaPill` so its samples match a stop's ETA) and
 > the **dismiss-donations** confirmation, both keyed off `HomeUiState.dialog` in `HomeDialogs.kt`;
 > `showLegendDialog`/`buildDismissDonationsDialog` are gone. Toasts stay; the `Target.NONE` tutorials
 > were unaffected by P12. Swept `legend_dialog`/`eta_header_view`/`ic_menu_hamburger`/`ic_action_search`
@@ -465,9 +465,9 @@ Replace the hosted XML `Toolbar` + options menu with a Material3 `TopAppBar`:
 
 > **As built:** the legend + dismiss-donations dialogs moved into `HomeDialogs.kt`, keyed off
 > `HomeDialog.{LEGEND,DISMISS_DONATION}` (set by `HomeViewModel.showLegend()/showDismissDonation()`) —
-> `HomeActivity.showLegendDialog()`/`buildDismissDonationsDialog()` deleted. The legend reuses the real
-> arrivals' `EtaContent` (made `internal`) — color-coded "5 min" samples with the pulsing realtime dot —
-> rather than recreating the old colored box, so it matches the actual ETA rendering. The 3-action
+> `HomeActivity.showLegendDialog()`/`buildDismissDonationsDialog()` deleted. The legend reuses the drawer
+> peek's `EtaPill` (made `internal`, with an added `canceled` strikethrough) — the "above-the-peek"
+> white-on-color "5 min" sample with the pulsing realtime dot — so it matches a real arrival. The 3-action
 > donation dialog stacks its `TextButton`s. Toasts (region/weather) stay; the tutorials anchor to
 > `Target.NONE` so P12's toolbar removal didn't touch them. Swept `legend_dialog.xml` +
 > `eta_header_view.xml` (used only by the legend), `ic_menu_hamburger`/`ic_action_search` (P12 went to

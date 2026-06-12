@@ -432,10 +432,9 @@ private fun StatusPill(text: String, color: Color) {
 }
 
 /** The prominent ETA, color-coded by lateness, with the real-time indicator as a superscript on
- *  the "min" label (matching the drawer pill); the legacy `eta`/`eta_min`. Also reused by the Home
- *  legend dialog ([org.onebusaway.android.ui.home.HomeDialogs]) so its samples match real arrivals. */
+ *  the "min" label (matching the drawer pill); the legacy `eta`/`eta_min`. */
 @Composable
-internal fun EtaContent(eta: Long, color: Color, predicted: Boolean, canceled: Boolean) {
+private fun EtaContent(eta: Long, color: Color, predicted: Boolean, canceled: Boolean) {
     val decoration = strikeThroughIf(canceled)
     Row {
         if (eta == 0L) {

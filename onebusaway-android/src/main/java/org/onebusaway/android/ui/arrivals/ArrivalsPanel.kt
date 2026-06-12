@@ -51,6 +51,7 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -244,9 +245,15 @@ private fun PeekRowVisual(
     }
 }
 
-/** The prominent white-on-lateness ETA pill shown in each drawer peek row. */
+/**
+ * The prominent white-on-lateness ETA pill shown in each drawer peek row (the "above-the-peek" ETA
+ * style — white text on the deviation color). Also reused by the Home legend dialog
+ * ([org.onebusaway.android.ui.home.HomeDialogs]) so its samples match the real peek; [canceled] strikes
+ * the text through for the legend's canceled row.
+ */
 @Composable
-private fun EtaPill(eta: Long, color: Color, predicted: Boolean) {
+internal fun EtaPill(eta: Long, color: Color, predicted: Boolean, canceled: Boolean = false) {
+    val decoration = if (canceled) TextDecoration.LineThrough else null
     Surface(shape = RoundedCornerShape(8.dp), color = color) {
         // Fixed height + centered content so "NOW" and "21 min" pills render the same height.
         Box(
@@ -261,7 +268,8 @@ private fun EtaPill(eta: Long, color: Color, predicted: Boolean) {
                         text = eta.toString(),
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color.White,
+                        textDecoration = decoration
                     )
                 }
                 // The trailing label ("min" / "Now") with the radiating real-time indicator at its
@@ -276,7 +284,8 @@ private fun EtaPill(eta: Long, color: Color, predicted: Boolean) {
                         },
                         fontSize = if (eta == 0L) 22.sp else 14.sp,
                         fontWeight = if (eta == 0L) FontWeight.Bold else FontWeight.Normal,
-                        color = Color.White
+                        color = Color.White,
+                        textDecoration = decoration
                     )
                     Box(Modifier.padding(start = 2.dp).size(8.dp)) {
                         if (predicted) {

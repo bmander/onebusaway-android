@@ -51,11 +51,6 @@
     <dimen name="arrival_header_height_one_arrival">108dp</dimen>
     <dimen name="arrival_header_height_two_arrivals">158dp</dimen>
     <dimen name="arrival_header_height_offset_filter_routes">25dp</dimen>
-    <dimen name="arrival_header_height_edit_name">100dp</dimen>
-    <dimen name="arrival_header_left_margin">10dp</dimen>
-    <dimen name="arrival_header_bottom_margin">8dp</dimen>
-    <dimen name="arrival_header_bottom_margin_expand_collapse">10dp</dimen>
-    <dimen name="arrival_header_text_pad_left">10dp</dimen>
 
     <!-- Arrivals Style A -->
     <dimen name="occupancy">15dp</dimen>

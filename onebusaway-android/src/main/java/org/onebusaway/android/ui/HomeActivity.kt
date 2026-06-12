@@ -22,17 +22,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.graphics.Paint
-import android.graphics.drawable.GradientDrawable
 import android.location.Location
 import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
-import android.view.LayoutInflater
 import android.view.View
 import android.view.accessibility.AccessibilityManager
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -49,7 +45,6 @@ import kotlinx.coroutines.launch
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.common.api.GoogleApiClient
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.analytics.FirebaseAnalytics
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
@@ -197,6 +192,8 @@ class HomeActivity : AppCompatActivity(),
                 onDonationClose = ::onDonationClose,
                 onDonationLearnMore = ::onDonationLearnMore,
                 onDonationDonate = ::onDonationDonate,
+                onDonationDismissForever = ::onDonationDismissForever,
+                onDonationRemindLater = ::onDonationRemindLater,
                 onHelpAction = ::onHelpAction,
                 onWhatsNewDismissed = ::onWhatsNewDismissed,
                 onDismissDialog = viewModel::dismissDialog,
@@ -537,7 +534,7 @@ class HomeActivity : AppCompatActivity(),
                 ShowcaseViewUtils.resetAllTutorials(this)
                 NavHelp.goHome(this, true)
             }
-            HelpAction.LEGEND -> showLegendDialog()
+            HelpAction.LEGEND -> viewModel.showLegend()
             HelpAction.WHATS_NEW -> viewModel.showWhatsNew()
             HelpAction.AGENCIES -> AgenciesActivity.start(this)
             HelpAction.TWITTER -> {
@@ -566,74 +563,6 @@ class HomeActivity : AppCompatActivity(),
         if (showOptOut) {
             ShowcaseViewUtils.showOptOutDialog(this)
         }
-    }
-
-    /**
-     * The legend dialog stays a hosted MaterialAlertDialogBuilder (it inflates legend_dialog and
-     * recolors the ETA chips); shown directly rather than via the deprecated showDialog() API.
-     */
-    private fun showLegendDialog() {
-        val builder = MaterialAlertDialogBuilder(this)
-        builder.setTitle(R.string.main_help_legend_title)
-
-        val resources = resources
-        val inflater = LayoutInflater.from(applicationContext)
-        val legendDialogView = inflater.inflate(R.layout.legend_dialog, null)
-        val etaTextFontSize = 30f
-
-        // On time view
-        var etaAndMin = legendDialogView.findViewById<View>(R.id.eta_view_ontime)
-        var d1 = etaAndMin.background as GradientDrawable
-        d1.setColor(resources.getColor(R.color.stop_info_ontime))
-        etaAndMin.findViewById<View>(R.id.eta_realtime_indicator).visibility = View.VISIBLE
-        var etaTextView = etaAndMin.findViewById<TextView>(R.id.eta)
-        etaTextView.textSize = etaTextFontSize
-        etaTextView.text = "5"
-
-        // Early View
-        etaAndMin = legendDialogView.findViewById(R.id.eta_view_early)
-        d1 = etaAndMin.background as GradientDrawable
-        d1.setColor(resources.getColor(R.color.stop_info_early))
-        etaAndMin.findViewById<View>(R.id.eta_realtime_indicator).visibility = View.VISIBLE
-        etaTextView = etaAndMin.findViewById(R.id.eta)
-        etaTextView.textSize = etaTextFontSize
-        etaTextView.text = "5"
-
-        // Delayed View
-        etaAndMin = legendDialogView.findViewById(R.id.eta_view_delayed)
-        d1 = etaAndMin.background as GradientDrawable
-        d1.setColor(resources.getColor(R.color.stop_info_delayed))
-        etaAndMin.findViewById<View>(R.id.eta_realtime_indicator).visibility = View.VISIBLE
-        etaTextView = etaAndMin.findViewById(R.id.eta)
-        etaTextView.textSize = etaTextFontSize
-        etaTextView.text = "5"
-
-        // Scheduled View
-        etaAndMin = legendDialogView.findViewById(R.id.eta_view_scheduled)
-        d1 = etaAndMin.background as GradientDrawable
-        d1.setColor(resources.getColor(R.color.stop_info_scheduled_time))
-        etaAndMin.findViewById<View>(R.id.eta_realtime_indicator).visibility = View.INVISIBLE
-        etaTextView = etaAndMin.findViewById(R.id.eta)
-        etaTextView.textSize = etaTextFontSize
-        etaTextView.text = "5"
-
-        // Canceled View
-        etaAndMin = legendDialogView.findViewById(R.id.eta_view_canceled)
-        d1 = etaAndMin.background as GradientDrawable
-        d1.setColor(resources.getColor(R.color.stop_info_scheduled_time))
-        etaAndMin.findViewById<View>(R.id.eta_realtime_indicator).visibility = View.INVISIBLE
-        etaTextView = etaAndMin.findViewById(R.id.eta)
-        etaTextView.textSize = etaTextFontSize
-        etaTextView.text = "5"
-        etaTextView.paintFlags = Paint.STRIKE_THRU_TEXT_FLAG
-        val etaMin = etaAndMin.findViewById<TextView>(R.id.eta_min)
-        etaMin.paintFlags = Paint.STRIKE_THRU_TEXT_FLAG
-
-        builder.setView(legendDialogView)
-
-        // The neutral button auto-dismisses the dialog (default AlertDialog behavior).
-        builder.setNeutralButton(R.string.main_help_close) { _, _ -> }
-        builder.show()
     }
 
     /**
@@ -1145,8 +1074,9 @@ class HomeActivity : AppCompatActivity(),
 
     // --- Donation-card actions (passed to HomeScreen as lambdas) ---
 
+    /** The donation card's close (X) asks for confirmation via the Compose dismiss dialog. */
     private fun onDonationClose() {
-        buildDismissDonationsDialog().show()
+        viewModel.showDismissDonation()
     }
 
     private fun onDonationLearnMore() {
@@ -1159,31 +1089,16 @@ class HomeActivity : AppCompatActivity(),
         startActivity(donationsManager.buildOpenDonationsPageIntent())
     }
 
-    /**
-     * Creates an AlertDialog that will give the user options for dismissing the donations UI.
-     */
-    private fun buildDismissDonationsDialog(): androidx.appcompat.app.AlertDialog {
-        val builder = MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.donation_dismiss_dialog_title)
-            .setMessage(
-                getString(R.string.donation_dismiss_dialog_body, getString(R.string.app_name))
-            )
-            .setNegativeButton(
-                R.string.donation_dismiss_dialog_dont_want_to_help_button
-            ) { _, _ ->
-                Application.getDonationsManager().dismissDonationRequests()
-                pushEnvironment()
-            }
-            .setNeutralButton(
-                R.string.donation_dismiss_dialog_remind_me_later_button
-            ) { _, _ ->
-                Application.getDonationsManager().remindUserLater()
-                pushEnvironment()
-            }
-            .setPositiveButton(R.string.donation_dismiss_dialog_cancel_button) { _, _ -> }
-            .setCancelable(true)
+    /** "I don't want to help" — stop asking, then re-snapshot so the card's gate recomputes. */
+    private fun onDonationDismissForever() {
+        Application.getDonationsManager().dismissDonationRequests()
+        pushEnvironment()
+    }
 
-        return builder.create()
+    /** "Remind me later" — snooze the donation card, then re-snapshot its visibility gate. */
+    private fun onDonationRemindLater() {
+        Application.getDonationsManager().remindUserLater()
+        pushEnvironment()
     }
 
     private fun initSurveyView() {

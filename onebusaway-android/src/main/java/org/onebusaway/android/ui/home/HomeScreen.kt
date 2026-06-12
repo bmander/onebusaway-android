@@ -81,6 +81,8 @@ fun HomeScreen(
     onDonationClose: () -> Unit,
     onDonationLearnMore: () -> Unit,
     onDonationDonate: () -> Unit,
+    onDonationDismissForever: () -> Unit,
+    onDonationRemindLater: () -> Unit,
     onHelpAction: (HelpAction) -> Unit,
     onWhatsNewDismissed: () -> Unit,
     onDismissDialog: () -> Unit,
@@ -262,6 +264,8 @@ fun HomeScreen(
             showContactUs = state.helpShowContactUs,
             onHelpAction = onHelpAction,
             onWhatsNewDismissed = onWhatsNewDismissed,
+            onDonationDismissForever = onDonationDismissForever,
+            onDonationRemindLater = onDonationRemindLater,
             onDismiss = onDismissDialog
         )
     }

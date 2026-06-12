@@ -151,6 +151,18 @@ class HomeViewModel(
         recompute()
     }
 
+    /** The arrival-color legend (Help menu). */
+    fun showLegend() {
+        dialog = HomeDialog.LEGEND
+        recompute()
+    }
+
+    /** The "are you sure?" confirmation when the user closes the donation card. */
+    fun showDismissDonation() {
+        dialog = HomeDialog.DISMISS_DONATION
+        recompute()
+    }
+
     fun dismissDialog() {
         dialog = HomeDialog.NONE
         recompute()

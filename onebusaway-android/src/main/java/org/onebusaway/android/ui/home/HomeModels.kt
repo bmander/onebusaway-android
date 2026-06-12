@@ -99,6 +99,8 @@ data class HomeUiState(
     // arrivals sheet peek size inputs (the screen maps these to a peek height)
     val peekArrivalCount: Int = 0,
     val routeFiltering: Boolean = false,
+    // the sheet's last resting position (reported up from the screen); read by the map/tutorial side-effects
+    val settledSheet: ArrivalsSheetState = ArrivalsSheetState.Hidden,
     // chrome — derived from selectedItem + environment
     val mapLoading: Boolean = false,
     val fabsVisible: Boolean = true,
@@ -144,4 +146,10 @@ sealed interface HomeEvent {
 
     /** Collapse the sheet to its peek (e.g. after "show vehicles on map"). */
     object CollapseSheet : HomeEvent
+
+    /** Apply the arrivals sheet's resting height as the map's bottom padding. */
+    data class SetMapPadding(val bottomPx: Int) : HomeEvent
+
+    /** Recenter the map on the focused stop (the sheet expanded over it). */
+    data class RecenterOnFocusedStop(val lat: Double, val lon: Double) : HomeEvent
 }

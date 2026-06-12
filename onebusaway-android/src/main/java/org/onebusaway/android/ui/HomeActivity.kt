@@ -131,10 +131,6 @@ class HomeActivity : AppCompatActivity(),
     // composable keyed per focused stop (ArrivalsSheetHost), no longer a hosted fragment View.
     private lateinit var mMapContent: View
 
-    // Last settled arrivals-sheet position, reported by HomeScreen, so the activity can answer
-    // synchronous queries (the preview-vs-full flag) and ignore the initial reveal.
-    private var mLastSettledSheet = ArrivalsSheetState.Hidden
-
     /**
      * Whether the deferred first nav selection has run. Gates [setupSurvey] (called synchronously in
      * onCreate, before the posted selection) so the out-of-scope survey stays dormant, preserving the
@@ -228,7 +224,7 @@ class HomeActivity : AppCompatActivity(),
                 onWhatsNewDismissed = ::onWhatsNewDismissed,
                 onRegionChosen = viewModel::onRegionChosen,
                 onDismissDialog = viewModel::dismissDialog,
-                onSheetSettled = ::onSheetSettled,
+                onSheetSettled = viewModel::onSheetSettled,
                 onClearFocus = ::onClearFocus,
                 onArrivalsLoaded = ::onArrivalsLoaded,
                 onShowRouteOnMap = ::onShowRouteOnMap,
@@ -288,6 +284,15 @@ class HomeActivity : AppCompatActivity(),
                                 )
                             }
                             onRegionResolved(event.changed)
+                        }
+                        is HomeEvent.SetMapPadding ->
+                            mMapHost?.mapView?.setPadding(null, null, null, event.bottomPx)
+                        is HomeEvent.RecenterOnFocusedStop -> {
+                            val loc = Location("focusedStop").apply {
+                                latitude = event.lat
+                                longitude = event.lon
+                            }
+                            mMapHost?.setMapCenter(loc, true, true)
                         }
                         // Sheet / drawer commands are carried out by HomeScreen.
                         else -> Unit
@@ -657,7 +662,7 @@ class HomeActivity : AppCompatActivity(),
         if (mPendingMapFocus) {
             mPendingMapFocus = false
             mMapHost?.setMapCenter(
-                stop.location, false, mLastSettledSheet == ArrivalsSheetState.Expanded
+                stop.location, false, viewModel.uiState.value.settledSheet == ArrivalsSheetState.Expanded
             )
             mMapHost?.setFocusStop(stop, response.routes)
         }
@@ -677,7 +682,7 @@ class HomeActivity : AppCompatActivity(),
 
         // If we can't see the map or arrivals sheet, we can't see the arrival info, so return. The map
         // host stays mounted once created (lists overlay it), so its presence == "map shown".
-        if (mMapHost == null || mLastSettledSheet == ArrivalsSheetState.Hidden) {
+        if (mMapHost == null || viewModel.uiState.value.settledSheet == ArrivalsSheetState.Hidden) {
             return
         }
 
@@ -912,33 +917,6 @@ class HomeActivity : AppCompatActivity(),
      * padding in sync with the peek, and drives the arrivals panel's preview-vs-full flag. The initial
      * reveal from HIDDEN is ignored (it's handled by the focus flow), matching the legacy behavior.
      */
-    private fun onSheetSettled(state: ArrivalsSheetState, peekPx: Int) {
-        val previous = mLastSettledSheet
-        mLastSettledSheet = state
-        if (previous == ArrivalsSheetState.Hidden) {
-            return
-        }
-        when (state) {
-            ArrivalsSheetState.Expanded -> {
-                mMapHost?.mapView?.setPadding(null, null, null, peekPx)
-                val focusedStop = viewModel.uiState.value.focusedStop
-                if (focusedStop != null && mMapHost != null) {
-                    val loc = Location("focusedStop").apply {
-                        latitude = focusedStop.lat
-                        longitude = focusedStop.lon
-                    }
-                    mMapHost?.setMapCenter(loc, true, true)
-                }
-            }
-            ArrivalsSheetState.Collapsed -> {
-                mMapHost?.mapView?.setPadding(null, null, null, peekPx)
-            }
-            ArrivalsSheetState.Hidden -> {
-                mMapHost?.mapView?.setPadding(null, null, null, 0)
-            }
-        }
-    }
-
     /**
      * Sets up the initial map state from the ViewModel's restored focus (process death / rotation,
      * via SavedStateHandle) or from an Intent that deep-links into a specific stop.

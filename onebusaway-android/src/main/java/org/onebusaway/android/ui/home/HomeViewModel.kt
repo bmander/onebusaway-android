@@ -63,6 +63,9 @@ class HomeViewModel(
     private var dialog: HomeDialog = HomeDialog.None
     private var helpShowContactUs: Boolean = true
     private var mapLoading: Boolean = false
+    // The sheet's last resting position, reported up from the screen; drives the map padding/recenter
+    // side-effects + the tutorial gate (transient — re-reported by the screen on recreation).
+    private var settledSheet: ArrivalsSheetState = ArrivalsSheetState.Hidden
     // Seed the peek at the two-arrivals height so the first sheet reveal doesn't flash undersized
     // (matches the legacy setupSlidingPanel default); onPreferredHeight refines it.
     private var peekArrivalCount: Int = 2
@@ -128,6 +131,30 @@ class HomeViewModel(
         peekArrivalCount = arrivalCount
         routeFiltering = filtering
         recompute()
+    }
+
+    /**
+     * The arrivals sheet settled at [state] (reported from the screen's live SheetState). Tracks the
+     * resting position and drives the map's bottom padding + (on Expanded) a recenter on the focused
+     * stop. The initial reveal (from Hidden) is skipped, matching the legacy behavior. The map host
+     * null-check lives at the apply site (the Activity's `mMapHost?.`), so emitting unconditionally is
+     * safe.
+     */
+    fun onSheetSettled(state: ArrivalsSheetState, peekPx: Int) {
+        val previous = settledSheet
+        settledSheet = state
+        recompute()
+        if (previous == ArrivalsSheetState.Hidden) {
+            return
+        }
+        when (state) {
+            ArrivalsSheetState.Expanded -> {
+                emit(HomeEvent.SetMapPadding(peekPx))
+                focusedStop?.let { emit(HomeEvent.RecenterOnFocusedStop(it.lat, it.lon)) }
+            }
+            ArrivalsSheetState.Collapsed -> emit(HomeEvent.SetMapPadding(peekPx))
+            ArrivalsSheetState.Hidden -> emit(HomeEvent.SetMapPadding(0))
+        }
     }
 
     /** Chevron tap — ask the screen to toggle the sheet (it holds the live SheetState). */
@@ -267,7 +294,8 @@ class HomeViewModel(
     private fun recompute() {
         _uiState.value = buildState(
             selectedItem, navItems, environment, weatherData, dialog, helpShowContactUs,
-            focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering
+            focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering,
+            settledSheet
         )
     }
 
@@ -314,6 +342,7 @@ internal fun buildState(
     mapLoading: Boolean = false,
     peekArrivalCount: Int = 0,
     routeFiltering: Boolean = false,
+    settledSheet: ArrivalsSheetState = ArrivalsSheetState.Hidden,
 ): HomeUiState {
     val nearby = selectedItem == HomeNavItem.NEARBY
     val starredTab = selectedItem == HomeNavItem.STARRED_STOPS ||
@@ -338,5 +367,6 @@ internal fun buildState(
         helpShowContactUs = helpShowContactUs,
         showListSortMenu = listTab,
         showListClearMenu = starredTab,
+        settledSheet = settledSheet,
     )
 }

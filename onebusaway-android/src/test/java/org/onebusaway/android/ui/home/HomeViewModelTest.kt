@@ -209,6 +209,74 @@ class HomeViewModelTest {
         job.cancel()
     }
 
+    // --- arrivals sheet settled -> map padding / recenter ---
+
+    @Test
+    fun `the initial sheet reveal from hidden emits no map effects`() = runTest {
+        val vm = viewModel()
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // previous == Hidden -> skip
+        advanceUntilIdle()
+
+        assertTrue(events.isEmpty())
+        assertEquals(ArrivalsSheetState.Collapsed, vm.uiState.value.settledSheet)
+        job.cancel()
+    }
+
+    @Test
+    fun `expanding over a focused stop sets padding and recenters`() = runTest {
+        val vm = viewModel()
+        vm.onStopFocused(FocusedStop("1", "Main St", "100", 47.6, -122.3))
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
+        vm.onSheetSettled(ArrivalsSheetState.Expanded, 120)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(HomeEvent.SetMapPadding(120), HomeEvent.RecenterOnFocusedStop(47.6, -122.3)),
+            events
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun `expanding with no focused stop only sets padding`() = runTest {
+        val vm = viewModel()
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
+        vm.onSheetSettled(ArrivalsSheetState.Expanded, 120)
+        advanceUntilIdle()
+
+        assertEquals(listOf<HomeEvent>(HomeEvent.SetMapPadding(120)), events)
+        job.cancel()
+    }
+
+    @Test
+    fun `collapsing and hiding set the map padding`() = runTest {
+        val vm = viewModel()
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
+        vm.onSheetSettled(ArrivalsSheetState.Collapsed, 80)
+        vm.onSheetSettled(ArrivalsSheetState.Hidden, 80)
+        advanceUntilIdle()
+
+        assertEquals(listOf(HomeEvent.SetMapPadding(80), HomeEvent.SetMapPadding(0)), events)
+        assertEquals(ArrivalsSheetState.Hidden, vm.uiState.value.settledSheet)
+        job.cancel()
+    }
+
     // --- focus + SavedStateHandle ---
 
     @Test
@@ -444,10 +512,19 @@ class HomeStateTest {
         weather: WeatherData? = WeatherData("clear-day", 70.0, null),
         mapLoading: Boolean = false,
         focusedStop: FocusedStop? = null,
+        settledSheet: ArrivalsSheetState = ArrivalsSheetState.Hidden,
     ) = buildState(
         selected, emptyList(), env, weather, HomeDialog.None, true,
-        focusedStop = focusedStop, mapLoading = mapLoading,
+        focusedStop = focusedStop, mapLoading = mapLoading, settledSheet = settledSheet,
     )
+
+    @Test
+    fun `the settled sheet position passes through untouched`() {
+        assertEquals(
+            ArrivalsSheetState.Expanded,
+            state(HomeNavItem.NEARBY, settledSheet = ArrivalsSheetState.Expanded).settledSheet
+        )
+    }
 
     @Test
     fun `chrome FABs show only on nearby`() {

@@ -23,8 +23,27 @@ unidirectional data flow, coroutines for all async work — within the hard `min
 > still notifies the map fragment), so P7's `RegionStatusRepository` is unused until P14. Net:
 > `HomeActivity` 1,956 → ~1,360 lines; `HomeShellHost` lost its ~20 setters; 14 new JVM tests.
 > A small behavior *improvement*: GTFS alerts now fire once per region (no duplicate dialogs).
-> Phases P10–P14 below are unchanged. **Still owed: the on-device parity smoke test** (sheet,
-> drawer, rotation, weather/donation/layers gates) for the P9+P8 changes.
+>
+> **Update — 2026-06-12.** P10, P11, and **P11b** have now landed on
+> `modernization/compose-mvvm-home-vm`, all on-device verified:
+> - **P10** inverted the arrivals sheet to declarative (visibility = business state via a keyed
+>   `LaunchedEffect`; expansion = the live `SheetState` nudged by one-shot events) and dissolved
+>   `HomeShellHost` into a real `HomeScreen`. Pure sheet-decision logic was extracted to
+>   `HomeSheetLogic.kt` with JVM tests.
+> - **P11** dissolved `ArrivalsPanelFragment` into a per-stop keyed Compose sheet host
+>   (`ArrivalsSheetHost`); the focused stop hoisted into `HomeViewModel` + `SavedStateHandle`.
+> - **P11b** retired Home's content fragments in two halves: (1) Home's three list views became
+>   Compose overlays over the map, and the shared list helpers were generalized from `Fragment`- to
+>   `AppCompatActivity`-scope; (2) the legacy `My*` tab/shell activities were rewritten in Kotlin +
+>   Compose (`TabRow` + `HorizontalPager`, full Material3 `TopAppBar`), and **all seven list/search
+>   fragments** + `MyTabActivityBase` + the vendored `ListFragment.java` were deleted. Pinned-shortcut
+>   contracts (class names, manifest, `com.joulespersecond.seattlebusbot` aliases, `tab://` tags) were
+>   preserved verbatim.
+>
+> Home is now **fragment-free except the native map host** (P14). Deferred from P8 are now closed:
+> the focused-stop `SavedStateHandle` hoist (P10/P11) landed; the int nav model still rides alongside
+> `selectedItem` (collapses with P14's permission-launcher work). Phases P12–P14 below are unchanged;
+> **P12 (Compose `TopAppBar` for Home's toolbar) is next.**
 
 ## Where we are
 
@@ -234,7 +253,16 @@ sibling branch `modernization/fused-location-client` (PR #1569) before this phas
 deletes those parameters app-wide; if it isn't mergeable yet, port the field as a
 `lazy` nullable and leave a `TODO(PR #1569)`.
 
-### P10 — Dissolve `HomeShellHost` into `HomeScreen`
+### P10 — Dissolve `HomeShellHost` into `HomeScreen`  *(LANDED)*
+
+> **As built:** done in two commits (P10a hoisted the focused stop into `HomeViewModel` +
+> `SavedStateHandle`; P10b dissolved `HomeShellHost` into a declarative `HomeScreen`). The sheet
+> inverted to declarative as specified — visibility is keyed on the focused-stop id, expansion is the
+> live `SheetState` nudged by `ToggleSheet`/`CollapseSheet` events, back-press via `BackHandler`. The
+> peek-height/map-padding/FAB-lift parity constants carried over verbatim. Pure sheet-decision
+> functions were extracted to `HomeSheetLogic.kt` (`shouldShowSheet`/`sheetReconcile`/
+> `toggleSheetTarget`/`sheetBackAction`) with JVM tests. The map-loading `ProgressBar` became a
+> `MapChrome` indicator driven by `state.mapLoading`.
 
 Replace the bridge with a real declarative screen; the activity becomes
 `setContent { ObaTheme { HomeRoute(viewModel, mapHost = ...) } }`.
@@ -262,7 +290,16 @@ Replace the bridge with a real declarative screen; the activity becomes
 - Delete `HomeShellHost.kt` and its 4 listener interfaces (`MapActionListener` etc. become
   plain lambda parameters / VM calls).
 
-### P11 — Retire the content fragments: destinations and arrivals panel become composables
+### P11 — Retire the content fragments: destinations and arrivals panel become composables  *(LANDED)*
+
+> **As built:** P11 dissolved `ArrivalsPanelFragment` into `ArrivalsSheetHost` — a per-stop
+> `key(stop.id)` Compose host with a cleared-on-change `ViewModelStoreOwner`
+> (`rememberClearedViewModelStoreOwner`) so the old stop's polling is cancelled on switch and the VM
+> survives rotation; `createArrivalActionHandler`'s `AppCompatActivity` need is met via
+> `LocalContext.findActivity()` (added in `ui/compose/ComposeHostUtils.kt`). The list destinations +
+> the `show*/hide*` collapse moved to **P11b** (split out because the fragment *classes* were still
+> hosted by the legacy `My*` activities — see below). A `/simplify` pass extracted the generic
+> Compose-host helpers.
 
 This phase removes every fragment from Home except the map host (which P14 handles).
 
@@ -321,7 +358,34 @@ This phase removes every fragment from Home except the map host (which P14 handl
   `createArrivalActionHandler`'s `AppCompatActivity` dependency is satisfied via
   `LocalContext`/a lambda from the activity rather than a fragment.
 
-### P11b — Replace the legacy `My*` tab shells; delete the list fragments outright
+### P11b — Replace the legacy `My*` tab shells; delete the list fragments outright  *(LANDED)*
+
+> **As built — done in two parts.**
+> - **P11b-1 (Home half):** Home's three list views (starred stops/routes, reminders) became Compose
+>   overlays drawn over the always-mounted map (`HomeListDestinations.kt`); the shared list helpers
+>   (`MyListNav.kt` `openStop`/`stopActions`/…, `MyListClearDialog.kt`) were generalized from
+>   `Fragment`- to `AppCompatActivity`-scope (taking an explicit `shortcutMode`), so the still-present
+>   fragments kept compiling. The starred/reminders sort+clear menu moved to Home's (interim) View
+>   toolbar. No fragment deleted yet.
+> - **P11b-2 (My* half):** the legacy Java `My*` activities were rewritten in Kotlin + Compose. A new
+>   reusable `MyTabsScreen` (`ui/mylists/`) hosts a Material3 `TopAppBar` (title + back + per-page
+>   Sort/Clear) over a `TabRow` + swipeable `HorizontalPager`; the deep-link tags + `tab://` helpers
+>   moved to `MyTabs.kt`; parameterized destinations (`MyListDestinations.kt`, which Home now delegates
+>   to) and `hostListVm`/`hostSearchVm` (`ListViewModelHosting.kt`) are shared. Then **all seven
+>   list/search fragments**, `MyTabActivityBase`, the vendored `ListFragment.java`, the
+>   `MySearchFragmentOnCreateViewTest`, and the orphaned `activity_tabs`/`activity_toolbar` layouts +
+>   four `my_*_options` menus were deleted.
+>
+> **Decisions/deviations:** (a) the `My*` toolbars went **full Compose `TopAppBar`** now (rather than
+> waiting for P12, which only covers *Home's* toolbar) — these screens are self-contained, so a hosted
+> View toolbar would have been the worst of both worlds. (b) Compose `painterResource` rejects
+> state-list selectors (which the old `TabLayout.setIcon` accepted), so the three `ic_tab_*` selector
+> icons were swapped for their `_unselected` PNG glyphs, which the Compose `Tab` tints by selected
+> state. (c) `MyRemindersActivity` is non-exported *and* unreferenced (pre-existing dead code) — its
+> `ReminderListDestination` content is verified via Home, but it couldn't be launched on-device.
+> Manifest, class names, the `com.joulespersecond.seattlebusbot.*` aliases, intent-filters, shortcut
+> labels/icons, and `tab://` tags were all preserved verbatim; pinned-shortcut creation + relaunch and
+> the self-pin path were on-device verified.
 
 The six list-hosting fragments can't die in P11 because a family of legacy Java activity
 shells still hosts them: `MyTabActivityBase` (237 lines, `TabLayout` + `ViewPager2` +
@@ -470,13 +534,13 @@ P9  Kotlin port of HomeActivity (done first)       ── large, low-risk ✅ DO
 P8  wire HomeViewModel, hoist chrome/overlay/       ── the big one     ✅ DONE (reduced scope;
     dialog/nav state + weather/GTFS                                       savedstate/focused-stop/
                                                                           int-model/sheet → P10/P11)
-P10 HomeShellHost → HomeScreen (declarative;       ── medium, parity-sensitive
+P10 HomeShellHost → HomeScreen (declarative;       ── medium, parity-sensitive ✅ DONE
     + the deferred sheet inversion + SavedStateHandle)
-P11 content fragments → composables (lists,
-    arrivals panel); kill show/hide + Listener     ── medium
-P11b legacy My* tab shells → Compose hosts;
-    delete all seven list/search fragments         ── medium (shortcut-compat sensitive)
-P12 Compose TopAppBar + menu                       ── small/medium
+P11 arrivals panel → keyed Compose sheet host;     ── medium             ✅ DONE
+    focused stop → ViewModel/SavedStateHandle              (list destinations moved to P11b)
+P11b legacy My* tab shells → Compose hosts;        ── medium (shortcut-   ✅ DONE
+    delete all seven list/search fragments               compat sensitive; done in 2 parts)
+P12 Compose TopAppBar + menu (Home)                ── small/medium       ⬅ NEXT
 P13 dialogs + sweep                                ── small
 P14 de-fragment the map host (ObaMapHost class,    ── large, both flavors
     wrapper for the other three screens; wires RegionStatusRepository)

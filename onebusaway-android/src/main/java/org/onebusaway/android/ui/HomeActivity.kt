@@ -17,6 +17,7 @@
  */
 package org.onebusaway.android.ui
 
+import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -29,8 +30,6 @@ import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
 import android.view.LayoutInflater
-import android.view.Menu
-import android.view.MenuItem
 import android.view.View
 import android.view.accessibility.AccessibilityManager
 import android.widget.TextView
@@ -38,7 +37,6 @@ import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.Toolbar
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -174,21 +172,23 @@ class HomeActivity : AppCompatActivity(),
 
         mFirebaseAnalytics = FirebaseAnalytics.getInstance(this)
 
-        // Host the map content + toolbar inside a Compose ModalNavigationDrawer + BottomSheetScaffold,
-        // replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome and the
-        // third-party SlidingUpPanelLayout. The arrivals panel is the scaffold's bottom sheet,
-        // rendered per focused stop by ArrivalsSheetHost.
+        // Host the map content inside a Compose ModalNavigationDrawer + HomeTopBar + BottomSheetScaffold,
+        // replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome, the hosted
+        // MaterialToolbar + options menu, and the third-party SlidingUpPanelLayout. The arrivals panel
+        // is the scaffold's bottom sheet, rendered per focused stop by ArrivalsSheetHost.
         mMapContent = layoutInflater.inflate(R.layout.home_map_content, null)
-        val toolbar = layoutInflater.inflate(R.layout.include_toolbar, null) as Toolbar
         setContent {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
             HomeScreen(
                 state = state,
                 events = viewModel.events,
-                toolbar = toolbar,
                 mapContent = mMapContent,
                 listVms = listVms,
                 onNavItemSelected = ::onHomeNavItemSelected,
+                onSearch = ::onSearch,
+                onRecentStopsRoutes = ::onRecentStopsRoutes,
+                onListSort = ::onListSortSelected,
+                onListClear = ::onListClearSelected,
                 onMyLocation = ::onMyLocation,
                 onZoomIn = ::onZoomIn,
                 onZoomOut = ::onZoomOut,
@@ -208,13 +208,6 @@ class HomeActivity : AppCompatActivity(),
                 onPreferredHeight = viewModel::onPreferredHeight,
             )
         }
-        setSupportActionBar(toolbar)
-        // Drive the drawer from the toolbar's own navigation icon. (The action-bar home button
-        // doesn't route reliably here since the toolbar is hosted in a ComposeView and isn't
-        // attached when setSupportActionBar runs.)
-        toolbar.setNavigationIcon(R.drawable.ic_menu_hamburger)
-        toolbar.setNavigationContentDescription(R.string.navigation_drawer_open)
-        toolbar.setNavigationOnClickListener { viewModel.requestOpenDrawer() }
 
         mInitialStartup = Application.getPrefs().getBoolean(INITIAL_STARTUP, true)
 
@@ -223,8 +216,6 @@ class HomeActivity : AppCompatActivity(),
         setupMapState()
 
         setupGooglePlayServices()
-
-        UIUtils.setupActionBar(this)
 
         pushEnvironment()
 
@@ -324,12 +315,12 @@ class HomeActivity : AppCompatActivity(),
 
     private fun goToNavDrawerItem(item: Int) {
         // Selectable list tabs render as Compose overlays (HomeScreen reads selectedItem); only NEARBY
-        // still drives the hosted map fragment. The list cases just update the title + analytics.
+        // still drives the hosted map fragment. The title comes from selectedItem (HomeTopBar), so the
+        // list cases just report analytics.
         when (item) {
             NAVDRAWER_ITEM_STARRED_STOPS -> {
                 if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_STARRED_STOPS) {
                     mCurrentNavDrawerPosition = item
-                    title = resources.getString(R.string.navdrawer_item_starred_stops)
                     ObaAnalytics.reportUiEvent(
                         mFirebaseAnalytics,
                         Application.get().plausibleInstance,
@@ -342,7 +333,6 @@ class HomeActivity : AppCompatActivity(),
             NAVDRAWER_ITEM_STARRED_ROUTES -> {
                 if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_STARRED_ROUTES) {
                     mCurrentNavDrawerPosition = item
-                    title = resources.getString(R.string.navdrawer_item_starred_routes)
                     ObaAnalytics.reportUiEvent(
                         mFirebaseAnalytics,
                         Application.get().plausibleInstance,
@@ -373,7 +363,6 @@ class HomeActivity : AppCompatActivity(),
             NAVDRAWER_ITEM_MY_REMINDERS -> {
                 if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_MY_REMINDERS) {
                     mCurrentNavDrawerPosition = item
-                    title = resources.getString(R.string.navdrawer_item_my_reminders)
                     ObaAnalytics.reportUiEvent(
                         mFirebaseAnalytics,
                         Application.get().plausibleInstance,
@@ -448,7 +437,6 @@ class HomeActivity : AppCompatActivity(),
         }
         // Recompute the donation / weather / layers gates for the new selection.
         pushEnvironment()
-        invalidateOptionsMenu()
     }
 
     private fun showMapFragment() {
@@ -488,75 +476,25 @@ class HomeActivity : AppCompatActivity(),
         supportFragmentManager.beginTransaction().show(mapFragment.asFragment()).commit()
 
         // The map-loading bar + arrivals sheet are now derived from state (mapLoading; focusedStop +
-        // the NEARBY tab), so no imperative show/collapse is needed here.
-        title = resources.getString(R.string.navdrawer_item_nearby)
+        // the NEARBY tab), and the title comes from selectedItem (HomeTopBar), so no imperative work here.
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.main_options, menu)
-        // The starred/reminders sort + clear items moved here from the now-retired list fragments.
-        menuInflater.inflate(R.menu.home_list_options, menu)
-
-        UIUtils.setupSearch(this, menu)
-
-        // Initialize the per-destination menu visibility here, so the tabs don't overlap.
-        setupOptionsMenu(menu)
-
-        return super.onCreateOptionsMenu(menu)
+    /**
+     * Runs the global search for [query] (from [HomeTopBar]'s search field) by firing the legacy
+     * `ACTION_SEARCH` flow — `SearchActivity` (the app's `default_searchable`) shows the results.
+     */
+    private fun onSearch(query: String) {
+        startActivity(
+            Intent(this, SearchActivity::class.java)
+                .setAction(Intent.ACTION_SEARCH)
+                .putExtra(SearchManager.QUERY, query)
+        )
     }
 
-    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        super.onPrepareOptionsMenu(menu)
-
-        // Manage the per-destination menu visibility here, so the tabs don't overlap.
-        setupOptionsMenu(menu)
-
-        return true
-    }
-
-    private fun setupOptionsMenu(menu: Menu) {
-        val state = viewModel.uiState.value
-        menu.setGroupVisible(R.id.main_options_menu_group, true)
-        // Sort shows on any list tab; clear only on the two starred tabs (its label names the list).
-        menu.setGroupVisible(R.id.home_list_sort, state.showListSortMenu)
-        menu.setGroupVisible(R.id.home_list_clear, state.showListClearMenu)
-        if (state.showListClearMenu) {
-            menu.findItem(R.id.home_list_clear_action)?.setTitle(
-                if (state.selectedItem == HomeNavItem.STARRED_ROUTES) {
-                    R.string.my_option_clear_starred_routes
-                } else {
-                    R.string.my_option_clear_starred_stops
-                }
-            )
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        Log.d(TAG, "onOptionsItemSelected")
-        val id = item.itemId
-        if (id == android.R.id.home) {
-            // The toolbar up indicator opens the Compose navigation drawer.
-            viewModel.requestOpenDrawer()
-            return true
-        }
-        // Note: there is no handler for R.id.action_search here — it's an action-view menu
-        // item (SearchView), which expands inline rather than firing onOptionsItemSelected
-        if (id == R.id.recent_stops_routes) {
-            ShowcaseViewUtils.doNotShowTutorial(ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES)
-            val myIntent = Intent(this, MyRecentStopsAndRoutesActivity::class.java)
-            startActivity(myIntent)
-            return true
-        }
-        if (id == R.id.home_list_sort_action) {
-            onListSortSelected()
-            return true
-        }
-        if (id == R.id.home_list_clear_action) {
-            onListClearSelected()
-            return true
-        }
-        return super.onOptionsItemSelected(item)
+    /** Opens the recent stops/routes screen (the toolbar overflow item). */
+    private fun onRecentStopsRoutes() {
+        ShowcaseViewUtils.doNotShowTutorial(ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES)
+        startActivity(Intent(this, MyRecentStopsAndRoutesActivity::class.java))
     }
 
     /** Sort the visible list tab (the dialog + persisted order live with the shared list helpers). */

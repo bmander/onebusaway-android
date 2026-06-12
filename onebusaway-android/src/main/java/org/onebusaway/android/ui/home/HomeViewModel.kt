@@ -130,9 +130,6 @@ class HomeViewModel(
     /** Collapse the sheet to peek (after "show vehicles on map"). */
     fun requestCollapseSheet() = emit(HomeEvent.CollapseSheet)
 
-    /** Open the navigation drawer (toolbar hamburger). */
-    fun requestOpenDrawer() = emit(HomeEvent.OpenDrawer)
-
     private fun emit(event: HomeEvent) {
         viewModelScope.launch { _events.emit(event) }
     }

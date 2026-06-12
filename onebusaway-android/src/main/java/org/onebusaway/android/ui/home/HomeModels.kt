@@ -109,8 +109,9 @@ enum class ArrivalsSheetState { Hidden, Collapsed, Expanded }
 
 /**
  * One-shot effects driven from the ViewModel. [ShowWideAlert] is handled by the activity; the sheet
- * /drawer commands are handled by [HomeScreen] (which alone holds the live `SheetState`/`DrawerState`).
- * Both subscribe to the same multicast `events` flow and ignore the others.
+ * commands are handled by [HomeScreen] (which alone holds the live `SheetState`). Both subscribe to
+ * the same multicast `events` flow and ignore the others. (The drawer is opened directly by
+ * [HomeTopBar]'s hamburger, so it needs no event.)
  */
 sealed interface HomeEvent {
     /** A region-wide GTFS alert arrived; the activity shows it in a dialog. */
@@ -121,7 +122,4 @@ sealed interface HomeEvent {
 
     /** Collapse the sheet to its peek (e.g. after "show vehicles on map"). */
     object CollapseSheet : HomeEvent
-
-    /** Open the navigation drawer (toolbar hamburger). */
-    object OpenDrawer : HomeEvent
 }

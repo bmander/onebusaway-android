@@ -72,7 +72,7 @@ fun HomeNavDrawerSheet(
     }
 }
 
-private fun HomeNavItem.titleRes(): Int = when (this) {
+internal fun HomeNavItem.titleRes(): Int = when (this) {
     HomeNavItem.NEARBY -> R.string.navdrawer_item_nearby
     HomeNavItem.STARRED_STOPS -> R.string.navdrawer_item_starred_stops
     HomeNavItem.STARRED_ROUTES -> R.string.navdrawer_item_starred_routes

@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -50,7 +50,7 @@ import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.weather.WeatherUtils
 
 /**
- * The declarative home screen: a Compose `ModalNavigationDrawer` + hosted toolbar + Material3
+ * The declarative home screen: a Compose `ModalNavigationDrawer` + [HomeTopBar] + Material3
  * `BottomSheetScaffold`, rendered from [HomeUiState] (state down) with taps dispatched through plain
  * lambda callbacks + [HomeViewModel] events (up). Replaces the imperative `HomeShellHost` bridge.
  *
@@ -66,10 +66,13 @@ import org.onebusaway.android.ui.weather.WeatherUtils
 fun HomeScreen(
     state: HomeUiState,
     events: SharedFlow<HomeEvent>,
-    toolbar: View,
     mapContent: View,
     listVms: HomeListViewModels,
     onNavItemSelected: (HomeNavItem) -> Unit,
+    onSearch: (String) -> Unit,
+    onRecentStopsRoutes: () -> Unit,
+    onListSort: () -> Unit,
+    onListClear: () -> Unit,
     onMyLocation: () -> Unit,
     onZoomIn: () -> Unit,
     onZoomOut: () -> Unit,
@@ -135,7 +138,6 @@ fun HomeScreen(
                         }
                     }
                     HomeEvent.CollapseSheet -> runCatching { sheetState.partialExpand() }
-                    HomeEvent.OpenDrawer -> drawerState.open()
                     else -> {} // ShowWideAlert is handled by the activity
                 }
             }
@@ -165,9 +167,23 @@ fun HomeScreen(
                 }
             }
         ) {
-            // Android 15 forces edge-to-edge at targetSdk 36, so inset the toolbar below the status bar.
-            Column(Modifier.fillMaxSize().statusBarsPadding()) {
-                AndroidView(factory = { toolbar }, modifier = Modifier.fillMaxWidth())
+            // The TopAppBar applies its own top window inset (status bar), so the Column doesn't.
+            Column(Modifier.fillMaxSize()) {
+                HomeTopBar(
+                    title = stringResource(state.selectedItem.titleRes()),
+                    showSort = state.showListSortMenu,
+                    showClear = state.showListClearMenu,
+                    clearLabel = if (state.selectedItem == HomeNavItem.STARRED_ROUTES) {
+                        R.string.my_option_clear_starred_routes
+                    } else {
+                        R.string.my_option_clear_starred_stops
+                    },
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onSearch = onSearch,
+                    onSort = onListSort,
+                    onClear = onListClear,
+                    onRecentStopsRoutes = onRecentStopsRoutes,
+                )
                 BottomSheetScaffold(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     scaffoldState = scaffoldState,

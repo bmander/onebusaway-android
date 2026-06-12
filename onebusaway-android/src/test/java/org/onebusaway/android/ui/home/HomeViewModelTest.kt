@@ -149,7 +149,7 @@ class HomeViewModelTest {
     // --- one-shot sheet / drawer commands ---
 
     @Test
-    fun `request commands emit the matching sheet and drawer events`() = runTest {
+    fun `request commands emit the matching sheet events`() = runTest {
         val vm = viewModel()
         val events = mutableListOf<HomeEvent>()
         val job = launch { vm.events.collect { events.add(it) } }
@@ -157,13 +157,9 @@ class HomeViewModelTest {
 
         vm.requestToggleSheet()
         vm.requestCollapseSheet()
-        vm.requestOpenDrawer()
         advanceUntilIdle()
 
-        assertEquals(
-            listOf(HomeEvent.ToggleSheet, HomeEvent.CollapseSheet, HomeEvent.OpenDrawer),
-            events
-        )
+        assertEquals(listOf(HomeEvent.ToggleSheet, HomeEvent.CollapseSheet), events)
         job.cancel()
     }
 

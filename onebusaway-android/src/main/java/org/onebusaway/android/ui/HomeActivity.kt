@@ -72,7 +72,6 @@ import org.onebusaway.android.map.ObaMapFragment
 import org.onebusaway.android.region.ObaRegionsTask
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
-import org.onebusaway.android.ui.arrivals.ArrivalsPanelFragment
 import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.DefaultWeatherRepository
 import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
@@ -102,7 +101,6 @@ import java.util.Date
 class HomeActivity : AppCompatActivity(),
     ObaMapFragment.OnFocusChangedListener,
     ObaMapFragment.OnProgressBarChangedListener,
-    ArrivalsPanelFragment.Listener,
     RegionCallback,
     ObaRegionsTask.Callback {
 
@@ -118,18 +116,15 @@ class HomeActivity : AppCompatActivity(),
         }
     }
 
-    private var mArrivalsPanelFragment: ArrivalsPanelFragment? = null
-
     private var mSurveyView: View? = null
 
     /** GoogleApiClient being used for Location Services. TODO(PR #1569): migrate to FusedLocation. */
     private var mGoogleApiClient: GoogleApiClient? = null
 
-    // The inflated map content + arrivals sheet content + toolbar are hosted by the Compose
-    // HomeScreen (ModalNavigationDrawer + BottomSheetScaffold) via AndroidView.
+    // The inflated map content + toolbar are hosted by the Compose HomeScreen
+    // (ModalNavigationDrawer + BottomSheetScaffold) via AndroidView; the arrivals sheet content is a
+    // composable keyed per focused stop (ArrivalsSheetHost), no longer a hosted fragment View.
     private lateinit var mMapContent: View
-
-    private lateinit var mSheetContent: View
 
     // Last settled arrivals-sheet position, reported by HomeScreen, so the activity can answer
     // synchronous queries (the preview-vs-full flag) and ignore the initial reveal.
@@ -165,12 +160,11 @@ class HomeActivity : AppCompatActivity(),
 
         mFirebaseAnalytics = FirebaseAnalytics.getInstance(this)
 
-        // Host the legacy content inside a Compose ModalNavigationDrawer + BottomSheetScaffold with a
-        // hosted toolbar, replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome
-        // and the third-party SlidingUpPanelLayout. The map chrome is the scaffold content; the
-        // arrivals panel is the scaffold's bottom sheet.
+        // Host the map content + toolbar inside a Compose ModalNavigationDrawer + BottomSheetScaffold,
+        // replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome and the
+        // third-party SlidingUpPanelLayout. The arrivals panel is the scaffold's bottom sheet,
+        // rendered per focused stop by ArrivalsSheetHost.
         mMapContent = layoutInflater.inflate(R.layout.home_map_content, null)
-        mSheetContent = layoutInflater.inflate(R.layout.home_arrivals_sheet, null)
         val toolbar = layoutInflater.inflate(R.layout.include_toolbar, null) as Toolbar
         setContent {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -179,7 +173,6 @@ class HomeActivity : AppCompatActivity(),
                 events = viewModel.events,
                 toolbar = toolbar,
                 mapContent = mMapContent,
-                sheetContent = mSheetContent,
                 onNavItemSelected = ::onHomeNavItemSelected,
                 onMyLocation = ::onMyLocation,
                 onZoomIn = ::onZoomIn,
@@ -194,6 +187,10 @@ class HomeActivity : AppCompatActivity(),
                 onDismissDialog = viewModel::dismissDialog,
                 onSheetSettled = ::onSheetSettled,
                 onClearFocus = ::onClearFocus,
+                onArrivalsLoaded = ::onArrivalsLoaded,
+                onShowRouteOnMap = ::onShowRouteOnMap,
+                onToggleSheet = viewModel::requestToggleSheet,
+                onPreferredHeight = viewModel::onPreferredHeight,
             )
         }
         setSupportActionBar(toolbar)
@@ -290,13 +287,9 @@ class HomeActivity : AppCompatActivity(),
     override fun onResume() {
         super.onResume()
 
-        // Make sure the arrivals panel has the current sliding-panel state
-        if (mArrivalsPanelFragment != null) {
-            mArrivalsPanelFragment?.setPanelCollapsed(isSlidingPanelCollapsed)
-        }
-
         // Re-snapshot preferences + app-global flags so the ViewModel recomputes the chrome/overlay
         // visibility gates (zoom controls, left-hand mode, layers FAB, weather, donation card).
+        // (The arrivals panel's collapsed state is derived live from the sheet in HomeScreen now.)
         pushEnvironment()
     }
 
@@ -805,11 +798,10 @@ class HomeActivity : AppCompatActivity(),
         }
 
         if (stop != null) {
+            // A stop on the map was just tapped; the arrivals sheet shows itself from focusedStop.
             viewModel.onStopFocused(
                 FocusedStop(stop.id, stop.name, stop.stopCode, stop.latitude, stop.longitude)
             )
-            // A stop on the map was just tapped, show it in the sliding panel
-            updateArrivalListFragment(stop.id, stop.name)
 
             ObaAnalytics.reportUiEvent(
                 mFirebaseAnalytics,
@@ -819,14 +811,9 @@ class HomeActivity : AppCompatActivity(),
                 null
             )
         } else {
-            // No stop is in focus (e.g., user tapped on the map), so clear the focus (the sheet
-            // hides itself once focusedStop is null) and remove the arrivals panel.
+            // No stop is in focus (e.g., user tapped on the map), so clear the focus; the sheet (and
+            // its per-stop arrivals panel) hides + tears down once focusedStop is null.
             viewModel.onStopFocused(null)
-            val panel = mArrivalsPanelFragment
-            if (panel != null) {
-                fm.beginTransaction().remove(panel).commit()
-                mArrivalsPanelFragment = null
-            }
         }
     }
 
@@ -857,9 +844,11 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Called by the ArrivalsPanelFragment when we have new updated arrival information
+     * Called (from ArrivalsSheetHost's responses collector) when the panel has new arrival info:
+     * recenter the map + add the focus marker on the first load after a restore/deep-link, and fire
+     * the arrival tutorials.
      */
-    override fun onArrivalsLoaded(response: ObaArrivalInfoResponse) {
+    private fun onArrivalsLoaded(response: ObaArrivalInfoResponse) {
         val stop = response.stop ?: return
 
         // On restore / deep-link the map fragment hasn't been told which stop is focused, so recenter
@@ -903,10 +892,11 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Called by the ArrivalsPanelFragment when the user selects "Show vehicles on map" for a
-     * route. Collapses the panel and switches the existing map to route mode.
+     * Called by the arrivals panel when the user selects "Show vehicles on map" for a route:
+     * collapse the sheet and switch the existing map to route mode. (`onToggleExpand` /
+     * `onPreferredHeight` go straight to the ViewModel — see the HomeScreen wiring in onCreate.)
      */
-    override fun onShowRouteOnMap(routeId: String) {
+    private fun onShowRouteOnMap(routeId: String) {
         // Collapse the panel so the user can see the map
         viewModel.requestCollapseSheet()
 
@@ -918,42 +908,11 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Called when the user taps the panel header/chevron: toggle between collapsed and full. The
-     * screen carries it out (it holds the live sheet state).
-     */
-    override fun onToggleExpand() {
-        viewModel.requestToggleSheet()
-    }
-
-    /**
-     * Called by the panel as the preferred-arrival preview changes; the ViewModel stores the count +
-     * filter flag and HomeScreen maps them to the collapsed peek height.
-     */
-    override fun onPreferredHeight(previewCount: Int, filtering: Boolean) {
-        viewModel.onPreferredHeight(previewCount, filtering)
-    }
-
-    /**
      * Redraw navigation drawer. This is necessary because we do not know whether to draw the
      * "Plan A Trip" option until a region is selected.
      */
     private fun redrawNavigationDrawerFragment() {
         refreshDrawerItems()
-    }
-
-    /**
-     * Create a new fragment to show the arrivals list for the given stop.
-     */
-    private fun updateArrivalListFragment(stopId: String, stopName: String?) {
-        val fm = supportFragmentManager
-
-        // The Compose panel loads its own data from the stop id (it shows a brief loading state
-        // until the first response), so no stop/route objects need to be pre-populated.
-        val panel = ArrivalsPanelFragment.newInstance(stopId, stopName)
-        mArrivalsPanelFragment = panel
-        panel.setListener(this)
-        fm.beginTransaction().replace(R.id.slidingFragment, panel).commit()
-        // The sheet reveals itself: HomeScreen peeks it whenever a stop is focused on NEARBY.
     }
 
     private fun goToSendFeedBack() {
@@ -1247,11 +1206,9 @@ class HomeActivity : AppCompatActivity(),
                     }
                     mMapFragment?.setMapCenter(loc, true, true)
                 }
-                mArrivalsPanelFragment?.setPanelCollapsed(false)
             }
             ArrivalsSheetState.Collapsed -> {
                 mMapFragment?.mapView?.setPadding(null, null, null, peekPx)
-                mArrivalsPanelFragment?.setPanelCollapsed(true)
             }
             ArrivalsSheetState.Hidden -> {
                 mMapFragment?.mapView?.setPadding(null, null, null, 0)
@@ -1264,11 +1221,11 @@ class HomeActivity : AppCompatActivity(),
      * via SavedStateHandle) or from an Intent that deep-links into a specific stop.
      */
     private fun setupMapState() {
+        // The restored focus (SavedStateHandle) already drives the arrivals sheet via HomeScreen; we
+        // only need to flag the map to recenter + add the marker once arrivals load.
         val restored = viewModel.uiState.value.focusedStop
         if (restored != null) {
-            // Recreate the arrivals panel for the restored stop; recenter the map once it loads.
             mPendingMapFocus = true
-            updateArrivalListFragment(restored.id, restored.name)
         } else {
             // Check the intent for a deep link into a specific stop (via makeIntent()).
             val bundle = intent.extras
@@ -1282,18 +1239,10 @@ class HomeActivity : AppCompatActivity(),
                 if (stopId != null && lat != 0.0 && lon != 0.0) {
                     viewModel.onStopFocused(FocusedStop(stopId, stopName, stopCode, lat, lon))
                     mPendingMapFocus = true
-                    updateArrivalListFragment(stopId, stopName)
                 }
             }
         }
     }
-
-    /**
-     * Collapsed means the arrivals sheet isn't fully expanded (it's peeking or hidden). This drives
-     * the preview-vs-full state of the Compose arrivals panel.
-     */
-    private val isSlidingPanelCollapsed: Boolean
-        get() = mLastSettledSheet != ArrivalsSheetState.Expanded
 
     // Getting a callback from the map fragment to check if we are in a valid region or not. The
     // ViewModel fetches the weather + streams GTFS wide alerts for a valid region (null clears them).

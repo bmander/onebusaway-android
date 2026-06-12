@@ -19,7 +19,6 @@ import android.view.View
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -46,6 +45,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
+import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.weather.WeatherUtils
 
@@ -58,7 +58,8 @@ import org.onebusaway.android.ui.weather.WeatherUtils
  * a stop is focused on NEARBY — driven by a [LaunchedEffect] keyed on that derived flag, so it never
  * fights a user drag. **Expansion (peek<->full)** is the live `SheetState`, nudged by one-shot
  * [HomeEvent.ToggleSheet]/[HomeEvent.CollapseSheet] commands (the screen alone knows the live state),
- * plus [BackHandler]. The map + arrivals remain hosted Views (P11/P14 dissolve them).
+ * plus [BackHandler]. The arrivals panel is hosted directly per focused stop (see [ArrivalsSheetHost]);
+ * the native map remains a hosted View (P14 dissolves it).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,7 +68,6 @@ fun HomeScreen(
     events: SharedFlow<HomeEvent>,
     toolbar: View,
     mapContent: View,
-    sheetContent: View,
     onNavItemSelected: (HomeNavItem) -> Unit,
     onMyLocation: () -> Unit,
     onZoomIn: () -> Unit,
@@ -82,6 +82,10 @@ fun HomeScreen(
     onDismissDialog: () -> Unit,
     onSheetSettled: (ArrivalsSheetState, Int) -> Unit,
     onClearFocus: () -> Unit,
+    onArrivalsLoaded: (ObaArrivalInfoResponse) -> Unit,
+    onShowRouteOnMap: (String) -> Unit,
+    onToggleSheet: () -> Unit,
+    onPreferredHeight: (previewCount: Int, filtering: Boolean) -> Unit,
 ) {
     ObaTheme {
         val scope = rememberCoroutineScope()
@@ -169,9 +173,13 @@ fun HomeScreen(
                     // The reported header height, plus room for the drag handle above it.
                     sheetPeekHeight = peekHeaderDp + DRAG_HANDLE_ALLOWANCE,
                     sheetContent = {
-                        AndroidView(
-                            factory = { sheetContent },
-                            modifier = Modifier.fillMaxWidth().fillMaxHeight()
+                        ArrivalsSheetHost(
+                            focusedStop = state.focusedStop,
+                            collapsed = sheetState.currentValue != SheetValue.Expanded,
+                            onArrivalsLoaded = onArrivalsLoaded,
+                            onShowRouteOnMap = onShowRouteOnMap,
+                            onToggleSheet = onToggleSheet,
+                            onPreferredHeight = onPreferredHeight,
                         )
                     }
                 ) {

@@ -48,7 +48,7 @@ interface RouteSearchRepository {
 /**
  * Default implementation wrapping the blocking OBA routes-for-location request: queries around
  * the user's location first and falls back to a wide-radius search around the region's default
- * center when that returns nothing usable (legacy MySearchRoutesFragment behavior).
+ * center when that returns nothing usable (the legacy route-search behavior).
  */
 class DefaultRouteSearchRepository(private val context: Context) : RouteSearchRepository {
 

@@ -41,7 +41,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.lifecycleScope
@@ -84,13 +83,12 @@ import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
-import org.onebusaway.android.ui.mylists.MyListRepository
-import org.onebusaway.android.ui.mylists.MyListViewModel
 import org.onebusaway.android.ui.mylists.RemindersRepository
 import org.onebusaway.android.ui.mylists.StarredRoutesRepository
 import org.onebusaway.android.ui.mylists.StarredStopsRepository
 import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
+import org.onebusaway.android.ui.mylists.hostListVm
 import org.onebusaway.android.ui.survey.SurveyManager
 import org.onebusaway.android.ui.survey.utils.SurveyViewUtils
 import org.onebusaway.android.ui.weather.RegionCallback
@@ -158,12 +156,6 @@ class HomeActivity : AppCompatActivity(),
             hostListVm("home.starredRoutes") { StarredRoutesRepository(applicationContext) },
             hostListVm("home.reminders") { RemindersRepository(applicationContext) },
         )
-    }
-
-    private fun <T> hostListVm(key: String, repo: () -> MyListRepository<T>): MyListViewModel<T> {
-        val provider = ViewModelProvider(this, viewModelFactory { initializer { MyListViewModel(repo()) } })
-        @Suppress("UNCHECKED_CAST")
-        return provider[key, MyListViewModel::class.java] as MyListViewModel<T>
     }
 
     // True when a focused stop was restored (process death / rotation) or deep-linked but the map

@@ -18,31 +18,25 @@ package org.onebusaway.android.ui
 import android.app.Activity
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
-import androidx.fragment.app.Fragment
 import org.onebusaway.android.R
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.ui.mylists.ReminderItem
 import org.onebusaway.android.ui.mylists.RouteListItem
 import org.onebusaway.android.ui.mylists.RowAction
 import org.onebusaway.android.ui.mylists.StopListItem
+import org.onebusaway.android.ui.search.RouteSearchResult
+import org.onebusaway.android.ui.search.StopSearchResult
 import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.UIUtils
 
 /**
  * Shared navigation and row-action wiring for the My-tab list destinations (recent/starred ×
- * stops/routes, plus reminders). They're hosted by both the legacy `My*` tab activities (as
- * fragments) and the Compose home screen (as composable destinations), with identical tap/long-press
- * behavior except for the remove-action label and whether the host is a launcher-shortcut picker, so
- * it lives here as [AppCompatActivity] extensions rather than a base class. (This file is in the `ui`
- * package, not `ui.mylists`, so it can reach the package-private [MyTabActivityBase] and [NavHelp].)
+ * stops/routes, plus reminders and the search results). They're hosted as composables by both the
+ * `My*` tab activities (`MyTabsScreen`) and the Compose home screen, with identical tap/long-press
+ * behavior except for the remove-action label and whether the host is a launcher-shortcut picker
+ * (`shortcutMode`) — so it lives here as [AppCompatActivity] extensions rather than a base class.
+ * (This file is in the `ui` package, not `ui.mylists`, so it can reach the package-private [NavHelp].)
  */
-
-/** True when the host activity launched this fragment as a launcher-shortcut picker. */
-internal fun Fragment.isInShortcutMode(): Boolean =
-    (activity as? MyTabActivityBase)?.isShortcutMode == true
-
-/** The host as an [AppCompatActivity] — every My-tab list fragment runs in one. */
-internal fun Fragment.requireListHost(): AppCompatActivity = requireActivity() as AppCompatActivity
 
 private fun AppCompatActivity.stopArrivalsBuilder(stop: StopListItem) =
     ArrivalsListActivity.Builder(this, stop.id)
@@ -138,3 +132,29 @@ internal fun AppCompatActivity.reminderActions(reminder: ReminderItem): List<Row
         RouteInfoActivity.start(this, reminder.routeId)
     }
 )
+
+/** Opens a search-result stop's arrivals, or returns it as a launcher shortcut in [shortcutMode]. */
+internal fun AppCompatActivity.openStopSearchResult(stop: StopSearchResult, shortcutMode: Boolean) {
+    val builder = ArrivalsListActivity.Builder(this, stop.id)
+        .setStopName(stop.serverName)
+        .setStopDirection(stop.direction)
+    if (shortcutMode) {
+        val shortcut = UIUtils.createStopShortcut(this, stop.serverName, builder)
+        setResult(Activity.RESULT_OK, shortcut.intent)
+        finish()
+    } else {
+        builder.setUpMode(NavHelp.UP_MODE_BACK)
+        builder.start()
+    }
+}
+
+/** Opens a search-result route, or returns it as a launcher shortcut in [shortcutMode]. */
+internal fun AppCompatActivity.openRouteSearchResult(route: RouteSearchResult, shortcutMode: Boolean) {
+    if (shortcutMode) {
+        val shortcut = UIUtils.createRouteShortcut(this, route.id, route.shortName)
+        setResult(Activity.RESULT_OK, shortcut.intent)
+        finish()
+    } else {
+        RouteInfoActivity.start(this, route.id)
+    }
+}

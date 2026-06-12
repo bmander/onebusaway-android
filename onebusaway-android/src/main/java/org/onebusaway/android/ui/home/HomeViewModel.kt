@@ -240,6 +240,9 @@ internal fun buildState(
     routeFiltering: Boolean = false,
 ): HomeUiState {
     val nearby = selectedItem == HomeNavItem.NEARBY
+    val starredTab = selectedItem == HomeNavItem.STARRED_STOPS ||
+        selectedItem == HomeNavItem.STARRED_ROUTES
+    val listTab = starredTab || selectedItem == HomeNavItem.MY_REMINDERS
     return HomeUiState(
         navItems = navItems,
         selectedItem = selectedItem,
@@ -257,7 +260,7 @@ internal fun buildState(
         donationVisible = nearby && environment.donationAvailable,
         dialog = dialog,
         helpShowContactUs = helpShowContactUs,
-        showStarredStopsMenu = selectedItem == HomeNavItem.STARRED_STOPS,
-        showStarredRoutesMenu = selectedItem == HomeNavItem.STARRED_ROUTES,
+        showListSortMenu = listTab,
+        showListClearMenu = starredTab,
     )
 }

@@ -98,9 +98,10 @@ data class HomeUiState(
     // dialogs (HomeDialog lives in HomeDialogs.kt)
     val dialog: HomeDialog = HomeDialog.NONE,
     val helpShowContactUs: Boolean = true,
-    // toolbar menu groups — derived from selectedItem
-    val showStarredStopsMenu: Boolean = false,
-    val showStarredRoutesMenu: Boolean = false,
+    // toolbar menu groups — derived from selectedItem. Sort shows on any list tab; clear only on the
+    // two starred tabs (recents/reminders aren't user-clearable from here).
+    val showListSortMenu: Boolean = false,
+    val showListClearMenu: Boolean = false,
 )
 
 /** The arrivals sheet's resting position, reported from the screen back to the activity. */

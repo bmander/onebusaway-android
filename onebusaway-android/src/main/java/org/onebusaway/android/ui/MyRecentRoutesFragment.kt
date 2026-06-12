@@ -55,12 +55,14 @@ class MyRecentRoutesFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View = composeFragmentView(inflater) {
+        val host = requireListHost()
+        val shortcutMode = isInShortcutMode()
         val state by viewModel.state.collectAsStateWithLifecycle()
         MyListContent(state = state, emptyText = getString(R.string.my_no_recent_routes), itemKey = { it.id }) { route ->
             RouteRow(
                 route,
-                onClick = { openRoute(route) },
-                actions = routeActions(route, R.string.my_context_remove_recent) { viewModel.remove(route.id) }
+                onClick = { host.openRoute(route, shortcutMode) },
+                actions = host.routeActions(route, R.string.my_context_remove_recent, shortcutMode) { viewModel.remove(route.id) }
             )
         }
     }
@@ -76,7 +78,7 @@ class MyRecentRoutesFragment : Fragment() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == R.id.clear_recent) {
-            confirmClear(
+            requireListHost().confirmClear(
                 R.string.my_option_clear_recent_routes_title,
                 R.string.my_option_clear_recent_routes_confirm
             ) { viewModel.clearAll() }

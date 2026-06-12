@@ -54,12 +54,14 @@ class MyRecentStopsFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View = composeFragmentView(inflater) {
+        val host = requireListHost()
+        val shortcutMode = isInShortcutMode()
         val state by viewModel.state.collectAsStateWithLifecycle()
         MyListContent(state = state, emptyText = getString(R.string.my_no_recent_stops), itemKey = { it.id }) { stop ->
             StopRow(
                 stop,
-                onClick = { openStop(stop) },
-                actions = stopActions(stop, R.string.my_context_remove_recent) { viewModel.remove(stop.id) }
+                onClick = { host.openStop(stop, shortcutMode) },
+                actions = host.stopActions(stop, R.string.my_context_remove_recent, shortcutMode) { viewModel.remove(stop.id) }
             )
         }
     }
@@ -75,7 +77,7 @@ class MyRecentStopsFragment : Fragment() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.itemId == R.id.clear_recent) {
-            confirmClear(
+            requireListHost().confirmClear(
                 R.string.my_option_clear_recent_stops_title,
                 R.string.my_option_clear_recent_stops_confirm
             ) { viewModel.clearAll() }

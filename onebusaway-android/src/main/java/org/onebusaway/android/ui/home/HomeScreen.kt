@@ -68,6 +68,7 @@ fun HomeScreen(
     events: SharedFlow<HomeEvent>,
     toolbar: View,
     mapContent: View,
+    listVms: HomeListViewModels,
     onNavItemSelected: (HomeNavItem) -> Unit,
     onMyLocation: () -> Unit,
     onZoomIn: () -> Unit,
@@ -226,6 +227,14 @@ fun HomeScreen(
                                     .fillMaxWidth()
                                     .padding(start = 16.dp, end = 16.dp, top = 62.dp)
                             )
+                        }
+                        // A selected list tab draws its destination over the map (an opaque, full-size
+                        // Surface), covering the map chrome; NEARBY shows the map through.
+                        when (state.selectedItem) {
+                            HomeNavItem.STARRED_STOPS -> StarredStopsDestination(listVms.starredStops)
+                            HomeNavItem.STARRED_ROUTES -> StarredRoutesDestination(listVms.starredRoutes)
+                            HomeNavItem.MY_REMINDERS -> RemindersDestination(listVms.reminders)
+                            else -> {}
                         }
                     }
                 }

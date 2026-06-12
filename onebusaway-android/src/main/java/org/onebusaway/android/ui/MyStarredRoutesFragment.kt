@@ -59,12 +59,14 @@ class MyStarredRoutesFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View = composeFragmentView(inflater) {
+        val host = requireListHost()
+        val shortcutMode = isInShortcutMode()
         val state by viewModel.state.collectAsStateWithLifecycle()
         MyListContent(state = state, emptyText = getString(R.string.my_no_starred_routes), itemKey = { it.id }) { route ->
             RouteRow(
                 route,
-                onClick = { openRoute(route) },
-                actions = routeActions(route, R.string.my_context_remove_star) { viewModel.remove(route.id) }
+                onClick = { host.openRoute(route, shortcutMode) },
+                actions = host.routeActions(route, R.string.my_context_remove_star, shortcutMode) { viewModel.remove(route.id) }
             )
         }
     }
@@ -80,14 +82,14 @@ class MyStarredRoutesFragment : Fragment() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
         R.id.clear_starred -> {
-            confirmClear(
+            requireListHost().confirmClear(
                 R.string.my_option_clear_starred_routes_title,
                 R.string.my_option_clear_starred_routes_confirm
             ) { viewModel.clearAll() }
             true
         }
         R.id.sort_stops -> {
-            chooseSortOrder(PreferenceUtils.getStopSortOrderFromPreferences(), R.array.sort_stops) {
+            requireListHost().chooseSortOrder(PreferenceUtils.getStopSortOrderFromPreferences(), R.array.sort_stops) {
                 viewModel.setSort(it)
             }
             true

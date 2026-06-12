@@ -290,11 +290,17 @@ class HomeStateTest {
     }
 
     @Test
-    fun `starred menu groups follow the selected tab`() {
-        assertTrue(state(HomeNavItem.STARRED_STOPS).showStarredStopsMenu)
-        assertFalse(state(HomeNavItem.STARRED_STOPS).showStarredRoutesMenu)
-        assertTrue(state(HomeNavItem.STARRED_ROUTES).showStarredRoutesMenu)
-        assertFalse(state(HomeNavItem.NEARBY).showStarredStopsMenu)
+    fun `list menu groups follow the selected tab`() {
+        // Sort shows on all three list tabs; clear only on the two starred tabs.
+        assertTrue(state(HomeNavItem.STARRED_STOPS).showListSortMenu)
+        assertTrue(state(HomeNavItem.STARRED_ROUTES).showListSortMenu)
+        assertTrue(state(HomeNavItem.MY_REMINDERS).showListSortMenu)
+        assertFalse(state(HomeNavItem.NEARBY).showListSortMenu)
+
+        assertTrue(state(HomeNavItem.STARRED_STOPS).showListClearMenu)
+        assertTrue(state(HomeNavItem.STARRED_ROUTES).showListClearMenu)
+        assertFalse(state(HomeNavItem.MY_REMINDERS).showListClearMenu)
+        assertFalse(state(HomeNavItem.NEARBY).showListClearMenu)
     }
 
     @Test

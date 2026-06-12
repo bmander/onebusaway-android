@@ -41,6 +41,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.lifecycleScope
@@ -79,9 +80,17 @@ import org.onebusaway.android.ui.home.FocusedStop
 import org.onebusaway.android.ui.home.HelpAction
 import org.onebusaway.android.ui.home.HomeEnvironment
 import org.onebusaway.android.ui.home.HomeEvent
+import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
+import org.onebusaway.android.ui.mylists.MyListRepository
+import org.onebusaway.android.ui.mylists.MyListViewModel
+import org.onebusaway.android.ui.mylists.RemindersRepository
+import org.onebusaway.android.ui.mylists.StarredRoutesRepository
+import org.onebusaway.android.ui.mylists.StarredStopsRepository
+import org.onebusaway.android.ui.mylists.chooseSortOrder
+import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.survey.SurveyManager
 import org.onebusaway.android.ui.survey.utils.SurveyViewUtils
 import org.onebusaway.android.ui.weather.RegionCallback
@@ -137,12 +146,25 @@ class HomeActivity : AppCompatActivity(),
      */
     private var mCurrentNavDrawerPosition = -1
 
-    private var mMyStarredStopsFragment: MyStarredStopsFragment? = null
-    private var mMyStarredRoutesFragment: MyStarredRoutesFragment? = null
-
     private var mMapFragment: ObaMapFragment? = null
 
-    private var mMyRemindersFragment: MyRemindersFragment? = null
+    // The three home list destinations (starred stops/routes, reminders) render as Compose overlays
+    // over the map (HomeListDestinations) rather than swapped-in fragments. Their MyListViewModels are
+    // owned here (keyed in the activity's ViewModelStore) so the toolbar sort/clear menu can reach
+    // them; they stay cheap until a destination subscribes (WhileSubscribed). See HomeListViewModels.
+    private val listVms: HomeListViewModels by lazy {
+        HomeListViewModels(
+            hostListVm("home.starredStops") { StarredStopsRepository(applicationContext) },
+            hostListVm("home.starredRoutes") { StarredRoutesRepository(applicationContext) },
+            hostListVm("home.reminders") { RemindersRepository(applicationContext) },
+        )
+    }
+
+    private fun <T> hostListVm(key: String, repo: () -> MyListRepository<T>): MyListViewModel<T> {
+        val provider = ViewModelProvider(this, viewModelFactory { initializer { MyListViewModel(repo()) } })
+        @Suppress("UNCHECKED_CAST")
+        return provider[key, MyListViewModel::class.java] as MyListViewModel<T>
+    }
 
     // True when a focused stop was restored (process death / rotation) or deep-linked but the map
     // fragment hasn't been told yet, so the next arrivals load should recenter + add the focus
@@ -173,6 +195,7 @@ class HomeActivity : AppCompatActivity(),
                 events = viewModel.events,
                 toolbar = toolbar,
                 mapContent = mMapContent,
+                listVms = listVms,
                 onNavItemSelected = ::onHomeNavItemSelected,
                 onMyLocation = ::onMyLocation,
                 onZoomIn = ::onZoomIn,
@@ -308,12 +331,13 @@ class HomeActivity : AppCompatActivity(),
     }
 
     private fun goToNavDrawerItem(item: Int) {
-        // Update the main content by replacing fragments
+        // Selectable list tabs render as Compose overlays (HomeScreen reads selectedItem); only NEARBY
+        // still drives the hosted map fragment. The list cases just update the title + analytics.
         when (item) {
             NAVDRAWER_ITEM_STARRED_STOPS -> {
                 if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_STARRED_STOPS) {
-                    showStarredStopsFragment()
                     mCurrentNavDrawerPosition = item
+                    title = resources.getString(R.string.navdrawer_item_starred_stops)
                     ObaAnalytics.reportUiEvent(
                         mFirebaseAnalytics,
                         Application.get().plausibleInstance,
@@ -325,8 +349,8 @@ class HomeActivity : AppCompatActivity(),
             }
             NAVDRAWER_ITEM_STARRED_ROUTES -> {
                 if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_STARRED_ROUTES) {
-                    showStarredRoutesFragment()
                     mCurrentNavDrawerPosition = item
+                    title = resources.getString(R.string.navdrawer_item_starred_routes)
                     ObaAnalytics.reportUiEvent(
                         mFirebaseAnalytics,
                         Application.get().plausibleInstance,
@@ -356,8 +380,8 @@ class HomeActivity : AppCompatActivity(),
             }
             NAVDRAWER_ITEM_MY_REMINDERS -> {
                 if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_MY_REMINDERS) {
-                    showMyRemindersFragment()
                     mCurrentNavDrawerPosition = item
+                    title = resources.getString(R.string.navdrawer_item_my_reminders)
                     ObaAnalytics.reportUiEvent(
                         mFirebaseAnalytics,
                         Application.get().plausibleInstance,
@@ -437,11 +461,8 @@ class HomeActivity : AppCompatActivity(),
 
     private fun showMapFragment() {
         val fm = supportFragmentManager
-        // Hide everything that shouldn't be shown
-        hideStarredRoutesFragment()
-        hideStarredStopsFragment()
-        hideReminderFragment()
-        // Show fragment (we use show instead of replace to keep the map state)
+        // The list destinations are Compose overlays now, so there's nothing to hide — the map is the
+        // only fragment and stays added. Create it on the first NEARBY selection.
         var mapFragment = mMapFragment
         if (mapFragment == null) {
             // First check to see if an instance of ObaMapFragment already exists (see #356)
@@ -479,128 +500,14 @@ class HomeActivity : AppCompatActivity(),
         title = resources.getString(R.string.navdrawer_item_nearby)
     }
 
-    private fun showStarredStopsFragment() {
-        val fm = supportFragmentManager
-        // Hide everything that shouldn't be shown
-        hideMapFragment()
-        hideReminderFragment()
-        hideStarredRoutesFragment()
-
-        // Show fragment (we use show instead of replace to keep the map state)
-        var fragment = mMyStarredStopsFragment
-        if (fragment == null) {
-            // First check to see if an instance of MyStarredStopsFragment already exists (see #356)
-            fragment = fm.findFragmentByTag(MyStarredStopsFragment.TAG) as MyStarredStopsFragment?
-
-            if (fragment == null) {
-                // No existing fragment was found, so create a new one
-                Log.d(TAG, "Creating new MyStarredStopsFragment")
-                fragment = MyStarredStopsFragment()
-                fm.beginTransaction()
-                    .add(R.id.main_fragment_container, fragment, MyStarredStopsFragment.TAG)
-                    .commit()
-            }
-            mMyStarredStopsFragment = fragment
-        }
-        fm.beginTransaction().show(fragment).commit()
-        title = resources.getString(R.string.navdrawer_item_starred_stops)
-    }
-
-    private fun showStarredRoutesFragment() {
-        val fm = supportFragmentManager
-        // Hide everything that shouldn't be shown
-        hideMapFragment()
-        hideReminderFragment()
-        hideStarredStopsFragment()
-
-        // Show fragment (we use show instead of replace to keep the map state)
-        var fragment = mMyStarredRoutesFragment
-        if (fragment == null) {
-            // First check to see if an instance of MyStarredRoutesFragment already exists
-            fragment = fm.findFragmentByTag(MyStarredRoutesFragment.TAG) as MyStarredRoutesFragment?
-
-            if (fragment == null) {
-                // No existing fragment was found, so create a new one
-                Log.d(TAG, "Creating new MyStarredRoutesFragment")
-                fragment = MyStarredRoutesFragment()
-                fm.beginTransaction()
-                    .add(R.id.main_fragment_container, fragment, MyStarredRoutesFragment.TAG)
-                    .commit()
-            }
-            mMyStarredRoutesFragment = fragment
-        }
-        fm.beginTransaction().show(fragment).commit()
-        title = resources.getString(R.string.navdrawer_item_starred_routes)
-    }
-
-    private fun showMyRemindersFragment() {
-        val fm = supportFragmentManager
-        // Hide everything that shouldn't be shown
-        hideStarredRoutesFragment()
-        hideStarredStopsFragment()
-        hideMapFragment()
-        // Show fragment (we use show instead of replace to keep the map state)
-        var fragment = mMyRemindersFragment
-        if (fragment == null) {
-            // First check to see if an instance of MyRemindersFragment already exists (see #356)
-            fragment = fm.findFragmentByTag(MyRemindersFragment.TAG) as MyRemindersFragment?
-
-            if (fragment == null) {
-                // No existing fragment was found, so create a new one
-                Log.d(TAG, "Creating new MyRemindersFragment")
-                fragment = MyRemindersFragment()
-                fm.beginTransaction()
-                    .add(R.id.main_fragment_container, fragment, MyRemindersFragment.TAG)
-                    .commit()
-            }
-            mMyRemindersFragment = fragment
-        }
-        fm.beginTransaction().show(fragment).commit()
-        title = resources.getString(R.string.navdrawer_item_my_reminders)
-    }
-
-    private fun hideMapFragment() {
-        val fm = supportFragmentManager
-        val mapFragment = fm.findFragmentByTag(ObaMapFragment.TAG) as ObaMapFragment?
-        mMapFragment = mapFragment
-        if (mapFragment != null && !mapFragment.asFragment().isHidden) {
-            fm.beginTransaction().hide(mapFragment.asFragment()).commit()
-        }
-    }
-
-    private fun hideStarredStopsFragment() {
-        val fm = supportFragmentManager
-        val fragment = fm.findFragmentByTag(MyStarredStopsFragment.TAG) as MyStarredStopsFragment?
-        mMyStarredStopsFragment = fragment
-        if (fragment != null && !fragment.isHidden) {
-            fm.beginTransaction().hide(fragment).commit()
-        }
-    }
-
-    private fun hideStarredRoutesFragment() {
-        val fm = supportFragmentManager
-        val fragment = fm.findFragmentByTag(MyStarredRoutesFragment.TAG) as MyStarredRoutesFragment?
-        mMyStarredRoutesFragment = fragment
-        if (fragment != null && !fragment.isHidden) {
-            fm.beginTransaction().hide(fragment).commit()
-        }
-    }
-
-    private fun hideReminderFragment() {
-        val fm = supportFragmentManager
-        val fragment = fm.findFragmentByTag(MyRemindersFragment.TAG) as MyRemindersFragment?
-        mMyRemindersFragment = fragment
-        if (fragment != null && !fragment.isHidden) {
-            fm.beginTransaction().hide(fragment).commit()
-        }
-    }
-
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_options, menu)
+        // The starred/reminders sort + clear items moved here from the now-retired list fragments.
+        menuInflater.inflate(R.menu.home_list_options, menu)
 
         UIUtils.setupSearch(this, menu)
 
-        // Initialize fragment menu visibility here, so we don't have overlap between fragments
+        // Initialize the per-destination menu visibility here, so the tabs don't overlap.
         setupOptionsMenu(menu)
 
         return super.onCreateOptionsMenu(menu)
@@ -609,7 +516,7 @@ class HomeActivity : AppCompatActivity(),
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
         super.onPrepareOptionsMenu(menu)
 
-        // Manage fragment menu visibility here, so we don't have overlap between fragments
+        // Manage the per-destination menu visibility here, so the tabs don't overlap.
         setupOptionsMenu(menu)
 
         return true
@@ -618,8 +525,18 @@ class HomeActivity : AppCompatActivity(),
     private fun setupOptionsMenu(menu: Menu) {
         val state = viewModel.uiState.value
         menu.setGroupVisible(R.id.main_options_menu_group, true)
-        menu.setGroupVisible(R.id.starred_stop_menu_group, state.showStarredStopsMenu)
-        menu.setGroupVisible(R.id.starred_route_menu_group, state.showStarredRoutesMenu)
+        // Sort shows on any list tab; clear only on the two starred tabs (its label names the list).
+        menu.setGroupVisible(R.id.home_list_sort, state.showListSortMenu)
+        menu.setGroupVisible(R.id.home_list_clear, state.showListClearMenu)
+        if (state.showListClearMenu) {
+            menu.findItem(R.id.home_list_clear_action)?.setTitle(
+                if (state.selectedItem == HomeNavItem.STARRED_ROUTES) {
+                    R.string.my_option_clear_starred_routes
+                } else {
+                    R.string.my_option_clear_starred_stops
+                }
+            )
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -639,7 +556,47 @@ class HomeActivity : AppCompatActivity(),
             startActivity(myIntent)
             return true
         }
+        if (id == R.id.home_list_sort_action) {
+            onListSortSelected()
+            return true
+        }
+        if (id == R.id.home_list_clear_action) {
+            onListClearSelected()
+            return true
+        }
         return super.onOptionsItemSelected(item)
+    }
+
+    /** Sort the visible list tab (the dialog + persisted order live with the shared list helpers). */
+    private fun onListSortSelected() = when (viewModel.uiState.value.selectedItem) {
+        HomeNavItem.STARRED_STOPS ->
+            chooseSortOrder(PreferenceUtils.getStopSortOrderFromPreferences(), R.array.sort_stops) {
+                listVms.starredStops.setSort(it)
+            }
+        HomeNavItem.STARRED_ROUTES ->
+            chooseSortOrder(PreferenceUtils.getStopSortOrderFromPreferences(), R.array.sort_stops) {
+                listVms.starredRoutes.setSort(it)
+            }
+        HomeNavItem.MY_REMINDERS ->
+            chooseSortOrder(PreferenceUtils.getReminderSortOrderFromPreferences(), R.array.sort_reminders) {
+                listVms.reminders.setSort(it)
+            }
+        else -> Unit
+    }
+
+    /** Clear-all confirmation for the visible starred tab (recents/reminders aren't clearable here). */
+    private fun onListClearSelected() = when (viewModel.uiState.value.selectedItem) {
+        HomeNavItem.STARRED_STOPS ->
+            confirmClear(
+                R.string.my_option_clear_starred_stops_title,
+                R.string.my_option_clear_starred_stops_confirm
+            ) { listVms.starredStops.clearAll() }
+        HomeNavItem.STARRED_ROUTES ->
+            confirmClear(
+                R.string.my_option_clear_starred_routes_title,
+                R.string.my_option_clear_starred_routes_confirm
+            ) { listVms.starredRoutes.clearAll() }
+        else -> Unit
     }
 
     // --- Help / What's-New dialog actions (passed to HomeScreen as lambdas) ---

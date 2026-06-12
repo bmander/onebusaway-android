@@ -33,17 +33,14 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.android.material.color.MaterialColors
 import org.onebusaway.android.R
-import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.ui.compose.composeFragmentView
 import org.onebusaway.android.ui.mylists.MyListContent
 import org.onebusaway.android.ui.mylists.MyListViewModel
 import org.onebusaway.android.ui.mylists.ReminderItem
 import org.onebusaway.android.ui.mylists.ReminderRow
 import org.onebusaway.android.ui.mylists.RemindersRepository
-import org.onebusaway.android.ui.mylists.RowAction
 import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.util.PreferenceUtils
-import org.onebusaway.android.util.ReminderUtils
 
 /**
  * Saved trip reminders, embedded by [HomeActivity] (via [TAG]) and hosted by [MyRemindersActivity]. A
@@ -63,42 +60,24 @@ class MyRemindersFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View = composeFragmentView(inflater) {
+        val host = requireListHost()
         val state by viewModel.state.collectAsStateWithLifecycle()
         MyListContent(
             state = state,
             emptyText = getString(R.string.trip_list_notrips),
             itemKey = { "${it.tripId}:${it.stopId}" }
         ) { reminder ->
-            ReminderRow(reminder, onClick = { editReminder(reminder) }, actions = reminderActions(reminder))
+            ReminderRow(
+                reminder,
+                onClick = { host.editReminder(reminder) },
+                actions = host.reminderActions(reminder)
+            )
         }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setHasOptionsMenu(true)
-    }
-
-    private fun editReminder(reminder: ReminderItem) {
-        TripInfoActivity.start(requireActivity(), reminder.tripId, reminder.stopId)
-    }
-
-    private fun reminderActions(reminder: ReminderItem): List<RowAction> = listOf(
-        RowAction(getString(R.string.trip_list_context_edit)) { editReminder(reminder) },
-        RowAction(getString(R.string.trip_list_context_delete)) { confirmDelete(reminder) },
-        RowAction(getString(R.string.trip_list_context_showstop)) {
-            ArrivalsListActivity.start(requireActivity(), reminder.stopId)
-        },
-        RowAction(getString(R.string.trip_list_context_showroute)) {
-            RouteInfoActivity.start(requireActivity(), reminder.routeId)
-        }
-    )
-
-    private fun confirmDelete(reminder: ReminderItem) {
-        confirmDeleteReminder(requireActivity()) {
-            ReminderUtils.requestDeleteAlarm(
-                requireActivity(), ObaContract.Trips.buildUri(reminder.tripId, reminder.stopId)
-            )
-        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
@@ -113,9 +92,9 @@ class MyRemindersFragment : Fragment() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (item.title == getString(R.string.menu_option_sort_by)) {
-            chooseSortOrder(PreferenceUtils.getReminderSortOrderFromPreferences(), R.array.sort_reminders) {
-                viewModel.setSort(it)
-            }
+            requireListHost().chooseSortOrder(
+                PreferenceUtils.getReminderSortOrderFromPreferences(), R.array.sort_reminders
+            ) { viewModel.setSort(it) }
             return true
         }
         return false

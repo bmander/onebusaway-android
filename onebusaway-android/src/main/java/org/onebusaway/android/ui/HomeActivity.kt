@@ -791,9 +791,8 @@ class HomeActivity : AppCompatActivity(),
         if (focusedId != null && stop != null && focusedId.equals(stop.id, ignoreCase = true)) {
             return
         }
-        val fm = supportFragmentManager
-        // If the fragment's state has already been saved, then don't change the state (return)
-        if (fm.isStateSaved) {
+        // If the fragment manager's state has already been saved, don't change the focus state.
+        if (supportFragmentManager.isStateSaved) {
             return
         }
 

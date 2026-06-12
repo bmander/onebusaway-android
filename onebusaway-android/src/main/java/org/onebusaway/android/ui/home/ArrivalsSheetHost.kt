@@ -15,21 +15,15 @@
  */
 package org.onebusaway.android.ui.home
 
-import android.content.Context
-import android.content.ContextWrapper
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
-import androidx.lifecycle.ViewModelStore
-import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -40,12 +34,14 @@ import org.onebusaway.android.ui.arrivals.ArrivalsPanel
 import org.onebusaway.android.ui.arrivals.ArrivalsUiState
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.arrivals.DefaultArrivalsRepository
+import org.onebusaway.android.ui.compose.findActivity
+import org.onebusaway.android.ui.compose.rememberClearedViewModelStoreOwner
 import org.onebusaway.android.ui.createArrivalActionHandler
 
 /**
  * Hosts the [ArrivalsPanel] for the currently focused stop directly in the home bottom sheet,
  * replacing the old `ArrivalsPanelFragment`. Each focused stop gets its own [ArrivalsViewModel] in a
- * per-stop [ViewModelStore] that is **cleared when the stop changes or the sheet leaves composition**
+ * per-stop `ViewModelStore` that is **cleared when the stop changes or the sheet leaves composition**
  * (via [rememberClearedViewModelStoreOwner]) — so the VM's `viewModelScope`, and the refresh loop
  * `ArrivalsPanel` drives through it, are cancelled rather than accumulating in the activity's store.
  *
@@ -77,7 +73,9 @@ internal fun ArrivalsSheetHost(
                 }
             )
             val activity = context.findActivity()
-            val handler = remember(viewModel) {
+            // The enclosing key(stop.id) gives this whole block a fresh identity per stop, so these
+            // remembers are already scoped to the stop — no per-element key needed.
+            val handler = remember {
                 createArrivalActionHandler(
                     activity = activity,
                     viewModel = viewModel,
@@ -85,7 +83,7 @@ internal fun ArrivalsSheetHost(
                     onShowRouteOnMap = onShowRouteOnMap,
                 )
             }
-            val listState = remember(stop.id) { LazyListState() }
+            val listState = remember { LazyListState() }
 
             // The BottomSheetScaffold sheet container is transparent; keep the legacy panel background.
             Surface(color = colorResource(R.color.trip_details_background)) {
@@ -106,29 +104,4 @@ internal fun ArrivalsSheetHost(
             }
         }
     }
-}
-
-/**
- * A [ViewModelStoreOwner] backed by a fresh [ViewModelStore] per [key], cleared when the key changes
- * or the composition leaves — so ViewModels scoped to it are properly destroyed (their
- * `viewModelScope` cancelled) instead of living on in the activity's store.
- */
-@Composable
-internal fun rememberClearedViewModelStoreOwner(key: Any?): ViewModelStoreOwner {
-    val owner = remember(key) {
-        object : ViewModelStoreOwner {
-            override val viewModelStore = ViewModelStore()
-        }
-    }
-    DisposableEffect(key) {
-        onDispose { owner.viewModelStore.clear() }
-    }
-    return owner
-}
-
-/** Unwraps the Activity from a (possibly themed) Compose context chain. */
-private tailrec fun Context.findActivity(): AppCompatActivity = when (this) {
-    is AppCompatActivity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> error("No AppCompatActivity found in the context chain")
 }

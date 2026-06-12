@@ -152,4 +152,17 @@ sealed interface HomeEvent {
 
     /** Recenter the map on the focused stop (the sheet expanded over it). */
     data class RecenterOnFocusedStop(val lat: Double, val lon: Double) : HomeEvent
+
+    /**
+     * A restored / deep-linked focus's arrivals just loaded — recenter the map + add the focus marker.
+     * The io/elements stop + routes payload is held by the activity (the VM is decoupled from them);
+     * this only carries the VM-owned [animateRecenter] decision.
+     */
+    data class CompletePendingMapFocus(val animateRecenter: Boolean) : HomeEvent
+
+    /** Show a route's stops/vehicles on the map (route mode). */
+    data class ShowRouteOnMap(val routeId: String) : HomeEvent
+
+    /** Clear the map's focused stop (back-press from a peeking sheet; the sheet then hides). */
+    object ClearMapFocus : HomeEvent
 }

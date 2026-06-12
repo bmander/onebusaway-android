@@ -66,6 +66,9 @@ class HomeViewModel(
     // The sheet's last resting position, reported up from the screen; drives the map padding/recenter
     // side-effects + the tutorial gate (transient — re-reported by the screen on recreation).
     private var settledSheet: ArrivalsSheetState = ArrivalsSheetState.Hidden
+    // A restored/deep-linked focus the imperative map hasn't been told about yet (re-derived by the
+    // host on each create from the restored focusedStop, so it needn't be persisted).
+    private var pendingMapFocus: Boolean = false
     // Seed the peek at the two-arrivals height so the first sheet reveal doesn't flash undersized
     // (matches the legacy setupSlidingPanel default); onPreferredHeight refines it.
     private var peekArrivalCount: Int = 2
@@ -162,6 +165,38 @@ class HomeViewModel(
 
     /** Collapse the sheet to peek (after "show vehicles on map"). */
     fun requestCollapseSheet() = emit(HomeEvent.CollapseSheet)
+
+    /**
+     * The host has a restored / deep-linked focus the imperative map hasn't been told about yet;
+     * complete it once the arrivals load (see [onArrivalsLoaded]). A fresh map tap already centers the
+     * stop, so it does not call this.
+     */
+    fun markPendingMapFocus() {
+        pendingMapFocus = true
+    }
+
+    /**
+     * Arrivals loaded for the focused stop. If a restore/deep-link focus is pending, consume the latch
+     * and ask the host to recenter + add the marker (animated only if the sheet is expanded). Returns
+     * whether it was pending, so the host knows to hand over the (io/elements) response payload.
+     */
+    fun onArrivalsLoaded(): Boolean {
+        if (!pendingMapFocus) {
+            return false
+        }
+        pendingMapFocus = false
+        emit(HomeEvent.CompletePendingMapFocus(animateRecenter = settledSheet == ArrivalsSheetState.Expanded))
+        return true
+    }
+
+    /** "Show vehicles on map" — collapse the sheet, then switch the map to route mode (ordered pair). */
+    fun requestShowRouteOnMap(routeId: String) {
+        emit(HomeEvent.CollapseSheet)
+        emit(HomeEvent.ShowRouteOnMap(routeId))
+    }
+
+    /** Back-press from a peeking sheet — clear the map focus (the sheet then hides). */
+    fun requestClearMapFocus() = emit(HomeEvent.ClearMapFocus)
 
     private fun emit(event: HomeEvent) {
         viewModelScope.launch { _events.emit(event) }

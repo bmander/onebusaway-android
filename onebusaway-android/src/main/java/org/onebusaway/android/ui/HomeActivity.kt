@@ -175,10 +175,9 @@ class HomeActivity : AppCompatActivity(),
         )
     }
 
-    // True when a focused stop was restored (process death / rotation) or deep-linked but the map
-    // fragment hasn't been told yet, so the next arrivals load should recenter + add the focus
-    // marker. A fresh map tap already shows the stop, so it doesn't set this.
-    private var mPendingMapFocus = false
+    // A one-frame courier for the io/elements arrivals response the VM is decoupled from: stashed when
+    // the VM reports a pending focus, consumed by the CompletePendingMapFocus event to recenter + mark.
+    private var pendingFocusResponse: ObaArrivalInfoResponse? = null
 
     private lateinit var mFirebaseAnalytics: FirebaseAnalytics
 
@@ -225,9 +224,9 @@ class HomeActivity : AppCompatActivity(),
                 onRegionChosen = viewModel::onRegionChosen,
                 onDismissDialog = viewModel::dismissDialog,
                 onSheetSettled = viewModel::onSheetSettled,
-                onClearFocus = ::onClearFocus,
+                onClearFocus = viewModel::requestClearMapFocus,
                 onArrivalsLoaded = ::onArrivalsLoaded,
-                onShowRouteOnMap = ::onShowRouteOnMap,
+                onShowRouteOnMap = viewModel::requestShowRouteOnMap,
                 onToggleSheet = viewModel::requestToggleSheet,
                 onPreferredHeight = viewModel::onPreferredHeight,
             )
@@ -294,6 +293,23 @@ class HomeActivity : AppCompatActivity(),
                             }
                             mMapHost?.setMapCenter(loc, true, true)
                         }
+                        is HomeEvent.CompletePendingMapFocus -> {
+                            // The VM owns the latch + animate decision; we courier the io/elements payload.
+                            val r = pendingFocusResponse
+                            pendingFocusResponse = null
+                            r?.stop?.let { stop ->
+                                mMapHost?.setMapCenter(stop.location, false, event.animateRecenter)
+                                mMapHost?.setFocusStop(stop, r.routes)
+                            }
+                        }
+                        is HomeEvent.ShowRouteOnMap -> {
+                            val bundle = Bundle()
+                            bundle.putBoolean(MapParams.ZOOM_TO_ROUTE, false)
+                            bundle.putBoolean(MapParams.ZOOM_INCLUDE_CLOSEST_VEHICLE, true)
+                            bundle.putString(MapParams.ROUTE_ID, event.routeId)
+                            mMapHost?.setMapMode(MapParams.MODE_ROUTE, bundle)
+                        }
+                        HomeEvent.ClearMapFocus -> mMapHost?.setFocusStop(null, null)
                         // Sheet / drawer commands are carried out by HomeScreen.
                         else -> Unit
                     }
@@ -643,30 +659,19 @@ class HomeActivity : AppCompatActivity(),
         viewModel.onMapLoading(showProgressBar)
     }
 
-    /** Clears the map focus (back-press from a peeking sheet); the sheet then hides itself. */
-    private fun onClearFocus() {
-        mMapHost?.setFocusStop(null, null)
-    }
-
     /**
-     * Called (from ArrivalsSheetHost's responses collector) when the panel has new arrival info:
-     * recenter the map + add the focus marker on the first load after a restore/deep-link, and fire
-     * the arrival tutorials.
+     * Called (from ArrivalsSheetHost's responses collector) when the panel has new arrival info. The
+     * VM owns the pending-focus latch + the animate decision; when it reports a pending focus we hand
+     * over the response so the [HomeEvent.CompletePendingMapFocus] collector can recenter + add the
+     * marker (it needs the response's raw io/elements stop + routes, which the VM is decoupled from).
      */
     private fun onArrivalsLoaded(response: ObaArrivalInfoResponse) {
-        val stop = response.stop ?: return
-
-        // On restore / deep-link the map fragment hasn't been told which stop is focused, so recenter
-        // and add the focus marker when the first arrivals load arrives. A fresh map tap already has
-        // the stop in view, so mPendingMapFocus is false there and this is skipped.
-        if (mPendingMapFocus) {
-            mPendingMapFocus = false
-            mMapHost?.setMapCenter(
-                stop.location, false, viewModel.uiState.value.settledSheet == ArrivalsSheetState.Expanded
-            )
-            mMapHost?.setFocusStop(stop, response.routes)
+        if (response.stop == null) {
+            return
         }
-
+        if (viewModel.onArrivalsLoaded()) {
+            pendingFocusResponse = response
+        }
         // Show arrival info related tutorials
         showArrivalInfoTutorials(response)
     }
@@ -692,22 +697,6 @@ class HomeActivity : AppCompatActivity(),
         ShowcaseViewUtils.showTutorial(
             ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES, this, null, false
         )
-    }
-
-    /**
-     * Called by the arrivals panel when the user selects "Show vehicles on map" for a route:
-     * collapse the sheet and switch the existing map to route mode. (`onToggleExpand` /
-     * `onPreferredHeight` go straight to the ViewModel — see the HomeScreen wiring in onCreate.)
-     */
-    private fun onShowRouteOnMap(routeId: String) {
-        // Collapse the panel so the user can see the map
-        viewModel.requestCollapseSheet()
-
-        val bundle = Bundle()
-        bundle.putBoolean(MapParams.ZOOM_TO_ROUTE, false)
-        bundle.putBoolean(MapParams.ZOOM_INCLUDE_CLOSEST_VEHICLE, true)
-        bundle.putString(MapParams.ROUTE_ID, routeId)
-        mMapHost?.setMapMode(MapParams.MODE_ROUTE, bundle)
     }
 
     /**
@@ -912,12 +901,6 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Reacts to the arrivals sheet settling into a new resting state (reported by HomeScreen), with
-     * [peekPx] the current header peek height. Recenters the map on EXPANDED, keeps the map's bottom
-     * padding in sync with the peek, and drives the arrivals panel's preview-vs-full flag. The initial
-     * reveal from HIDDEN is ignored (it's handled by the focus flow), matching the legacy behavior.
-     */
-    /**
      * Sets up the initial map state from the ViewModel's restored focus (process death / rotation,
      * via SavedStateHandle) or from an Intent that deep-links into a specific stop.
      */
@@ -926,7 +909,7 @@ class HomeActivity : AppCompatActivity(),
         // only need to flag the map to recenter + add the marker once arrivals load.
         val restored = viewModel.uiState.value.focusedStop
         if (restored != null) {
-            mPendingMapFocus = true
+            viewModel.markPendingMapFocus()
         } else {
             // Check the intent for a deep link into a specific stop (via makeIntent()).
             val bundle = intent.extras
@@ -939,7 +922,7 @@ class HomeActivity : AppCompatActivity(),
 
                 if (stopId != null && lat != 0.0 && lon != 0.0) {
                     viewModel.onStopFocused(FocusedStop(stopId, stopName, stopCode, lat, lon))
-                    mPendingMapFocus = true
+                    viewModel.markPendingMapFocus()
                 }
             }
         }

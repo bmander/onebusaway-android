@@ -277,6 +277,90 @@ class HomeViewModelTest {
         job.cancel()
     }
 
+    // --- pending map focus / route mode / clear focus ---
+
+    @Test
+    fun `a pending focus is completed once on arrivals load`() = runTest {
+        val vm = viewModel()
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.markPendingMapFocus()
+        assertTrue(vm.onArrivalsLoaded())          // pending -> completes
+        assertFalse(vm.onArrivalsLoaded())         // latch cleared -> no longer pending
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(HomeEvent.CompletePendingMapFocus(animateRecenter = false)),
+            events.filterIsInstance<HomeEvent.CompletePendingMapFocus>()
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun `arrivals load with no pending focus does nothing`() = runTest {
+        val vm = viewModel()
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        assertFalse(vm.onArrivalsLoaded())
+        advanceUntilIdle()
+
+        assertTrue(events.isEmpty())
+        job.cancel()
+    }
+
+    @Test
+    fun `a pending focus animates the recenter when the sheet is expanded`() = runTest {
+        val vm = viewModel()
+        vm.onStopFocused(FocusedStop("1", "Main St", "100", 47.6, -122.3))
+        vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
+        vm.onSheetSettled(ArrivalsSheetState.Expanded, 120)
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.markPendingMapFocus()
+        vm.onArrivalsLoaded()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(HomeEvent.CompletePendingMapFocus(animateRecenter = true)),
+            events.filterIsInstance<HomeEvent.CompletePendingMapFocus>()
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun `show route on map collapses the sheet then switches to route mode`() = runTest {
+        val vm = viewModel()
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.requestShowRouteOnMap("42")
+        advanceUntilIdle()
+
+        assertEquals(listOf(HomeEvent.CollapseSheet, HomeEvent.ShowRouteOnMap("42")), events)
+        job.cancel()
+    }
+
+    @Test
+    fun `clear map focus emits ClearMapFocus`() = runTest {
+        val vm = viewModel()
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.requestClearMapFocus()
+        advanceUntilIdle()
+
+        assertEquals(listOf<HomeEvent>(HomeEvent.ClearMapFocus), events)
+        job.cancel()
+    }
+
     // --- focus + SavedStateHandle ---
 
     @Test

@@ -18,6 +18,7 @@ package org.onebusaway.android.ui.home
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import org.onebusaway.android.io.elements.ObaRegion
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +43,7 @@ class HomeViewModel(
     private val savedState: SavedStateHandle,
     private val weatherRepo: WeatherRepository,
     private val wideAlertsRepo: WideAlertsRepository,
+    private val regionRepo: RegionStatusRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -55,7 +57,7 @@ class HomeViewModel(
     private var selectedItem: HomeNavItem = HomeNavItem.NEARBY
     private var environment = HomeEnvironment()
     private var weatherData: WeatherData? = null
-    private var dialog: HomeDialog = HomeDialog.NONE
+    private var dialog: HomeDialog = HomeDialog.None
     private var helpShowContactUs: Boolean = true
     private var mapLoading: Boolean = false
     // Seed the peek at the two-arrivals height so the first sheet reveal doesn't flash undersized
@@ -142,30 +144,63 @@ class HomeViewModel(
 
     fun showHelp(showContactUs: Boolean) {
         helpShowContactUs = showContactUs
-        dialog = HomeDialog.HELP
+        dialog = HomeDialog.Help
         recompute()
     }
 
     fun showWhatsNew() {
-        dialog = HomeDialog.WHATS_NEW
+        dialog = HomeDialog.WhatsNew
         recompute()
     }
 
     /** The arrival-color legend (Help menu). */
     fun showLegend() {
-        dialog = HomeDialog.LEGEND
+        dialog = HomeDialog.Legend
         recompute()
     }
 
     /** The "are you sure?" confirmation when the user closes the donation card. */
     fun showDismissDonation() {
-        dialog = HomeDialog.DISMISS_DONATION
+        dialog = HomeDialog.DismissDonation
         recompute()
     }
 
     fun dismissDialog() {
-        dialog = HomeDialog.NONE
+        dialog = HomeDialog.None
         recompute()
+    }
+
+    /**
+     * Refreshes/resolves the current region (replaces HomeActivity.checkRegionStatus + ObaRegionsTask).
+     * The repository performs the region model writes on Dispatchers.IO; this maps the outcome to the
+     * activity's side effects (map re-zoom, toast, analytics) via a one-shot event, or raises the
+     * forced-choice picker when no region can be auto-selected. No 100ms callback delay is needed — the
+     * region is already set inside the suspend call before we emit.
+     */
+    fun refreshRegions() {
+        viewModelScope.launch {
+            when (val status = regionRepo.refreshRegions()) {
+                is RegionStatus.Changed -> emit(HomeEvent.RegionResolved(true, status.region.name))
+                RegionStatus.Unchanged -> emit(HomeEvent.RegionResolved(false, null))
+                is RegionStatus.NeedsManualSelection -> {
+                    dialog = HomeDialog.ChooseRegion(status.regions)
+                    recompute()
+                }
+                // Parity: the legacy callback did nothing further in these cases.
+                RegionStatus.Skipped, is RegionStatus.Fixed, RegionStatus.Failed -> Unit
+            }
+        }
+    }
+
+    /** The user picked a region in the forced-choice dialog (old haveUserChooseRegion onClick). */
+    fun onRegionChosen(region: ObaRegion) {
+        viewModelScope.launch {
+            regionRepo.selectRegion(region)
+            dialog = HomeDialog.None
+            recompute()
+            // regionName null: the legacy manual-pick path logged no analytics.
+            emit(HomeEvent.RegionResolved(true, null))
+        }
     }
 
     /**

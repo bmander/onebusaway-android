@@ -29,6 +29,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.testing.MainDispatcherRule
 
 private class FakeWeatherRepository(var result: Result<WeatherData>) : WeatherRepository {
@@ -42,6 +43,16 @@ private class FakeWeatherRepository(var result: Result<WeatherData>) : WeatherRe
 private class FakeWideAlertsRepository(private val alerts: List<WideAlert>) : WideAlertsRepository {
     override fun wideAlerts(regionId: String): Flow<WideAlert> = flow {
         alerts.forEach { emit(it) }
+    }
+}
+
+private class FakeRegionStatusRepository(
+    var result: RegionStatus = RegionStatus.Unchanged
+) : RegionStatusRepository {
+    val selected = mutableListOf<ObaRegion>()
+    override suspend fun refreshRegions(): RegionStatus = result
+    override suspend fun selectRegion(region: ObaRegion) {
+        selected.add(region)
     }
 }
 
@@ -60,8 +71,12 @@ class HomeViewModelTest {
     private fun viewModel(
         weather: Result<WeatherData> = Result.success(forecast),
         alerts: List<WideAlert> = emptyList(),
+        regionStatus: RegionStatus = RegionStatus.Unchanged,
+        regionRepo: FakeRegionStatusRepository = FakeRegionStatusRepository(regionStatus),
         savedState: SavedStateHandle = SavedStateHandle(),
-    ) = HomeViewModel(savedState, FakeWeatherRepository(weather), FakeWideAlertsRepository(alerts))
+    ) = HomeViewModel(
+        savedState, FakeWeatherRepository(weather), FakeWideAlertsRepository(alerts), regionRepo
+    )
 
     // --- weather (async) ---
 
@@ -111,7 +126,10 @@ class HomeViewModelTest {
     @Test
     fun `weather is fetched once per region, again when the region changes`() = runTest {
         val repo = FakeWeatherRepository(Result.success(forecast))
-        val vm = HomeViewModel(SavedStateHandle(), repo, FakeWideAlertsRepository(emptyList()))
+        val vm = HomeViewModel(
+            SavedStateHandle(), repo, FakeWideAlertsRepository(emptyList()),
+            FakeRegionStatusRepository()
+        )
 
         vm.onRegionValid(1L)
         advanceUntilIdle()
@@ -216,10 +234,96 @@ class HomeViewModelTest {
     fun `showing and dismissing the help dialog updates state`() = runTest {
         val vm = viewModel()
         vm.showHelp(showContactUs = false)
-        assertEquals(HomeDialog.HELP, vm.uiState.value.dialog)
+        assertEquals(HomeDialog.Help, vm.uiState.value.dialog)
         assertFalse(vm.uiState.value.helpShowContactUs)
         vm.dismissDialog()
-        assertEquals(HomeDialog.NONE, vm.uiState.value.dialog)
+        assertEquals(HomeDialog.None, vm.uiState.value.dialog)
+    }
+
+    // --- region refresh (events + manual-picker dialog) ---
+
+    @Test
+    fun `a changed region emits RegionResolved with the region name`() = runTest {
+        val region = region(1)
+        val vm = viewModel(regionStatus = RegionStatus.Changed(region))
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.refreshRegions()
+        advanceUntilIdle()
+
+        assertEquals(listOf(HomeEvent.RegionResolved(true, region.name)), events)
+        job.cancel()
+    }
+
+    @Test
+    fun `an unchanged region emits RegionResolved without a name`() = runTest {
+        val vm = viewModel(regionStatus = RegionStatus.Unchanged)
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.refreshRegions()
+        advanceUntilIdle()
+
+        assertEquals(listOf(HomeEvent.RegionResolved(false, null)), events)
+        job.cancel()
+    }
+
+    @Test
+    fun `needing manual selection raises the chooser dialog and emits no event`() = runTest {
+        val regions = listOf(region(1), region(2))
+        val vm = viewModel(regionStatus = RegionStatus.NeedsManualSelection(regions))
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.refreshRegions()
+        advanceUntilIdle()
+
+        assertEquals(HomeDialog.ChooseRegion(regions), vm.uiState.value.dialog)
+        assertTrue(events.isEmpty())
+        job.cancel()
+    }
+
+    @Test
+    fun `skipped, fixed, and failed statuses emit no event`() = runTest {
+        val statuses = listOf(RegionStatus.Skipped, RegionStatus.Fixed(region(1)), RegionStatus.Failed)
+        for (status in statuses) {
+            val vm = viewModel(regionStatus = status)
+            val events = mutableListOf<HomeEvent>()
+            val job = launch { vm.events.collect { events.add(it) } }
+            advanceUntilIdle()
+
+            vm.refreshRegions()
+            advanceUntilIdle()
+
+            assertTrue("$status should emit no event", events.isEmpty())
+            job.cancel()
+        }
+    }
+
+    @Test
+    fun `onRegionChosen selects the region, dismisses the dialog, and signals a change`() = runTest {
+        val regions = listOf(region(1), region(2))
+        val repo = FakeRegionStatusRepository(RegionStatus.NeedsManualSelection(regions))
+        val vm = viewModel(regionRepo = repo)
+        val events = mutableListOf<HomeEvent>()
+        val job = launch { vm.events.collect { events.add(it) } }
+        advanceUntilIdle()
+
+        vm.refreshRegions()
+        advanceUntilIdle()
+        val chosen = regions[1]
+        vm.onRegionChosen(chosen)
+        advanceUntilIdle()
+
+        assertEquals(listOf(chosen), repo.selected)
+        assertEquals(HomeDialog.None, vm.uiState.value.dialog)
+        // regionName null: the legacy manual-pick path logged no analytics.
+        assertEquals(listOf<HomeEvent>(HomeEvent.RegionResolved(true, null)), events)
+        job.cancel()
     }
 }
 
@@ -233,7 +337,7 @@ class HomeStateTest {
         mapLoading: Boolean = false,
         focusedStop: FocusedStop? = null,
     ) = buildState(
-        selected, emptyList(), env, weather, HomeDialog.NONE, true,
+        selected, emptyList(), env, weather, HomeDialog.None, true,
         focusedStop = focusedStop, mapLoading = mapLoading,
     )
 

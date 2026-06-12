@@ -45,6 +45,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
+import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.weather.WeatherUtils
@@ -85,6 +86,7 @@ fun HomeScreen(
     onDonationRemindLater: () -> Unit,
     onHelpAction: (HelpAction) -> Unit,
     onWhatsNewDismissed: () -> Unit,
+    onRegionChosen: (ObaRegion) -> Unit,
     onDismissDialog: () -> Unit,
     onSheetSettled: (ArrivalsSheetState, Int) -> Unit,
     onClearFocus: () -> Unit,
@@ -266,6 +268,7 @@ fun HomeScreen(
             onWhatsNewDismissed = onWhatsNewDismissed,
             onDonationDismissForever = onDonationDismissForever,
             onDonationRemindLater = onDonationRemindLater,
+            onRegionChosen = onRegionChosen,
             onDismiss = onDismissDialog
         )
     }

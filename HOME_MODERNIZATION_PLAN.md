@@ -57,6 +57,13 @@ unidirectional data flow, coroutines for all async work — within the hard `min
 > were unaffected by P12. Swept `legend_dialog`/`eta_header_view`/`ic_menu_hamburger`/`ic_action_search`
 > + orphan dimens. Home now has **zero View dialogs**. **P14 (de-fragment the native map host) is the
 > last phase.**
+>
+> **Update — 2026-06-12 (retrospective).** P14 landed (see its phase entry); Phase 1 is complete.
+> A code-verified retrospective found three end-state promises unmet — Home's region refresh still
+> rides `ObaRegionsTask` (an `AsyncTask`) while `RegionStatusRepository` sits unwired, the int nav
+> model survives, and the Activity still owns a little UI state — now scoped as **P15–P17 in the
+> "Phase 2" section at the bottom**, alongside two deviations accepted as decisions
+> (`onSaveInstanceState`, `GoogleApiClient`).
 
 ## Where we are
 
@@ -616,3 +623,104 @@ End state: `HomeActivity.kt` ≈ 120 lines of intent/permission/event plumbing, 
 fragments** — no `FragmentManager` use anywhere in Home, and the seven list/search fragments
 (plus the vendored `ListFragment.java`, if freed) deleted app-wide via the P11b shell
 conversion — closing the Home-sized slice of debt findings #2 and #6.
+
+## Phase 2 — closing the gap to the written end state
+
+*Added 2026-06-12 after a code-verified retrospective of P7–P14. The substantive goal landed —
+Home is fragment-free, declarative, ViewModel-driven; both flavors compile; all 41 Home JVM
+tests pass. But the end-state paragraph above makes five promises, and a grep of the tree shows
+three were left unmet (plus two accepted deviations worth recording as decisions). These are the
+fall-short items; each is small and independently landable.*
+
+### P15 — Wire `RegionStatusRepository`  *(LANDED — both flavors, device-verified)*
+
+> **As built — 2026-06-12.** Wired (not deleted). `HomeActivity.checkRegionStatus()` shrank to
+> `viewModel.refreshRegions()`; the ViewModel runs `RegionStatusRepository.refreshRegions()` on
+> `viewModelScope` and maps the sealed `RegionStatus` to side effects: `Changed`/`Unchanged` →
+> a one-shot `HomeEvent.RegionResolved(changed, regionName?)` the activity carries out (map re-zoom via
+> `(mMapHost as? ObaRegionsTask.Callback)?.onRegionTaskFinished`, the region-found toast, analytics on an
+> auto-select change, and the verbatim `onRegionResolved` body = What's-New + drawer redraw +
+> `pushEnvironment`); `NeedsManualSelection` → the forced-choice picker. Home's last `AsyncTask` use is
+> gone and the once-dead repository now has a production caller. **The 100ms `doCallback` delay was
+> dropped** — the region is set inside the suspend call before the event is collected, so the
+> background-write race it guarded against can't occur. `ObaRegionsTask` + its `Callback` interface stay
+> alive for SettingsActivity/BackupUtils; only Home stopped using them (the import remains for the
+> `as?` cast). Swept four now-dead imports + the `CHECK_REGION_VER`/`REGION_UPDATE_THRESHOLD` constants
+> (the repo owns its own).
+>
+> **Fork decisions (with the user):** (a) the manual picker is a **faithful non-dismissible Compose
+> dialog** in `HomeDialogs.kt` (`HomeDialog` became a `sealed interface`; `ChooseRegion(regions)` carries
+> the usable list, which `RegionStatus.NeedsManualSelection` now also carries), *not* a launch of
+> `RegionsActivity` — preserving the old forced-choice UX and Home's "zero View dialogs." (b) the
+> first-launch "Detecting region…" modal spinner was **dropped** (the map's own indicator covers it; the
+> VM stays free of any `Application.get()` read, so no test seam). `HomeViewModelTest` 14 → 19 (a
+> `FakeRegionStatusRepository` over each `RegionStatus` case + `onRegionChosen`); `RegionStatusTest`'s two
+> manual-case asserts became `is`-checks. **Device-verified** on the google flavor (cold auto-select →
+> map zoom + What's-New side effects; warm relaunch → quiet `Unchanged`, no toast; manual picker →
+> forced dialog with usable regions alphabetically sorted, **back + scrim both no-ops**, pick → region
+> set + map zoom) and on maplibre (cold auto-select, raw-MapView render, no GL crash). The original
+> wire-or-delete spec is kept below.
+
+**As found:** `RegionStatusRepository.kt` (174 lines, built + tested in P7 with 11 passing
+tests) has **zero production callers** — `checkRegionStatus()` still constructs `ObaRegionsTask`
+directly (`HomeActivity.kt:866–869`), and `ObaRegionsTask` is an `AsyncTask`
+(`ObaRegionsTask.java:56`). So the "zero `AsyncTask`/`Handler` in the Home path" claim is unmet,
+and the repository is shipped dead code — the most misleading kind of debt, because its passing
+tests make it look done. The P8 banner said it was "unused until P14"; P14 landed without wiring
+it (the entanglement was the task's callback into the map *fragment*, which P14 replaced with
+`ObaMapHost` — so the blocker is now gone).
+
+- Either: route `checkRegionStatus()` through `viewModelScope` +
+  `RegionStatusRepository.refreshRegions(force)`, with the map-host notification and the
+  progress-dialog decision driven from the returned `RegionStatus` (the activity's
+  `onRegionTaskFinished` logic moves into the VM / an event).
+- Or, if the wiring is judged premature before the Loader campaign (#7): **delete** the
+  repository and `RegionStatusTest`, and strike the corresponding P7 bullet. Unwired-but-tested
+  code must not survive this phase either way.
+- `ObaRegionsTask` itself still stays alive for its other callers (per the deliberate scope cut
+  above) — only *Home's* use of it ends.
+
+### P16 — Collapse the int nav model
+
+**As found:** the `NAVDRAWER_ITEM_*` int constants, `mCurrentNavDrawerPosition`, and
+`toPosition()`/`toHomeNavItem()` all survive in `HomeActivity.kt` (the comment at
+`HomeActivity.kt:1214` admits it). The plan said this "collapses with P14's permission-launcher
+work"; the launcher landed, the collapse didn't. Design decision 2 is the spec:
+
+- `goToNavDrawerItem(Int)` becomes `goToNavDrawerItem(HomeNavItem)`; the deprecated positions
+  (SIGN_IN/PROFILE/PINS/ACTIVITY_FEED) fold into the int-pref *migration read* only.
+- The `selected_navigation_drawer_position` pref is re-keyed by enum name with a one-time
+  int-pref migration; selection persistence moves beside the VM's `selectedItem`
+  (`SavedStateHandle`).
+- Delete the constants, the two mapping functions, and `mCurrentNavDrawerPosition`.
+
+### P17 — Hoist the Activity's remaining UI state; shrink toward the thin shell
+
+**As found:** `HomeActivity.kt` is **1,313 lines**, not ~120, and still owns UI state contra
+"the Activity holds no UI state of its own": `mLastSettledSheet`, `mPendingMapFocus`,
+`mInitialStartup` (and `mCurrentNavDrawerPosition`, which P16 kills). Much of the residue is
+legitimate Activity work (survey wiring, `start()`/`makeIntent()` entry points, map-host
+lifecycle, drawer item building) — the ~120 estimate was wrong, not just unmet — but the
+*state* should still move:
+
+- `mLastSettledSheet` / `mPendingMapFocus` / `mInitialStartup` → `HomeViewModel`
+  (`mInitialStartup` pairs with P15: the initial region check is the thing it gates).
+- Opportunistic shrink only where it falls out of P15/P16 (e.g. `onRegionTaskFinished` and the
+  drawer-position plumbing). A line-count target is explicitly *not* the goal; statelessness is.
+- Revise the end-state paragraph above to the honest number when done.
+
+### Accepted deviations (record as decisions, not debt)
+
+- **`onSaveInstanceState` stays.** P14 deliberately routed map saved-state (camera/zoom/focus/
+  mode) through the Activity bundle + on-pause prefs fallback rather than `SavedStateHandle` —
+  it replaces persistence the FragmentManager used to provide, and the map host is not
+  VM-owned. The end-state claim "`onSaveInstanceState` gone from the file" is retracted rather
+  than re-pursued.
+- **`GoogleApiClient` remains** behind `TODO(PR #1569)` (`HomeActivity.kt:126–127`) — explicitly
+  quarantined in P9; it dies when the fused-location branch merges, not in this campaign.
+
+```
+P15 wire RegionStatusRepository             ── small (kills Home's last AsyncTask)  ✅ DONE
+P16 collapse the int nav model              ── small (pref migration is the only subtlety)
+P17 hoist remaining Activity UI state       ── small/medium (rides on P15+P16)
+```

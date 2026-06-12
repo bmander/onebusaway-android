@@ -38,11 +38,22 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import org.onebusaway.android.R
+import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.ui.arrivals.EtaPill
 
 /** Which Home dialog is showing (replacing the deprecated showDialog/onCreateDialog ids). */
-enum class HomeDialog { NONE, HELP, WHATS_NEW, LEGEND, DISMISS_DONATION }
+sealed interface HomeDialog {
+    object None : HomeDialog
+    object Help : HomeDialog
+    object WhatsNew : HomeDialog
+    object Legend : HomeDialog
+    object DismissDonation : HomeDialog
+
+    /** The forced-choice region picker (old ObaRegionsTask.haveUserChooseRegion), keyed by [regions]. */
+    data class ChooseRegion(val regions: List<ObaRegion>) : HomeDialog
+}
 
 /**
  * The help-menu options, in the order of the `main_help_options` string-array. The activity carries
@@ -62,24 +73,54 @@ fun HomeDialogs(
     onWhatsNewDismissed: () -> Unit,
     onDonationDismissForever: () -> Unit,
     onDonationRemindLater: () -> Unit,
+    onRegionChosen: (ObaRegion) -> Unit,
     onDismiss: () -> Unit
 ) {
     when (dialog) {
-        HomeDialog.HELP -> HelpDialog(showContactUs, onHelpAction, onDismiss)
-        HomeDialog.WHATS_NEW -> WhatsNewDialog(
+        HomeDialog.Help -> HelpDialog(showContactUs, onHelpAction, onDismiss)
+        HomeDialog.WhatsNew -> WhatsNewDialog(
             onDismiss = {
                 onDismiss()
                 onWhatsNewDismissed()
             }
         )
-        HomeDialog.LEGEND -> LegendDialog(onDismiss)
-        HomeDialog.DISMISS_DONATION -> DonationDismissDialog(
+        HomeDialog.Legend -> LegendDialog(onDismiss)
+        HomeDialog.DismissDonation -> DonationDismissDialog(
             onDismissForever = onDonationDismissForever,
             onRemindLater = onDonationRemindLater,
             onDismiss = onDismiss
         )
-        HomeDialog.NONE -> Unit
+        is HomeDialog.ChooseRegion -> RegionChooserDialog(dialog.regions, onRegionChosen)
+        HomeDialog.None -> Unit
     }
+}
+
+/**
+ * The forced-choice region picker (old ObaRegionsTask.haveUserChooseRegion): a non-dismissible
+ * dialog of usable regions (pre-filtered + sorted by the repository). The user must pick one — there
+ * is no cancel, and back/scrim do nothing, since the app can't function without a region.
+ */
+@Composable
+private fun RegionChooserDialog(regions: List<ObaRegion>, onRegionChosen: (ObaRegion) -> Unit) {
+    AlertDialog(
+        onDismissRequest = { },
+        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+        title = { Text(stringResource(R.string.region_choose_region)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                regions.forEach { region ->
+                    Text(
+                        text = region.name,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onRegionChosen(region) }
+                            .padding(vertical = 16.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = { }
+    )
 }
 
 @Composable

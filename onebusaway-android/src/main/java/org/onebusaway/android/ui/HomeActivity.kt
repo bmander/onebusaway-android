@@ -21,7 +21,6 @@ import android.Manifest
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.location.Location
 import android.net.Uri
@@ -49,7 +48,6 @@ import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.common.api.GoogleApiClient
 import com.google.firebase.analytics.FirebaseAnalytics
-import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.donations.DonationsManager
@@ -71,6 +69,7 @@ import org.onebusaway.android.region.ObaRegionsTask
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.home.ArrivalsSheetState
+import org.onebusaway.android.ui.home.DefaultRegionStatusRepository
 import org.onebusaway.android.ui.home.DefaultWeatherRepository
 import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
 import org.onebusaway.android.ui.home.FocusedStop
@@ -95,19 +94,16 @@ import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
-import org.onebusaway.android.util.RegionUtils
 import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.ShowcaseViewUtils
 import org.onebusaway.android.util.UIUtils
 import org.onebusaway.android.widealerts.GtfsAlertsHelper
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
-import java.util.Date
 
 class HomeActivity : AppCompatActivity(),
     ObaMapFragment.OnFocusChangedListener,
     ObaMapFragment.OnProgressBarChangedListener,
-    RegionCallback,
-    ObaRegionsTask.Callback {
+    RegionCallback {
 
     private val viewModel: HomeViewModel by viewModels {
         viewModelFactory {
@@ -115,7 +111,8 @@ class HomeActivity : AppCompatActivity(),
                 HomeViewModel(
                     createSavedStateHandle(),
                     DefaultWeatherRepository(),
-                    DefaultWideAlertsRepository()
+                    DefaultWideAlertsRepository(),
+                    DefaultRegionStatusRepository(applicationContext)
                 )
             }
         }
@@ -228,6 +225,7 @@ class HomeActivity : AppCompatActivity(),
                 onDonationRemindLater = ::onDonationRemindLater,
                 onHelpAction = ::onHelpAction,
                 onWhatsNewDismissed = ::onWhatsNewDismissed,
+                onRegionChosen = viewModel::onRegionChosen,
                 onDismissDialog = viewModel::dismissDialog,
                 onSheetSettled = ::onSheetSettled,
                 onClearFocus = ::onClearFocus,
@@ -281,6 +279,19 @@ class HomeActivity : AppCompatActivity(),
                         is HomeEvent.ShowWideAlert -> GtfsAlertsHelper.showWideAlertDialog(
                             this@HomeActivity, event.alert.title, event.alert.message, event.alert.url
                         )
+                        is HomeEvent.RegionResolved -> {
+                            // The map host re-zooms to the new region (was a registered task callback);
+                            // it may be null until the first Nearby show, matching the legacy null-skip.
+                            (mMapHost as? ObaRegionsTask.Callback)?.onRegionTaskFinished(event.changed)
+                            if (event.changed && event.regionName != null) {
+                                ObaAnalytics.setRegion(
+                                    Application.get().plausibleInstance,
+                                    mFirebaseAnalytics,
+                                    event.regionName
+                                )
+                            }
+                            onRegionResolved(event.changed)
+                        }
                         // Sheet / drawer commands are carried out by HomeScreen.
                         else -> Unit
                     }
@@ -803,77 +814,21 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Checks region status, which can potentially including forcing a reload of region
-     * info from the server.  Also includes auto-selection of closest region.
+     * Checks region status (force-reload, version-gate, and auto-selection of the closest region all
+     * live in [RegionStatusRepository] now). The ViewModel runs the refresh on a coroutine and reports
+     * back via [HomeEvent.RegionResolved] / the manual-picker dialog, replacing the legacy
+     * `ObaRegionsTask` AsyncTask + its callback.
      */
     private fun checkRegionStatus() {
-        // First check for custom API URL set by user via Preferences, since if that is set we don't
-        // need region info from the REST API
-        if (!TextUtils.isEmpty(Application.get().customApiUrl)) {
-            return
-        }
-
-        // Check if region is hard-coded for this build flavor
-        if (BuildConfig.USE_FIXED_REGION) {
-            val r = RegionUtils.getRegionFromBuildFlavor()
-            // Set the hard-coded region
-            RegionUtils.saveToProvider(this, listOf(r))
-            Application.get().currentRegion = r
-            // Disable any region auto-selection in preferences
-            PreferenceUtils.saveBoolean(
-                getString(R.string.preference_key_auto_select_region), false
-            )
-            return
-        }
-
-        var forceReload = false
-        var showProgressDialog = true
-
-        // If we don't have region info selected, or if enough time has passed since last region info
-        // update, force contacting the server again
-        if (Application.get().currentRegion == null ||
-            Date().time - Application.get().lastRegionUpdateDate > REGION_UPDATE_THRESHOLD
-        ) {
-            forceReload = true
-            Log.d(
-                TAG,
-                "Region info has expired (or does not exist), forcing a reload from the server..."
-            )
-        }
-
-        if (Application.get().currentRegion != null) {
-            // We already have region info locally, so just check current region status quietly
-            showProgressDialog = false
-        }
-
-        try {
-            val appInfo = packageManager.getPackageInfo(packageName, PackageManager.GET_META_DATA)
-            val settings: SharedPreferences = Application.getPrefs()
-            val oldVer = settings.getInt(CHECK_REGION_VER, 0)
-            @Suppress("DEPRECATION") val newVer = appInfo.versionCode
-
-            if (oldVer < newVer) {
-                forceReload = true
-            }
-            PreferenceUtils.saveInt(CHECK_REGION_VER, newVer)
-        } catch (e: PackageManager.NameNotFoundException) {
-            // Do nothing
-        }
-
-        // Check region status, possibly forcing a reload from server and checking proximity to region.
-        // The map fragment may not be attached yet during the initial onCreate call (its creation is
-        // posted), in which case only `this` is registered — matching the legacy null-skip behavior.
-        val callbacks = ArrayList<ObaRegionsTask.Callback>()
-        (mMapHost as? ObaRegionsTask.Callback)?.let { callbacks.add(it) }
-        callbacks.add(this)
-        val task = ObaRegionsTask(this, callbacks, forceReload, showProgressDialog)
-        task.execute()
+        viewModel.refreshRegions()
     }
 
-    //
-    // Region Task Callback
-    //
-    override fun onRegionTaskFinished(currentRegionChanged: Boolean) {
+    /**
+     * Carries out the region-resolved side effects (was the `ObaRegionsTask.Callback` override): map
+     * re-zoom is done by the caller; this handles What's-New, the nav-drawer redraw, and the
+     * region-found toast. Body preserved verbatim from the legacy callback.
+     */
+    private fun onRegionResolved(currentRegionChanged: Boolean) {
         // Show "What's New" (which might need refreshed Regions API contents)
         val update = autoShowWhatsNew()
 
@@ -1209,8 +1164,6 @@ class HomeActivity : AppCompatActivity(),
 
         private const val WHATS_NEW_VER = "whatsNewVer"
 
-        private const val CHECK_REGION_VER = "checkRegionVer"
-
         // The set of possible nav-drawer positions (relocated from the retired
         // NavigationDrawerFragment). The int model is kept because mCurrentNavDrawerPosition and
         // goToNavDrawerItem() are still int-based; the Compose drawer maps its HomeNavItem to these
@@ -1229,9 +1182,6 @@ class HomeActivity : AppCompatActivity(),
         private const val NAVDRAWER_ITEM_SIGN_IN = 11
         private const val NAVDRAWER_ITEM_OPEN_SOURCE = 12
         private const val NAVDRAWER_ITEM_PAY_FARE = 13
-
-        // One week, in milliseconds
-        private const val REGION_UPDATE_THRESHOLD = (1000 * 60 * 60 * 24 * 7).toLong()
 
         private const val TAG = "HomeActivity"
 

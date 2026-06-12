@@ -79,9 +79,9 @@ class RegionStatusTest {
 
     @Test
     fun `no current region and no closest match needs manual selection`() {
-        assertEquals(
-            RegionStatus.NeedsManualSelection,
+        assertTrue(
             resolveRegionStatus(current = null, closest = null, autoSelect = true)
+                is RegionStatus.NeedsManualSelection
         )
     }
 
@@ -114,9 +114,9 @@ class RegionStatusTest {
 
     @Test
     fun `auto-select off with no current region needs manual selection`() {
-        assertEquals(
-            RegionStatus.NeedsManualSelection,
+        assertTrue(
             resolveRegionStatus(current = null, closest = null, autoSelect = false)
+                is RegionStatus.NeedsManualSelection
         )
     }
 
@@ -128,8 +128,10 @@ class RegionStatusTest {
         )
     }
 
-    /** Minimal [ObaRegion] fixture — only the id matters to the selection logic (compared by id). */
-    private fun region(id: Long): ObaRegion = ObaRegionElement(
+}
+
+/** Minimal [ObaRegion] fixture — only the id matters to the selection logic (compared by id). */
+internal fun region(id: Long): ObaRegion = ObaRegionElement(
         id,            // id
         "Region $id",  // name
         true,          // active
@@ -157,4 +159,3 @@ class RegionStatusTest {
         null,          // sidecarBaseUrl
         null           // plausibleAnalyticsServerUrl
     )
-}

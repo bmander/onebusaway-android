@@ -48,8 +48,12 @@ sealed interface RegionStatus {
     /** A region was already set and remains the best match (contents refreshed silently). */
     object Unchanged : RegionStatus
 
-    /** No region is set and none could be auto-selected, so the user must pick one. */
-    object NeedsManualSelection : RegionStatus
+    /**
+     * No region is set and none could be auto-selected, so the user must pick one from [regions]
+     * (the usable regions, sorted by name). [resolveRegionStatus] returns this with an empty list as
+     * a decision sentinel; [DefaultRegionStatusRepository.refreshRegions] attaches the real list.
+     */
+    data class NeedsManualSelection(val regions: List<ObaRegion>) : RegionStatus
 
     /** Region info could not be loaded from any source (catastrophic failure). */
     object Failed : RegionStatus
@@ -59,6 +63,9 @@ sealed interface RegionStatus {
 interface RegionStatusRepository {
 
     suspend fun refreshRegions(): RegionStatus
+
+    /** Sets the region the user picked from the manual-selection dialog (the old picker's onClick). */
+    suspend fun selectRegion(region: ObaRegion)
 }
 
 /**
@@ -121,7 +128,18 @@ class DefaultRegionStatusRepository(private val context: Context) : RegionStatus
                     app.setCurrentRegion(closest, false)
             }
         }
+        // Attach the picker list to the manual-selection sentinel (mirrors the old picker's
+        // usable-regions filter + alphabetical sort).
+        if (status is RegionStatus.NeedsManualSelection) {
+            return@withContext RegionStatus.NeedsManualSelection(
+                results.filter { RegionUtils.isRegionUsable(it) }.sortedBy { it.name }
+            )
+        }
         status
+    }
+
+    override suspend fun selectRegion(region: ObaRegion) = withContext(Dispatchers.IO) {
+        Application.get().setCurrentRegion(region)
     }
 
     @Suppress("DEPRECATION")
@@ -162,12 +180,14 @@ internal fun resolveRegionStatus(
     closest: ObaRegion?,
     autoSelect: Boolean
 ): RegionStatus {
+    // The manual-selection cases carry an empty list here; the repository fills in the usable
+    // regions (it alone holds the fetched results) before returning to the caller.
     if (!autoSelect) {
-        return if (current == null) RegionStatus.NeedsManualSelection else RegionStatus.Unchanged
+        return if (current == null) RegionStatus.NeedsManualSelection(emptyList()) else RegionStatus.Unchanged
     }
     return when {
         current == null && closest != null -> RegionStatus.Changed(closest)
-        current == null -> RegionStatus.NeedsManualSelection
+        current == null -> RegionStatus.NeedsManualSelection(emptyList())
         closest != null && current.id != closest.id -> RegionStatus.Changed(closest)
         else -> RegionStatus.Unchanged
     }

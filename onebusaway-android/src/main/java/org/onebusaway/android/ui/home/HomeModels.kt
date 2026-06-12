@@ -96,7 +96,7 @@ data class HomeUiState(
     val weather: WeatherData? = null,
     val donationVisible: Boolean = false,
     // dialogs (HomeDialog lives in HomeDialogs.kt)
-    val dialog: HomeDialog = HomeDialog.NONE,
+    val dialog: HomeDialog = HomeDialog.None,
     val helpShowContactUs: Boolean = true,
     // toolbar menu groups — derived from selectedItem. Sort shows on any list tab; clear only on the
     // two starred tabs (recents/reminders aren't user-clearable from here).
@@ -116,6 +116,14 @@ enum class ArrivalsSheetState { Hidden, Collapsed, Expanded }
 sealed interface HomeEvent {
     /** A region-wide GTFS alert arrived; the activity shows it in a dialog. */
     data class ShowWideAlert(val alert: WideAlert) : HomeEvent
+
+    /**
+     * Region resolved (replaces ObaRegionsTask's callback). [changed] is the old
+     * `currentRegionChanged`; [regionName] is non-null only for an auto-selected change (the
+     * activity uses it for analytics — a manual pick passes null, matching the legacy onClick which
+     * logged none).
+     */
+    data class RegionResolved(val changed: Boolean, val regionName: String?) : HomeEvent
 
     /** The arrivals-sheet chevron was tapped — toggle peek <-> full. */
     object ToggleSheet : HomeEvent

@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.ui.home
 
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.util.PreferenceUtils
 
 /**
@@ -35,8 +34,7 @@ interface StartupPreferencesRepository {
 
 class DefaultStartupPreferencesRepository : StartupPreferencesRepository {
 
-    override fun isInitialStartup(): Boolean =
-        Application.getPrefs().getBoolean(KEY_INITIAL_STARTUP, true)
+    override fun isInitialStartup(): Boolean = PreferenceUtils.getBoolean(KEY_INITIAL_STARTUP, true)
 
     override fun clearInitialStartup() = PreferenceUtils.saveBoolean(KEY_INITIAL_STARTUP, false)
 

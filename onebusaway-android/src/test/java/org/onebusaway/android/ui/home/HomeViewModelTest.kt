@@ -178,17 +178,16 @@ class HomeViewModelTest {
     // --- one-shot sheet / drawer commands ---
 
     @Test
-    fun `request commands emit the matching sheet events`() = runTest {
+    fun `the chevron tap emits ToggleSheet`() = runTest {
         val vm = viewModel()
         val events = mutableListOf<HomeEvent>()
         val job = launch { vm.events.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.requestToggleSheet()
-        vm.requestCollapseSheet()
         advanceUntilIdle()
 
-        assertEquals(listOf(HomeEvent.ToggleSheet, HomeEvent.CollapseSheet), events)
+        assertEquals(listOf<HomeEvent>(HomeEvent.ToggleSheet), events)
         job.cancel()
     }
 
@@ -222,7 +221,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertTrue(events.isEmpty())
-        assertEquals(ArrivalsSheetState.Collapsed, vm.uiState.value.settledSheet)
+        assertEquals(ArrivalsSheetState.Collapsed, vm.lastSettledSheet)
         job.cancel()
     }
 
@@ -273,7 +272,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf(HomeEvent.SetMapPadding(80), HomeEvent.SetMapPadding(0)), events)
-        assertEquals(ArrivalsSheetState.Hidden, vm.uiState.value.settledSheet)
+        assertEquals(ArrivalsSheetState.Hidden, vm.lastSettledSheet)
         job.cancel()
     }
 
@@ -596,19 +595,10 @@ class HomeStateTest {
         weather: WeatherData? = WeatherData("clear-day", 70.0, null),
         mapLoading: Boolean = false,
         focusedStop: FocusedStop? = null,
-        settledSheet: ArrivalsSheetState = ArrivalsSheetState.Hidden,
     ) = buildState(
         selected, emptyList(), env, weather, HomeDialog.None, true,
-        focusedStop = focusedStop, mapLoading = mapLoading, settledSheet = settledSheet,
+        focusedStop = focusedStop, mapLoading = mapLoading,
     )
-
-    @Test
-    fun `the settled sheet position passes through untouched`() {
-        assertEquals(
-            ArrivalsSheetState.Expanded,
-            state(HomeNavItem.NEARBY, settledSheet = ArrivalsSheetState.Expanded).settledSheet
-        )
-    }
 
     @Test
     fun `chrome FABs show only on nearby`() {

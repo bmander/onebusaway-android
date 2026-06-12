@@ -64,8 +64,12 @@ class HomeViewModel(
     private var helpShowContactUs: Boolean = true
     private var mapLoading: Boolean = false
     // The sheet's last resting position, reported up from the screen; drives the map padding/recenter
-    // side-effects + the tutorial gate (transient — re-reported by the screen on recreation).
+    // side-effects + the tutorial gate. Pure coordination state (no Compose reads it), so it's a plain
+    // property rather than a HomeUiState field — see [lastSettledSheet].
     private var settledSheet: ArrivalsSheetState = ArrivalsSheetState.Hidden
+
+    /** The sheet's last resting position, for the activity's imperative map/tutorial side-effects. */
+    val lastSettledSheet: ArrivalsSheetState get() = settledSheet
     // A restored/deep-linked focus the imperative map hasn't been told about yet (re-derived by the
     // host on each create from the restored focusedStop, so it needn't be persisted).
     private var pendingMapFocus: Boolean = false
@@ -146,7 +150,6 @@ class HomeViewModel(
     fun onSheetSettled(state: ArrivalsSheetState, peekPx: Int) {
         val previous = settledSheet
         settledSheet = state
-        recompute()
         if (previous == ArrivalsSheetState.Hidden) {
             return
         }
@@ -162,9 +165,6 @@ class HomeViewModel(
 
     /** Chevron tap — ask the screen to toggle the sheet (it holds the live SheetState). */
     fun requestToggleSheet() = emit(HomeEvent.ToggleSheet)
-
-    /** Collapse the sheet to peek (after "show vehicles on map"). */
-    fun requestCollapseSheet() = emit(HomeEvent.CollapseSheet)
 
     /**
      * The host has a restored / deep-linked focus the imperative map hasn't been told about yet;
@@ -329,8 +329,7 @@ class HomeViewModel(
     private fun recompute() {
         _uiState.value = buildState(
             selectedItem, navItems, environment, weatherData, dialog, helpShowContactUs,
-            focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering,
-            settledSheet
+            focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering
         )
     }
 
@@ -343,8 +342,7 @@ class HomeViewModel(
         const val KEY_BIKE_STATION = "home.focusedBikeStation.id"
         const val KEY_SELECTED_ITEM = "home.selectedItem"
 
-        fun readNavItem(s: SavedStateHandle): HomeNavItem? =
-            s.get<String>(KEY_SELECTED_ITEM)?.let { runCatching { HomeNavItem.valueOf(it) }.getOrNull() }
+        fun readNavItem(s: SavedStateHandle): HomeNavItem? = navItemByName(s[KEY_SELECTED_ITEM])
 
         fun readFocusedStop(s: SavedStateHandle): FocusedStop? {
             val id = s.get<String>(KEY_STOP_ID) ?: return null
@@ -377,7 +375,6 @@ internal fun buildState(
     mapLoading: Boolean = false,
     peekArrivalCount: Int = 0,
     routeFiltering: Boolean = false,
-    settledSheet: ArrivalsSheetState = ArrivalsSheetState.Hidden,
 ): HomeUiState {
     val nearby = selectedItem == HomeNavItem.NEARBY
     val starredTab = selectedItem == HomeNavItem.STARRED_STOPS ||
@@ -402,6 +399,5 @@ internal fun buildState(
         helpShowContactUs = helpShowContactUs,
         showListSortMenu = listTab,
         showListClearMenu = starredTab,
-        settledSheet = settledSheet,
     )
 }

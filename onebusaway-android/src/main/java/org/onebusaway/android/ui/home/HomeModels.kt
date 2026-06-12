@@ -33,13 +33,17 @@ enum class HomeNavItem(val launchesActivity: Boolean) {
     OPEN_SOURCE(true)
 }
 
+/** Parses a stored [HomeNavItem] name, returning null for an absent or unrecognized value. */
+internal fun navItemByName(name: String?): HomeNavItem? =
+    name?.let { runCatching { HomeNavItem.valueOf(it) }.getOrNull() }
+
 /**
  * The remembered nav tab, read from the enum-name preference with a fallback to the legacy int
  * `selected_navigation_drawer_position` (only ever 0..3, the in-place items) so existing installs
  * keep their tab. Unknown names fall back to the legacy position; anything else is NEARBY.
  */
 internal fun persistedNavItem(name: String?, legacyPosition: Int): HomeNavItem =
-    name?.let { runCatching { HomeNavItem.valueOf(it) }.getOrNull() }
+    navItemByName(name)
         ?: when (legacyPosition) {
             1 -> HomeNavItem.STARRED_STOPS
             2 -> HomeNavItem.STARRED_ROUTES
@@ -99,8 +103,6 @@ data class HomeUiState(
     // arrivals sheet peek size inputs (the screen maps these to a peek height)
     val peekArrivalCount: Int = 0,
     val routeFiltering: Boolean = false,
-    // the sheet's last resting position (reported up from the screen); read by the map/tutorial side-effects
-    val settledSheet: ArrivalsSheetState = ArrivalsSheetState.Hidden,
     // chrome — derived from selectedItem + environment
     val mapLoading: Boolean = false,
     val fabsVisible: Boolean = true,

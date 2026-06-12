@@ -286,13 +286,10 @@ class HomeActivity : AppCompatActivity(),
                         }
                         is HomeEvent.SetMapPadding ->
                             mMapHost?.mapView?.setPadding(null, null, null, event.bottomPx)
-                        is HomeEvent.RecenterOnFocusedStop -> {
-                            val loc = Location("focusedStop").apply {
-                                latitude = event.lat
-                                longitude = event.lon
-                            }
-                            mMapHost?.setMapCenter(loc, true, true)
-                        }
+                        is HomeEvent.RecenterOnFocusedStop ->
+                            mMapHost?.setMapCenter(
+                                LocationUtils.makeLocation(event.lat, event.lon), true, true
+                            )
                         is HomeEvent.CompletePendingMapFocus -> {
                             // The VM owns the latch + animate decision; we courier the io/elements payload.
                             val r = pendingFocusResponse
@@ -687,7 +684,7 @@ class HomeActivity : AppCompatActivity(),
 
         // If we can't see the map or arrivals sheet, we can't see the arrival info, so return. The map
         // host stays mounted once created (lists overlay it), so its presence == "map shown".
-        if (mMapHost == null || viewModel.uiState.value.settledSheet == ArrivalsSheetState.Hidden) {
+        if (mMapHost == null || viewModel.lastSettledSheet == ArrivalsSheetState.Hidden) {
             return
         }
 

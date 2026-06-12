@@ -50,10 +50,19 @@ private class FakeRegionStatusRepository(
     var result: RegionStatus = RegionStatus.Unchanged
 ) : RegionStatusRepository {
     val selected = mutableListOf<ObaRegion>()
-    override suspend fun refreshRegions(): RegionStatus = result
+    var refreshCount = 0
+    override suspend fun refreshRegions(): RegionStatus { refreshCount++; return result }
     override suspend fun selectRegion(region: ObaRegion) {
         selected.add(region)
     }
+}
+
+private class FakeStartupPreferencesRepository(
+    var initial: Boolean = false
+) : StartupPreferencesRepository {
+    var cleared = 0
+    override fun isInitialStartup(): Boolean = initial
+    override fun clearInitialStartup() { cleared++; initial = false }
 }
 
 /**
@@ -73,9 +82,11 @@ class HomeViewModelTest {
         alerts: List<WideAlert> = emptyList(),
         regionStatus: RegionStatus = RegionStatus.Unchanged,
         regionRepo: FakeRegionStatusRepository = FakeRegionStatusRepository(regionStatus),
+        startupRepo: FakeStartupPreferencesRepository = FakeStartupPreferencesRepository(),
         savedState: SavedStateHandle = SavedStateHandle(),
     ) = HomeViewModel(
-        savedState, FakeWeatherRepository(weather), FakeWideAlertsRepository(alerts), regionRepo
+        savedState, FakeWeatherRepository(weather), FakeWideAlertsRepository(alerts), regionRepo,
+        startupRepo
     )
 
     // --- weather (async) ---
@@ -128,7 +139,7 @@ class HomeViewModelTest {
         val repo = FakeWeatherRepository(Result.success(forecast))
         val vm = HomeViewModel(
             SavedStateHandle(), repo, FakeWideAlertsRepository(emptyList()),
-            FakeRegionStatusRepository()
+            FakeRegionStatusRepository(), FakeStartupPreferencesRepository()
         )
 
         vm.onRegionValid(1L)
@@ -324,6 +335,56 @@ class HomeViewModelTest {
         // regionName null: the legacy manual-pick path logged no analytics.
         assertEquals(listOf<HomeEvent>(HomeEvent.RegionResolved(true, null)), events)
         job.cancel()
+    }
+
+    // --- startup region-check gate ---
+
+    @Test
+    fun `first launch without permission defers the region check`() = runTest {
+        val region = FakeRegionStatusRepository()
+        viewModel(regionRepo = region, startupRepo = FakeStartupPreferencesRepository(initial = true))
+            .onHomeStarted(hasLocationPermission = false)
+        advanceUntilIdle()
+        assertEquals(0, region.refreshCount)
+    }
+
+    @Test
+    fun `first launch with permission checks the region now`() = runTest {
+        val region = FakeRegionStatusRepository()
+        viewModel(regionRepo = region, startupRepo = FakeStartupPreferencesRepository(initial = true))
+            .onHomeStarted(hasLocationPermission = true)
+        advanceUntilIdle()
+        assertEquals(1, region.refreshCount)
+    }
+
+    @Test
+    fun `a later launch checks the region regardless of permission`() = runTest {
+        val region = FakeRegionStatusRepository()
+        viewModel(regionRepo = region, startupRepo = FakeStartupPreferencesRepository(initial = false))
+            .onHomeStarted(hasLocationPermission = false)
+        advanceUntilIdle()
+        assertEquals(1, region.refreshCount)
+    }
+
+    @Test
+    fun `the first-launch permission result clears the flag and checks the region`() = runTest {
+        val region = FakeRegionStatusRepository()
+        val startup = FakeStartupPreferencesRepository(initial = true)
+        val vm = viewModel(regionRepo = region, startupRepo = startup)
+        vm.onLocationPermissionResult()
+        advanceUntilIdle()
+        assertEquals(1, startup.cleared)
+        assertEquals(1, region.refreshCount)
+    }
+
+    @Test
+    fun `a permission result after the first launch does nothing`() = runTest {
+        val region = FakeRegionStatusRepository()
+        val startup = FakeStartupPreferencesRepository(initial = false)
+        viewModel(regionRepo = region, startupRepo = startup).onLocationPermissionResult()
+        advanceUntilIdle()
+        assertEquals(0, startup.cleared)
+        assertEquals(0, region.refreshCount)
     }
 
     // --- nav selection + SavedStateHandle ---

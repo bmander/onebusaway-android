@@ -44,6 +44,7 @@ class HomeViewModel(
     private val weatherRepo: WeatherRepository,
     private val wideAlertsRepo: WideAlertsRepository,
     private val regionRepo: RegionStatusRepository,
+    private val startupRepo: StartupPreferencesRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -192,6 +193,30 @@ class HomeViewModel(
                 // Parity: the legacy callback did nothing further in these cases.
                 RegionStatus.Skipped, is RegionStatus.Fixed, RegionStatus.Failed -> Unit
             }
+        }
+    }
+
+    /**
+     * Home was created. On the very first launch ever we defer the region check until the map's
+     * location-permission result (so an auto-select has a location to work with); otherwise — or once
+     * permission is already granted — check now. [hasLocationPermission] is read by the activity
+     * (it needs a Context); the decision lives here.
+     */
+    fun onHomeStarted(hasLocationPermission: Boolean) {
+        if (startupRepo.isInitialStartup() && !hasLocationPermission) {
+            return
+        }
+        refreshRegions()
+    }
+
+    /**
+     * The map host reported the first-launch location-permission result (granted or denied). Complete
+     * the deferred first launch: mark it done and check the region (a denial leads to the manual picker).
+     */
+    fun onLocationPermissionResult() {
+        if (startupRepo.isInitialStartup()) {
+            startupRepo.clearInitialStartup()
+            refreshRegions()
         }
     }
 

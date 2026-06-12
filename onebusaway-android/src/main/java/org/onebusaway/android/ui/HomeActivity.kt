@@ -70,6 +70,7 @@ import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.DefaultRegionStatusRepository
+import org.onebusaway.android.ui.home.DefaultStartupPreferencesRepository
 import org.onebusaway.android.ui.home.DefaultWeatherRepository
 import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
 import org.onebusaway.android.ui.home.FocusedStop
@@ -113,7 +114,8 @@ class HomeActivity : AppCompatActivity(),
                     createSavedStateHandle(),
                     DefaultWeatherRepository(),
                     DefaultWideAlertsRepository(),
-                    DefaultRegionStatusRepository(applicationContext)
+                    DefaultRegionStatusRepository(applicationContext),
+                    DefaultStartupPreferencesRepository()
                 )
             }
         }
@@ -182,8 +184,6 @@ class HomeActivity : AppCompatActivity(),
     // marker. A fresh map tap already shows the stop, so it doesn't set this.
     private var mPendingMapFocus = false
 
-    private var mInitialStartup = true
-
     private lateinit var mFirebaseAnalytics: FirebaseAnalytics
 
     private var surveyManager: SurveyManager? = null
@@ -237,8 +237,6 @@ class HomeActivity : AppCompatActivity(),
             )
         }
 
-        mInitialStartup = Application.getPrefs().getBoolean(INITIAL_STARTUP, true)
-
         setupNavigationDrawer()
 
         setupMapState()
@@ -249,14 +247,12 @@ class HomeActivity : AppCompatActivity(),
 
         TravelBehaviorManager(this, applicationContext).registerTravelBehaviorParticipant()
 
-        if (!mInitialStartup ||
+        // The VM owns the startup region-check decision: on the very first launch without permission it
+        // defers until the map's permission result, otherwise it checks now. (The permission read needs
+        // a Context, so it stays here.)
+        viewModel.onHomeStarted(
             PermissionUtils.hasGrantedAtLeastOnePermission(this, PermissionUtils.LOCATION_PERMISSIONS)
-        ) {
-            // It's not the first startup or if the user has already granted location permissions
-            // (Android L and lower), then check the region status. Otherwise, wait for a permission
-            // callback from the map fragment before checking the region status.
-            checkRegionStatus()
-        }
+        )
 
         // Check to see if we should show the welcome tutorial
         val b = intent.extras
@@ -446,15 +442,8 @@ class HomeActivity : AppCompatActivity(),
         host.setOnFocusChangeListener(this)
         host.setOnProgressBarChangedListener(this)
         host.setRegionCallback(this)
-        host.setOnLocationPermissionResultListener {
-            if (mInitialStartup) {
-                // Whether or not the user granted permissions, check region status
-                // (they'll be asked to manually pick region if they denied)
-                mInitialStartup = false
-                PreferenceUtils.saveBoolean(INITIAL_STARTUP, false)
-                checkRegionStatus()
-            }
-        }
+        // First-launch permission result (granted or denied): the VM completes the deferred region check.
+        host.setOnLocationPermissionResultListener { viewModel.onLocationPermissionResult() }
         mMapHost = host
 
         // The host is created lazily (first Nearby selection, after onResume), so bring it up to the
@@ -739,16 +728,6 @@ class HomeActivity : AppCompatActivity(),
                 ReportActivity.start(this, mGoogleApiClient)
             }
         }
-    }
-
-    /**
-     * Checks region status (force-reload, version-gate, and auto-selection of the closest region all
-     * live in [RegionStatusRepository] now). The ViewModel runs the refresh on a coroutine and reports
-     * back via [HomeEvent.RegionResolved] / the manual-picker dialog, replacing the legacy
-     * `ObaRegionsTask` AsyncTask + its callback.
-     */
-    private fun checkRegionStatus() {
-        viewModel.refreshRegions()
     }
 
     /**
@@ -1092,8 +1071,6 @@ class HomeActivity : AppCompatActivity(),
         // int key (NavigationDrawerFragment's), read once as a migration fallback for old installs.
         private const val STATE_SELECTED_NAV_ITEM = "home_selected_nav_item"
         private const val STATE_SELECTED_POSITION = "selected_navigation_drawer_position"
-
-        private const val INITIAL_STARTUP = "initialStartup"
 
         /**
          * Starts the MapActivity with a particular stop focused with the center of

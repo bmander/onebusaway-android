@@ -487,7 +487,28 @@ Replace the hosted XML `Toolbar` + options menu with a Material3 `TopAppBar`:
   onboarding rewrite is out of scope.
 - Sweep: orphaned strings/dimens/layouts left by P11–P12, and the debt-doc entry update.
 
-### P14 — De-fragment the map host
+### P14 — De-fragment the map host  *(LANDED — both flavors, device-verified)*
+
+> **Update — 2026-06-12 (P14, the final phase).** Home is now **fragment-free end to end** —
+> `grep supportFragmentManager HomeActivity.kt` returns zero hits. New `ObaMapHost` (interface) +
+> `MapHostDeps` (the owner's permission hook) in `src/main/map/`; each flavor's fragment body moved
+> verbatim into a non-fragment host — `GoogleMapHost` (raw `GoogleMap` via the existing Compose
+> `createComposeMapView`) and `MapLibreMapHost` (a raw `org.maplibre.android.maps.MapView` with the
+> 8 lifecycle calls forwarded in order, replacing the SDK's `SupportMapFragment`). Both `MapDialogFragment`
+> child fragments became direct `AlertDialog`/`MaterialAlertDialogBuilder` calls; both
+> `onRequestPermissionsResult` overrides became `onLocationPermissionResult(int)` fed by an
+> `ActivityResultLauncher`. **Two deviations from the sketch below:** (1) the host view mounts via
+> plain `addView` into the existing `R.id.main_fragment_container` (the map stays an imperative island —
+> *not* moved into the Compose tree / no `MapIsland` `AndroidView`); (2) map saved-state rides the
+> Activity's reintroduced `onSaveInstanceState` bundle (fed back to the host on recreation) + the
+> on-pause prefs fallback, *not* the ViewModel's `SavedStateHandle`. The three other map screens
+> (`TripResults`/`InfrastructureIssue`/`TripPlanLocationPicker`) keep working through a ~140-line thin
+> `Fragment` wrapper per flavor that delegates to the host (listeners stashed + ops no-op'd until
+> `onCreateView` creates it, matching the old `mMap`-null behavior). Device-verified on the google
+> flavor (map render, focus/sheet/padding, my-location permission flow, font-scale recreation restoring
+> camera/zoom/focus, drawer/list-tab switches keep the host mounted, TripPlanLocationPicker map) and on
+> maplibre (raw-`MapView` render + background/foreground + rotation, no GL crash). Controllers/overlays
+> untouched (debt #7).
 
 The last fragment. `BaseMapFragment` (google, 1,533 lines) / `MapLibreMapFragment` (maplibre,
 1,119 lines) are Fragments mostly by inertia: a grep shows the google one uses almost no
@@ -583,8 +604,8 @@ P11b legacy My* tab shells → Compose hosts;        ── medium (shortcut-   
     delete all seven list/search fragments               compat sensitive; done in 2 parts)
 P12 Compose TopAppBar + menu (Home)                ── small/medium       ✅ DONE
 P13 dialogs + sweep                                ── small              ✅ DONE
-P14 de-fragment the map host (ObaMapHost class,    ── large, both flavors ⬅ NEXT
-    wrapper for the other three screens; wires RegionStatusRepository)
+P14 de-fragment the map host (ObaMapHost class,    ── large, both flavors ✅ DONE
+    wrapper for the other three screens)                  (device-verified; Home is fragment-free)
 ```
 
 Each lands as its own verified commit on a `modernization/compose-mvvm-home-vm` branch (created

@@ -34,6 +34,20 @@ enum class HomeNavItem(val launchesActivity: Boolean) {
 }
 
 /**
+ * The remembered nav tab, read from the enum-name preference with a fallback to the legacy int
+ * `selected_navigation_drawer_position` (only ever 0..3, the in-place items) so existing installs
+ * keep their tab. Unknown names fall back to the legacy position; anything else is NEARBY.
+ */
+internal fun persistedNavItem(name: String?, legacyPosition: Int): HomeNavItem =
+    name?.let { runCatching { HomeNavItem.valueOf(it) }.getOrNull() }
+        ?: when (legacyPosition) {
+            1 -> HomeNavItem.STARRED_STOPS
+            2 -> HomeNavItem.STARRED_ROUTES
+            3 -> HomeNavItem.MY_REMINDERS
+            else -> HomeNavItem.NEARBY
+        }
+
+/**
  * The stop the user tapped on the map, decoupled from the io/elements `ObaStop`. Carries lat/lon so
  * the host can recenter the map and launch feedback without holding the `ObaStop` object, and so the
  * focus survives process death via the ViewModel's `SavedStateHandle`.

@@ -680,7 +680,26 @@ it (the entanglement was the task's callback into the map *fragment*, which P14 
 - `ObaRegionsTask` itself still stays alive for its other callers (per the deliberate scope cut
   above) — only *Home's* use of it ends.
 
-### P16 — Collapse the int nav model
+### P16 — Collapse the int nav model  *(LANDED — google device-verified, maplibre compile-verified)*
+
+> **As built — 2026-06-12.** The int model is gone: deleted the `NAVDRAWER_ITEM_*` constants,
+> `mCurrentNavDrawerPosition`, and `toPosition()`/`toHomeNavItem()`. `goToNavDrawerItem(HomeNavItem,
+> reselect)` is a `when` over the enum (bodies verbatim; the deprecated SIGN_IN/PROFILE/PINS/ACTIVITY_FEED
+> cases were already unreachable and vanished); analytics moved to a `reportNavAnalytics(item)` helper
+> (PAY_FARE still reports none). The remembered tab is now a `HomeNavItem.name` pref
+> (`home_selected_nav_item`) read via a pure, unit-tested `persistedNavItem(name, legacyPosition)` helper
+> that falls back to the legacy int key for old installs; the VM also persists `selectedItem` in
+> `SavedStateHandle` (eliminates the process-death flicker). The redundancy guard became a captured
+> `reselect` flag — **gated on a new one-shot `navSelectionApplied`** so the *first* (deferred) selection
+> still runs `showMap()` even when the restored tab is NEARBY (the old `-1` sentinel). That same
+> `navSelectionApplied` preserves the one non-obvious behavior: `setupSurvey()` *always early-returns at
+> onCreate* today (position is `-1` before the posted selection), so the out-of-scope survey stays
+> dormant — confirmed on device (no survey card surfaced). `HomeViewModelTest` 19→21 + a new
+> `NavPersistenceTest`×4 (52 Home JVM tests pass). **Device-verified** (google): tab switch / de-highlight,
+> region-gated Plan-a-trip + Pay-my-fare, cross-session remembered tab, **legacy-int→enum migration on a
+> true cold start (and the new key rewritten)**, Help launcher fires without switching the destination,
+> reselect no-ops, Nearby round-trip re-shows the map + re-gates the donation/weather overlays. The
+> original spec is kept below.
 
 **As found:** the `NAVDRAWER_ITEM_*` int constants, `mCurrentNavDrawerPosition`, and
 `toPosition()`/`toHomeNavItem()` all survive in `HomeActivity.kt` (the comment at
@@ -721,6 +740,6 @@ lifecycle, drawer item building) — the ~120 estimate was wrong, not just unmet
 
 ```
 P15 wire RegionStatusRepository             ── small (kills Home's last AsyncTask)  ✅ DONE
-P16 collapse the int nav model              ── small (pref migration is the only subtlety)
+P16 collapse the int nav model              ── small (pref migration is the only subtlety)  ✅ DONE
 P17 hoist remaining Activity UI state       ── small/medium (rides on P15+P16)
 ```

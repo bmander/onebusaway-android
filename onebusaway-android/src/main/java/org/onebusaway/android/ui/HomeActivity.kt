@@ -78,6 +78,7 @@ import org.onebusaway.android.ui.home.HomeEnvironment
 import org.onebusaway.android.ui.home.HomeEvent
 import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
+import org.onebusaway.android.ui.home.persistedNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
 import org.onebusaway.android.ui.mylists.RemindersRepository
@@ -133,11 +134,11 @@ class HomeActivity : AppCompatActivity(),
     private var mLastSettledSheet = ArrivalsSheetState.Hidden
 
     /**
-     * Currently selected navigation drawer position (so we don't unnecessarily swap fragments
-     * if the same item is selected).  Initialized to -1 so the initial callback always
-     * instantiates the fragments.
+     * Whether the deferred first nav selection has run. Gates [setupSurvey] (called synchronously in
+     * onCreate, before the posted selection) so the out-of-scope survey stays dormant, preserving the
+     * legacy `mCurrentNavDrawerPosition == -1` behavior. The selected tab itself lives in the VM.
      */
-    private var mCurrentNavDrawerPosition = -1
+    private var navSelectionApplied = false
 
     // The native map is hosted directly (no FragmentManager): its view is added into
     // R.id.main_fragment_container and its lifecycle/permission/state are forwarded from this activity.
@@ -374,130 +375,57 @@ class HomeActivity : AppCompatActivity(),
         mMapHost?.onSaveInstanceState(outState)
     }
 
-    private fun goToNavDrawerItem(item: Int) {
+    private fun goToNavDrawerItem(item: HomeNavItem, reselect: Boolean) {
         // Selectable list tabs render as Compose overlays (HomeScreen reads selectedItem); only NEARBY
-        // still drives the hosted map fragment. The title comes from selectedItem (HomeTopBar), so the
-        // list cases just report analytics.
+        // drives the hosted map. Activity-launcher items start their screen; in-place items need no
+        // imperative work (the title/content come from selectedItem). [reselect] suppresses the
+        // redundant re-show / re-report when the active in-place tab is tapped again.
         when (item) {
-            NAVDRAWER_ITEM_STARRED_STOPS -> {
-                if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_STARRED_STOPS) {
-                    mCurrentNavDrawerPosition = item
-                    ObaAnalytics.reportUiEvent(
-                        mFirebaseAnalytics,
-                        Application.get().plausibleInstance,
-                        PlausibleAnalytics.REPORT_MENU_EVENT_URL,
-                        getString(R.string.analytics_label_button_press_star),
-                        null
-                    )
-                }
-            }
-            NAVDRAWER_ITEM_STARRED_ROUTES -> {
-                if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_STARRED_ROUTES) {
-                    mCurrentNavDrawerPosition = item
-                    ObaAnalytics.reportUiEvent(
-                        mFirebaseAnalytics,
-                        Application.get().plausibleInstance,
-                        PlausibleAnalytics.REPORT_MENU_EVENT_URL,
-                        getString(R.string.analytics_label_button_press_star),
-                        null
-                    )
-                }
-            }
-            // below values are deprecated; fall through to NAVDRAWER_ITEM_NEARBY
-            NAVDRAWER_ITEM_SIGN_IN,
-            NAVDRAWER_ITEM_PROFILE,
-            NAVDRAWER_ITEM_PINS,
-            NAVDRAWER_ITEM_ACTIVITY_FEED,
-            NAVDRAWER_ITEM_NEARBY -> {
-                if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_NEARBY) {
-                    showMap()
-                    mCurrentNavDrawerPosition = NAVDRAWER_ITEM_NEARBY
-                    ObaAnalytics.reportUiEvent(
-                        mFirebaseAnalytics,
-                        Application.get().plausibleInstance,
-                        PlausibleAnalytics.REPORT_MENU_EVENT_URL,
-                        getString(R.string.analytics_label_button_press_nearby),
-                        null
-                    )
-                }
-            }
-            NAVDRAWER_ITEM_MY_REMINDERS -> {
-                if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_MY_REMINDERS) {
-                    mCurrentNavDrawerPosition = item
-                    ObaAnalytics.reportUiEvent(
-                        mFirebaseAnalytics,
-                        Application.get().plausibleInstance,
-                        PlausibleAnalytics.REPORT_MENU_EVENT_URL,
-                        getString(R.string.analytics_label_button_press_reminders),
-                        null
-                    )
-                }
-            }
-            NAVDRAWER_ITEM_PLAN_TRIP -> {
-                val planTrip = Intent(this@HomeActivity, TripPlanActivity::class.java)
-                startActivity(planTrip)
-                ObaAnalytics.reportUiEvent(
-                    mFirebaseAnalytics,
-                    Application.get().plausibleInstance,
-                    PlausibleAnalytics.REPORT_MENU_EVENT_URL,
-                    getString(R.string.analytics_label_button_press_trip_plan),
-                    null
-                )
-            }
-            NAVDRAWER_ITEM_PAY_FARE -> {
-                UIUtils.launchPayMyFareApp(this)
-            }
-            NAVDRAWER_ITEM_SETTINGS -> {
-                val preferences = Intent(this@HomeActivity, SettingsActivity::class.java)
-                startActivity(preferences)
-                ObaAnalytics.reportUiEvent(
-                    mFirebaseAnalytics,
-                    Application.get().plausibleInstance,
-                    PlausibleAnalytics.REPORT_MENU_EVENT_URL,
-                    getString(R.string.analytics_label_button_press_settings),
-                    null
-                )
-            }
-            NAVDRAWER_ITEM_HELP -> {
-                // Hide "Contact Us" when a custom API URL is set (no contact email to use).
-                viewModel.showHelp(TextUtils.isEmpty(Application.get().customApiUrl))
-                ObaAnalytics.reportUiEvent(
-                    mFirebaseAnalytics,
-                    Application.get().plausibleInstance,
-                    PlausibleAnalytics.REPORT_MENU_EVENT_URL,
-                    getString(R.string.analytics_label_button_press_help),
-                    null
-                )
-            }
-            NAVDRAWER_ITEM_SEND_FEEDBACK -> {
-                ObaAnalytics.reportUiEvent(
-                    mFirebaseAnalytics,
-                    Application.get().plausibleInstance,
-                    PlausibleAnalytics.REPORT_MENU_EVENT_URL,
-                    getString(R.string.analytics_label_button_press_feedback),
-                    null
-                )
-                goToSendFeedBack()
-            }
-            NAVDRAWER_ITEM_OPEN_SOURCE -> {
-                ObaAnalytics.reportUiEvent(
-                    mFirebaseAnalytics,
-                    Application.get().plausibleInstance,
-                    PlausibleAnalytics.REPORT_MENU_EVENT_URL,
-                    getString(R.string.analytics_label_button_press_open_source),
-                    null
-                )
-                val i = Intent(Intent.ACTION_VIEW)
-                i.data = Uri.parse(getString(R.string.open_source_github))
-                startActivity(i)
-            }
+            HomeNavItem.NEARBY -> if (!reselect) showMap()
+            HomeNavItem.STARRED_STOPS,
+            HomeNavItem.STARRED_ROUTES,
+            HomeNavItem.MY_REMINDERS -> Unit
+            HomeNavItem.PLAN_TRIP ->
+                startActivity(Intent(this@HomeActivity, TripPlanActivity::class.java))
+            HomeNavItem.PAY_FARE -> UIUtils.launchPayMyFareApp(this)
+            HomeNavItem.SETTINGS ->
+                startActivity(Intent(this@HomeActivity, SettingsActivity::class.java))
+            // Hide "Contact Us" when a custom API URL is set (no contact email to use).
+            HomeNavItem.HELP -> viewModel.showHelp(TextUtils.isEmpty(Application.get().customApiUrl))
+            HomeNavItem.SEND_FEEDBACK -> goToSendFeedBack()
+            HomeNavItem.OPEN_SOURCE ->
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.open_source_github))))
         }
-        if (mCurrentNavDrawerPosition != NAVDRAWER_ITEM_NEARBY) {
+        if (!reselect) reportNavAnalytics(item)
+        if (viewModel.uiState.value.selectedItem != HomeNavItem.NEARBY) {
             // Hide survey view unless it's on the map (survey visibility isn't ViewModel state yet)
             SurveyViewUtils.hideSurveyView(mSurveyView)
         }
         // Recompute the donation / weather / layers gates for the new selection.
         pushEnvironment()
+    }
+
+    /** Per-item menu analytics, preserving the legacy labels (PAY_FARE intentionally reports none). */
+    private fun reportNavAnalytics(item: HomeNavItem) {
+        val label = when (item) {
+            HomeNavItem.NEARBY -> R.string.analytics_label_button_press_nearby
+            HomeNavItem.STARRED_STOPS, HomeNavItem.STARRED_ROUTES ->
+                R.string.analytics_label_button_press_star
+            HomeNavItem.MY_REMINDERS -> R.string.analytics_label_button_press_reminders
+            HomeNavItem.PLAN_TRIP -> R.string.analytics_label_button_press_trip_plan
+            HomeNavItem.SETTINGS -> R.string.analytics_label_button_press_settings
+            HomeNavItem.HELP -> R.string.analytics_label_button_press_help
+            HomeNavItem.SEND_FEEDBACK -> R.string.analytics_label_button_press_feedback
+            HomeNavItem.OPEN_SOURCE -> R.string.analytics_label_button_press_open_source
+            HomeNavItem.PAY_FARE -> return
+        }
+        ObaAnalytics.reportUiEvent(
+            mFirebaseAnalytics,
+            Application.get().plausibleInstance,
+            PlausibleAnalytics.REPORT_MENU_EVENT_URL,
+            getString(label),
+            null
+        )
     }
 
     private fun showMap() {
@@ -926,20 +854,24 @@ class HomeActivity : AppCompatActivity(),
         refreshDrawerItems()
 
         // Determine the initial selection: NEARBY if launched to show a route/stop, else the last
-        // remembered tab (mirrors NavigationDrawerFragment's saved-position behavior).
-        var initialPosition = Application.getPrefs()
-            .getInt(STATE_SELECTED_POSITION, NAVDRAWER_ITEM_NEARBY)
+        // remembered tab (mirrors NavigationDrawerFragment's saved-position behavior). Read the
+        // enum-name pref, falling back to the legacy int position for installs from before P16.
+        val prefs = Application.getPrefs()
+        var initial = persistedNavItem(
+            prefs.getString(STATE_SELECTED_NAV_ITEM, null),
+            prefs.getInt(STATE_SELECTED_POSITION, 0)
+        )
         val bundle = intent.extras
         if (bundle != null &&
             (bundle.getString(MapParams.ROUTE_ID) != null ||
                 bundle.getString(MapParams.STOP_ID) != null)
         ) {
-            initialPosition = NAVDRAWER_ITEM_NEARBY
+            initial = HomeNavItem.NEARBY
         }
-        val position = initialPosition
+        val item = initial
         // Defer the first content selection until the island is attached (the AndroidView host
         // attaches it during composition, after onCreate), so the fragment commit finds its container.
-        mMapContent.post { onHomeNavItemSelected(toHomeNavItem(position)) }
+        mMapContent.post { onHomeNavItemSelected(item) }
     }
 
     /** Rebuilds the region-gated drawer item list (mirrors NavigationDrawerFragment.populateNavDrawer). */
@@ -969,33 +901,20 @@ class HomeActivity : AppCompatActivity(),
         viewModel.setNavItems(items)
     }
 
-    /** Bridges a Compose-drawer selection to the legacy int-based routing + the ViewModel selection. */
+    /** Routes a Compose-drawer selection to the ViewModel selection + the imperative per-item work. */
     private fun onHomeNavItemSelected(item: HomeNavItem) {
+        // Capture before the VM update so re-tapping the active in-place tab suppresses redundant work.
+        // navSelectionApplied gates the *first* selection (the legacy -1 sentinel) so startup always
+        // runs showMap(), even when the restored tab is NEARBY (the VM's default).
+        val reselect = navSelectionApplied &&
+            !item.launchesActivity && viewModel.uiState.value.selectedItem == item
         if (!item.launchesActivity) {
             viewModel.onNavItemSelected(item)
-            Application.getPrefs().edit().putInt(STATE_SELECTED_POSITION, toPosition(item)).apply()
+            // Remember the tab across sessions, keyed by enum name (mirrors the legacy pref).
+            PreferenceUtils.saveString(STATE_SELECTED_NAV_ITEM, item.name)
         }
-        goToNavDrawerItem(toPosition(item))
-    }
-
-    private fun toPosition(item: HomeNavItem): Int = when (item) {
-        HomeNavItem.STARRED_STOPS -> NAVDRAWER_ITEM_STARRED_STOPS
-        HomeNavItem.STARRED_ROUTES -> NAVDRAWER_ITEM_STARRED_ROUTES
-        HomeNavItem.MY_REMINDERS -> NAVDRAWER_ITEM_MY_REMINDERS
-        HomeNavItem.PLAN_TRIP -> NAVDRAWER_ITEM_PLAN_TRIP
-        HomeNavItem.PAY_FARE -> NAVDRAWER_ITEM_PAY_FARE
-        HomeNavItem.SETTINGS -> NAVDRAWER_ITEM_SETTINGS
-        HomeNavItem.HELP -> NAVDRAWER_ITEM_HELP
-        HomeNavItem.SEND_FEEDBACK -> NAVDRAWER_ITEM_SEND_FEEDBACK
-        HomeNavItem.OPEN_SOURCE -> NAVDRAWER_ITEM_OPEN_SOURCE
-        HomeNavItem.NEARBY -> NAVDRAWER_ITEM_NEARBY
-    }
-
-    private fun toHomeNavItem(position: Int): HomeNavItem = when (position) {
-        NAVDRAWER_ITEM_STARRED_STOPS -> HomeNavItem.STARRED_STOPS
-        NAVDRAWER_ITEM_STARRED_ROUTES -> HomeNavItem.STARRED_ROUTES
-        NAVDRAWER_ITEM_MY_REMINDERS -> HomeNavItem.MY_REMINDERS
-        else -> HomeNavItem.NEARBY
+        navSelectionApplied = true
+        goToNavDrawerItem(item, reselect)
     }
 
     private fun setupGooglePlayServices() {
@@ -1117,7 +1036,8 @@ class HomeActivity : AppCompatActivity(),
 
     private fun setupSurvey() {
         if (Application.get().currentRegion == null ||
-            mCurrentNavDrawerPosition != NAVDRAWER_ITEM_NEARBY
+            !navSelectionApplied ||
+            viewModel.uiState.value.selectedItem != HomeNavItem.NEARBY
         ) {
             return
         }
@@ -1164,30 +1084,13 @@ class HomeActivity : AppCompatActivity(),
 
         private const val WHATS_NEW_VER = "whatsNewVer"
 
-        // The set of possible nav-drawer positions (relocated from the retired
-        // NavigationDrawerFragment). The int model is kept because mCurrentNavDrawerPosition and
-        // goToNavDrawerItem() are still int-based; the Compose drawer maps its HomeNavItem to these
-        // via toPosition()/toHomeNavItem().
-        private const val NAVDRAWER_ITEM_NEARBY = 0
-        private const val NAVDRAWER_ITEM_STARRED_STOPS = 1
-        private const val NAVDRAWER_ITEM_STARRED_ROUTES = 2
-        private const val NAVDRAWER_ITEM_MY_REMINDERS = 3
-        private const val NAVDRAWER_ITEM_SETTINGS = 4
-        private const val NAVDRAWER_ITEM_HELP = 5
-        private const val NAVDRAWER_ITEM_SEND_FEEDBACK = 6
-        private const val NAVDRAWER_ITEM_PLAN_TRIP = 7
-        private const val NAVDRAWER_ITEM_PINS = 8
-        private const val NAVDRAWER_ITEM_ACTIVITY_FEED = 9
-        private const val NAVDRAWER_ITEM_PROFILE = 10
-        private const val NAVDRAWER_ITEM_SIGN_IN = 11
-        private const val NAVDRAWER_ITEM_OPEN_SOURCE = 12
-        private const val NAVDRAWER_ITEM_PAY_FARE = 13
-
         private const val TAG = "HomeActivity"
 
         const val BATTERY_OPTIMIZATIONS_PERMISSION_REQUEST = 111
 
-        // Matches NavigationDrawerFragment's remembered-tab pref key.
+        // The remembered nav tab, keyed by HomeNavItem.name. STATE_SELECTED_POSITION is the legacy
+        // int key (NavigationDrawerFragment's), read once as a migration fallback for old installs.
+        private const val STATE_SELECTED_NAV_ITEM = "home_selected_nav_item"
         private const val STATE_SELECTED_POSITION = "selected_navigation_drawer_position"
 
         private const val INITIAL_STARTUP = "initialStartup"

@@ -54,7 +54,9 @@ class HomeViewModel(
 
     // Raw inputs the gated [HomeUiState] is derived from.
     private var navItems: List<HomeNavItem> = emptyList()
-    private var selectedItem: HomeNavItem = HomeNavItem.NEARBY
+    // Restored from SavedStateHandle so the tab survives process death (config change survives via the
+    // ViewModel itself); the cross-session remembered tab is the activity's enum-name preference.
+    private var selectedItem: HomeNavItem = readNavItem(savedState) ?: HomeNavItem.NEARBY
     private var environment = HomeEnvironment()
     private var weatherData: WeatherData? = null
     private var dialog: HomeDialog = HomeDialog.None
@@ -88,6 +90,7 @@ class HomeViewModel(
     fun onNavItemSelected(item: HomeNavItem) {
         if (item.launchesActivity) return
         selectedItem = item
+        savedState[KEY_SELECTED_ITEM] = item.name
         recompute()
     }
 
@@ -250,6 +253,10 @@ class HomeViewModel(
         const val KEY_STOP_LAT = "home.focusedStop.lat"
         const val KEY_STOP_LON = "home.focusedStop.lon"
         const val KEY_BIKE_STATION = "home.focusedBikeStation.id"
+        const val KEY_SELECTED_ITEM = "home.selectedItem"
+
+        fun readNavItem(s: SavedStateHandle): HomeNavItem? =
+            s.get<String>(KEY_SELECTED_ITEM)?.let { runCatching { HomeNavItem.valueOf(it) }.getOrNull() }
 
         fun readFocusedStop(s: SavedStateHandle): FocusedStop? {
             val id = s.get<String>(KEY_STOP_ID) ?: return null

@@ -325,6 +325,53 @@ class HomeViewModelTest {
         assertEquals(listOf<HomeEvent>(HomeEvent.RegionResolved(true, null)), events)
         job.cancel()
     }
+
+    // --- nav selection + SavedStateHandle ---
+
+    @Test
+    fun `selected nav item is restored from SavedStateHandle on recreation`() = runTest {
+        val handle = SavedStateHandle()
+        viewModel(savedState = handle).onNavItemSelected(HomeNavItem.STARRED_ROUTES)
+        // A fresh ViewModel over the same handle simulates process-death recreation.
+        assertEquals(HomeNavItem.STARRED_ROUTES, viewModel(savedState = handle).uiState.value.selectedItem)
+    }
+
+    @Test
+    fun `selecting an activity-launching item neither changes nor persists the selection`() = runTest {
+        val handle = SavedStateHandle()
+        val vm = viewModel(savedState = handle)
+        vm.onNavItemSelected(HomeNavItem.SETTINGS)
+        assertEquals(HomeNavItem.NEARBY, vm.uiState.value.selectedItem)
+        assertEquals(HomeNavItem.NEARBY, viewModel(savedState = handle).uiState.value.selectedItem)
+    }
+}
+
+/** Pure tests for [persistedNavItem] — the enum-name pref read with the legacy int-position fallback. */
+class NavPersistenceTest {
+
+    @Test
+    fun `a valid enum name wins over the legacy position`() {
+        assertEquals(HomeNavItem.MY_REMINDERS, persistedNavItem("MY_REMINDERS", 0))
+    }
+
+    @Test
+    fun `an unknown name falls back to the legacy position`() {
+        assertEquals(HomeNavItem.STARRED_ROUTES, persistedNavItem("GARBAGE", 2))
+    }
+
+    @Test
+    fun `a null name maps the legacy int positions`() {
+        assertEquals(HomeNavItem.NEARBY, persistedNavItem(null, 0))
+        assertEquals(HomeNavItem.STARRED_STOPS, persistedNavItem(null, 1))
+        assertEquals(HomeNavItem.STARRED_ROUTES, persistedNavItem(null, 2))
+        assertEquals(HomeNavItem.MY_REMINDERS, persistedNavItem(null, 3))
+    }
+
+    @Test
+    fun `a null name with an out-of-range position is NEARBY`() {
+        assertEquals(HomeNavItem.NEARBY, persistedNavItem(null, 7))
+        assertEquals(HomeNavItem.NEARBY, persistedNavItem(null, -1))
+    }
 }
 
 /** Pure tests for the [buildState] visibility-gating projection (no coroutines needed). */

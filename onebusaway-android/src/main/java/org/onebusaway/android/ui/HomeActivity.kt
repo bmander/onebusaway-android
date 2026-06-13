@@ -64,6 +64,9 @@ import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.DefaultRegionStatusRepository
+import org.onebusaway.android.ui.home.DonationCallbacks
+import org.onebusaway.android.ui.home.DonationEffect
+import org.onebusaway.android.ui.home.DonationViewModel
 import org.onebusaway.android.ui.home.DefaultStartupPreferencesRepository
 import org.onebusaway.android.ui.home.DefaultWeatherRepository
 import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
@@ -142,6 +145,9 @@ class HomeActivity : AppCompatActivity(),
     // The map survey (Compose), shown over the map on NEARBY. Activity-scoped.
     private val surveyViewModel: SurveyViewModel by viewModels()
 
+    // The donation card feature module (Compose), shown over the map on NEARBY. Activity-scoped.
+    private val donationViewModel: DonationViewModel by viewModels()
+
     // The host can't call requestPermissions() itself (it's neither Activity nor Fragment), so it asks
     // through MapHostDeps and we drive the real launcher, delivering the outcome back to the host.
     private val permissionLauncher = registerForActivityResult(
@@ -209,6 +215,15 @@ class HomeActivity : AppCompatActivity(),
             onCancelDismiss = surveyViewModel::cancelDismiss,
         )
 
+        val donationCallbacks = DonationCallbacks(
+            onClose = donationViewModel::requestDismiss,
+            onLearnMore = donationViewModel::learnMore,
+            onDonate = donationViewModel::donate,
+            onDismissForever = donationViewModel::dismissForever,
+            onRemindLater = donationViewModel::remindLater,
+            onCancelDismiss = donationViewModel::cancelDismiss,
+        )
+
         val homeCallbacks = HomeCallbacks(
             onNavItemSelected = ::onHomeNavItemSelected,
             onSearch = ::onSearch,
@@ -220,11 +235,6 @@ class HomeActivity : AppCompatActivity(),
             onZoomOut = ::onZoomOut,
             onToggleBikeshare = ::onToggleBikeshare,
             onWeatherClick = ::onWeatherClick,
-            onDonationClose = ::onDonationClose,
-            onDonationLearnMore = ::onDonationLearnMore,
-            onDonationDonate = ::onDonationDonate,
-            onDonationDismissForever = ::onDonationDismissForever,
-            onDonationRemindLater = ::onDonationRemindLater,
             onHelpAction = ::onHelpAction,
             onWhatsNewDismissed = ::onWhatsNewDismissed,
             onRegionChosen = viewModel::onRegionChosen,
@@ -243,6 +253,7 @@ class HomeActivity : AppCompatActivity(),
             val state by viewModel.uiState.collectAsStateWithLifecycle()
             val routeHeader by mapViewModel.routeHeader.collectAsStateWithLifecycle()
             val survey by surveyViewModel.state.collectAsStateWithLifecycle()
+            val donation by donationViewModel.state.collectAsStateWithLifecycle()
             HomeScreen(
                 state = state,
                 events = viewModel.events,
@@ -257,6 +268,8 @@ class HomeActivity : AppCompatActivity(),
                 routeHeader = routeHeader,
                 survey = survey,
                 surveyCallbacks = surveyCallbacks,
+                donation = donation,
+                donationCallbacks = donationCallbacks,
                 listVms = listVms,
                 callbacks = homeCallbacks,
             )
@@ -293,6 +306,7 @@ class HomeActivity : AppCompatActivity(),
         observeSurveyEffects()
         observeViewModelEvents()
         observeMapCommands()
+        observeDonationEffects()
     }
 
     /** The map survey's one-shot effects: launch the external-survey web view / show a toast. */
@@ -395,9 +409,11 @@ class HomeActivity : AppCompatActivity(),
         mapHost.onResume()
 
         // Re-snapshot preferences + app-global flags so the ViewModel recomputes the chrome/overlay
-        // visibility gates (zoom controls, left-hand mode, layers FAB, weather, donation card).
+        // visibility gates (zoom controls, left-hand mode, layers FAB, weather).
         // (The arrivals panel's collapsed state is derived live from the sheet in HomeScreen now.)
         pushEnvironment()
+        // The donation card is its own module; re-gate it on resume (time/dismissal-based).
+        donationViewModel.refresh()
     }
 
     override fun onPause() {
@@ -786,7 +802,6 @@ class HomeActivity : AppCompatActivity(),
                     getString(R.string.preference_key_left_hand_mode), false
                 ),
                 weatherHidden = WeatherUtils.isWeatherViewHiddenPref(),
-                donationAvailable = Application.getDonationsManager().shouldShowDonationUI()
             )
         )
     }
@@ -943,33 +958,20 @@ class HomeActivity : AppCompatActivity(),
         }
     }
 
-    // --- Donation-card actions (passed to HomeScreen as lambdas) ---
-
-    /** The donation card's close (X) asks for confirmation via the Compose dismiss dialog. */
-    private fun onDonationClose() {
-        viewModel.showDismissDonation()
-    }
-
-    private fun onDonationLearnMore() {
-        startActivity(Intent(this, DonationLearnMoreActivity::class.java))
-    }
-
-    private fun onDonationDonate() {
-        val donationsManager = Application.getDonationsManager()
-        donationsManager.dismissDonationRequests()
-        startActivity(donationsManager.buildOpenDonationsPageIntent())
-    }
-
-    /** "I don't want to help" — stop asking, then re-snapshot so the card's gate recomputes. */
-    private fun onDonationDismissForever() {
-        Application.getDonationsManager().dismissDonationRequests()
-        pushEnvironment()
-    }
-
-    /** "Remind me later" — snooze the donation card, then re-snapshot its visibility gate. */
-    private fun onDonationRemindLater() {
-        Application.getDonationsManager().remindUserLater()
-        pushEnvironment()
+    /** The donation card's one-shot navigation (the VM owns the DonationsManager state). */
+    private fun observeDonationEffects() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                donationViewModel.effects.collect { effect ->
+                    when (effect) {
+                        DonationEffect.OpenLearnMore ->
+                            startActivity(Intent(this@HomeActivity, DonationLearnMoreActivity::class.java))
+                        DonationEffect.OpenDonatePage ->
+                            startActivity(Application.getDonationsManager().buildOpenDonationsPageIntent())
+                    }
+                }
+            }
+        }
     }
 
     companion object {

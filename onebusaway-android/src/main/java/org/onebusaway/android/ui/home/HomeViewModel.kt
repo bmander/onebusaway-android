@@ -238,12 +238,6 @@ class HomeViewModel(
         recompute()
     }
 
-    /** The "are you sure?" confirmation when the user closes the donation card. */
-    fun showDismissDonation() {
-        dialog = HomeDialog.DismissDonation
-        recompute()
-    }
-
     fun dismissDialog() {
         dialog = HomeDialog.None
         recompute()
@@ -384,7 +378,8 @@ class HomeViewModel(
  * Pure projection of the raw inputs onto the rendered [HomeUiState] — the home screen's
  * visibility-gating rules, lifted out of HomeActivity so they can be unit-tested. Mirrors the legacy
  * gates: chrome shows only on NEARBY; the layers FAB additionally needs bikeshare; the weather chip
- * needs data and a non-hidden preference; the donation card needs the DonationsManager flag.
+ * needs data and a non-hidden preference. (The donation card is its own feature module — see
+ * DonationViewModel — so its gate is no longer here.)
  */
 internal fun buildState(
     selectedItem: HomeNavItem,
@@ -417,7 +412,6 @@ internal fun buildState(
         layersFabVisible = nearby && environment.bikeshareEnabled,
         bikeshareActive = environment.bikeshareActive,
         weather = if (nearby && !environment.weatherHidden) weatherData else null,
-        donationVisible = nearby && environment.donationAvailable,
         dialog = dialog,
         helpShowContactUs = helpShowContactUs,
         showListSortMenu = listTab,

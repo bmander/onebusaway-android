@@ -71,11 +71,6 @@ class HomeCallbacks(
     val onZoomOut: () -> Unit,
     val onToggleBikeshare: () -> Unit,
     val onWeatherClick: () -> Unit,
-    val onDonationClose: () -> Unit,
-    val onDonationLearnMore: () -> Unit,
-    val onDonationDonate: () -> Unit,
-    val onDonationDismissForever: () -> Unit,
-    val onDonationRemindLater: () -> Unit,
     val onHelpAction: (HelpAction) -> Unit,
     val onWhatsNewDismissed: () -> Unit,
     val onRegionChosen: (ObaRegion) -> Unit,
@@ -122,6 +117,8 @@ fun HomeScreen(
     routeHeader: RouteHeader?,
     survey: SurveyUiState,
     surveyCallbacks: SurveyCallbacks,
+    donation: DonationUiState,
+    donationCallbacks: DonationCallbacks,
     listVms: HomeListViewModels,
     // All the screen's tap/UI lambdas, bundled (see [HomeCallbacks]); brought into scope below via
     // `with` so the body references them unqualified.
@@ -284,17 +281,17 @@ fun HomeScreen(
                                 modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
                             )
                         }
-                        if (state.donationVisible) {
-                            DonationCard(
-                                onClose = onDonationClose,
-                                onLearnMore = onDonationLearnMore,
-                                onDonate = onDonationDonate,
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, top = 62.dp)
-                            )
-                        }
+                        // The donation feature module: the card (NEARBY + DonationsManager-gated) plus
+                        // its dismiss dialog, driven by DonationViewModel.
+                        DonationOverlay(
+                            cardVisible = state.selectedItem == HomeNavItem.NEARBY && donation.available,
+                            dismissDialogVisible = donation.showDismissDialog,
+                            callbacks = donationCallbacks,
+                            cardModifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, top = 62.dp)
+                        )
                         // The route-mode header (Compose), top-aligned over the map — drawn above the
                         // weather/donation cards so its opaque bar + cancel button own the top in route
                         // mode. Reports its height for the map's top padding; clears it when dismissed.
@@ -332,8 +329,6 @@ fun HomeScreen(
             showContactUs = state.helpShowContactUs,
             onHelpAction = onHelpAction,
             onWhatsNewDismissed = onWhatsNewDismissed,
-            onDonationDismissForever = onDonationDismissForever,
-            onDonationRemindLater = onDonationRemindLater,
             onRegionChosen = onRegionChosen,
             onDismiss = onDismissDialog
         )

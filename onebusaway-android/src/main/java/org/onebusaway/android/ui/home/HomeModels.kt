@@ -82,7 +82,6 @@ data class HomeEnvironment(
     val zoomControlsPref: Boolean = false,
     val leftHandMode: Boolean = false,
     val weatherHidden: Boolean = false,
-    val donationAvailable: Boolean = false,
 )
 
 /**
@@ -112,7 +111,6 @@ data class HomeUiState(
     val bikeshareActive: Boolean = false,
     // overlays
     val weather: WeatherData? = null,
-    val donationVisible: Boolean = false,
     // dialogs (HomeDialog lives in HomeDialogs.kt)
     val dialog: HomeDialog = HomeDialog.None,
     val helpShowContactUs: Boolean = true,

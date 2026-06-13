@@ -612,15 +612,6 @@ class HomeStateTest {
     }
 
     @Test
-    fun `donation card needs nearby and availability`() {
-        assertTrue(state(HomeNavItem.NEARBY, HomeEnvironment(donationAvailable = true)).donationVisible)
-        assertFalse(state(HomeNavItem.NEARBY, HomeEnvironment(donationAvailable = false)).donationVisible)
-        assertFalse(
-            state(HomeNavItem.STARRED_STOPS, HomeEnvironment(donationAvailable = true)).donationVisible
-        )
-    }
-
-    @Test
     fun `weather chip needs nearby data and a non-hidden preference`() {
         assertEquals("clear-day", state(HomeNavItem.NEARBY).weather?.icon)
         assertNull(state(HomeNavItem.NEARBY, HomeEnvironment(weatherHidden = true)).weather)

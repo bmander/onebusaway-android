@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,10 +40,51 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.onebusaway.android.R
 
+/** The donation card's callbacks, reported back to [DonationViewModel] (mirrors SurveyCallbacks). */
+class DonationCallbacks(
+    val onClose: () -> Unit,
+    val onLearnMore: () -> Unit,
+    val onDonate: () -> Unit,
+    val onDismissForever: () -> Unit,
+    val onRemindLater: () -> Unit,
+    val onCancelDismiss: () -> Unit,
+)
+
+/**
+ * The donation feature's overlay: the prompt card (shown when [cardVisible]) plus its dismiss
+ * confirmation dialog (shown when [dismissDialogVisible]). Self-contained — driven by
+ * [DonationViewModel] state, actions reported through [callbacks] — so the donation concern no longer
+ * lives in HomeUiState / HomeViewModel / HomeActivity. The NEARBY-tab gate is folded into [cardVisible]
+ * by the caller (HomeScreen), like the other map chrome.
+ */
+@Composable
+fun DonationOverlay(
+    cardVisible: Boolean,
+    dismissDialogVisible: Boolean,
+    callbacks: DonationCallbacks,
+    cardModifier: Modifier = Modifier,
+) {
+    if (cardVisible) {
+        DonationCard(
+            onClose = callbacks.onClose,
+            onLearnMore = callbacks.onLearnMore,
+            onDonate = callbacks.onDonate,
+            modifier = cardModifier,
+        )
+    }
+    if (dismissDialogVisible) {
+        DonationDismissDialog(
+            onDismissForever = callbacks.onDismissForever,
+            onRemindLater = callbacks.onRemindLater,
+            onCancel = callbacks.onCancelDismiss,
+        )
+    }
+}
+
 /**
  * The donation prompt overlaid near the top of the map, replacing the XML donation_view include.
  * The title carries the app name for white-label brands; the close / learn-more / donate actions are
- * dispatched to HomeActivity (which keeps the DonationsManager logic + the dismiss dialog).
+ * dispatched to [DonationViewModel].
  */
 @Composable
 fun DonationCard(
@@ -89,4 +131,37 @@ fun DonationCard(
             }
         }
     }
+}
+
+/**
+ * Confirmation when the user closes the donation card. Three stacked actions (the Compose idiom for
+ * >2 dialog buttons): keep asking later, stop asking, or cancel. (Moved here from HomeDialogs as part
+ * of the donation feature module.)
+ */
+@Composable
+private fun DonationDismissDialog(
+    onDismissForever: () -> Unit,
+    onRemindLater: () -> Unit,
+    onCancel: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.donation_dismiss_dialog_title)) },
+        text = {
+            Text(stringResource(R.string.donation_dismiss_dialog_body, stringResource(R.string.app_name)))
+        },
+        confirmButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                TextButton(onClick = onRemindLater) {
+                    Text(stringResource(R.string.donation_dismiss_dialog_remind_me_later_button))
+                }
+                TextButton(onClick = onDismissForever) {
+                    Text(stringResource(R.string.donation_dismiss_dialog_dont_want_to_help_button))
+                }
+                TextButton(onClick = onCancel) {
+                    Text(stringResource(R.string.donation_dismiss_dialog_cancel_button))
+                }
+            }
+        }
+    )
 }

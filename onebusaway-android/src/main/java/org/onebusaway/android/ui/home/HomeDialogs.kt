@@ -49,7 +49,6 @@ sealed interface HomeDialog {
     object Help : HomeDialog
     object WhatsNew : HomeDialog
     object Legend : HomeDialog
-    object DismissDonation : HomeDialog
 
     /** The forced-choice region picker (old ObaRegionsTask.haveUserChooseRegion), keyed by [regions]. */
     data class ChooseRegion(val regions: List<ObaRegion>) : HomeDialog
@@ -62,8 +61,9 @@ sealed interface HomeDialog {
 enum class HelpAction { TUTORIALS, LEGEND, WHATS_NEW, AGENCIES, TWITTER, CONTACT_US }
 
 /**
- * Renders all of Home's Compose dialogs (HELP / WHAT'S-NEW / LEGEND / DISMISS-DONATION), keyed by the
+ * Renders all of Home's Compose dialogs (HELP / WHAT'S-NEW / LEGEND / region picker), keyed by the
  * single [HomeUiState.dialog] state. State + actions are driven by the activity through HomeScreen.
+ * (The donation dismiss dialog lives with the donation feature module, see DonationOverlay.)
  */
 @Composable
 fun HomeDialogs(
@@ -71,8 +71,6 @@ fun HomeDialogs(
     showContactUs: Boolean,
     onHelpAction: (HelpAction) -> Unit,
     onWhatsNewDismissed: () -> Unit,
-    onDonationDismissForever: () -> Unit,
-    onDonationRemindLater: () -> Unit,
     onRegionChosen: (ObaRegion) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -85,11 +83,6 @@ fun HomeDialogs(
             }
         )
         HomeDialog.Legend -> LegendDialog(onDismiss)
-        HomeDialog.DismissDonation -> DonationDismissDialog(
-            onDismissForever = onDonationDismissForever,
-            onRemindLater = onDonationRemindLater,
-            onDismiss = onDismiss
-        )
         is HomeDialog.ChooseRegion -> RegionChooserDialog(dialog.regions, onRegionChosen)
         HomeDialog.None -> Unit
     }
@@ -223,34 +216,3 @@ private fun LegendRow(
     }
 }
 
-/**
- * Confirmation when the user closes the donation card. Three stacked actions (the Compose idiom for
- * >2 dialog buttons): keep asking later, stop asking, or cancel.
- */
-@Composable
-private fun DonationDismissDialog(
-    onDismissForever: () -> Unit,
-    onRemindLater: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.donation_dismiss_dialog_title)) },
-        text = {
-            Text(stringResource(R.string.donation_dismiss_dialog_body, stringResource(R.string.app_name)))
-        },
-        confirmButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                TextButton(onClick = { onRemindLater(); onDismiss() }) {
-                    Text(stringResource(R.string.donation_dismiss_dialog_remind_me_later_button))
-                }
-                TextButton(onClick = { onDismissForever(); onDismiss() }) {
-                    Text(stringResource(R.string.donation_dismiss_dialog_dont_want_to_help_button))
-                }
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.donation_dismiss_dialog_cancel_button))
-                }
-            }
-        }
-    )
-}

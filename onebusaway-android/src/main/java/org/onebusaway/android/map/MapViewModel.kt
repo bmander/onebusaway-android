@@ -53,13 +53,22 @@ class MapViewModel : ViewModel() {
 
     private val cachedRoutes = HashMap<String, ObaRoute>()
 
+    // routeId -> ObaRoute.TYPE_*, maintained alongside cachedRoutes so toStopMarker doesn't rebuild
+    // the lookup on every pan.
+    private val routeTypeById = HashMap<String, Int>()
+
+    /** Adds routes to the caches that a stop tap reports + the icon route-type lookup. */
+    private fun cacheRoutes(routes: Iterable<ObaRoute>) {
+        for (route in routes) {
+            cachedRoutes[route.id] = route
+            routeTypeById[route.id] = route.type
+        }
+    }
+
     // ----- Stops -----
 
     fun showStops(stops: List<ObaStop>, refs: ObaReferences) {
-        for (route in refs.routes) {
-            cachedRoutes[route.id] = route
-        }
-        val typeByRouteId = cachedRoutes.values.associate { it.id to it.type }
+        cacheRoutes(refs.routes)
         if (stopAccum.size >= FUZZY_MAX_STOP_COUNT) {
             val focused = renderState.snapshot.value.focusedStopId?.let { stopAccum[it] }
             stopAccum.clear()
@@ -69,7 +78,7 @@ class MapViewModel : ViewModel() {
         }
         for (stop in stops) {
             if (!stopAccum.containsKey(stop.id)) {
-                stopAccum[stop.id] = toStopMarker(stop, typeByRouteId)
+                stopAccum[stop.id] = toStopMarker(stop)
             }
         }
         renderState.setStops(ArrayList(stopAccum.values))
@@ -95,9 +104,8 @@ class MapViewModel : ViewModel() {
             return
         }
         if (!stopAccum.containsKey(stop.id)) {
-            routes?.forEach { cachedRoutes[it.id] = it }
-            val typeByRouteId = cachedRoutes.values.associate { it.id to it.type }
-            stopAccum[stop.id] = toStopMarker(stop, typeByRouteId)
+            routes?.let { cacheRoutes(it) }
+            stopAccum[stop.id] = toStopMarker(stop)
             renderState.setStops(ArrayList(stopAccum.values))
         }
         renderState.setFocusedStopId(stop.id)
@@ -108,8 +116,8 @@ class MapViewModel : ViewModel() {
     /** A snapshot copy of the cached routes, for reporting a stop's routes to focus listeners. */
     fun cachedRoutes(): HashMap<String, ObaRoute> = HashMap(cachedRoutes)
 
-    private fun toStopMarker(stop: ObaStop, typeByRouteId: Map<String, Int>): StopMarker {
-        val routeType = primaryRouteType(stop.routeIds, typeByRouteId)
+    private fun toStopMarker(stop: ObaStop): StopMarker {
+        val routeType = primaryRouteType(stop.routeIds, routeTypeById)
         val loc = stop.location
         // ObaStop.getDirection() is "N".."NW" or the literal "null" string for no direction.
         val direction = stop.direction ?: "null"
@@ -142,15 +150,10 @@ class MapViewModel : ViewModel() {
             if (!routeIds.contains(activeRoute) || Status.CANCELED == status.status) {
                 continue
             }
-            var location = status.lastKnownLocation
-            var isRealtime = true
-            if (location == null) {
-                location = status.position
-                isRealtime = false
-            }
-            if (!status.isPredicted) {
-                isRealtime = false
-            }
+            // Use the (possibly extrapolated) last-known location when present; it's "real-time" only
+            // if that location exists and the trip is predicted (else fall back to the last position).
+            val location = status.lastKnownLocation ?: status.position
+            val isRealtime = status.lastKnownLocation != null && status.isPredicted
             markers.add(
                 VehicleMarker(
                     status.activeTripId,

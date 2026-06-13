@@ -60,8 +60,8 @@ import org.opentripplanner.routing.bike_rental.BikeRentalStation
  * Declarative render of [MapRenderState] inside a `GoogleMap {}` content lambda. This is the
  * counterpart of the imperative overlay classes: the flavor host pushes overlay content into the
  * shared [MapRenderState] via its `ObaMapView` methods, and this composable draws whatever the
- * current snapshot holds. It grows one overlay per phase — currently route / itinerary polylines
- * and generic pins (trip-plan start/end, the report location picker).
+ * current snapshot holds: route / itinerary polylines, stops (+ focus), vehicles (+ info window),
+ * bike stations (+ info window), and generic pins (trip-plan start/end, the report location picker).
  */
 @Composable
 @GoogleMapComposable
@@ -83,12 +83,15 @@ fun ObaMapContent(
     }
 
     snapshot.routePolylines.forEach { polyline ->
-        Polyline(
-            points = polyline.points.map { LatLng(it.latitude, it.longitude) },
-            spans = listOf(
-                StyleSpan(StrokeStyle.colorBuilder(polyline.color).stamp(arrow).build())
-            ),
-        )
+        // Memoize the LatLng list + span so an unrelated snapshot change (e.g. the 10s vehicle poll)
+        // doesn't re-map every route point or rebuild the span on each recomposition.
+        val points = remember(polyline.points) {
+            polyline.points.map { LatLng(it.latitude, it.longitude) }
+        }
+        val spans = remember(polyline.color) {
+            listOf(StyleSpan(StrokeStyle.colorBuilder(polyline.color).stamp(arrow).build()))
+        }
+        Polyline(points = points, spans = spans)
     }
 
     // Stops. Each is a flat marker anchored per direction; the focused stop swaps to the 1.5x icon.

@@ -36,26 +36,43 @@ public final class BikeBitmaps {
     private BikeBitmaps() {
     }
 
+    // The three icons never vary, so cache them once. The maplibre renderer clears + redraws every
+    // marker on each snapshot, so without this it would re-decode these PNGs per bike per render.
+    private static Bitmap sSmall;
+
+    private static Bitmap sBigStation;
+
+    private static Bitmap sBigFloating;
+
     /** The small bike-dot bitmap, drawn from the {@code bike_marker_small} vector. */
     public static Bitmap small(Context context) {
-        int px = context.getResources().getDimensionPixelSize(R.dimen.bikeshare_small_marker_size);
-        Bitmap bitmap = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        Drawable shape = ContextCompat.getDrawable(context, R.drawable.bike_marker_small);
-        shape.setBounds(0, 0, bitmap.getWidth(), bitmap.getHeight());
-        shape.draw(canvas);
-        return bitmap;
+        if (sSmall == null) {
+            int px = context.getResources().getDimensionPixelSize(R.dimen.bikeshare_small_marker_size);
+            Bitmap bitmap = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmap);
+            Drawable shape = ContextCompat.getDrawable(context, R.drawable.bike_marker_small);
+            shape.setBounds(0, 0, bitmap.getWidth(), bitmap.getHeight());
+            shape.draw(canvas);
+            sSmall = bitmap;
+        }
+        return sSmall;
     }
 
     /** The large bike-station icon. */
     public static Bitmap bigStation(Context context) {
-        return BitmapFactory.decodeResource(context.getResources(),
-                R.drawable.bike_station_marker_big);
+        if (sBigStation == null) {
+            sBigStation = BitmapFactory.decodeResource(context.getResources(),
+                    R.drawable.bike_station_marker_big);
+        }
+        return sBigStation;
     }
 
     /** The large floating-bike icon. */
     public static Bitmap bigFloating(Context context) {
-        return BitmapFactory.decodeResource(context.getResources(),
-                R.drawable.bike_floating_marker_big);
+        if (sBigFloating == null) {
+            sBigFloating = BitmapFactory.decodeResource(context.getResources(),
+                    R.drawable.bike_floating_marker_big);
+        }
+        return sBigFloating;
     }
 }

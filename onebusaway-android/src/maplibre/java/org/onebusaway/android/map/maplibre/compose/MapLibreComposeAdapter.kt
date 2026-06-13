@@ -21,7 +21,11 @@ import android.content.ContextWrapper
 import android.os.Bundle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -29,6 +33,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.maplibre.android.MapLibre
+import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.onebusaway.android.map.compose.ObaComposeMapAdapter
 import org.onebusaway.android.map.compose.ObaMapCallbacks
@@ -40,9 +45,10 @@ import org.onebusaway.android.map.render.MapRenderState
  * [AndroidView] (there is no maplibre-compose), bridging the MapView's imperative lifecycle to Compose
  * via a [LifecycleEventObserver]. When the map is ready it hands a [MapLibreMapHandle] back to
  * `MapLibreMapHost`, which keeps doing all the setup it always has — style, the [MapLibreRenderer],
- * marker/info-window listeners, the location component, and camera control. Because the host owns
- * rendering, this adapter ignores [renderState]/[callbacks]; its job is purely to make the maplibre
- * map a composable with a correct Compose lifecycle.
+ * marker/info-window listeners, and the location component. Rendering aside, this adapter ignores
+ * [callbacks] (the host wires its own marker listeners); it consumes [renderState]'s camera-command
+ * flow declaratively (the host dispatches camera intents, this applies them to the map), and otherwise
+ * just makes the maplibre map a composable with a correct Compose lifecycle.
  *
  * Lifecycle note: `addObserver` on an already-STARTED/RESUMED lifecycle synchronously dispatches the
  * upward events, so the MapView still receives `onStart`/`onResume` when it enters composition late.
@@ -88,10 +94,26 @@ class MapLibreComposeAdapter : ObaComposeMapAdapter {
             }
         }
 
-        // Hand the ready map (+ its MapView, for the host's onSaveInstanceState) to the host once.
+        // Hand the ready map (+ its MapView, for the host's onSaveInstanceState) to the host once, and
+        // keep it so the camera-command collector below can drive it.
+        var mapLibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
         DisposableEffect(mapView) {
-            mapView.getMapAsync { map -> onMapReady.onMapReady(MapLibreMapHandle(mapView, map)) }
+            mapView.getMapAsync { map ->
+                mapLibreMap = map
+                onMapReady.onMapReady(MapLibreMapHandle(mapView, map))
+            }
             onDispose { }
+        }
+
+        // Declarative camera: apply the host-dispatched camera intents to the map (replacing the host's
+        // direct mMap.animateCamera/moveCamera calls), once the map is ready.
+        val map = mapLibreMap
+        if (map != null) {
+            LaunchedEffect(map) {
+                renderState.cameraCommands.collect { command ->
+                    applyCameraCommand(command, map, renderState)
+                }
+            }
         }
 
         AndroidView(factory = { mapView }, modifier = modifier)

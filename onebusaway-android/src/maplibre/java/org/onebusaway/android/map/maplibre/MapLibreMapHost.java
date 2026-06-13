@@ -40,9 +40,6 @@ import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaShape;
 import org.onebusaway.android.io.elements.ObaStop;
-import org.onebusaway.android.io.elements.ObaTripDetails;
-import org.onebusaway.android.io.elements.ObaTripStatus;
-import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.DirectionsMapController;
 import org.onebusaway.android.map.LayerActivationListener;
@@ -57,13 +54,11 @@ import org.onebusaway.android.map.ObaMapHost;
 import org.onebusaway.android.map.RouteMapController;
 import org.onebusaway.android.map.StopMapController;
 import org.onebusaway.android.map.bike.BikeshareMapController;
-import org.onebusaway.android.map.render.BikeMarker;
+import org.onebusaway.android.map.MapViewModel;
 import org.onebusaway.android.map.render.GeoPoint;
 import org.onebusaway.android.map.render.MapRenderState;
 import org.onebusaway.android.map.render.RoutePolyline;
 import org.onebusaway.android.map.render.StopMarker;
-import org.onebusaway.android.map.render.StopRouteTypeKt;
-import org.onebusaway.android.map.render.VehicleMarker;
 import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.ui.weather.RegionCallback;
 import org.onebusaway.android.util.LayerUtils;
@@ -96,12 +91,13 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.lifecycle.ViewModelStoreOwner;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.graphics.drawable.DrawableCompat;
 
@@ -150,20 +146,14 @@ public class MapLibreMapHost
 
     private String mFocusStopId;
 
-    // The shared, flavor-neutral render model + the maplibre renderer that draws it via classic
-    // annotations. The ObaMapView methods push to the state and re-render (mirrors GoogleMapHost's
-    // declarative push; maplibre just renders imperatively instead of via Compose).
-    private final MapRenderState mRenderState = new MapRenderState();
+    // The Activity-scoped view model owns the render model + data-shaping logic (shared with the
+    // Google host); this host delegates ObaMapView mutations to it and re-renders mRenderState
+    // (= the VM's render state) via the maplibre renderer.
+    private final MapViewModel mViewModel;
+
+    private final MapRenderState mRenderState;
 
     private MapLibreRenderer mRenderer;
-
-    // Host-side stop accumulation (capped, keeping the focused stop) + a routes cache, matching
-    // GoogleMapHost. Stop icon route-type is resolved by the shared primaryRouteType().
-    private final LinkedHashMap<String, StopMarker> mStopAccum = new LinkedHashMap<>();
-
-    private final HashMap<String, ObaRoute> mCachedRoutes = new HashMap<>();
-
-    private static final int FUZZY_MAX_STOP_COUNT = 200;
 
     private boolean mWarnOutOfRange = true;
     private boolean mRunning = false;
@@ -190,6 +180,10 @@ public class MapLibreMapHost
     public MapLibreMapHost(Activity activity, MapHostDeps deps, Bundle args) {
         mActivity = activity;
         mDeps = deps;
+        // Activity-scoped view model: owns the render state (so it survives configuration changes)
+        // and the data-shaping logic shared with the Google host.
+        mViewModel = new ViewModelProvider((ViewModelStoreOwner) activity).get(MapViewModel.class);
+        mRenderState = mViewModel.getRenderState();
 
         // Initialize MapLibre before any map usage
         MapLibre.getInstance(activity);
@@ -587,7 +581,8 @@ public class MapLibreMapHost
             mControllers = new ArrayList<>();
         }
         // Switching modes clears accumulated stops but keeps the focused one (old clear(false)).
-        clearStops(false);
+        mViewModel.clearStops(false);
+        rerender();
         BikeshareMapController bikeshareMapController = new BikeshareMapController(this);
         if (MapParams.MODE_ROUTE.equals(mode)) {
             RouteMapController controller = new RouteMapController(this);
@@ -626,23 +621,7 @@ public class MapLibreMapHost
         if (stops == null) {
             return;
         }
-        for (ObaRoute route : refs.getRoutes()) {
-            mCachedRoutes.put(route.getId(), route);
-        }
-        HashMap<String, Integer> typeByRouteId = routeTypesByRouteId();
-        if (mStopAccum.size() >= FUZZY_MAX_STOP_COUNT) {
-            StopMarker focused = mFocusStopId != null ? mStopAccum.get(mFocusStopId) : null;
-            mStopAccum.clear();
-            if (focused != null) {
-                mStopAccum.put(focused.getId(), focused);
-            }
-        }
-        for (ObaStop stop : stops) {
-            if (!mStopAccum.containsKey(stop.getId())) {
-                mStopAccum.put(stop.getId(), toStopMarker(stop, typeByRouteId));
-            }
-        }
-        mRenderState.setStops(new ArrayList<>(mStopAccum.values()));
+        mViewModel.showStops(stops, refs);
         rerender();
         checkRegionWeather(false);
     }
@@ -651,17 +630,13 @@ public class MapLibreMapHost
     public void showBikeStations(List<BikeRentalStation> bikeStations) {
         boolean bikeshareVisible = MapParams.MODE_DIRECTIONS.equals(mMapMode)
                 || LayerUtils.isBikeshareLayerVisible();
-        List<BikeMarker> markers = new ArrayList<>();
-        for (BikeRentalStation s : bikeStations) {
-            markers.add(new BikeMarker(s.id, new GeoPoint(s.y, s.x), s.isFloatingBike, s));
-        }
-        mRenderState.setBikeStations(markers, bikeshareVisible);
+        mViewModel.showBikeStations(bikeStations, bikeshareVisible);
         rerender();
     }
 
     @Override
     public void clearBikeStations() {
-        mRenderState.clearBikeStations();
+        mViewModel.clearBikeStations();
         rerender();
     }
 
@@ -875,16 +850,7 @@ public class MapLibreMapHost
 
     @Override
     public void setRouteOverlay(int lineOverlayColor, ObaShape[] shapes, boolean clear) {
-        List<RoutePolyline> polylines =
-                clear ? new ArrayList<>() : new ArrayList<>(mRenderState.getRoutePolylines());
-        for (ObaShape s : shapes) {
-            List<GeoPoint> points = new ArrayList<>();
-            for (Location l : s.getPoints()) {
-                points.add(new GeoPoint(l.getLatitude(), l.getLongitude()));
-            }
-            polylines.add(new RoutePolyline(lineOverlayColor, points));
-        }
-        mRenderState.setRoutePolylines(polylines);
+        mViewModel.setRoute(lineOverlayColor, shapes, clear);
         rerender();
     }
 
@@ -895,35 +861,13 @@ public class MapLibreMapHost
 
     @Override
     public void updateVehicles(HashSet<String> routeIds, ObaTripsForRouteResponse response) {
-        List<VehicleMarker> markers = new ArrayList<>();
-        for (ObaTripDetails trip : response.getTrips()) {
-            ObaTripStatus status = trip.getStatus();
-            if (status == null) {
-                continue;
-            }
-            String activeRoute = response.getTrip(status.getActiveTripId()).getRouteId();
-            if (!routeIds.contains(activeRoute) || Status.CANCELED.equals(status.getStatus())) {
-                continue;
-            }
-            Location l = status.getLastKnownLocation();
-            boolean isRealtime = true;
-            if (l == null) {
-                l = status.getPosition();
-                isRealtime = false;
-            }
-            if (!status.isPredicted()) {
-                isRealtime = false;
-            }
-            markers.add(new VehicleMarker(status.getActiveTripId(),
-                    new GeoPoint(l.getLatitude(), l.getLongitude()), isRealtime, status));
-        }
-        mRenderState.setVehicles(markers, response);
+        mViewModel.updateVehicles(routeIds, response);
         rerender();
     }
 
     @Override
     public void removeVehicleOverlay() {
-        mRenderState.clearVehicles();
+        mViewModel.clearVehicles();
         rerender();
     }
 
@@ -949,13 +893,17 @@ public class MapLibreMapHost
 
     @Override
     public void removeRouteOverlay() {
-        mRenderState.clearRoutePolylines();
+        mViewModel.clearRoute();
         rerender();
     }
 
     @Override
     public void removeStopOverlay(boolean clearFocusedStop) {
-        clearStops(clearFocusedStop);
+        mViewModel.clearStops(clearFocusedStop);
+        if (clearFocusedStop) {
+            mFocusStopId = null;
+        }
+        rerender();
     }
 
     @Override
@@ -965,37 +913,21 @@ public class MapLibreMapHost
 
     @Override
     public void setFocusStop(ObaStop stop, List<ObaRoute> routes) {
-        if (stop == null) {
-            mFocusStopId = null;
-            mRenderState.setFocusedStopId(null);
-            rerender();
-            return;
-        }
-        if (!mStopAccum.containsKey(stop.getId())) {
-            if (routes != null) {
-                for (ObaRoute route : routes) {
-                    mCachedRoutes.put(route.getId(), route);
-                }
-            }
-            mStopAccum.put(stop.getId(), toStopMarker(stop, routeTypesByRouteId()));
-            mRenderState.setStops(new ArrayList<>(mStopAccum.values()));
-        }
-        mFocusStopId = stop.getId();
-        mRenderState.setFocusedStopId(stop.getId());
+        mViewModel.setFocusStop(stop, routes);
+        mFocusStopId = (stop != null) ? stop.getId() : null;
         rerender();
     }
 
     @Override
     public int addMarker(Location location, Float hue) {
-        int id = mRenderState.addMarker(
-                new GeoPoint(location.getLatitude(), location.getLongitude()), hue);
+        int id = mViewModel.addMarker(location.getLatitude(), location.getLongitude(), hue);
         rerender();
         return id;
     }
 
     @Override
     public void removeMarker(int markerId) {
-        mRenderState.removeMarker(markerId);
+        mViewModel.removeMarker(markerId);
         rerender();
     }
 
@@ -1025,36 +957,6 @@ public class MapLibreMapHost
         }
     }
 
-    private StopMarker toStopMarker(ObaStop stop, HashMap<String, Integer> typeByRouteId) {
-        int routeType = StopRouteTypeKt.primaryRouteType(stop.getRouteIds(), typeByRouteId);
-        Location loc = stop.getLocation();
-        String direction = stop.getDirection() != null ? stop.getDirection() : "null";
-        return new StopMarker(stop.getId(),
-                new GeoPoint(loc.getLatitude(), loc.getLongitude()), direction, routeType, stop);
-    }
-
-    private HashMap<String, Integer> routeTypesByRouteId() {
-        HashMap<String, Integer> typeByRouteId = new HashMap<>();
-        for (ObaRoute route : mCachedRoutes.values()) {
-            typeByRouteId.put(route.getId(), route.getType());
-        }
-        return typeByRouteId;
-    }
-
-    private void clearStops(boolean clearFocusedStop) {
-        StopMarker focused = (!clearFocusedStop && mFocusStopId != null)
-                ? mStopAccum.get(mFocusStopId) : null;
-        mStopAccum.clear();
-        if (focused != null) {
-            mStopAccum.put(focused.getId(), focused);
-        } else if (clearFocusedStop) {
-            mFocusStopId = null;
-            mRenderState.setFocusedStopId(null);
-        }
-        mRenderState.setStops(new ArrayList<>(mStopAccum.values()));
-        rerender();
-    }
-
     private LatLngBounds routePolylineBounds() {
         LatLngBounds.Builder builder = new LatLngBounds.Builder();
         boolean any = false;
@@ -1069,7 +971,7 @@ public class MapLibreMapHost
 
     /** A stop tap: focus + notify listeners, then animate the camera onto it. */
     private void onStopTapped(ObaStop stop) {
-        onFocusChanged(stop, new HashMap<>(mCachedRoutes), stop.getLocation());
+        onFocusChanged(stop, mViewModel.cachedRoutes(), stop.getLocation());
         if (mMap != null) {
             LatLng pos = MapHelpMapLibre.makeLatLng(stop.getLocation());
             double currentZoom = mMap.getCameraPosition().zoom;

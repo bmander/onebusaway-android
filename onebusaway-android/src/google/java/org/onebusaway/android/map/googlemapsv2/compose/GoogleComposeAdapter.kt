@@ -16,8 +16,12 @@
 package org.onebusaway.android.map.googlemapsv2.compose
 
 import android.os.Bundle
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
@@ -61,9 +65,17 @@ class GoogleComposeAdapter : ObaComposeMapAdapter {
                 )
             }
         }
+        // Declarative map padding (route-header top + arrivals-sheet bottom), applied as the map's
+        // contentPadding instead of an imperative mapView.setPadding(...) poke from the activity.
+        val padding by renderState.padding.collectAsState()
+        val density = LocalDensity.current
         GoogleMap(
             modifier = modifier,
             cameraPositionState = cameraPositionState,
+            contentPadding = PaddingValues(
+                top = with(density) { padding.topPx.toDp() },
+                bottom = with(density) { padding.bottomPx.toDp() },
+            ),
             // Now that every marker is declarative, maps-compose owns click dispatch. A tap on empty
             // map clears stop/bike focus; per-marker taps are handled in ObaMapContent.
             onMapClick = { latLng -> cb.onMapClick(GeoPoint(latLng.latitude, latLng.longitude)) },

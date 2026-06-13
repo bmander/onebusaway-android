@@ -347,7 +347,7 @@ class HomeActivity : AppCompatActivity(),
                             }
                         }
                         is HomeEvent.SetMapPadding ->
-                            mapHost.mapView?.setPadding(null, null, null, event.bottomPx)
+                            mapViewModel.setBottomPadding(event.bottomPx)
                         is HomeEvent.RecenterOnFocusedStop ->
                             mapHost.setMapCenter(
                                 LocationUtils.makeLocation(event.lat, event.lon), true, true
@@ -510,7 +510,7 @@ class HomeActivity : AppCompatActivity(),
     /** The Compose route header reports its measured height; set the map's top padding accordingly. */
     private fun onRouteHeaderHeight(heightPx: Int) {
         val top = if (heightPx > 0) heightPx + routeHeaderMarkerPaddingPx else 0
-        mapHost.mapView?.setPadding(null, top, null, null)
+        mapViewModel.setTopPadding(top)
     }
 
     /** The route header's cancel button: return to stop mode, preserving the current zoom + center. */

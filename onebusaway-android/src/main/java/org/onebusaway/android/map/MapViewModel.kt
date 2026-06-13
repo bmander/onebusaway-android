@@ -71,6 +71,13 @@ class MapViewModel : ViewModel() {
         _routeHeader.value = header
     }
 
+    // Map content padding: the route-mode header sets the top, the arrivals sheet sets the bottom.
+    // Declarative state the renderer applies (Google: GoogleMap contentPadding), replacing the old
+    // imperative mapView.setPadding(...) relay through HomeActivity.
+    fun setTopPadding(px: Int) = renderState.setTopPadding(px)
+
+    fun setBottomPadding(px: Int) = renderState.setBottomPadding(px)
+
     // Stop accumulation across pans (capped, keeping the focused stop) + the routes cache used to
     // resolve a stop's icon route type and to report a stop's routes to focus listeners.
     private val stopAccum = LinkedHashMap<String, StopMarker>()

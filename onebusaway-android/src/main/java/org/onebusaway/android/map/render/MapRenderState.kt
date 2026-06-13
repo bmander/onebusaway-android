@@ -28,6 +28,15 @@ import org.opentripplanner.routing.bike_rental.BikeRentalStation
 data class GeoPoint(val latitude: Double, val longitude: Double)
 
 /**
+ * The map's content padding, in pixels. [topPx] keeps content (vehicle markers) below the route-mode
+ * header; [bottomPx] keeps the focused stop above the arrivals sheet. Held as declarative state and
+ * applied by the renderer (the Google adapter's `GoogleMap(contentPadding=…)`) instead of an
+ * imperative `mapView.setPadding(...)` poke. Kept in its own flow (not [MapRenderSnapshot]) so a
+ * padding change doesn't recompose the overlay content.
+ */
+data class MapPadding(val topPx: Int = 0, val bottomPx: Int = 0)
+
+/**
  * One route/itinerary polyline: a colored, ordered list of points. The directional-arrow stamp is a
  * rendering detail added by the flavor renderer, so it isn't part of the state.
  */
@@ -105,6 +114,16 @@ class MapRenderState {
     private val _snapshot = MutableStateFlow(MapRenderSnapshot())
 
     val snapshot: StateFlow<MapRenderSnapshot> = _snapshot.asStateFlow()
+
+    // Map content padding (route-header top + arrivals-sheet bottom), in its own flow so it doesn't
+    // recompose the overlay content. The renderer applies it (Google: GoogleMap contentPadding).
+    private val _padding = MutableStateFlow(MapPadding())
+
+    val padding: StateFlow<MapPadding> = _padding.asStateFlow()
+
+    fun setTopPadding(px: Int) = _padding.update { it.copy(topPx = px) }
+
+    fun setBottomPadding(px: Int) = _padding.update { it.copy(bottomPx = px) }
 
     fun getRoutePolylines(): List<RoutePolyline> = _snapshot.value.routePolylines
 

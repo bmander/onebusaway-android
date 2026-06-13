@@ -27,8 +27,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
-import android.view.View
-import android.view.ViewGroup
 import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 import androidx.activity.compose.setContent
@@ -55,9 +53,6 @@ import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
-import org.onebusaway.android.io.request.survey.SurveyListener
-import org.onebusaway.android.io.request.survey.model.StudyResponse
-import org.onebusaway.android.io.request.survey.model.SubmitSurveyResponse
 import org.onebusaway.android.map.LayerActivationListener
 import org.onebusaway.android.map.MapHostDeps
 import org.onebusaway.android.map.LayerInfo
@@ -80,6 +75,7 @@ import org.onebusaway.android.ui.home.HomeEnvironment
 import org.onebusaway.android.ui.home.HomeEvent
 import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
+import org.onebusaway.android.ui.home.SurveyCallbacks
 import org.onebusaway.android.ui.home.persistedNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
@@ -89,8 +85,8 @@ import org.onebusaway.android.ui.mylists.StarredStopsRepository
 import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
-import org.onebusaway.android.ui.survey.SurveyManager
-import org.onebusaway.android.ui.survey.utils.SurveyViewUtils
+import org.onebusaway.android.ui.survey.SurveyEffect
+import org.onebusaway.android.ui.survey.SurveyViewModel
 import org.onebusaway.android.ui.weather.RegionCallback
 import org.onebusaway.android.ui.weather.WeatherUtils
 import org.onebusaway.android.util.LayerUtils
@@ -122,18 +118,9 @@ class HomeActivity : AppCompatActivity(),
         }
     }
 
-    private var mSurveyView: View? = null
-
-
-    // The inflated map content + toolbar are hosted by the Compose HomeScreen
-    // (ModalNavigationDrawer + BottomSheetScaffold) via AndroidView; the arrivals sheet content is a
-    // composable keyed per focused stop (ArrivalsSheetHost), no longer a hosted fragment View.
-    private lateinit var mMapContent: View
-
     /**
-     * Whether the deferred first nav selection has run. Gates [setupSurvey] (called synchronously in
-     * onCreate, before the posted selection) so the out-of-scope survey stays dormant, preserving the
-     * legacy `mCurrentNavDrawerPosition == -1` behavior. The selected tab itself lives in the VM.
+     * Whether the deferred first nav selection has run. Gates the survey (requested on the first NEARBY
+     * selection) so it stays dormant until a tab is applied. The selected tab itself lives in the VM.
      */
     private var navSelectionApplied = false
 
@@ -150,6 +137,9 @@ class HomeActivity : AppCompatActivity(),
     // Gates ObaMap() composition: flipped true on the first NEARBY selection so the map SDK only
     // initializes then (and stays composed thereafter — list tabs draw over it, not tear it down).
     private var mapComposed by mutableStateOf(false)
+
+    // The map survey (Compose), shown over the map on NEARBY. Activity-scoped.
+    private val surveyViewModel: SurveyViewModel by viewModels()
 
     // The activity's saved bundle (map center/zoom/focus/mode live here via onSaveInstanceState),
     // passed to the host when it's (re)created so rotation/process-death restore the map.
@@ -189,8 +179,6 @@ class HomeActivity : AppCompatActivity(),
 
     private lateinit var mFirebaseAnalytics: FirebaseAnalytics
 
-    private var surveyManager: SurveyManager? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -203,10 +191,8 @@ class HomeActivity : AppCompatActivity(),
         // Host the map content inside a Compose ModalNavigationDrawer + HomeTopBar + BottomSheetScaffold,
         // replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome, the hosted
         // MaterialToolbar + options menu, and the third-party SlidingUpPanelLayout. The arrivals panel
-        // is the scaffold's bottom sheet, rendered per focused stop by ArrivalsSheetHost.
-        // The slimmed map-content XML now holds only the legacy overlays (survey card + route-mode
-        // header) that are still reached via findViewById; the map itself is composed by HomeScreen.
-        mMapContent = layoutInflater.inflate(R.layout.home_map_content, null)
+        // is the scaffold's bottom sheet, rendered per focused stop by ArrivalsSheetHost. The map, the
+        // route-mode header, and the survey are all Compose now — no map-related View seam remains.
 
         // Create the map host eagerly as a viewless controller. HomeScreen composes ObaMap() itself and
         // hands the host the ready map via onMapReady(); the host owns all the map controller logic.
@@ -220,9 +206,22 @@ class HomeActivity : AppCompatActivity(),
 
         val mapSeed = ObaMapHost.resolveInitialCamera(this, mSavedMapState)
 
+        val surveyCallbacks = SurveyCallbacks(
+            onTextOrRadio = surveyViewModel::setTextOrRadioAnswer,
+            onToggleCheckbox = surveyViewModel::toggleCheckbox,
+            onSubmitHero = surveyViewModel::submitHero,
+            onOpenExternalWithoutHero = surveyViewModel::openExternalWithoutHero,
+            onSubmitSheet = surveyViewModel::submitSheet,
+            onRequestDismiss = surveyViewModel::requestDismiss,
+            onSkip = surveyViewModel::skipSurvey,
+            onRemindLater = surveyViewModel::remindMeLater,
+            onCancelDismiss = surveyViewModel::cancelDismiss,
+        )
+
         setContent {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
             val routeHeader by mapViewModel.routeHeader.collectAsStateWithLifecycle()
+            val survey by surveyViewModel.state.collectAsStateWithLifecycle()
             HomeScreen(
                 state = state,
                 events = viewModel.events,
@@ -234,10 +233,11 @@ class HomeActivity : AppCompatActivity(),
                 mapSeedZoom = mapSeed[2].toFloat(),
                 mapSavedInstanceState = mSavedMapState,
                 mapComposed = mapComposed,
-                legacyMapOverlays = mMapContent,
                 routeHeader = routeHeader,
                 onCancelRouteMode = ::onCancelRouteMode,
                 onRouteHeaderHeight = ::onRouteHeaderHeight,
+                survey = survey,
+                surveyCallbacks = surveyCallbacks,
                 listVms = listVms,
                 onNavItemSelected = ::onHomeNavItemSelected,
                 onSearch = ::onSearch,
@@ -294,7 +294,19 @@ class HomeActivity : AppCompatActivity(),
         if (savedInstanceState == null) {
             handleFcmNotificationIntent(intent)
         }
-        setupSurvey()
+
+        // The map survey's one-shot effects: launch the external-survey web view / show a toast.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                surveyViewModel.effects.collect { effect ->
+                    when (effect) {
+                        is SurveyEffect.OpenExternalSurvey -> startActivity(effect.intent)
+                        is SurveyEffect.ShowToast ->
+                            Toast.makeText(this@HomeActivity, effect.resId, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
 
         // Carry out one-shot effects from the ViewModel (currently the GTFS wide-alert dialog).
         lifecycleScope.launch {
@@ -316,6 +328,10 @@ class HomeActivity : AppCompatActivity(),
                                 )
                             }
                             onRegionResolved(event.changed)
+                            // A valid region is required to request the survey; retry now it's resolved.
+                            if (viewModel.uiState.value.selectedItem == HomeNavItem.NEARBY) {
+                                surveyViewModel.maybeRequestSurvey()
+                            }
                         }
                         is HomeEvent.SetMapPadding ->
                             mMapHost?.mapView?.setPadding(null, null, null, event.bottomPx)
@@ -434,10 +450,8 @@ class HomeActivity : AppCompatActivity(),
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.open_source_github))))
         }
         if (!reselect) reportNavAnalytics(item)
-        if (viewModel.uiState.value.selectedItem != HomeNavItem.NEARBY) {
-            // Hide survey view unless it's on the map (survey visibility isn't ViewModel state yet)
-            SurveyViewUtils.hideSurveyView(mSurveyView)
-        }
+        // The survey is a Compose overlay in the map Box; a list tab's opaque destination covers it,
+        // so it hides itself off NEARBY with no imperative work here.
         // Recompute the donation / weather / layers gates for the new selection.
         pushEnvironment()
     }
@@ -471,6 +485,8 @@ class HomeActivity : AppCompatActivity(),
         // composed — list tabs draw an opaque destination over it rather than tearing it down — so this
         // is idempotent. The host's lifecycle is forwarded normally; the map composes when the gate flips.
         mapComposed = true
+        // Request the map survey on the first NEARBY selection (idempotent + region-gated in the VM).
+        surveyViewModel.maybeRequestSurvey()
     }
 
     // Keeps vehicle markers from being hidden under the route-mode header (was RoutePopup's logic).
@@ -859,9 +875,9 @@ class HomeActivity : AppCompatActivity(),
             initial = HomeNavItem.NEARBY
         }
         val item = initial
-        // Defer the first content selection until the island is attached (the AndroidView host
-        // attaches it during composition, after onCreate), so the fragment commit finds its container.
-        mMapContent.post { onHomeNavItemSelected(item) }
+        // Defer the first content selection until after onCreate (so the Compose content has composed
+        // and lazy map/survey gating reads the applied selection).
+        window.decorView.post { onHomeNavItemSelected(item) }
     }
 
     /** Rebuilds the region-gated drawer item list (mirrors NavigationDrawerFragment.populateNavDrawer). */
@@ -975,55 +991,6 @@ class HomeActivity : AppCompatActivity(),
     private fun onDonationRemindLater() {
         Application.getDonationsManager().remindUserLater()
         pushEnvironment()
-    }
-
-    private fun initSurveyView() {
-        mSurveyView = mMapContent.findViewById(R.id.surveyView)
-    }
-
-    private fun setupSurvey() {
-        if (Application.get().currentRegion == null ||
-            !navSelectionApplied ||
-            viewModel.uiState.value.selectedItem != HomeNavItem.NEARBY
-        ) {
-            return
-        }
-        initSurveyView()
-        initSurveyManager(mSurveyView)
-    }
-
-    private fun initSurveyManager(surveyView: View?) {
-        val manager = SurveyManager(this, surveyView, false, object : SurveyListener {
-            override fun onSurveyResponseReceived(response: StudyResponse?) {
-                surveyManager?.onSurveyResponseReceived(response)
-            }
-
-            override fun onSurveyResponseFail() {
-                surveyManager?.onSurveyResponseFail()
-            }
-
-            override fun onSubmitSurveyResponseReceived(response: SubmitSurveyResponse?) {
-                surveyManager?.onSubmitSurveyResponseReceived(response)
-            }
-
-            override fun onSubmitSurveyFail() {
-                surveyManager?.onSubmitSurveyFail()
-            }
-
-            override fun onSkipSurvey() {
-                surveyManager?.onSkipSurvey()
-            }
-
-            override fun onRemindMeLater() {
-                surveyManager?.onRemindMeLater()
-            }
-
-            override fun onCancelSurvey() {
-                surveyManager?.onCancelSurvey()
-            }
-        })
-        surveyManager = manager
-        manager.requestSurveyData()
     }
 
     companion object {

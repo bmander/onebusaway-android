@@ -2,17 +2,10 @@ package org.onebusaway.android.ui.survey.utils;
 
 import android.content.Context;
 import android.util.Log;
-import android.view.View;
-import android.widget.CheckBox;
-import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.donations.DonationsManager;
 import org.onebusaway.android.io.elements.ObaStop;
@@ -49,58 +42,6 @@ public class SurveyUtils {
     public static String STOP_ID = "stop_id";
     public static String CURRENT_LOCATION = "current_location";
     public static String RECENT_STOP_IDS = "recent_stop_ids";
-
-
-    /**
-     * Retrieves the answers from selected checkboxes in the provided view.
-     *
-     * @param view The view containing the checkboxes.
-     * @return A list of selected checkbox answers as Strings.
-     */
-    public static List<String> getSelectedCheckBoxAnswer(View view) {
-        LinearLayout container = view.findViewById(R.id.checkBoxContainer);
-
-        List<String> selectedItems = new ArrayList<>();
-        for (int i = 0; i < container.getChildCount(); i++) {
-
-            if (container.getChildAt(i) instanceof CheckBox) {
-                CheckBox checkBox = (CheckBox) container.getChildAt(i);
-
-                if (checkBox.isChecked()) {
-                    selectedItems.add(checkBox.getText().toString());
-                }
-            }
-        }
-        return selectedItems;
-    }
-
-    /**
-     * Retrieves the answer from the selected radio button in the provided view.
-     *
-     * @param view The view containing the RadioGroup.
-     * @return The text of the selected radio button, or an empty String if none is selected.
-     */
-    public static String getSelectedRadioButtonAnswer(View view) {
-        RadioGroup radioGroup = view.findViewById(R.id.radioGroup);
-        int selectedId = radioGroup.getCheckedRadioButtonId();
-        // Return an empty string if no radio button is selected.
-        if (selectedId == -1) {
-            return "";
-        }
-        RadioButton selectedRadioButton = radioGroup.findViewById(selectedId);
-        return selectedRadioButton.getText().toString();
-    }
-
-    /**
-     * Retrieves the text input answer from an EditText in the provided view.
-     *
-     * @param surveyView The view containing the EditText.
-     * @return The text from the EditText, trimmed of leading and trailing whitespace.
-     */
-    public static String getTextInputAnswer(View surveyView) {
-        EditText answerEditText = surveyView.findViewById(R.id.editText);
-        return answerEditText.getText().toString().trim();
-    }
 
 
     /**
@@ -204,42 +145,6 @@ public class SurveyUtils {
     }
 
     /**
-     * Extracts answers from a question view and constructs a JSON array as a request body.
-     *
-     * @param questions    The survey questions containing metadata.
-     * @param questionView The view containing the user's answer.
-     * @return A JSON array representing the request body, or null if no valid answer is found.
-     */
-    public static JSONArray getSurveyAnswersRequestBody(StudyResponse.Surveys.Questions questions, View questionView) {
-        JSONArray requestBody = new JSONArray();
-
-        // Extract the answer from the question view
-        String questionAnswer = getHeroQuestionAnswers(questions.getContent().getType(), questionView);
-
-        // If the answer is empty or invalid, return null
-        if (questionAnswer.isEmpty() || questionAnswer.equals("[]")) {
-            return null;
-        }
-
-        try {
-            // Create a JSON object to hold the question data and the answer
-            JSONObject data = new JSONObject();
-            data.put("question_id", questions.getId());
-            data.put("question_type", questions.getContent().getType());
-            data.put("question_label", questions.getContent().getLabel_text());
-            data.put("answer", questionAnswer);
-
-            // Add the JSON object to the request body array
-            requestBody.put(data);
-        } catch (JSONException e) {
-            Log.e("JSON Parsing Error", "Failed to create JSON object: " + e.getMessage());
-        }
-
-        return requestBody;
-    }
-
-
-    /**
      * Generates a JSON array representing the survey answers request body from a list of questions.
      *
      * @param questionsList A list of SurveyResponse.Surveys.Questions objects containing the survey questions.
@@ -333,33 +238,6 @@ public class SurveyUtils {
         }
         return true;
     }
-
-    /**
-     * Retrieves the answer from the view based on the type of question.
-     *
-     * @param type The type of the question (e.g., RADIO_BUTTON_QUESTION, TEXT_QUESTION, CHECK_BOX_QUESTION).
-     * @param view The view from which to retrieve the answer.
-     * @return The answer as a String, or an empty String if the question type is unknown.
-     */
-
-    private static String getHeroQuestionAnswers(String type, View view) {
-        Log.d("QuestionType", type);
-        switch (type) {
-            case RADIO_BUTTON_QUESTION:
-                return SurveyUtils.getSelectedRadioButtonAnswer(view);
-
-            case TEXT_QUESTION:
-                return SurveyUtils.getTextInputAnswer(view);
-
-            case CHECK_BOX_QUESTION:
-                return SurveyUtils.getSelectedCheckBoxAnswer(view).toString();
-
-            default:
-                Log.d("UnknownQuestionType", "Unrecognized question type: " + type);
-                return "";
-        }
-    }
-
 
     /**
      * Checks if the current survey for the user has an external survey.

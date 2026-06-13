@@ -16,7 +16,6 @@
 package org.onebusaway.android.ui.home
 
 import android.os.Bundle
-import android.view.View
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,7 +41,6 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
@@ -54,6 +52,7 @@ import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.map.compose.ObaMapReadyListener
 import org.onebusaway.android.map.render.MapRenderState
 import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.onebusaway.android.ui.survey.SurveyUiState
 import org.onebusaway.android.ui.weather.WeatherUtils
 
 /**
@@ -66,8 +65,8 @@ import org.onebusaway.android.ui.weather.WeatherUtils
  * fights a user drag. **Expansion (peek<->full)** is the live `SheetState`, nudged by one-shot
  * [HomeEvent.ToggleSheet]/[HomeEvent.CollapseSheet] commands (the screen alone knows the live state),
  * plus [BackHandler]. The arrivals panel is hosted directly per focused stop (see [ArrivalsSheetHost]);
- * the map is now a direct [ObaMap] composable (the only residual `AndroidView` is the legacy survey +
- * route-header overlay shim, removed as those are Composed).
+ * the map ([ObaMap]), the route-mode header ([RouteHeaderOverlay]), and the survey ([SurveyOverlay])
+ * are all composables now — no map-related `AndroidView` / View seam remains.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,8 +74,8 @@ fun HomeScreen(
     state: HomeUiState,
     events: SharedFlow<HomeEvent>,
     // The map is rendered directly as a composable (ObaMap), gated by [mapComposed] so SDK init stays
-    // lazy until the first NEARBY selection. [legacyMapOverlays] is the slimmed home_map_content.xml
-    // (survey + route-mode header) still drawn via AndroidView above the map until those are Composed.
+    // lazy until the first NEARBY selection. The route-mode header ([routeHeader]) and the survey
+    // ([survey]) are Compose overlays over it — no map-related View seam remains.
     mapRenderState: MapRenderState,
     mapCallbacks: ObaMapCallbacks?,
     onMapReady: ObaMapReadyListener,
@@ -85,10 +84,11 @@ fun HomeScreen(
     mapSeedZoom: Float,
     mapSavedInstanceState: Bundle?,
     mapComposed: Boolean,
-    legacyMapOverlays: View,
     routeHeader: RouteHeader?,
     onCancelRouteMode: () -> Unit,
     onRouteHeaderHeight: (Int) -> Unit,
+    survey: SurveyUiState,
+    surveyCallbacks: SurveyCallbacks,
     listVms: HomeListViewModels,
     onNavItemSelected: (HomeNavItem) -> Unit,
     onSearch: (String) -> Unit,
@@ -249,10 +249,6 @@ fun HomeScreen(
                                 onMapReady = onMapReady,
                             )
                         }
-                        // Legacy View overlay (the survey card) above the map. It is transparent until
-                        // shown, and is reached via findViewById on the activity, so it must stay
-                        // attached. (Composed away in Phase 3.)
-                        AndroidView(factory = { legacyMapOverlays }, modifier = Modifier.fillMaxSize())
                         MapChrome(
                             fabsVisible = state.fabsVisible,
                             zoomVisible = state.zoomControlsVisible,
@@ -300,6 +296,12 @@ fun HomeScreen(
                         } else {
                             LaunchedEffect(Unit) { onRouteHeaderHeight(0) }
                         }
+                        // The map survey (Compose): hero card over the map + remaining-questions sheet.
+                        SurveyOverlay(
+                            state = survey,
+                            callbacks = surveyCallbacks,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                        )
                         // A selected list tab draws its destination over the map (an opaque, full-size
                         // Surface), covering the map chrome; NEARBY shows the map through.
                         when (state.selectedItem) {

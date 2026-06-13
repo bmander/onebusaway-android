@@ -215,7 +215,7 @@ public class MapLibreMapHost
         // by maplibre (initMapState centers the map).
         if (ownView) {
             mView = ObaComposeMapKt.createObaMapView(
-                    activity, mRenderState, null, 0.0, 0.0, CAMERA_DEFAULT_ZOOM,
+                    activity, mRenderState, null, null, 0.0, 0.0, CAMERA_DEFAULT_ZOOM,
                     args, this);
         } else {
             mView = null;

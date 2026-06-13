@@ -231,7 +231,7 @@ public class GoogleMapHost
         if (ownView) {
             double[] seed = ObaMapHost.resolveInitialCamera(activity, args);
             mView = ObaComposeMapKt.createObaMapView(
-                    activity, mRenderState, this, seed[0], seed[1], (float) seed[2],
+                    activity, mRenderState, this, null, seed[0], seed[1], (float) seed[2],
                     args, this);
         } else {
             mView = null;

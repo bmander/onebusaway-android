@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import org.onebusaway.android.BuildConfig
+import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.render.MapRenderState
 
 /**
@@ -34,6 +35,10 @@ import org.onebusaway.android.map.render.MapRenderState
  * `MAP_HOST_CLASS`/`MAP_FRAGMENT_CLASS` mechanism. The adapter renders the shared [MapRenderState]
  * and reports taps through [ObaMapCallbacks]; when the underlying map is ready it hands the host an
  * opaque [ObaMapHandle] so the host can keep driving its raw map (camera, styling, location).
+ *
+ * When a [MapViewModel] is supplied the adapter also publishes the live camera back to it
+ * ([MapViewModel.onCameraIdle]) so the view model's reactive loaders can react to pan/zoom — the
+ * declarative replacement for the host's camera-change listener / MapWatcher.
  */
 interface ObaComposeMapAdapter {
 
@@ -41,6 +46,7 @@ interface ObaComposeMapAdapter {
     fun Content(
         renderState: MapRenderState,
         callbacks: ObaMapCallbacks?,
+        mapViewModel: MapViewModel?,
         modifier: Modifier,
         initialLatitude: Double,
         initialLongitude: Double,
@@ -64,6 +70,7 @@ fun ObaMap(
     renderState: MapRenderState,
     callbacks: ObaMapCallbacks?,
     modifier: Modifier = Modifier,
+    mapViewModel: MapViewModel? = null,
     initialLatitude: Double = 0.0,
     initialLongitude: Double = 0.0,
     initialZoom: Float = 16f,
@@ -74,6 +81,7 @@ fun ObaMap(
     adapter.Content(
         renderState,
         callbacks,
+        mapViewModel,
         modifier,
         initialLatitude,
         initialLongitude,
@@ -91,6 +99,7 @@ fun createObaMapView(
     context: Context,
     renderState: MapRenderState,
     callbacks: ObaMapCallbacks?,
+    mapViewModel: MapViewModel?,
     initialLatitude: Double,
     initialLongitude: Double,
     initialZoom: Float,
@@ -103,6 +112,7 @@ fun createObaMapView(
             renderState = renderState,
             callbacks = callbacks,
             modifier = Modifier.fillMaxSize(),
+            mapViewModel = mapViewModel,
             initialLatitude = initialLatitude,
             initialLongitude = initialLongitude,
             initialZoom = initialZoom,

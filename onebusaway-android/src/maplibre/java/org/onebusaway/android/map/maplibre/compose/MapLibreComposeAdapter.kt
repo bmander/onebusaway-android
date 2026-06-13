@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.maplibre.android.MapLibre
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
+import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.ObaComposeMapAdapter
 import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.map.compose.ObaMapReadyListener
@@ -61,6 +62,9 @@ class MapLibreComposeAdapter : ObaComposeMapAdapter {
     override fun Content(
         renderState: MapRenderState,
         callbacks: ObaMapCallbacks?,
+        // Ignored for now (the host still drives loads); the maplibre camera read-back to the view
+        // model is wired directly in this adapter in a later phase (P4).
+        mapViewModel: MapViewModel?,
         modifier: Modifier,
         initialLatitude: Double,
         initialLongitude: Double,

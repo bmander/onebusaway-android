@@ -47,6 +47,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.map.RouteHeader
+import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.map.compose.ObaMapReadyListener
@@ -105,6 +106,7 @@ fun HomeScreen(
     // ([survey]) are Compose overlays over it — no map-related View seam remains.
     mapRenderState: MapRenderState,
     mapCallbacks: ObaMapCallbacks?,
+    mapViewModel: MapViewModel,
     onMapReady: ObaMapReadyListener,
     mapSeedLat: Double,
     mapSeedLon: Double,
@@ -248,6 +250,7 @@ fun HomeScreen(
                                 renderState = mapRenderState,
                                 callbacks = mapCallbacks,
                                 modifier = Modifier.fillMaxSize(),
+                                mapViewModel = mapViewModel,
                                 initialLatitude = mapSeedLat,
                                 initialLongitude = mapSeedLon,
                                 initialZoom = mapSeedZoom,

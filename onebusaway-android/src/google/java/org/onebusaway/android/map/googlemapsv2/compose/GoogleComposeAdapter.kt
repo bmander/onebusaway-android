@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -29,9 +30,13 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.rememberCameraPositionState
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.ObaComposeMapAdapter
 import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.map.compose.ObaMapReadyListener
+import org.onebusaway.android.map.render.CameraSnapshot
 import org.onebusaway.android.map.render.GeoPoint
 import org.onebusaway.android.map.render.MapRenderState
 
@@ -52,6 +57,7 @@ class GoogleComposeAdapter : ObaComposeMapAdapter {
     override fun Content(
         renderState: MapRenderState,
         callbacks: ObaMapCallbacks?,
+        mapViewModel: MapViewModel?,
         modifier: Modifier,
         initialLatitude: Double,
         initialLongitude: Double,
@@ -77,6 +83,37 @@ class GoogleComposeAdapter : ObaComposeMapAdapter {
         LaunchedEffect(cameraPositionState) {
             renderState.cameraCommands.collect { command ->
                 applyCameraCommand(command, cameraPositionState, renderState, context)
+            }
+        }
+        // Camera read-back: publish the live camera to the view model on each idle so its reactive
+        // loaders can react to pan/zoom (the declarative replacement for the host's onCameraChange /
+        // MapWatcher). snapshotFlow re-emits when isMoving/projection/position change; the value-typed
+        // CameraSnapshot lets distinctUntilChanged drop redundant idles. No-op when no VM is supplied.
+        if (mapViewModel != null) {
+            LaunchedEffect(cameraPositionState, mapViewModel) {
+                snapshotFlow {
+                    if (cameraPositionState.isMoving) {
+                        null
+                    } else {
+                        cameraPositionState.projection?.let { projection ->
+                            val pos = cameraPositionState.position
+                            val bounds = projection.visibleRegion.latLngBounds
+                            val sw = bounds.southwest
+                            val ne = bounds.northeast
+                            CameraSnapshot(
+                                center = GeoPoint(pos.target.latitude, pos.target.longitude),
+                                zoom = pos.zoom.toDouble(),
+                                latSpan = ne.latitude - sw.latitude,
+                                lonSpan = ne.longitude - sw.longitude,
+                                southWest = GeoPoint(sw.latitude, sw.longitude),
+                                northEast = GeoPoint(ne.latitude, ne.longitude),
+                            )
+                        }
+                    }
+                }
+                    .filterNotNull()
+                    .distinctUntilChanged()
+                    .collect { mapViewModel.onCameraIdle(it) }
             }
         }
         GoogleMap(

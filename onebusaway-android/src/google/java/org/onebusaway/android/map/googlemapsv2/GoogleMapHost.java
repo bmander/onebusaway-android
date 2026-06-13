@@ -56,14 +56,15 @@ import org.onebusaway.android.map.ObaMapHost;
 import org.onebusaway.android.map.RouteMapController;
 import org.onebusaway.android.map.StopMapController;
 import org.onebusaway.android.map.bike.BikeshareMapController;
-import org.onebusaway.android.map.googlemapsv2.bike.BikeStationOverlay;
 import org.onebusaway.android.map.googlemapsv2.compose.ComposeMapHostKt;
+import org.onebusaway.android.map.render.BikeMarker;
 import org.onebusaway.android.map.render.GeoPoint;
 import org.onebusaway.android.map.render.MapRenderState;
 import org.onebusaway.android.map.render.RoutePolyline;
 import org.onebusaway.android.map.render.VehicleMarker;
 import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.ui.weather.RegionCallback;
+import org.onebusaway.android.util.LayerUtils;
 import org.onebusaway.android.util.LocationHelper;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.PermissionUtils;
@@ -153,8 +154,6 @@ public class GoogleMapHost
 
     // The host controls the stop overlay, since that is used by both modes.
     private StopOverlay mStopOverlay;
-
-    private BikeStationOverlay mBikeStationOverlay;
 
     // We only display the out of range dialog once
     private boolean mWarnOutOfRange = true;
@@ -552,13 +551,6 @@ public class GoogleMapHost
         return true;
     }
 
-    public void setupBikeStationOverlay(boolean isInDirectionsMode) {
-        if (mBikeStationOverlay == null && mActivity != null) {
-            mBikeStationOverlay = new BikeStationOverlay(mActivity, mMap, isInDirectionsMode);
-            mBikeStationOverlay.setOnFocusChangeListener(mOnFocusChangedListener);
-        }
-    }
-
     //
     // Fragment Controller
     //
@@ -591,7 +583,6 @@ public class GoogleMapHost
             mStopOverlay.clear(false);
         }
         BikeshareMapController bikeshareMapController = new BikeshareMapController(this);
-        setupBikeStationOverlay(MapParams.MODE_DIRECTIONS.equals(mode));
         if (MapParams.MODE_ROUTE.equals(mode)) {
             RouteMapController controller = new RouteMapController(this);
             mControllers.add(controller);
@@ -679,15 +670,21 @@ public class GoogleMapHost
 
     @Override
     public void showBikeStations(List<BikeRentalStation> bikeStations) {
-        setupBikeStationOverlay(MapParams.MODE_DIRECTIONS.equals(mMapMode));
-        mBikeStationOverlay.addBikeStations(bikeStations);
+        // In directions mode bikes always show; otherwise they follow the bikeshare layer toggle.
+        // ObaMapContent picks the per-zoom icon band; the host only supplies the data + this gate.
+        boolean bikeshareVisible = MapParams.MODE_DIRECTIONS.equals(mMapMode)
+                || LayerUtils.isBikeshareLayerVisible();
+        List<BikeMarker> markers = new ArrayList<>();
+        for (BikeRentalStation s : bikeStations) {
+            markers.add(new BikeMarker(
+                    s.id, new GeoPoint(s.y, s.x), s.isFloatingBike, s));
+        }
+        mRenderState.setBikeStations(markers, bikeshareVisible);
     }
 
     @Override
     public void clearBikeStations() {
-        if (mBikeStationOverlay != null) {
-            mBikeStationOverlay.clearBikeStations();
-        }
+        mRenderState.clearBikeStations();
     }
 
     @Override
@@ -1249,10 +1246,6 @@ public class GoogleMapHost
             if (mStopOverlay != null) {
                 mStopOverlay.removeMarkerClicked(latLng);
             }
-
-            if (mBikeStationOverlay != null) {
-                mBikeStationOverlay.removeMarkerClicked(latLng);
-            }
         }
 
         @Override
@@ -1262,13 +1255,8 @@ public class GoogleMapHost
                     return true;
                 }
             }
-            if (mBikeStationOverlay != null) {
-                if (mBikeStationOverlay.markerClicked(marker)) {
-                    return true;
-                }
-            }
-            // Vehicles are maps-compose markers: returning false lets the SDK show their info window
-            // via maps-compose's adapter (see ObaMapContent).
+            // Vehicles and bikes are maps-compose markers: returning false lets the SDK show their
+            // info windows via maps-compose's adapter (see ObaMapContent).
             return false;
         }
     }

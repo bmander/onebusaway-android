@@ -21,6 +21,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -30,17 +31,28 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.StrokeStyle
 import com.google.android.gms.maps.model.StyleSpan
 import com.google.android.gms.maps.model.TextureStyle
+import com.google.firebase.analytics.FirebaseAnalytics
+import com.google.maps.android.compose.CameraPositionState
 import com.google.maps.android.compose.GoogleMapComposable
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerInfoWindow
+import com.google.maps.android.compose.MarkerInfoWindowContent
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberMarkerState
 import org.onebusaway.android.R
+import org.onebusaway.android.app.Application
+import org.onebusaway.android.io.ObaAnalytics
+import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.map.googlemapsv2.VehicleIconFactory
+import org.onebusaway.android.map.render.BikeBand
 import org.onebusaway.android.map.render.MapRenderState
+import org.onebusaway.android.map.render.bikeZoomBand
 import org.onebusaway.android.map.render.shouldAnimateVehicle
 import org.onebusaway.android.ui.TripDetailsActivity
+import org.onebusaway.android.util.RegionUtils
+import org.onebusaway.android.util.UIUtils
+import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 /**
  * Declarative render of [MapRenderState] inside a `GoogleMap {}` content lambda. This is the
@@ -51,7 +63,7 @@ import org.onebusaway.android.ui.TripDetailsActivity
  */
 @Composable
 @GoogleMapComposable
-fun ObaMapContent(renderState: MapRenderState) {
+fun ObaMapContent(renderState: MapRenderState, cameraPositionState: CameraPositionState) {
     val snapshot by renderState.snapshot.collectAsState()
     val context = LocalContext.current
 
@@ -135,6 +147,36 @@ fun ObaMapContent(renderState: MapRenderState) {
             }
         }
     }
+
+    // Bike stations. The icon band (hidden / small dot / big station-or-floating) is chosen live from
+    // the camera zoom via derivedStateOf, so it only recomposes when crossing a band boundary rather
+    // than on every pan. Visibility also honors the layer/directions-mode gate.
+    if (snapshot.bikeStations.isNotEmpty()) {
+        val bikeIcons = remember { BikeIcons(context) }
+        val band by remember {
+            derivedStateOf { bikeZoomBand(cameraPositionState.position.zoom) }
+        }
+        snapshot.bikeStations.forEach { bike ->
+            key(bike.id) {
+                val markerState = rememberMarkerState(
+                    position = LatLng(bike.point.latitude, bike.point.longitude)
+                )
+                val icon = when {
+                    band == BikeBand.BIG && bike.isFloatingBike -> bikeIcons.bigFloating
+                    band == BikeBand.BIG -> bikeIcons.bigStation
+                    else -> bikeIcons.small
+                }
+                MarkerInfoWindowContent(
+                    state = markerState,
+                    icon = icon,
+                    visible = snapshot.bikeshareVisible && band != BikeBand.HIDDEN,
+                    onInfoWindowClick = { openBikeDeepLink(context, bike.station) },
+                ) {
+                    BikeInfoWindow(bike.station)
+                }
+            }
+        }
+    }
 }
 
 /** Deep links into TripDetails for the tapped vehicle, scoped to the focused stop when there is one. */
@@ -150,4 +192,29 @@ private fun openVehicleTripDetails(
         builder.setStopId(focusedStopId)
     }
     builder.start()
+}
+
+/**
+ * The bike info-window "more info" tap. A proof-of-concept deep link hard-coded to the Tampa region's
+ * Hopr app (preserved verbatim from the legacy BikeStationOverlay.onInfoWindowClick).
+ */
+private fun openBikeDeepLink(context: Context, station: BikeRentalStation) {
+    val region = Application.get().currentRegion ?: return
+    if (region.id != RegionUtils.TAMPA_REGION_ID.toLong()) {
+        return
+    }
+    ObaAnalytics.reportUiEvent(
+        FirebaseAnalytics.getInstance(context),
+        Application.get().plausibleInstance,
+        PlausibleAnalytics.REPORT_BIKE_EVENT_URL,
+        context.getString(
+            if (station.isFloatingBike) {
+                R.string.analytics_label_bike_station_balloon_clicked
+            } else {
+                R.string.analytics_label_floating_bike_balloon_clicked
+            }
+        ),
+        null,
+    )
+    UIUtils.launchTampaHoprApp(context)
 }

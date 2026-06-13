@@ -64,8 +64,9 @@ fun createComposeMapView(
             // Runs once when the underlying GoogleMap is ready; reuses the host's existing
             // onMapReady() so all imperative setup stays unchanged (the MapEffect bridge).
             MapEffect(Unit) { map -> onMapReady.onMapReady(map) }
-            // Declarative overlay content (MM1: route polylines), driven by the shared render state.
-            ObaMapContent(renderState)
+            // Declarative overlay content (polylines, markers, vehicles, bikes), driven by the shared
+            // render state. The camera state lets bike icons react live to the zoom band.
+            ObaMapContent(renderState, cameraPositionState)
         }
     }
 }

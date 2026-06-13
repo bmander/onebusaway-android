@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse
+import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 /** A geographic point, flavor-neutral (carries no Google/maplibre `LatLng` dependency). */
 data class GeoPoint(val latitude: Double, val longitude: Double)
@@ -50,12 +51,26 @@ data class VehicleMarker(
     val status: ObaTripStatus,
 )
 
+/**
+ * One bike-rental marker. [station] is the raw OTP pojo (the renderer reads its name/availability for
+ * the info window and its floating-vs-station flag for the icon). [bikeshareVisible] on the snapshot
+ * is the layer/directions-mode gate; the per-zoom icon band is chosen live by the renderer.
+ */
+data class BikeMarker(
+    val id: String,
+    val point: GeoPoint,
+    val isFloatingBike: Boolean,
+    val station: BikeRentalStation,
+)
+
 /** Immutable snapshot of everything the map should render. Grows one overlay per phase. */
 data class MapRenderSnapshot(
     val routePolylines: List<RoutePolyline> = emptyList(),
     val genericMarkers: Map<Int, GenericMarker> = emptyMap(),
     val vehicles: List<VehicleMarker> = emptyList(),
     val vehicleResponse: ObaTripsForRouteResponse? = null,
+    val bikeStations: List<BikeMarker> = emptyList(),
+    val bikeshareVisible: Boolean = false,
     // The currently focused stop id, couriered so the vehicle info-window's "more info" tap can deep
     // link into TripDetails scoped to that stop (the legacy VehicleOverlay.Controller hook).
     val focusedStopId: String? = null,
@@ -109,6 +124,17 @@ class MapRenderState {
 
     fun clearVehicles() {
         _snapshot.update { it.copy(vehicles = emptyList(), vehicleResponse = null) }
+    }
+
+    // --- Bike stations (the old BikeStationOverlay): the per-zoom icon band is chosen by the ---
+    // --- renderer; [bikeshareVisible] carries the layer/directions-mode gate. ---
+
+    fun setBikeStations(stations: List<BikeMarker>, bikeshareVisible: Boolean) {
+        _snapshot.update { it.copy(bikeStations = stations, bikeshareVisible = bikeshareVisible) }
+    }
+
+    fun clearBikeStations() {
+        _snapshot.update { it.copy(bikeStations = emptyList()) }
     }
 
     fun setFocusedStopId(stopId: String?) {

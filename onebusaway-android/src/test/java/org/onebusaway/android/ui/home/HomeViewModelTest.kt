@@ -30,6 +30,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.map.MapCommand
+import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.testing.MainDispatcherRule
 
 private class FakeWeatherRepository(var result: Result<WeatherData>) : WeatherRepository {
@@ -84,9 +86,10 @@ class HomeViewModelTest {
         regionRepo: FakeRegionStatusRepository = FakeRegionStatusRepository(regionStatus),
         startupRepo: FakeStartupPreferencesRepository = FakeStartupPreferencesRepository(),
         savedState: SavedStateHandle = SavedStateHandle(),
+        map: MapViewModel = MapViewModel(),
     ) = HomeViewModel(
         savedState, FakeWeatherRepository(weather), FakeWideAlertsRepository(alerts), regionRepo,
-        startupRepo
+        startupRepo, map
     )
 
     // --- weather (async) ---
@@ -139,7 +142,7 @@ class HomeViewModelTest {
         val repo = FakeWeatherRepository(Result.success(forecast))
         val vm = HomeViewModel(
             SavedStateHandle(), repo, FakeWideAlertsRepository(emptyList()),
-            FakeRegionStatusRepository(), FakeStartupPreferencesRepository()
+            FakeRegionStatusRepository(), FakeStartupPreferencesRepository(), MapViewModel()
         )
 
         vm.onRegionValid(1L)
@@ -227,136 +230,113 @@ class HomeViewModelTest {
 
     @Test
     fun `expanding over a focused stop sets padding and recenters`() = runTest {
-        val vm = viewModel()
+        val map = MapViewModel()
+        val vm = viewModel(map = map)
         vm.onStopFocused(FocusedStop("1", "Main St", "100", 47.6, -122.3))
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
+        val commands = mutableListOf<MapCommand>()
+        val job = launch { map.mapCommands.collect { commands.add(it) } }
         advanceUntilIdle()
 
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
         vm.onSheetSettled(ArrivalsSheetState.Expanded, 120)
         advanceUntilIdle()
 
-        assertEquals(
-            listOf(HomeEvent.SetMapPadding(120), HomeEvent.RecenterOnFocusedStop(47.6, -122.3)),
-            events
-        )
+        assertEquals(120, map.renderState.padding.value.bottomPx)
+        assertEquals(listOf<MapCommand>(MapCommand.Recenter(47.6, -122.3)), commands)
         job.cancel()
     }
 
     @Test
     fun `expanding with no focused stop only sets padding`() = runTest {
-        val vm = viewModel()
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
+        val map = MapViewModel()
+        val vm = viewModel(map = map)
+        val commands = mutableListOf<MapCommand>()
+        val job = launch { map.mapCommands.collect { commands.add(it) } }
         advanceUntilIdle()
 
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
         vm.onSheetSettled(ArrivalsSheetState.Expanded, 120)
         advanceUntilIdle()
 
-        assertEquals(listOf<HomeEvent>(HomeEvent.SetMapPadding(120)), events)
+        assertEquals(120, map.renderState.padding.value.bottomPx)
+        assertTrue(commands.isEmpty())
         job.cancel()
     }
 
     @Test
     fun `collapsing and hiding set the map padding`() = runTest {
-        val vm = viewModel()
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
-        advanceUntilIdle()
+        val map = MapViewModel()
+        val vm = viewModel(map = map)
 
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 80)
+        assertEquals(80, map.renderState.padding.value.bottomPx)
         vm.onSheetSettled(ArrivalsSheetState.Hidden, 80)
-        advanceUntilIdle()
-
-        assertEquals(listOf(HomeEvent.SetMapPadding(80), HomeEvent.SetMapPadding(0)), events)
+        assertEquals(0, map.renderState.padding.value.bottomPx)
         assertEquals(ArrivalsSheetState.Hidden, vm.lastSettledSheet)
-        job.cancel()
     }
 
     // --- pending map focus / route mode / clear focus ---
 
     @Test
-    fun `a pending focus is completed once on arrivals load`() = runTest {
+    fun `a pending focus is reported once on arrivals load`() = runTest {
         val vm = viewModel()
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
-        advanceUntilIdle()
-
         vm.markPendingMapFocus()
-        assertTrue(vm.onArrivalsLoaded())          // pending -> completes
-        assertFalse(vm.onArrivalsLoaded())         // latch cleared -> no longer pending
-        advanceUntilIdle()
-
-        assertEquals(
-            listOf(HomeEvent.CompletePendingMapFocus(animateRecenter = false)),
-            events.filterIsInstance<HomeEvent.CompletePendingMapFocus>()
-        )
-        job.cancel()
+        // Pending -> returns the overlay-expanded decision (false: sheet not expanded); latch then clears.
+        assertEquals(false, vm.onArrivalsLoaded())
+        assertNull(vm.onArrivalsLoaded())          // latch cleared -> no longer pending
     }
 
     @Test
-    fun `arrivals load with no pending focus does nothing`() = runTest {
+    fun `arrivals load with no pending focus returns null`() = runTest {
         val vm = viewModel()
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
-        advanceUntilIdle()
-
-        assertFalse(vm.onArrivalsLoaded())
-        advanceUntilIdle()
-
-        assertTrue(events.isEmpty())
-        job.cancel()
+        assertNull(vm.onArrivalsLoaded())
     }
 
     @Test
-    fun `a pending focus animates the recenter when the sheet is expanded`() = runTest {
+    fun `a pending focus reports overlay-expanded when the sheet is expanded`() = runTest {
         val vm = viewModel()
         vm.onStopFocused(FocusedStop("1", "Main St", "100", 47.6, -122.3))
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
         vm.onSheetSettled(ArrivalsSheetState.Expanded, 120)
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
-        advanceUntilIdle()
 
         vm.markPendingMapFocus()
-        vm.onArrivalsLoaded()
-        advanceUntilIdle()
-
-        assertEquals(
-            listOf(HomeEvent.CompletePendingMapFocus(animateRecenter = true)),
-            events.filterIsInstance<HomeEvent.CompletePendingMapFocus>()
-        )
-        job.cancel()
+        assertEquals(true, vm.onArrivalsLoaded())
     }
 
     @Test
-    fun `show route on map collapses the sheet then switches to route mode`() = runTest {
-        val vm = viewModel()
+    fun `show route on map collapses the sheet and dispatches ShowRoute`() = runTest {
+        val map = MapViewModel()
+        val vm = viewModel(map = map)
         val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
+        val commands = mutableListOf<MapCommand>()
+        val eventJob = launch { vm.events.collect { events.add(it) } }
+        val commandJob = launch { map.mapCommands.collect { commands.add(it) } }
         advanceUntilIdle()
 
         vm.requestShowRouteOnMap("42")
         advanceUntilIdle()
 
-        assertEquals(listOf(HomeEvent.CollapseSheet, HomeEvent.ShowRouteOnMap("42")), events)
-        job.cancel()
+        assertEquals(listOf<HomeEvent>(HomeEvent.CollapseSheet), events)
+        assertEquals(listOf<MapCommand>(MapCommand.ShowRoute("42")), commands)
+        eventJob.cancel()
+        commandJob.cancel()
     }
 
     @Test
-    fun `clear map focus emits ClearMapFocus`() = runTest {
-        val vm = viewModel()
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
+    fun `clear map focus clears the focused stop and dispatches ClearFocus`() = runTest {
+        val map = MapViewModel()
+        val vm = viewModel(map = map)
+        vm.onStopFocused(FocusedStop("1", "Main St", "100", 47.6, -122.3))
+        val commands = mutableListOf<MapCommand>()
+        val job = launch { map.mapCommands.collect { commands.add(it) } }
         advanceUntilIdle()
 
         vm.requestClearMapFocus()
         advanceUntilIdle()
 
-        assertEquals(listOf<HomeEvent>(HomeEvent.ClearMapFocus), events)
+        assertNull(vm.uiState.value.focusedStop)
+        assertEquals(listOf<MapCommand>(MapCommand.ClearFocus), commands)
         job.cancel()
     }
 

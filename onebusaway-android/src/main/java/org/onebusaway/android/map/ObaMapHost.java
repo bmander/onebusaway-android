@@ -16,6 +16,7 @@
 package org.onebusaway.android.map;
 
 import android.app.Activity;
+import android.location.Location;
 import android.os.Bundle;
 import android.view.View;
 
@@ -24,6 +25,7 @@ import androidx.annotation.Nullable;
 import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.map.compose.ObaMapCallbacks;
 import org.onebusaway.android.map.compose.ObaMapReadyListener;
+import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.ui.weather.RegionCallback;
 
 /**
@@ -170,5 +172,55 @@ public interface ObaMapHost extends MapModeController.ObaMapView, ObaMapReadyLis
             zoom = src.getFloat(MapParams.ZOOM, CAMERA_DEFAULT_ZOOM);
         }
         return new double[]{lat, lon, zoom};
+    }
+
+    // ========================================================================
+    // Declarative map commands (carried out via the existing ObaMapView/controller methods)
+    // ========================================================================
+
+    /**
+     * Carries out a {@link MapCommand} the view models dispatched via {@link MapViewModel#mapCommands}.
+     * This is the host-side home of the imperative map operations HomeActivity used to perform in its
+     * event relay (recenter, focus, route-mode switch, region re-zoom) — now centralized here so the
+     * activity only wires the flow to this method. A {@code default} method since both flavor hosts
+     * implement the same {@code ObaMapView}/{@code ObaRegionsTask.Callback} surface it calls.
+     */
+    default void executeMapCommand(MapCommand command) {
+        if (command instanceof MapCommand.Recenter) {
+            MapCommand.Recenter c = (MapCommand.Recenter) command;
+            Location loc = new Location("");
+            loc.setLatitude(c.getLat());
+            loc.setLongitude(c.getLon());
+            setMapCenter(loc, true, true);
+        } else if (command instanceof MapCommand.FocusStop) {
+            MapCommand.FocusStop c = (MapCommand.FocusStop) command;
+            setMapCenter(c.getStop().getLocation(), false, c.getOverlayExpanded());
+            setFocusStop(c.getStop(), c.getRoutes());
+        } else if (command instanceof MapCommand.ClearFocus) {
+            setFocusStop(null, null);
+        } else if (command instanceof MapCommand.ShowRoute) {
+            Bundle args = new Bundle();
+            args.putBoolean(MapParams.ZOOM_TO_ROUTE, false);
+            args.putBoolean(MapParams.ZOOM_INCLUDE_CLOSEST_VEHICLE, true);
+            args.putString(MapParams.ROUTE_ID, ((MapCommand.ShowRoute) command).getRouteId());
+            setMapMode(MapParams.MODE_ROUTE, args);
+        } else if (command instanceof MapCommand.ExitRouteMode) {
+            // Return to stop mode, preserving the current zoom + center (the route header's cancel).
+            Bundle args = new Bundle();
+            args.putBoolean(MapParams.DO_N0T_CENTER_ON_LOCATION, true);
+            args.putFloat(MapParams.ZOOM, getZoomLevelAsFloat());
+            Location center = getMapCenterAsLocation();
+            if (center != null) {
+                args.putDouble(MapParams.CENTER_LAT, center.getLatitude());
+                args.putDouble(MapParams.CENTER_LON, center.getLongitude());
+            }
+            setMapMode(MapParams.MODE_STOP, args);
+        } else if (command instanceof MapCommand.RegionChanged) {
+            // The map re-zoom hook (was a registered ObaRegionsTask callback); both hosts implement it.
+            if (this instanceof ObaRegionsTask.Callback) {
+                ((ObaRegionsTask.Callback) this)
+                        .onRegionTaskFinished(((MapCommand.RegionChanged) command).getChanged());
+            }
+        }
     }
 }

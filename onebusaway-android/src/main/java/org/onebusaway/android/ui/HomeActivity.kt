@@ -54,12 +54,12 @@ import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.map.MapHostDeps
 import org.onebusaway.android.map.LayerInfo
+import org.onebusaway.android.map.MapCommand
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.ObaMapHost
 import org.onebusaway.android.map.OnFocusChangedListener
 import org.onebusaway.android.map.OnProgressBarChangedListener
-import org.onebusaway.android.region.ObaRegionsTask
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.home.ArrivalsSheetState
@@ -90,7 +90,6 @@ import org.onebusaway.android.ui.survey.activities.SurveyWebViewActivity
 import org.onebusaway.android.ui.weather.RegionCallback
 import org.onebusaway.android.ui.weather.WeatherUtils
 import org.onebusaway.android.util.LayerUtils
-import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.ReminderUtils
@@ -112,7 +111,8 @@ class HomeActivity : AppCompatActivity(),
                     DefaultWeatherRepository(),
                     DefaultWideAlertsRepository(),
                     DefaultRegionStatusRepository(applicationContext),
-                    DefaultStartupPreferencesRepository()
+                    DefaultStartupPreferencesRepository(),
+                    mapViewModel,
                 )
             }
         }
@@ -169,10 +169,6 @@ class HomeActivity : AppCompatActivity(),
             hostListVm("home.reminders") { RemindersRepository(applicationContext) },
         )
     }
-
-    // A one-frame courier for the io/elements arrivals response the VM is decoupled from: stashed when
-    // the VM reports a pending focus, consumed by the CompletePendingMapFocus event to recenter + mark.
-    private var pendingFocusResponse: ObaArrivalInfoResponse? = null
 
     private lateinit var firebaseAnalytics: FirebaseAnalytics
 
@@ -296,6 +292,7 @@ class HomeActivity : AppCompatActivity(),
 
         observeSurveyEffects()
         observeViewModelEvents()
+        observeMapCommands()
     }
 
     /** The map survey's one-shot effects: launch the external-survey web view / show a toast. */
@@ -330,9 +327,8 @@ class HomeActivity : AppCompatActivity(),
                             this@HomeActivity, event.alert.title, event.alert.message, event.alert.url
                         )
                         is HomeEvent.RegionResolved -> {
-                            // The map host re-zooms to the new region (was a registered task callback);
-                            // it may be null until the first Nearby show, matching the legacy null-skip.
-                            (mapHost as? ObaRegionsTask.Callback)?.onRegionTaskFinished(event.changed)
+                            // The map re-zoom is a MapCommand the VM dispatched; here we run only the
+                            // non-map side effects: analytics, what's-new/drawer/toast, survey retry.
                             if (event.changed && event.regionName != null) {
                                 ObaAnalytics.setRegion(
                                     Application.get().plausibleInstance,
@@ -346,33 +342,24 @@ class HomeActivity : AppCompatActivity(),
                                 surveyViewModel.maybeRequestSurvey()
                             }
                         }
-                        is HomeEvent.SetMapPadding ->
-                            mapViewModel.setBottomPadding(event.bottomPx)
-                        is HomeEvent.RecenterOnFocusedStop ->
-                            mapHost.setMapCenter(
-                                LocationUtils.makeLocation(event.lat, event.lon), true, true
-                            )
-                        is HomeEvent.CompletePendingMapFocus -> {
-                            // The VM owns the latch + animate decision; we courier the io/elements payload.
-                            val r = pendingFocusResponse
-                            pendingFocusResponse = null
-                            r?.stop?.let { stop ->
-                                mapHost.setMapCenter(stop.location, false, event.animateRecenter)
-                                mapHost.setFocusStop(stop, r.routes)
-                            }
-                        }
-                        is HomeEvent.ShowRouteOnMap -> {
-                            val bundle = Bundle()
-                            bundle.putBoolean(MapParams.ZOOM_TO_ROUTE, false)
-                            bundle.putBoolean(MapParams.ZOOM_INCLUDE_CLOSEST_VEHICLE, true)
-                            bundle.putString(MapParams.ROUTE_ID, event.routeId)
-                            mapHost.setMapMode(MapParams.MODE_ROUTE, bundle)
-                        }
-                        HomeEvent.ClearMapFocus -> mapHost.setFocusStop(null, null)
                         // Sheet / drawer commands are carried out by HomeScreen.
                         else -> Unit
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Bridges the view models' host-level [org.onebusaway.android.map.MapCommand]s (focus / route mode /
+     * recenter / region re-zoom) to the host. This is the only wiring HomeActivity keeps for those — the
+     * per-command logic lives in [ObaMapHost.executeMapCommand], so the activity no longer translates
+     * events into map calls.
+     */
+    private fun observeMapCommands() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                mapViewModel.mapCommands.collect { command -> mapHost.executeMapCommand(command) }
             }
         }
     }
@@ -515,16 +502,7 @@ class HomeActivity : AppCompatActivity(),
 
     /** The route header's cancel button: return to stop mode, preserving the current zoom + center. */
     private fun onCancelRouteMode() {
-        val host = mapHost
-        val mapView = host.mapView
-        val bundle = Bundle().apply {
-            putBoolean(MapParams.DO_N0T_CENTER_ON_LOCATION, true)
-            putFloat(MapParams.ZOOM, mapView.zoomLevelAsFloat)
-            val point = mapView.mapCenterAsLocation
-            putDouble(MapParams.CENTER_LAT, point.latitude)
-            putDouble(MapParams.CENTER_LON, point.longitude)
-        }
-        host.setMapMode(MapParams.MODE_STOP, bundle)
+        mapViewModel.dispatchMapCommand(MapCommand.ExitRouteMode)
     }
 
     /**
@@ -704,17 +682,15 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Called (from ArrivalsSheetHost's responses collector) when the panel has new arrival info. The
-     * VM owns the pending-focus latch + the animate decision; when it reports a pending focus we hand
-     * over the response so the [HomeEvent.CompletePendingMapFocus] collector can recenter + add the
-     * marker (it needs the response's raw io/elements stop + routes, which the VM is decoupled from).
+     * Called (from ArrivalsSheetHost's responses collector) when the panel has new arrival info. The VM
+     * owns the pending-focus latch + the overlay-expanded decision; when it reports a pending focus we
+     * dispatch a [MapCommand.FocusStop] carrying the response's raw io/elements stop + routes (which the
+     * VM is decoupled from), and the host recenters + adds the focus marker.
      */
     private fun onArrivalsLoaded(response: ObaArrivalInfoResponse) {
-        if (response.stop == null) {
-            return
-        }
-        if (viewModel.onArrivalsLoaded()) {
-            pendingFocusResponse = response
+        val stop = response.stop ?: return
+        viewModel.onArrivalsLoaded()?.let { overlayExpanded ->
+            mapViewModel.dispatchMapCommand(MapCommand.FocusStop(stop, response.routes, overlayExpanded))
         }
         // Show arrival info related tutorials
         showArrivalInfoTutorials(response)

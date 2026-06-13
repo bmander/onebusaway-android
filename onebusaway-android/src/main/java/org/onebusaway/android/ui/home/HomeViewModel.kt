@@ -19,6 +19,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.map.MapCommand
+import org.onebusaway.android.map.MapViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +47,9 @@ class HomeViewModel(
     private val wideAlertsRepo: WideAlertsRepository,
     private val regionRepo: RegionStatusRepository,
     private val startupRepo: StartupPreferencesRepository,
+    // The map layer this VM drives declaratively (padding state + host-level map commands), instead of
+    // HomeActivity translating events into mapHost calls.
+    private val map: MapViewModel,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -155,11 +160,11 @@ class HomeViewModel(
         }
         when (state) {
             ArrivalsSheetState.Expanded -> {
-                emit(HomeEvent.SetMapPadding(peekPx))
-                focusedStop?.let { emit(HomeEvent.RecenterOnFocusedStop(it.lat, it.lon)) }
+                map.setBottomPadding(peekPx)
+                focusedStop?.let { map.dispatchMapCommand(MapCommand.Recenter(it.lat, it.lon)) }
             }
-            ArrivalsSheetState.Collapsed -> emit(HomeEvent.SetMapPadding(peekPx))
-            ArrivalsSheetState.Hidden -> emit(HomeEvent.SetMapPadding(0))
+            ArrivalsSheetState.Collapsed -> map.setBottomPadding(peekPx)
+            ArrivalsSheetState.Hidden -> map.setBottomPadding(0)
         }
     }
 
@@ -177,26 +182,34 @@ class HomeViewModel(
 
     /**
      * Arrivals loaded for the focused stop. If a restore/deep-link focus is pending, consume the latch
-     * and ask the host to recenter + add the marker (animated only if the sheet is expanded). Returns
-     * whether it was pending, so the host knows to hand over the (io/elements) response payload.
+     * and return the overlay-expanded flag (true iff the sheet settled expanded) so the activity can
+     * dispatch a [MapCommand.FocusStop] carrying the io/elements payload it holds; null if not pending.
      */
-    fun onArrivalsLoaded(): Boolean {
+    fun onArrivalsLoaded(): Boolean? {
         if (!pendingMapFocus) {
-            return false
+            return null
         }
         pendingMapFocus = false
-        emit(HomeEvent.CompletePendingMapFocus(animateRecenter = settledSheet == ArrivalsSheetState.Expanded))
-        return true
+        return settledSheet == ArrivalsSheetState.Expanded
     }
 
-    /** "Show vehicles on map" — collapse the sheet, then switch the map to route mode (ordered pair). */
+    /** "Show vehicles on map" — collapse the sheet (screen), then switch the map to route mode. */
     fun requestShowRouteOnMap(routeId: String) {
         emit(HomeEvent.CollapseSheet)
-        emit(HomeEvent.ShowRouteOnMap(routeId))
+        map.dispatchMapCommand(MapCommand.ShowRoute(routeId))
     }
 
-    /** Back-press from a peeking sheet — clear the map focus (the sheet then hides). */
-    fun requestClearMapFocus() = emit(HomeEvent.ClearMapFocus)
+    /**
+     * Back-press from a peeking sheet — clear the focus. The VM owns the focused stop, so clearing it
+     * here hides the sheet (recompute); the [MapCommand.ClearFocus] clears the map's render focus. (The
+     * old path only told the map, relying on a focus-listener round-trip the host's setFocusStop(null)
+     * doesn't make — so the sheet never hid; clearing the VM state directly is both correct and the
+     * declarative source of truth.)
+     */
+    fun requestClearMapFocus() {
+        onStopFocused(null)
+        map.dispatchMapCommand(MapCommand.ClearFocus)
+    }
 
     private fun emit(event: HomeEvent) {
         viewModelScope.launch { _events.emit(event) }
@@ -246,8 +259,8 @@ class HomeViewModel(
     fun refreshRegions() {
         viewModelScope.launch {
             when (val status = regionRepo.refreshRegions()) {
-                is RegionStatus.Changed -> emit(HomeEvent.RegionResolved(true, status.region.name))
-                RegionStatus.Unchanged -> emit(HomeEvent.RegionResolved(false, null))
+                is RegionStatus.Changed -> resolvedRegion(true, status.region.name)
+                RegionStatus.Unchanged -> resolvedRegion(false, null)
                 is RegionStatus.NeedsManualSelection -> {
                     dialog = HomeDialog.ChooseRegion(status.regions)
                     recompute()
@@ -289,8 +302,18 @@ class HomeViewModel(
             dialog = HomeDialog.None
             recompute()
             // regionName null: the legacy manual-pick path logged no analytics.
-            emit(HomeEvent.RegionResolved(true, null))
+            resolvedRegion(true, null)
         }
+    }
+
+    /**
+     * A region resolved: tell the map to re-zoom (the old `ObaRegionsTask.Callback` hook, now a
+     * declarative command) and raise the activity's non-map side effects (analytics, what's-new, toast,
+     * survey retry) via the one-shot event.
+     */
+    private fun resolvedRegion(changed: Boolean, name: String?) {
+        map.dispatchMapCommand(MapCommand.RegionChanged(changed))
+        emit(HomeEvent.RegionResolved(changed, name))
     }
 
     /**

@@ -16,8 +16,11 @@
 package org.onebusaway.android.map
 
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.onebusaway.android.io.elements.ObaReferences
 import org.onebusaway.android.io.elements.ObaRoute
@@ -77,6 +80,16 @@ class MapViewModel : ViewModel() {
     fun setTopPadding(px: Int) = renderState.setTopPadding(px)
 
     fun setBottomPadding(px: Int) = renderState.setBottomPadding(px)
+
+    // Host-level map commands (focus / route mode / recenter / region re-zoom) the view models dispatch
+    // and ObaMapHost.executeMapCommand carries out — replacing HomeActivity's imperative event relay.
+    private val _mapCommands = MutableSharedFlow<MapCommand>(extraBufferCapacity = 16)
+
+    val mapCommands: SharedFlow<MapCommand> = _mapCommands.asSharedFlow()
+
+    fun dispatchMapCommand(command: MapCommand) {
+        _mapCommands.tryEmit(command)
+    }
 
     // Stop accumulation across pans (capped, keeping the focused stop) + the routes cache used to
     // resolve a stop's icon route type and to report a stop's routes to focus listeners.

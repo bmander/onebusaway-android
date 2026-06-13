@@ -21,18 +21,11 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.LocationSource;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.UiSettings;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
-import com.google.android.gms.maps.model.Polyline;
-import com.google.android.gms.maps.model.PolylineOptions;
-import com.google.android.gms.maps.model.StampStyle;
-import com.google.android.gms.maps.model.StrokeStyle;
-import com.google.android.gms.maps.model.StyleSpan;
-import com.google.android.gms.maps.model.TextureStyle;
 import com.google.android.gms.maps.model.VisibleRegion;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.firebase.analytics.FirebaseAnalytics;
@@ -62,6 +55,9 @@ import org.onebusaway.android.map.StopMapController;
 import org.onebusaway.android.map.bike.BikeshareMapController;
 import org.onebusaway.android.map.googlemapsv2.bike.BikeStationOverlay;
 import org.onebusaway.android.map.googlemapsv2.compose.ComposeMapHostKt;
+import org.onebusaway.android.map.render.GeoPoint;
+import org.onebusaway.android.map.render.MapRenderState;
+import org.onebusaway.android.map.render.RoutePolyline;
 import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.ui.weather.RegionCallback;
 import org.onebusaway.android.util.LocationHelper;
@@ -167,7 +163,9 @@ public class GoogleMapHost
 
     private String mMapMode = "";
 
-    private ArrayList<Polyline> mLineOverlay = new ArrayList<Polyline>();
+    // Declarative overlay content (MM1: route polylines) rendered by ObaMapContent inside the
+    // GoogleMap {} composable. The ObaMapView methods mutate this instead of touching the map SDK.
+    private final MapRenderState mRenderState = new MapRenderState();
 
     // Markers that are added to the map by classes external to this map package
     private SimpleMarkerOverlay mSimpleMarkerOverlay;
@@ -222,7 +220,7 @@ public class GoogleMapHost
         // initial flash before initMap() centers the map.
         double[] seed = resolveInitialCamera(args);
         mView = ComposeMapHostKt.createComposeMapView(
-                activity, this, seed[0], seed[1], (float) seed[2]);
+                activity, mRenderState, this, seed[0], seed[1], (float) seed[2]);
 
         // If we have a recent location, show this while we're waiting on the LocationHelper
         Location l = Application.getLastKnownLocation(activity);
@@ -980,31 +978,24 @@ public class GoogleMapHost
 
     @Override
     public void setRouteOverlay(int lineOverlayColor, ObaShape[] shapes, boolean clear) {
-        if (mMap != null) {
-            if (clear) {
-                mLineOverlay.clear();
+        // Push the shapes into the shared render state; ObaMapContent draws them as Polyline
+        // composables (the directional-arrow stamp + color are applied there). [clear] replaces the
+        // current lines (route mode); !clear appends (directions mode renders one leg per call).
+        List<RoutePolyline> polylines =
+                clear ? new ArrayList<>() : new ArrayList<>(mRenderState.getRoutePolylines());
+
+        int totalPoints = 0;
+        for (ObaShape s : shapes) {
+            List<GeoPoint> points = new ArrayList<>();
+            for (Location l : s.getPoints()) {
+                points.add(new GeoPoint(l.getLatitude(), l.getLongitude()));
             }
-            PolylineOptions lineOptions;
-            StampStyle polylineArrow = TextureStyle.newBuilder(BitmapDescriptorFactory.fromResource(R.drawable.ic_navigation_expand_more)).build();
-            StyleSpan polylineArrowSpan = new StyleSpan(StrokeStyle.colorBuilder(lineOverlayColor).stamp(polylineArrow).build());
-
-            int totalPoints = 0;
-
-            for (ObaShape s : shapes) {
-                lineOptions = new PolylineOptions();
-                lineOptions.addSpan(polylineArrowSpan);
-
-                for (Location l : s.getPoints()) {
-                    lineOptions.add(MapHelpV2.makeLatLng(l));
-                }
-                // Add the line to the map, and keep a reference in the ArrayList
-                mLineOverlay.add(mMap.addPolyline(lineOptions));
-
-                totalPoints += lineOptions.getPoints().size();
-            }
-
-            Log.d(TAG, "Total points for route polylines = " + totalPoints);
+            polylines.add(new RoutePolyline(lineOverlayColor, points));
+            totalPoints += points.size();
         }
+        mRenderState.setRoutePolylines(polylines);
+
+        Log.d(TAG, "Total points for route polylines = " + totalPoints);
     }
 
     @Override
@@ -1027,21 +1018,30 @@ public class GoogleMapHost
         }
     }
 
+    /**
+     * Builds the bounds enclosing the current route/itinerary polylines (now sourced from the render
+     * state rather than live Polyline objects), or {@code null} if there are no points to enclose.
+     */
+    private LatLngBounds routePolylineBounds() {
+        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+        boolean any = false;
+        for (RoutePolyline p : mRenderState.getRoutePolylines()) {
+            for (GeoPoint pt : p.getPoints()) {
+                builder.include(new LatLng(pt.getLatitude(), pt.getLongitude()));
+                any = true;
+            }
+        }
+        return any ? builder.build() : null;
+    }
+
     @Override
     public void zoomToRoute() {
         if (mMap != null) {
-            if (!mLineOverlay.isEmpty()) {
-                LatLngBounds.Builder builder = new LatLngBounds.Builder();
-                for (Polyline p : mLineOverlay) {
-                    for (LatLng l : p.getPoints()) {
-                        builder.include(l);
-                    }
-                }
-
+            LatLngBounds bounds = routePolylineBounds();
+            if (bounds != null) {
                 if (mActivity != null) {
                     int padding = UIUtils.dpToPixels(mActivity, DEFAULT_MAP_PADDING_DP);
-                    mMap.moveCamera(
-                            (CameraUpdateFactory.newLatLngBounds(builder.build(), padding)));
+                    mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding));
                 }
             } else {
                 Toast.makeText(mActivity, mActivity.getString(R.string.route_info_no_shape_data),
@@ -1053,22 +1053,13 @@ public class GoogleMapHost
     @Override
     public void zoomToItinerary() {
         if (mMap != null) {
-            if (!mLineOverlay.isEmpty()) {
-                LatLngBounds.Builder builder = new LatLngBounds.Builder();
-                for (Polyline p : mLineOverlay) {
-                    for (LatLng l : p.getPoints()) {
-                        builder.include(l);
-                    }
-                }
-
-                if (mActivity != null) {
-                    int padding = UIUtils.dpToPixels(mActivity, DEFAULT_MAP_PADDING_DP);
-                    mMap.moveCamera(
-                            (CameraUpdateFactory.newLatLngBounds(builder.build(),
-                                    mActivity.getResources().getDisplayMetrics().widthPixels,
-                                    mActivity.getResources().getDisplayMetrics().heightPixels,
-                                    padding)));
-                }
+            LatLngBounds bounds = routePolylineBounds();
+            if (bounds != null && mActivity != null) {
+                int padding = UIUtils.dpToPixels(mActivity, DEFAULT_MAP_PADDING_DP);
+                mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds,
+                        mActivity.getResources().getDisplayMetrics().widthPixels,
+                        mActivity.getResources().getDisplayMetrics().heightPixels,
+                        padding));
             }
         }
     }
@@ -1103,11 +1094,7 @@ public class GoogleMapHost
 
     @Override
     public void removeRouteOverlay() {
-        for (Polyline p : mLineOverlay) {
-            p.remove();
-        }
-
-        mLineOverlay.clear();
+        mRenderState.clearRoutePolylines();
     }
 
     @Override

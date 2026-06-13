@@ -27,18 +27,21 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.rememberCameraPositionState
+import org.onebusaway.android.map.render.MapRenderState
 
 /**
- * Bridges the Java [org.onebusaway.android.map.googlemapsv2.BaseMapFragment] onto the
- * android-maps-compose `GoogleMap {}` composable. The fragment still drives the raw [GoogleMap]
- * imperatively (camera, overlays, listeners) exactly as before — this just hosts the map in a
- * [ComposeView] and hands the ready `GoogleMap` back via [onMapReady] (the fragment already
- * implements [OnMapReadyCallback]). Camera state is read/written through the raw map, so the
- * composable's CameraPositionState is only used to seed the initial position and avoid a flash.
+ * Bridges the Java [org.onebusaway.android.map.googlemapsv2.GoogleMapHost] onto the
+ * android-maps-compose `GoogleMap {}` composable. The host still drives the raw [GoogleMap]
+ * imperatively for camera/listeners and hands the ready map back via [onMapReady] (the host
+ * implements [OnMapReadyCallback]), but overlay *content* is now declarative: the host pushes it
+ * into [renderState] and [ObaMapContent] renders it inside the map. Camera state is still
+ * read/written through the raw map, so the composable's CameraPositionState only seeds the initial
+ * position and avoids a flash.
  */
 @JvmOverloads
 fun createComposeMapView(
     context: Context,
+    renderState: MapRenderState,
     onMapReady: OnMapReadyCallback,
     initialLatitude: Double = 0.0,
     initialLongitude: Double = 0.0,
@@ -58,9 +61,11 @@ fun createComposeMapView(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState
         ) {
-            // Runs once when the underlying GoogleMap is ready; reuses the fragment's existing
-            // onMapReady() so all imperative setup + overlays stay unchanged (the MapEffect bridge).
+            // Runs once when the underlying GoogleMap is ready; reuses the host's existing
+            // onMapReady() so all imperative setup stays unchanged (the MapEffect bridge).
             MapEffect(Unit) { map -> onMapReady.onMapReady(map) }
+            // Declarative overlay content (MM1: route polylines), driven by the shared render state.
+            ObaMapContent(renderState)
         }
     }
 }

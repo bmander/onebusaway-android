@@ -26,7 +26,6 @@ import android.location.Location
 import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
-import android.util.Log
 import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 import androidx.activity.compose.setContent
@@ -130,7 +129,7 @@ class HomeActivity : AppCompatActivity(),
     // (mode controllers, overlays, region/focus/location, lifecycle, camera) created eagerly in
     // onCreate and handed the ready map via onMapReady(). Lifecycle/permission/state are forwarded from
     // this activity. The three other map screens still use the thin Fragment wrapper (view-owning host).
-    private var mMapHost: ObaMapHost? = null
+    private lateinit var mapHost: ObaMapHost
 
     // The Activity-scoped map render state, observed by ObaMap() in HomeScreen. Same instance the host
     // resolves from the Activity ViewModelStore, so the host's overlay mutations drive this composition.
@@ -143,24 +142,20 @@ class HomeActivity : AppCompatActivity(),
     // The map survey (Compose), shown over the map on NEARBY. Activity-scoped.
     private val surveyViewModel: SurveyViewModel by viewModels()
 
-    // The activity's saved bundle (map center/zoom/focus/mode live here via onSaveInstanceState),
-    // passed to the host when it's (re)created so rotation/process-death restore the map.
-    private var mSavedMapState: Bundle? = null
-
     // The host can't call requestPermissions() itself (it's neither Activity nor Fragment), so it asks
     // through MapHostDeps and we drive the real launcher, delivering the outcome back to the host.
-    private val mPermissionLauncher = registerForActivityResult(
+    private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
         val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        mMapHost?.onLocationPermissionResult(
+        mapHost.onLocationPermissionResult(
             if (granted) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
         )
     }
 
-    private val mMapDeps = MapHostDeps {
-        mPermissionLauncher.launch(PermissionUtils.LOCATION_PERMISSIONS)
+    private val mapDeps = MapHostDeps {
+        permissionLauncher.launch(PermissionUtils.LOCATION_PERMISSIONS)
     }
 
     // The three home list destinations (starred stops/routes, reminders) render as Compose overlays
@@ -179,16 +174,14 @@ class HomeActivity : AppCompatActivity(),
     // the VM reports a pending focus, consumed by the CompletePendingMapFocus event to recenter + mark.
     private var pendingFocusResponse: ObaArrivalInfoResponse? = null
 
-    private lateinit var mFirebaseAnalytics: FirebaseAnalytics
+    private lateinit var firebaseAnalytics: FirebaseAnalytics
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Stashed for showMap(): the map's center/zoom/focus/mode were written here by
-        // onSaveInstanceState, so the host restores them when it's (re)created on the first Nearby selection.
-        mSavedMapState = savedInstanceState
-
-        mFirebaseAnalytics = FirebaseAnalytics.getInstance(this)
+        // The map's center/zoom/focus/mode were written into the saved bundle by onSaveInstanceState;
+        // the host restores them when it's created below (and the seed avoids an initial map flash).
+        firebaseAnalytics = FirebaseAnalytics.getInstance(this)
 
         // Host the map content inside a Compose ModalNavigationDrawer + HomeTopBar + BottomSheetScaffold,
         // replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome, the hosted
@@ -198,15 +191,15 @@ class HomeActivity : AppCompatActivity(),
 
         // Create the map host eagerly as a viewless controller. HomeScreen composes ObaMap() itself and
         // hands the host the ready map via onMapReady(); the host owns all the map controller logic.
-        val host = ObaMapHost.newController(this, mMapDeps, mSavedMapState)
+        val host = ObaMapHost.newController(this, mapDeps, savedInstanceState)
         host.setOnFocusChangeListener(this)
         host.setOnProgressBarChangedListener(this)
         host.setRegionCallback(this)
         // First-launch permission result (granted or denied): the VM completes the deferred region check.
         host.setOnLocationPermissionResultListener { viewModel.onLocationPermissionResult() }
-        mMapHost = host
+        mapHost = host
 
-        val mapSeed = ObaMapHost.resolveInitialCamera(this, mSavedMapState)
+        val mapSeed = ObaMapHost.resolveInitialCamera(this, savedInstanceState)
 
         val surveyCallbacks = SurveyCallbacks(
             onTextOrRadio = surveyViewModel::setTextOrRadioAnswer,
@@ -233,7 +226,7 @@ class HomeActivity : AppCompatActivity(),
                 mapSeedLat = mapSeed[0],
                 mapSeedLon = mapSeed[1],
                 mapSeedZoom = mapSeed[2].toFloat(),
-                mapSavedInstanceState = mSavedMapState,
+                mapSavedInstanceState = savedInstanceState,
                 mapComposed = mapComposed,
                 routeHeader = routeHeader,
                 onCancelRouteMode = ::onCancelRouteMode,
@@ -328,11 +321,11 @@ class HomeActivity : AppCompatActivity(),
                         is HomeEvent.RegionResolved -> {
                             // The map host re-zooms to the new region (was a registered task callback);
                             // it may be null until the first Nearby show, matching the legacy null-skip.
-                            (mMapHost as? ObaRegionsTask.Callback)?.onRegionTaskFinished(event.changed)
+                            (mapHost as? ObaRegionsTask.Callback)?.onRegionTaskFinished(event.changed)
                             if (event.changed && event.regionName != null) {
                                 ObaAnalytics.setRegion(
                                     Application.get().plausibleInstance,
-                                    mFirebaseAnalytics,
+                                    firebaseAnalytics,
                                     event.regionName
                                 )
                             }
@@ -343,9 +336,9 @@ class HomeActivity : AppCompatActivity(),
                             }
                         }
                         is HomeEvent.SetMapPadding ->
-                            mMapHost?.mapView?.setPadding(null, null, null, event.bottomPx)
+                            mapHost.mapView?.setPadding(null, null, null, event.bottomPx)
                         is HomeEvent.RecenterOnFocusedStop ->
-                            mMapHost?.setMapCenter(
+                            mapHost.setMapCenter(
                                 LocationUtils.makeLocation(event.lat, event.lon), true, true
                             )
                         is HomeEvent.CompletePendingMapFocus -> {
@@ -353,8 +346,8 @@ class HomeActivity : AppCompatActivity(),
                             val r = pendingFocusResponse
                             pendingFocusResponse = null
                             r?.stop?.let { stop ->
-                                mMapHost?.setMapCenter(stop.location, false, event.animateRecenter)
-                                mMapHost?.setFocusStop(stop, r.routes)
+                                mapHost.setMapCenter(stop.location, false, event.animateRecenter)
+                                mapHost.setFocusStop(stop, r.routes)
                             }
                         }
                         is HomeEvent.ShowRouteOnMap -> {
@@ -362,9 +355,9 @@ class HomeActivity : AppCompatActivity(),
                             bundle.putBoolean(MapParams.ZOOM_TO_ROUTE, false)
                             bundle.putBoolean(MapParams.ZOOM_INCLUDE_CLOSEST_VEHICLE, true)
                             bundle.putString(MapParams.ROUTE_ID, event.routeId)
-                            mMapHost?.setMapMode(MapParams.MODE_ROUTE, bundle)
+                            mapHost.setMapMode(MapParams.MODE_ROUTE, bundle)
                         }
-                        HomeEvent.ClearMapFocus -> mMapHost?.setFocusStop(null, null)
+                        HomeEvent.ClearMapFocus -> mapHost.setFocusStop(null, null)
                         // Sheet / drawer commands are carried out by HomeScreen.
                         else -> Unit
                     }
@@ -395,13 +388,13 @@ class HomeActivity : AppCompatActivity(),
         super.onStart()
         val am = getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
         val isTalkBackEnabled = am.isTouchExplorationEnabled
-        ObaAnalytics.setAccessibility(mFirebaseAnalytics, isTalkBackEnabled)
-        mMapHost?.onStart()
+        ObaAnalytics.setAccessibility(firebaseAnalytics, isTalkBackEnabled)
+        mapHost.onStart()
     }
 
     override fun onResume() {
         super.onResume()
-        mMapHost?.onResume()
+        mapHost.onResume()
 
         // Re-snapshot preferences + app-global flags so the ViewModel recomputes the chrome/overlay
         // visibility gates (zoom controls, left-hand mode, layers FAB, weather, donation card).
@@ -411,30 +404,30 @@ class HomeActivity : AppCompatActivity(),
 
     override fun onPause() {
         ShowcaseViewUtils.hideShowcaseView()
-        mMapHost?.onPause()
+        mapHost.onPause()
         super.onPause()
     }
 
     override fun onStop() {
-        mMapHost?.onStop()
+        mapHost.onStop()
         super.onStop()
     }
 
     override fun onDestroy() {
-        mMapHost?.onDestroy()
+        mapHost.onDestroy()
         super.onDestroy()
     }
 
     override fun onLowMemory() {
         super.onLowMemory()
-        mMapHost?.onLowMemory()
+        mapHost.onLowMemory()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         // The host writes the map's center/zoom/focus/mode into our bundle (replacing the free state
         // survival the FragmentManager used to provide); showMap() feeds it back on recreation.
-        mMapHost?.onSaveInstanceState(outState)
+        mapHost.onSaveInstanceState(outState)
     }
 
     private fun goToNavDrawerItem(item: HomeNavItem, reselect: Boolean) {
@@ -480,7 +473,7 @@ class HomeActivity : AppCompatActivity(),
             HomeNavItem.PAY_FARE -> return
         }
         ObaAnalytics.reportUiEvent(
-            mFirebaseAnalytics,
+            firebaseAnalytics,
             Application.get().plausibleInstance,
             PlausibleAnalytics.REPORT_MENU_EVENT_URL,
             getString(label),
@@ -506,12 +499,12 @@ class HomeActivity : AppCompatActivity(),
     /** The Compose route header reports its measured height; set the map's top padding accordingly. */
     private fun onRouteHeaderHeight(heightPx: Int) {
         val top = if (heightPx > 0) heightPx + routeHeaderMarkerPaddingPx else 0
-        mMapHost?.mapView?.setPadding(null, top, null, null)
+        mapHost.mapView?.setPadding(null, top, null, null)
     }
 
     /** The route header's cancel button: return to stop mode, preserving the current zoom + center. */
     private fun onCancelRouteMode() {
-        val host = mMapHost ?: return
+        val host = mapHost
         val mapView = host.mapView
         val bundle = Bundle().apply {
             putBoolean(MapParams.DO_N0T_CENTER_ON_LOCATION, true)
@@ -593,7 +586,7 @@ class HomeActivity : AppCompatActivity(),
                 }
                 UIUtils.goToUrl(this, twitterUrl)
                 ObaAnalytics.reportUiEvent(
-                    mFirebaseAnalytics,
+                    firebaseAnalytics,
                     Application.get().plausibleInstance,
                     PlausibleAnalytics.REPORT_MENU_EVENT_URL,
                     getString(R.string.analytics_label_twitter),
@@ -642,7 +635,7 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Called by the map fragment when a stop obtains focus, or no stops have focus
+     * Called by the map host when a stop obtains focus, or no stop has focus.
      */
     override fun onFocusChanged(
         stop: ObaStop?,
@@ -667,7 +660,7 @@ class HomeActivity : AppCompatActivity(),
             )
 
             ObaAnalytics.reportUiEvent(
-                mFirebaseAnalytics,
+                firebaseAnalytics,
                 Application.get().plausibleInstance,
                 PlausibleAnalytics.REPORT_MAP_EVENT_URL,
                 getString(R.string.analytics_label_button_press_map_icon),
@@ -681,11 +674,9 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Called from the map fragment when a BikeRentalStation is clicked.
+     * Called from the map host when a BikeRentalStation is clicked.
      */
     override fun onFocusChanged(bikeRentalStation: BikeRentalStation?) {
-        Log.d(TAG, "Bike Station Clicked on map")
-
         // Check to see if we're already focused on this same bike rental station
         val bikeId = viewModel.uiState.value.focusedBikeStationId
         if (bikeId != null && bikeRentalStation != null &&
@@ -728,8 +719,9 @@ class HomeActivity : AppCompatActivity(),
         }
 
         // If we can't see the map or arrivals sheet, we can't see the arrival info, so return. The map
-        // host stays mounted once created (lists overlay it), so its presence == "map shown".
-        if (mMapHost == null || viewModel.lastSettledSheet == ArrivalsSheetState.Hidden) {
+        // is composed (and stays so — lists overlay it) once NEARBY is first selected, so mapComposed
+        // == "map shown".
+        if (!mapComposed || viewModel.lastSettledSheet == ArrivalsSheetState.Hidden) {
             return
         }
 
@@ -739,14 +731,6 @@ class HomeActivity : AppCompatActivity(),
         ShowcaseViewUtils.showTutorial(
             ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES, this, null, false
         )
-    }
-
-    /**
-     * Redraw navigation drawer. This is necessary because we do not know whether to draw the
-     * "Plan A Trip" option until a region is selected.
-     */
-    private fun redrawNavigationDrawerFragment() {
-        refreshDrawerItems()
     }
 
     private fun goToSendFeedBack() {
@@ -775,9 +759,9 @@ class HomeActivity : AppCompatActivity(),
         // Show "What's New" (which might need refreshed Regions API contents)
         val update = autoShowWhatsNew()
 
-        // Redraw nav drawer if the region changed, or if we just installed a new version
+        // Rebuild the region-gated nav items if the region changed, or if we just installed a new version
         if (currentRegionChanged || update) {
-            redrawNavigationDrawerFragment()
+            refreshDrawerItems()
         }
 
         // If region changed and was auto-selected, show user what region we're using
@@ -823,7 +807,7 @@ class HomeActivity : AppCompatActivity(),
     // --- Map-chrome FAB actions (passed to HomeScreen as lambdas) ---
 
     private fun onMyLocation() {
-        val host = mMapHost ?: return
+        val host = mapHost
         // Reset the preference to ask user to enable location
         PreferenceUtils.saveBoolean(
             getString(R.string.preference_key_never_show_location_dialog), false
@@ -832,7 +816,7 @@ class HomeActivity : AppCompatActivity(),
 
         host.setMyLocation(true, true)
         ObaAnalytics.reportUiEvent(
-            mFirebaseAnalytics,
+            firebaseAnalytics,
             Application.get().plausibleInstance,
             PlausibleAnalytics.REPORT_MAP_EVENT_URL,
             getString(R.string.analytics_label_button_press_location),
@@ -841,15 +825,15 @@ class HomeActivity : AppCompatActivity(),
     }
 
     private fun onZoomIn() {
-        mMapHost?.zoomIn()
+        mapHost.zoomIn()
     }
 
     private fun onZoomOut() {
-        mMapHost?.zoomOut()
+        mapHost.zoomOut()
     }
 
     private fun onToggleBikeshare() {
-        val host = mMapHost ?: return
+        val host = mapHost
         val active = LayerUtils.isBikeshareLayerVisible()
         val layer: LayerInfo = LayerUtils.bikeshareLayerInfo
         val mapLayers = host as LayerActivationListener
@@ -1007,17 +991,13 @@ class HomeActivity : AppCompatActivity(),
 
         private const val WHATS_NEW_VER = "whatsNewVer"
 
-        private const val TAG = "HomeActivity"
-
-        const val BATTERY_OPTIMIZATIONS_PERMISSION_REQUEST = 111
-
         // The remembered nav tab, keyed by HomeNavItem.name. STATE_SELECTED_POSITION is the legacy
         // int key (NavigationDrawerFragment's), read once as a migration fallback for old installs.
         private const val STATE_SELECTED_NAV_ITEM = "home_selected_nav_item"
         private const val STATE_SELECTED_POSITION = "selected_navigation_drawer_position"
 
         /**
-         * Starts the MapActivity with a particular stop focused with the center of
+         * Starts HomeActivity with a particular stop focused with the center of
          * the map at a particular point.
          */
         @JvmStatic
@@ -1026,7 +1006,7 @@ class HomeActivity : AppCompatActivity(),
         }
 
         /**
-         * Starts the MapActivity with a particular stop focused with the center of
+         * Starts HomeActivity with a particular stop focused with the center of
          * the map at a particular point.
          */
         @JvmStatic
@@ -1035,7 +1015,7 @@ class HomeActivity : AppCompatActivity(),
         }
 
         /**
-         * Starts the MapActivity in "RouteMode", which shows stops along a route,
+         * Starts HomeActivity in "RouteMode", which shows stops along a route,
          * and does not get new stops when the user pans the map.
          */
         @JvmStatic
@@ -1044,7 +1024,7 @@ class HomeActivity : AppCompatActivity(),
         }
 
         /**
-         * Returns an intent that will start the MapActivity with a particular stop
+         * Returns an intent that will start HomeActivity with a particular stop
          * focused with the center of the map at a particular point.
          */
         @JvmStatic
@@ -1057,7 +1037,7 @@ class HomeActivity : AppCompatActivity(),
         }
 
         /**
-         * Returns an intent that will start the MapActivity with a particular stop
+         * Returns an intent that will start HomeActivity with a particular stop
          * focused with the center of the map at a particular point.
          */
         @JvmStatic
@@ -1072,7 +1052,7 @@ class HomeActivity : AppCompatActivity(),
         }
 
         /**
-         * Returns an intent that starts the MapActivity in "RouteMode", which shows
+         * Returns an intent that starts HomeActivity in "RouteMode", which shows
          * stops along a route, and does not get new stops when the user pans the map.
          */
         @JvmStatic

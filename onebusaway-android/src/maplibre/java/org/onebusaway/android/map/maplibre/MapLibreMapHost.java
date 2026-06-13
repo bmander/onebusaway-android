@@ -40,6 +40,9 @@ import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaShape;
 import org.onebusaway.android.io.elements.ObaStop;
+import org.onebusaway.android.io.elements.ObaTripDetails;
+import org.onebusaway.android.io.elements.ObaTripStatus;
+import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.DirectionsMapController;
 import org.onebusaway.android.map.LayerActivationListener;
@@ -54,8 +57,16 @@ import org.onebusaway.android.map.ObaMapHost;
 import org.onebusaway.android.map.RouteMapController;
 import org.onebusaway.android.map.StopMapController;
 import org.onebusaway.android.map.bike.BikeshareMapController;
+import org.onebusaway.android.map.render.BikeMarker;
+import org.onebusaway.android.map.render.GeoPoint;
+import org.onebusaway.android.map.render.MapRenderState;
+import org.onebusaway.android.map.render.RoutePolyline;
+import org.onebusaway.android.map.render.StopMarker;
+import org.onebusaway.android.map.render.StopRouteTypeKt;
+import org.onebusaway.android.map.render.VehicleMarker;
 import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.ui.weather.RegionCallback;
+import org.onebusaway.android.util.LayerUtils;
 import org.onebusaway.android.util.LocationHelper;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.PermissionUtils;
@@ -85,6 +96,7 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -109,8 +121,7 @@ public class MapLibreMapHost
         implements ObaMapHost, MapModeController.Callback, ObaRegionsTask.Callback,
         MapModeController.ObaMapView,
         LocationHelper.Listener,
-        StopOverlay.OnFocusChangedListener, OnMapReadyCallback,
-        LayerActivationListener {
+        OnMapReadyCallback, LayerActivationListener {
 
     private static final String TAG = "MapLibreMapHost";
 
@@ -139,15 +150,26 @@ public class MapLibreMapHost
 
     private String mFocusStopId;
 
-    private StopOverlay mStopOverlay;
+    // The shared, flavor-neutral render model + the maplibre renderer that draws it via classic
+    // annotations. The ObaMapView methods push to the state and re-render (mirrors GoogleMapHost's
+    // declarative push; maplibre just renders imperatively instead of via Compose).
+    private final MapRenderState mRenderState = new MapRenderState();
+
+    private MapLibreRenderer mRenderer;
+
+    // Host-side stop accumulation (capped, keeping the focused stop) + a routes cache, matching
+    // GoogleMapHost. Stop icon route-type is resolved by the shared primaryRouteType().
+    private final LinkedHashMap<String, StopMarker> mStopAccum = new LinkedHashMap<>();
+
+    private final HashMap<String, ObaRoute> mCachedRoutes = new HashMap<>();
+
+    private static final int FUZZY_MAX_STOP_COUNT = 200;
 
     private boolean mWarnOutOfRange = true;
     private boolean mRunning = false;
 
     private List<MapModeController> mControllers;
     private String mMapMode = "";
-
-    private SimpleMarkerOverlay mSimpleMarkerOverlay;
 
     private LatLng mCenter;
     private Location mCenterLocation;
@@ -304,27 +326,28 @@ public class MapLibreMapHost
             }
         });
 
-        // Listen for map/marker clicks
+        // The renderer draws the shared MapRenderState onto the map via classic annotations.
+        mRenderer = new MapLibreRenderer(mMap, mActivity, mRenderState);
+
+        // Map / marker clicks. A stop tap focuses + recenters; a tap on empty map clears focus;
+        // vehicle/bike taps fall through (return false) so the classic title/snippet info window
+        // shows (the rich Google Compose info windows are a Google-flavor enhancement).
         mMap.addOnMapClickListener(point -> {
-            if (mStopOverlay != null) {
-                mStopOverlay.removeMarkerClicked(point);
-            }
+            onMapTapped(point);
             return false;
         });
 
         mMap.setOnMarkerClickListener(marker -> {
-            if (mStopOverlay != null) {
-                if (mStopOverlay.markerClicked(marker)) {
-                    return true;
-                }
+            StopMarker stop = mRenderer.stopForMarker(marker);
+            if (stop != null) {
+                onStopTapped(stop.getStop());
+                return true;
             }
             return false;
         });
 
         // Hide the default compass (we rely on the app's own controls)
         uiSettings.setCompassEnabled(false);
-
-        mSimpleMarkerOverlay = new SimpleMarkerOverlay(mMap);
 
         if (savedInstanceState != null) {
             initMapState(savedInstanceState);
@@ -563,9 +586,8 @@ public class MapLibreMapHost
         } else {
             mControllers = new ArrayList<>();
         }
-        if (mStopOverlay != null) {
-            mStopOverlay.clear(false);
-        }
+        // Switching modes clears accumulated stops but keeps the focused one (old clear(false)).
+        clearStops(false);
         BikeshareMapController bikeshareMapController = new BikeshareMapController(this);
         if (MapParams.MODE_ROUTE.equals(mode)) {
             RouteMapController controller = new RouteMapController(this);
@@ -601,21 +623,46 @@ public class MapLibreMapHost
 
     @Override
     public void showStops(List<ObaStop> stops, ObaReferences refs) {
-        if (setupStopOverlay() && stops != null) {
-            mStopOverlay.populateStops(stops, refs);
-            checkRegionWeather(false);
+        if (stops == null) {
+            return;
         }
+        for (ObaRoute route : refs.getRoutes()) {
+            mCachedRoutes.put(route.getId(), route);
+        }
+        HashMap<String, Integer> typeByRouteId = routeTypesByRouteId();
+        if (mStopAccum.size() >= FUZZY_MAX_STOP_COUNT) {
+            StopMarker focused = mFocusStopId != null ? mStopAccum.get(mFocusStopId) : null;
+            mStopAccum.clear();
+            if (focused != null) {
+                mStopAccum.put(focused.getId(), focused);
+            }
+        }
+        for (ObaStop stop : stops) {
+            if (!mStopAccum.containsKey(stop.getId())) {
+                mStopAccum.put(stop.getId(), toStopMarker(stop, typeByRouteId));
+            }
+        }
+        mRenderState.setStops(new ArrayList<>(mStopAccum.values()));
+        rerender();
+        checkRegionWeather(false);
     }
 
     @Override
     public void showBikeStations(List<BikeRentalStation> bikeStations) {
-        // Stub for milestone 1 — BikeStationOverlay not yet ported
-        Log.w(TAG, "showBikeStations() is not yet implemented for MapLibre");
+        boolean bikeshareVisible = MapParams.MODE_DIRECTIONS.equals(mMapMode)
+                || LayerUtils.isBikeshareLayerVisible();
+        List<BikeMarker> markers = new ArrayList<>();
+        for (BikeRentalStation s : bikeStations) {
+            markers.add(new BikeMarker(s.id, new GeoPoint(s.y, s.x), s.isFloatingBike, s));
+        }
+        mRenderState.setBikeStations(markers, bikeshareVisible);
+        rerender();
     }
 
     @Override
     public void clearBikeStations() {
-        // Stub for milestone 1
+        mRenderState.clearBikeStations();
+        rerender();
     }
 
     @Override
@@ -828,8 +875,17 @@ public class MapLibreMapHost
 
     @Override
     public void setRouteOverlay(int lineOverlayColor, ObaShape[] shapes, boolean clear) {
-        // Stub for milestone 1 — route polyline rendering not yet ported
-        Log.w(TAG, "setRouteOverlay() is not yet implemented for MapLibre");
+        List<RoutePolyline> polylines =
+                clear ? new ArrayList<>() : new ArrayList<>(mRenderState.getRoutePolylines());
+        for (ObaShape s : shapes) {
+            List<GeoPoint> points = new ArrayList<>();
+            for (Location l : s.getPoints()) {
+                points.add(new GeoPoint(l.getLatitude(), l.getLongitude()));
+            }
+            polylines.add(new RoutePolyline(lineOverlayColor, points));
+        }
+        mRenderState.setRoutePolylines(polylines);
+        rerender();
     }
 
     @Override
@@ -839,44 +895,67 @@ public class MapLibreMapHost
 
     @Override
     public void updateVehicles(HashSet<String> routeIds, ObaTripsForRouteResponse response) {
-        // Stub for milestone 1 — VehicleOverlay not yet ported
-        Log.w(TAG, "updateVehicles() is not yet implemented for MapLibre");
+        List<VehicleMarker> markers = new ArrayList<>();
+        for (ObaTripDetails trip : response.getTrips()) {
+            ObaTripStatus status = trip.getStatus();
+            if (status == null) {
+                continue;
+            }
+            String activeRoute = response.getTrip(status.getActiveTripId()).getRouteId();
+            if (!routeIds.contains(activeRoute) || Status.CANCELED.equals(status.getStatus())) {
+                continue;
+            }
+            Location l = status.getLastKnownLocation();
+            boolean isRealtime = true;
+            if (l == null) {
+                l = status.getPosition();
+                isRealtime = false;
+            }
+            if (!status.isPredicted()) {
+                isRealtime = false;
+            }
+            markers.add(new VehicleMarker(status.getActiveTripId(),
+                    new GeoPoint(l.getLatitude(), l.getLongitude()), isRealtime, status));
+        }
+        mRenderState.setVehicles(markers, response);
+        rerender();
     }
 
     @Override
     public void removeVehicleOverlay() {
-        // Stub for milestone 1
+        mRenderState.clearVehicles();
+        rerender();
     }
 
     @Override
     public void zoomToRoute() {
-        // Stub for milestone 1
-        Log.w(TAG, "zoomToRoute() is not yet implemented for MapLibre");
+        LatLngBounds bounds = routePolylineBounds();
+        if (mMap != null && bounds != null) {
+            mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 0));
+        }
     }
 
     @Override
     public void zoomToItinerary() {
-        // Stub for milestone 1
-        Log.w(TAG, "zoomToItinerary() is not yet implemented for MapLibre");
+        zoomToRoute();
     }
 
     @Override
     public void zoomIncludeClosestVehicle(HashSet<String> routeIds,
                                           ObaTripsForRouteResponse response) {
-        // Stub for milestone 1
-        Log.w(TAG, "zoomIncludeClosestVehicle() is not yet implemented for MapLibre");
+        // Best-effort on maplibre: frame the route shape (closest-vehicle inclusion is a refinement).
+        zoomToRoute();
     }
 
     @Override
     public void removeRouteOverlay() {
-        // Stub for milestone 1
+        mRenderState.clearRoutePolylines();
+        rerender();
     }
 
     @Override
     public void removeStopOverlay(boolean clearFocusedStop) {
-        if (mStopOverlay != null) {
-            mStopOverlay.clear(clearFocusedStop);
-        }
+        clearStops(clearFocusedStop);
     }
 
     @Override
@@ -886,25 +965,38 @@ public class MapLibreMapHost
 
     @Override
     public void setFocusStop(ObaStop stop, List<ObaRoute> routes) {
-        if (setupStopOverlay()) {
-            mStopOverlay.setFocus(stop, routes);
+        if (stop == null) {
+            mFocusStopId = null;
+            mRenderState.setFocusedStopId(null);
+            rerender();
+            return;
         }
+        if (!mStopAccum.containsKey(stop.getId())) {
+            if (routes != null) {
+                for (ObaRoute route : routes) {
+                    mCachedRoutes.put(route.getId(), route);
+                }
+            }
+            mStopAccum.put(stop.getId(), toStopMarker(stop, routeTypesByRouteId()));
+            mRenderState.setStops(new ArrayList<>(mStopAccum.values()));
+        }
+        mFocusStopId = stop.getId();
+        mRenderState.setFocusedStopId(stop.getId());
+        rerender();
     }
 
     @Override
     public int addMarker(Location location, Float hue) {
-        if (mSimpleMarkerOverlay == null) {
-            return -1;
-        }
-        return mSimpleMarkerOverlay.addMarker(location, hue);
+        int id = mRenderState.addMarker(
+                new GeoPoint(location.getLatitude(), location.getLongitude()), hue);
+        rerender();
+        return id;
     }
 
     @Override
     public void removeMarker(int markerId) {
-        if (mSimpleMarkerOverlay == null) {
-            return;
-        }
-        mSimpleMarkerOverlay.removeMarker(markerId);
+        mRenderState.removeMarker(markerId);
+        rerender();
     }
 
     @Override
@@ -924,37 +1016,89 @@ public class MapLibreMapHost
     }
 
     // ============================================================================================
-    // Stop overlay management
+    // Render-state helpers + marker taps
     // ============================================================================================
 
-    public boolean setupStopOverlay() {
-        if (mStopOverlay != null) {
-            return true;
+    private void rerender() {
+        if (mRenderer != null) {
+            mRenderer.render();
         }
-        if (mMap == null) {
-            return false;
+    }
+
+    private StopMarker toStopMarker(ObaStop stop, HashMap<String, Integer> typeByRouteId) {
+        int routeType = StopRouteTypeKt.primaryRouteType(stop.getRouteIds(), typeByRouteId);
+        Location loc = stop.getLocation();
+        String direction = stop.getDirection() != null ? stop.getDirection() : "null";
+        return new StopMarker(stop.getId(),
+                new GeoPoint(loc.getLatitude(), loc.getLongitude()), direction, routeType, stop);
+    }
+
+    private HashMap<String, Integer> routeTypesByRouteId() {
+        HashMap<String, Integer> typeByRouteId = new HashMap<>();
+        for (ObaRoute route : mCachedRoutes.values()) {
+            typeByRouteId.put(route.getId(), route.getType());
         }
-        mStopOverlay = new StopOverlay(mActivity, mMap);
-        mStopOverlay.setOnFocusChangeListener(this);
-        return true;
+        return typeByRouteId;
+    }
+
+    private void clearStops(boolean clearFocusedStop) {
+        StopMarker focused = (!clearFocusedStop && mFocusStopId != null)
+                ? mStopAccum.get(mFocusStopId) : null;
+        mStopAccum.clear();
+        if (focused != null) {
+            mStopAccum.put(focused.getId(), focused);
+        } else if (clearFocusedStop) {
+            mFocusStopId = null;
+            mRenderState.setFocusedStopId(null);
+        }
+        mRenderState.setStops(new ArrayList<>(mStopAccum.values()));
+        rerender();
+    }
+
+    private LatLngBounds routePolylineBounds() {
+        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+        boolean any = false;
+        for (RoutePolyline p : mRenderState.getRoutePolylines()) {
+            for (GeoPoint pt : p.getPoints()) {
+                builder.include(new LatLng(pt.getLatitude(), pt.getLongitude()));
+                any = true;
+            }
+        }
+        return any ? builder.build() : null;
+    }
+
+    /** A stop tap: focus + notify listeners, then animate the camera onto it. */
+    private void onStopTapped(ObaStop stop) {
+        onFocusChanged(stop, new HashMap<>(mCachedRoutes), stop.getLocation());
+        if (mMap != null) {
+            LatLng pos = MapHelpMapLibre.makeLatLng(stop.getLocation());
+            double currentZoom = mMap.getCameraPosition().zoom;
+            if (currentZoom < CAMERA_DEFAULT_ZOOM) {
+                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(pos, CAMERA_DEFAULT_ZOOM));
+            } else {
+                mMap.animateCamera(CameraUpdateFactory.newLatLng(pos));
+            }
+        }
+    }
+
+    /** A tap on empty map clears the focused stop. */
+    private void onMapTapped(LatLng point) {
+        Location location = point != null ? MapHelpMapLibre.makeLocation(point) : null;
+        onFocusChanged(null, null, location);
     }
 
     // ============================================================================================
-    // StopOverlay.OnFocusChangedListener
+    // Stop focus notification (was the StopOverlay.OnFocusChangedListener callback)
     // ============================================================================================
 
     final Handler mStopChangedHandler = new Handler(Looper.getMainLooper());
 
-    @Override
     public void onFocusChanged(final ObaStop stop, final HashMap<String, ObaRoute> routes,
                                final Location location) {
         mStopChangedHandler.post(() -> {
-            if (stop != null) {
-                mFocusStopId = stop.getId();
-            } else {
-                mFocusStopId = null;
-            }
-
+            mFocusStopId = (stop != null) ? stop.getId() : null;
+            mRenderState.setFocusedStopId(mFocusStopId);
+            rerender();
             if (mOnFocusChangedListener != null) {
                 mOnFocusChangedListener.onFocusChanged(stop, routes, location);
             }

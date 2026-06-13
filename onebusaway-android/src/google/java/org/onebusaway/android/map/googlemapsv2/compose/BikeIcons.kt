@@ -16,35 +16,21 @@
 package org.onebusaway.android.map.googlemapsv2.compose
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import org.onebusaway.android.R
+import org.onebusaway.android.map.render.BikeBitmaps
 
 /**
- * The three bike marker icons (the small dot, the big station, the big floating bike), built once and
- * reused. Lifted verbatim from the legacy BikeStationOverlay; `small` is drawn from a vector via a
- * Canvas, the big icons are raster resources.
+ * The three bike marker icons (the small dot, the big station, the big floating bike) as Google
+ * [BitmapDescriptor]s, wrapping the shared [BikeBitmaps] generation. Built once and reused.
  */
 class BikeIcons(context: Context) {
 
-    val small: BitmapDescriptor = BitmapDescriptorFactory.fromBitmap(createSmallBitmap(context))
+    val small: BitmapDescriptor = BitmapDescriptorFactory.fromBitmap(BikeBitmaps.small(context))
 
     val bigStation: BitmapDescriptor =
-        BitmapDescriptorFactory.fromResource(R.drawable.bike_station_marker_big)
+        BitmapDescriptorFactory.fromBitmap(BikeBitmaps.bigStation(context))
 
     val bigFloating: BitmapDescriptor =
-        BitmapDescriptorFactory.fromResource(R.drawable.bike_floating_marker_big)
-
-    private fun createSmallBitmap(context: Context): Bitmap {
-        val px = context.resources.getDimensionPixelSize(R.dimen.bikeshare_small_marker_size)
-        val bitmap = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val shape = ContextCompat.getDrawable(context, R.drawable.bike_marker_small)!!
-        shape.setBounds(0, 0, bitmap.width, bitmap.height)
-        shape.draw(canvas)
-        return bitmap
-    }
+        BitmapDescriptorFactory.fromBitmap(BikeBitmaps.bigFloating(context))
 }

@@ -25,6 +25,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
@@ -44,6 +45,7 @@ import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.map.googlemapsv2.StopIconFactory
 import org.onebusaway.android.map.googlemapsv2.VehicleIconFactory
 import org.onebusaway.android.map.render.BikeBand
 import org.onebusaway.android.map.render.MapRenderState
@@ -63,7 +65,11 @@ import org.opentripplanner.routing.bike_rental.BikeRentalStation
  */
 @Composable
 @GoogleMapComposable
-fun ObaMapContent(renderState: MapRenderState, cameraPositionState: CameraPositionState) {
+fun ObaMapContent(
+    renderState: MapRenderState,
+    cameraPositionState: CameraPositionState,
+    callbacks: ObaMapCallbacks,
+) {
     val snapshot by renderState.snapshot.collectAsState()
     val context = LocalContext.current
 
@@ -83,6 +89,36 @@ fun ObaMapContent(renderState: MapRenderState, cameraPositionState: CameraPositi
                 StyleSpan(StrokeStyle.colorBuilder(polyline.color).stamp(arrow).build())
             ),
         )
+    }
+
+    // Stops. Each is a flat marker anchored per direction; the focused stop swaps to the 1.5x icon.
+    // Tapping focuses the stop (the host animates the camera + notifies listeners). Drawn before
+    // vehicles so vehicles (z-index 1) stay on top.
+    val focusedStopId = snapshot.focusedStopId
+    snapshot.stops.forEach { stop ->
+        key(stop.id) {
+            val markerState = rememberMarkerState(
+                position = LatLng(stop.point.latitude, stop.point.longitude)
+            )
+            val focused = stop.id == focusedStopId
+            val icon = remember(stop.direction, stop.routeType, focused) {
+                if (focused) {
+                    StopIconFactory.focusedStopIcon(stop.direction, stop.routeType)
+                } else {
+                    StopIconFactory.stopIcon(stop.direction, stop.routeType)
+                }
+            }
+            Marker(
+                state = markerState,
+                icon = icon,
+                flat = true,
+                anchor = Offset(
+                    StopIconFactory.anchorX(stop.direction),
+                    StopIconFactory.anchorY(stop.direction)
+                ),
+                onClick = { callbacks.onStopClick(stop.stop); true },
+            )
+        }
     }
 
     // Generic pins (trip-plan start/end, report location picker). Keyed by their stable id so a pin
@@ -170,6 +206,8 @@ fun ObaMapContent(renderState: MapRenderState, cameraPositionState: CameraPositi
                     state = markerState,
                     icon = icon,
                     visible = snapshot.bikeshareVisible && band != BikeBand.HIDDEN,
+                    // false: also show the info window (the legacy markerClicked did both).
+                    onClick = { callbacks.onBikeClick(bike.station); false },
                     onInfoWindowClick = { openBikeDeepLink(context, bike.station) },
                 ) {
                     BikeInfoWindow(bike.station)

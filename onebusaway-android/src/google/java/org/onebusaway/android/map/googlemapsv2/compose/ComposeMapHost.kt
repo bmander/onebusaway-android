@@ -43,6 +43,7 @@ fun createComposeMapView(
     context: Context,
     renderState: MapRenderState,
     onMapReady: OnMapReadyCallback,
+    callbacks: ObaMapCallbacks,
     initialLatitude: Double = 0.0,
     initialLongitude: Double = 0.0,
     initialZoom: Float = 16f
@@ -59,14 +60,17 @@ fun createComposeMapView(
         }
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState
+            cameraPositionState = cameraPositionState,
+            // Now that every marker is declarative, maps-compose owns click dispatch. A tap on empty
+            // map clears stop/bike focus; per-marker taps are handled in ObaMapContent.
+            onMapClick = { latLng -> callbacks.onMapClick(latLng) },
         ) {
             // Runs once when the underlying GoogleMap is ready; reuses the host's existing
             // onMapReady() so all imperative setup stays unchanged (the MapEffect bridge).
             MapEffect(Unit) { map -> onMapReady.onMapReady(map) }
-            // Declarative overlay content (polylines, markers, vehicles, bikes), driven by the shared
-            // render state. The camera state lets bike icons react live to the zoom band.
-            ObaMapContent(renderState, cameraPositionState)
+            // Declarative overlay content (polylines, markers, vehicles, bikes, stops), driven by the
+            // shared render state. The camera state lets bike icons react live to the zoom band.
+            ObaMapContent(renderState, cameraPositionState, callbacks)
         }
     }
 }

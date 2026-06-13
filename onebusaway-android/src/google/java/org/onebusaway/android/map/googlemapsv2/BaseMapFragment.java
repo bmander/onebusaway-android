@@ -30,7 +30,7 @@ import org.onebusaway.android.map.ObaMapHost;
  */
 public class BaseMapFragment extends AbstractObaMapHostFragment {
 
-    /** Kept for {@link StopOverlay} (the zoom threshold for showing stops). */
+    /** The zoom threshold for showing stops; referenced by the stop tap handler in GoogleMapHost. */
     public static final float CAMERA_DEFAULT_ZOOM = GoogleMapHost.CAMERA_DEFAULT_ZOOM;
 
     @Override

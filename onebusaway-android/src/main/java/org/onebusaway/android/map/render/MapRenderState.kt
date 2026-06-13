@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
@@ -63,6 +64,19 @@ data class BikeMarker(
     val station: BikeRentalStation,
 )
 
+/**
+ * One bus-stop marker. [direction]/[routeType] choose the icon + anchor; [stop] is the raw pojo
+ * couriered so a tap can notify focus listeners. Whether this stop renders focused (the 1.5x icon) is
+ * decided by [MapRenderSnapshot.focusedStopId], not stored here, so focusing is a one-field change.
+ */
+data class StopMarker(
+    val id: String,
+    val point: GeoPoint,
+    val direction: String,
+    val routeType: Int,
+    val stop: ObaStop,
+)
+
 /** Immutable snapshot of everything the map should render. Grows one overlay per phase. */
 data class MapRenderSnapshot(
     val routePolylines: List<RoutePolyline> = emptyList(),
@@ -71,6 +85,7 @@ data class MapRenderSnapshot(
     val vehicleResponse: ObaTripsForRouteResponse? = null,
     val bikeStations: List<BikeMarker> = emptyList(),
     val bikeshareVisible: Boolean = false,
+    val stops: List<StopMarker> = emptyList(),
     // The currently focused stop id, couriered so the vehicle info-window's "more info" tap can deep
     // link into TripDetails scoped to that stop (the legacy VehicleOverlay.Controller hook).
     val focusedStopId: String? = null,
@@ -135,6 +150,12 @@ class MapRenderState {
 
     fun clearBikeStations() {
         _snapshot.update { it.copy(bikeStations = emptyList()) }
+    }
+
+    // --- Stops: the host owns accumulation/cap + focus; this just holds the current list + id. ---
+
+    fun setStops(stops: List<StopMarker>) {
+        _snapshot.update { it.copy(stops = stops) }
     }
 
     fun setFocusedStopId(stopId: String?) {

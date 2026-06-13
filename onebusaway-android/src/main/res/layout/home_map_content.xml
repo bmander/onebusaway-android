@@ -14,26 +14,19 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 
-     P2 of the HomeActivity Compose migration: the former `main_content` subtree (the map container
-     plus its overlaid chrome) extracted as a standalone root so it can be the `content` of a Compose
-     BottomSheetScaffold. The arrivals panel that used to be the SlidingUpPanelLayout's second child
-     now lives in home_arrivals_sheet.xml as the scaffold's `sheetContent`.
+     The map itself is now composed directly by HomeScreen via ObaMap() — the old
+     `main_fragment_container` mount point is gone. This layout survives only as the thin overlay shim
+     for the two legacy View overlays still reached via findViewById (the survey card + the route-mode
+     header); HomeScreen draws it via AndroidView above the map until those are Composed too.
 -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
                 android:id="@+id/main_content"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent">
 
-    <!-- Fragment is added here programmatically -->
-    <RelativeLayout
-            android:id="@+id/main_fragment_container"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
-    <!-- The my-location FAB, zoom controls, and layers FAB are now the Compose MapChrome overlay
-         (see HomeShellHost / MapChrome.kt), so they no longer live here. -->
-
-    <!-- The weather chip + donation card are now Compose overlays (WeatherCard.kt / DonationCard.kt
-         in HomeShellHost), so they no longer live here. -->
+    <!-- The map, my-location/zoom/layers FABs, weather chip, donation card, and map-loading indicator
+         are all Compose now (ObaMap + MapChrome / WeatherCard / DonationCard), so they no longer live
+         here. Only the two not-yet-Composed overlays below remain. -->
 
     <include
         android:id="@+id/surveyView"

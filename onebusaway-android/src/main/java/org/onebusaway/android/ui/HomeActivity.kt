@@ -36,6 +36,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
@@ -60,6 +62,7 @@ import org.onebusaway.android.map.LayerActivationListener
 import org.onebusaway.android.map.MapHostDeps
 import org.onebusaway.android.map.LayerInfo
 import org.onebusaway.android.map.MapParams
+import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.ObaMapHost
 import org.onebusaway.android.map.OnFocusChangedListener
 import org.onebusaway.android.map.OnProgressBarChangedListener
@@ -134,10 +137,19 @@ class HomeActivity : AppCompatActivity(),
      */
     private var navSelectionApplied = false
 
-    // The native map is hosted directly (no FragmentManager): its view is added into
-    // R.id.main_fragment_container and its lifecycle/permission/state are forwarded from this activity.
-    // See showMap(). The three other map screens still use the thin Fragment wrapper.
+    // The map is composed directly by HomeScreen via ObaMap(); the host is a viewless *controller*
+    // (mode controllers, overlays, region/focus/location, lifecycle, camera) created eagerly in
+    // onCreate and handed the ready map via onMapReady(). Lifecycle/permission/state are forwarded from
+    // this activity. The three other map screens still use the thin Fragment wrapper (view-owning host).
     private var mMapHost: ObaMapHost? = null
+
+    // The Activity-scoped map render state, observed by ObaMap() in HomeScreen. Same instance the host
+    // resolves from the Activity ViewModelStore, so the host's overlay mutations drive this composition.
+    private val mapViewModel: MapViewModel by viewModels()
+
+    // Gates ObaMap() composition: flipped true on the first NEARBY selection so the map SDK only
+    // initializes then (and stays composed thereafter — list tabs draw over it, not tear it down).
+    private var mapComposed by mutableStateOf(false)
 
     // The activity's saved bundle (map center/zoom/focus/mode live here via onSaveInstanceState),
     // passed to the host when it's (re)created so rotation/process-death restore the map.
@@ -192,13 +204,36 @@ class HomeActivity : AppCompatActivity(),
         // replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome, the hosted
         // MaterialToolbar + options menu, and the third-party SlidingUpPanelLayout. The arrivals panel
         // is the scaffold's bottom sheet, rendered per focused stop by ArrivalsSheetHost.
+        // The slimmed map-content XML now holds only the legacy overlays (survey card + route-mode
+        // header) that are still reached via findViewById; the map itself is composed by HomeScreen.
         mMapContent = layoutInflater.inflate(R.layout.home_map_content, null)
+
+        // Create the map host eagerly as a viewless controller. HomeScreen composes ObaMap() itself and
+        // hands the host the ready map via onMapReady(); the host owns all the map controller logic.
+        val host = ObaMapHost.newController(this, mMapDeps, mSavedMapState)
+        host.setOnFocusChangeListener(this)
+        host.setOnProgressBarChangedListener(this)
+        host.setRegionCallback(this)
+        // First-launch permission result (granted or denied): the VM completes the deferred region check.
+        host.setOnLocationPermissionResultListener { viewModel.onLocationPermissionResult() }
+        mMapHost = host
+
+        val mapSeed = ObaMapHost.resolveInitialCamera(this, mSavedMapState)
+
         setContent {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
             HomeScreen(
                 state = state,
                 events = viewModel.events,
-                mapContent = mMapContent,
+                mapRenderState = mapViewModel.renderState,
+                mapCallbacks = host.mapCallbacks,
+                onMapReady = host,
+                mapSeedLat = mapSeed[0],
+                mapSeedLon = mapSeed[1],
+                mapSeedZoom = mapSeed[2].toFloat(),
+                mapSavedInstanceState = mSavedMapState,
+                mapComposed = mapComposed,
+                legacyMapOverlays = mMapContent,
                 listVms = listVms,
                 onNavItemSelected = ::onHomeNavItemSelected,
                 onSearch = ::onSearch,
@@ -427,39 +462,11 @@ class HomeActivity : AppCompatActivity(),
     }
 
     private fun showMap() {
-        // The list destinations are Compose overlays over the map, so there's nothing to hide — the map
-        // host stays mounted once created. Create it on the first NEARBY selection.
-        if (mMapHost != null) {
-            return
-        }
-        Log.d(TAG, "Creating new ObaMapHost")
-        val host = ObaMapHost.newInstance(this, mMapDeps, mSavedMapState)
-        (mMapContent.findViewById<View>(R.id.main_fragment_container) as ViewGroup).addView(
-            host.view,
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        )
-
-        // Register listeners for map focus / progress / region / permission callbacks
-        host.setOnFocusChangeListener(this)
-        host.setOnProgressBarChangedListener(this)
-        host.setRegionCallback(this)
-        // First-launch permission result (granted or denied): the VM completes the deferred region check.
-        host.setOnLocationPermissionResultListener { viewModel.onLocationPermissionResult() }
-        mMapHost = host
-
-        // The host is created lazily (first Nearby selection, after onResume), so bring it up to the
-        // activity's current lifecycle state; subsequent onStart/onResume/... forward normally.
-        val current = lifecycle.currentState
-        if (current.isAtLeast(Lifecycle.State.STARTED)) {
-            host.onStart()
-        }
-        if (current.isAtLeast(Lifecycle.State.RESUMED)) {
-            host.onResume()
-        }
-
-        // The map-loading bar + arrivals sheet are now derived from state (mapLoading; focusedStop +
-        // the NEARBY tab), and the title comes from selectedItem (HomeTopBar), so no imperative work here.
+        // The host (controller) is created eagerly in onCreate; here we just flip the gate so HomeScreen
+        // composes ObaMap() (deferring the map SDK init to the first NEARBY selection). It then stays
+        // composed — list tabs draw an opaque destination over it rather than tearing it down — so this
+        // is idempotent. The host's lifecycle is forwarded normally; the map composes when the gate flips.
+        mapComposed = true
     }
 
     /**

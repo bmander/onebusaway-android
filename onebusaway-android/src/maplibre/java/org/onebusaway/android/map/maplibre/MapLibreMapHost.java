@@ -55,6 +55,7 @@ import org.onebusaway.android.map.bike.BikeshareMapController;
 import org.onebusaway.android.map.MapNavigation;
 import org.onebusaway.android.map.MapViewModel;
 import org.onebusaway.android.map.compose.ObaComposeMapKt;
+import org.onebusaway.android.map.compose.ObaMapCallbacks;
 import org.onebusaway.android.map.compose.ObaMapHandle;
 import org.onebusaway.android.map.maplibre.compose.MapLibreMapHandle;
 import org.onebusaway.android.map.render.BikeMarker;
@@ -185,7 +186,17 @@ public class MapLibreMapHost
 
     private RegionCallback regionCallback;
 
+    /** View-owning host (builds its own map view) — the fragment-screen path. */
     public MapLibreMapHost(Activity activity, MapHostDeps deps, Bundle args) {
+        this(activity, deps, args, true);
+    }
+
+    /**
+     * @param ownView true: build the map view here ({@link #getView()} returns it). false: controller
+     *                mode — the owner composes {@code ObaMap()} itself and hands us the map via
+     *                {@link #onMapReady(ObaMapHandle)}; {@link #getView()} returns null.
+     */
+    public MapLibreMapHost(Activity activity, MapHostDeps deps, Bundle args, boolean ownView) {
         mActivity = activity;
         mDeps = deps;
         // Activity-scoped view model: owns the render state (so it survives configuration changes)
@@ -198,14 +209,19 @@ public class MapLibreMapHost
 
         mLastSavedInstanceState = args;
 
-        // Host the map in a ComposeView via the flavor-neutral ObaMap composable. The maplibre adapter
-        // owns the MapView + its Compose lifecycle; it hands the ready map back here in
-        // onMapHandleReady(), where this host does all its setup (style, renderer, listeners, location)
-        // exactly as before. Clicks are wired on the raw map in initMap(), so the adapter gets no
-        // callbacks. The seed camera is unused by maplibre (initMapState centers the map).
-        mView = ObaComposeMapKt.createObaMapView(
-                activity, mRenderState, null, 0.0, 0.0, CAMERA_DEFAULT_ZOOM,
-                args, this::onMapHandleReady);
+        // View-owning mode: host the map in a ComposeView via the flavor-neutral ObaMap composable. The
+        // maplibre adapter owns the MapView + its Compose lifecycle; it hands the ready map back here in
+        // onMapReady(), where this host does all its setup (style, renderer, listeners, location). In
+        // controller mode the owner composes ObaMap() itself, so we build no view. Either way clicks are
+        // wired on the raw map in initMap(), so the adapter gets no callbacks; the seed camera is unused
+        // by maplibre (initMapState centers the map).
+        if (ownView) {
+            mView = ObaComposeMapKt.createObaMapView(
+                    activity, mRenderState, null, 0.0, 0.0, CAMERA_DEFAULT_ZOOM,
+                    args, this);
+        } else {
+            mView = null;
+        }
 
         // If we have a recent location, show this while we're waiting on the LocationHelper
         Location l = Application.getLastKnownLocation(activity);
@@ -288,13 +304,14 @@ public class MapLibreMapHost
      * {@link MapLibreMapHandle}; the host keeps the MapView (for {@code onSaveInstanceState}) and does
      * all of its existing setup on the map.
      */
-    private void onMapHandleReady(ObaMapHandle handle) {
+    @Override
+    public void onMapReady(ObaMapHandle handle) {
         MapLibreMapHandle h = (MapLibreMapHandle) handle;
         mMapView = h.getMapView();
-        onMapReady(h.getMap());
+        setupMap(h.getMap());
     }
 
-    private void onMapReady(@NonNull MapLibreMap map) {
+    private void setupMap(@NonNull MapLibreMap map) {
         mMap = map;
 
         String styleUrl = inDarkMode() ? STYLE_URL_DARK : STYLE_URL_LIGHT;
@@ -586,6 +603,13 @@ public class MapLibreMapHost
     @Override
     public MapModeController.ObaMapView getMapView() {
         return this;
+    }
+
+    @Override
+    public ObaMapCallbacks getMapCallbacks() {
+        // maplibre wires marker/info-window clicks on the raw map in setupMap(); the adapter (and the
+        // ObaMap composable) need no callbacks.
+        return null;
     }
 
     // ============================================================================================

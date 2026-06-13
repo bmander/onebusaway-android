@@ -194,7 +194,17 @@ public class GoogleMapHost
 
     private AlertDialog locationPermissionDialog;
 
+    /** View-owning host (builds its own map view) — the fragment-screen path. */
     public GoogleMapHost(Activity activity, MapHostDeps deps, Bundle args) {
+        this(activity, deps, args, true);
+    }
+
+    /**
+     * @param ownView true: build the map view here ({@link #getView()} returns it). false: controller
+     *                mode — the owner composes {@code ObaMap()} itself and hands us the map via
+     *                {@link #onMapReady(ObaMapHandle)}; {@link #getView()} returns null.
+     */
+    public GoogleMapHost(Activity activity, MapHostDeps deps, Bundle args, boolean ownView) {
         mActivity = activity;
         mDeps = deps;
         // Activity-scoped view model: owns the render state (so it survives configuration changes)
@@ -209,7 +219,7 @@ public class GoogleMapHost
 
         if (!MapHelpV2.isMapsInstalled(activity)) {
             MapHelpV2.promptUserInstallMaps(activity);
-            mView = new View(activity);
+            mView = ownView ? new View(activity) : null;
             return;
         }
 
@@ -217,14 +227,18 @@ public class GoogleMapHost
         // consumes it just like the old getMapAsync() callback did.
         mLastSavedInstanceState = args;
 
-        // Host the map in a ComposeView via the flavor-neutral ObaMap composable (the Google adapter
-        // runs android-maps-compose's GoogleMap {}). The host keeps driving the raw GoogleMap
-        // imperatively once it's handed back via the handle in onMapHandleReady() + the overlays; the
-        // seed camera only avoids an initial flash before initMap() centers the map.
-        double[] seed = resolveInitialCamera(args);
-        mView = ObaComposeMapKt.createObaMapView(
-                activity, mRenderState, this, seed[0], seed[1], (float) seed[2],
-                args, this::onMapHandleReady);
+        // View-owning mode: host the map in a ComposeView via the flavor-neutral ObaMap composable
+        // (the Google adapter runs android-maps-compose's GoogleMap {}). In controller mode the owner
+        // composes ObaMap() itself, so we build no view and just wait for onMapReady(). Either way the
+        // host drives the raw GoogleMap imperatively once it's handed back via the handle.
+        if (ownView) {
+            double[] seed = ObaMapHost.resolveInitialCamera(activity, args);
+            mView = ObaComposeMapKt.createObaMapView(
+                    activity, mRenderState, this, seed[0], seed[1], (float) seed[2],
+                    args, this);
+        } else {
+            mView = null;
+        }
 
         // If we have a recent location, show this while we're waiting on the LocationHelper
         Location l = Application.getLastKnownLocation(activity);
@@ -284,21 +298,10 @@ public class GoogleMapHost
         }
     }
 
-    /** Resolves the initial map camera (lat, lon, zoom) from saved state, then intent extras. */
-    private double[] resolveInitialCamera(Bundle savedInstanceState) {
-        Bundle src = savedInstanceState;
-        if (src == null && mActivity != null) {
-            src = mActivity.getIntent().getExtras();
-        }
-        double lat = 0.0;
-        double lon = 0.0;
-        float zoom = CAMERA_DEFAULT_ZOOM;
-        if (src != null) {
-            lat = src.getDouble(MapParams.CENTER_LAT, 0.0);
-            lon = src.getDouble(MapParams.CENTER_LON, 0.0);
-            zoom = src.getFloat(MapParams.ZOOM, CAMERA_DEFAULT_ZOOM);
-        }
-        return new double[]{lat, lon, zoom};
+    @Override
+    public ObaMapCallbacks getMapCallbacks() {
+        // The Google adapter dispatches declarative marker/map taps to these (the host implements them).
+        return this;
     }
 
     public void zoomIn() {
@@ -314,7 +317,8 @@ public class GoogleMapHost
      * underlying map is ready. The adapter hands back the raw {@link GoogleMap} in a
      * {@link GoogleMapHandle}; the host keeps it for all imperative camera/styling/location work.
      */
-    private void onMapHandleReady(ObaMapHandle handle) {
+    @Override
+    public void onMapReady(ObaMapHandle handle) {
         mMap = ((GoogleMapHandle) handle).getMap();
 
         // Marker + map-click handling is owned by maps-compose now (every overlay is declarative);

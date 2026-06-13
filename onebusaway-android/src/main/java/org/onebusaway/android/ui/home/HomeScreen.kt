@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.ui.home
 
+import android.os.Bundle
 import android.view.View
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
@@ -47,6 +48,10 @@ import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
+import org.onebusaway.android.map.compose.ObaMap
+import org.onebusaway.android.map.compose.ObaMapCallbacks
+import org.onebusaway.android.map.compose.ObaMapReadyListener
+import org.onebusaway.android.map.render.MapRenderState
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.weather.WeatherUtils
 
@@ -60,14 +65,26 @@ import org.onebusaway.android.ui.weather.WeatherUtils
  * fights a user drag. **Expansion (peek<->full)** is the live `SheetState`, nudged by one-shot
  * [HomeEvent.ToggleSheet]/[HomeEvent.CollapseSheet] commands (the screen alone knows the live state),
  * plus [BackHandler]. The arrivals panel is hosted directly per focused stop (see [ArrivalsSheetHost]);
- * the native map remains a hosted View (P14 dissolves it).
+ * the map is now a direct [ObaMap] composable (the only residual `AndroidView` is the legacy survey +
+ * route-header overlay shim, removed as those are Composed).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     state: HomeUiState,
     events: SharedFlow<HomeEvent>,
-    mapContent: View,
+    // The map is rendered directly as a composable (ObaMap), gated by [mapComposed] so SDK init stays
+    // lazy until the first NEARBY selection. [legacyMapOverlays] is the slimmed home_map_content.xml
+    // (survey + route-mode header) still drawn via AndroidView above the map until those are Composed.
+    mapRenderState: MapRenderState,
+    mapCallbacks: ObaMapCallbacks?,
+    onMapReady: ObaMapReadyListener,
+    mapSeedLat: Double,
+    mapSeedLon: Double,
+    mapSeedZoom: Float,
+    mapSavedInstanceState: Bundle?,
+    mapComposed: Boolean,
+    legacyMapOverlays: View,
     listVms: HomeListViewModels,
     onNavItemSelected: (HomeNavItem) -> Unit,
     onSearch: (String) -> Unit,
@@ -213,7 +230,25 @@ fun HomeScreen(
                         0.dp
                     }
                     Box(Modifier.fillMaxSize()) {
-                        AndroidView(factory = { mapContent }, modifier = Modifier.fillMaxSize())
+                        // The map itself, composed directly (no View seam). Gated so the map SDK only
+                        // initializes once NEARBY is first shown, then stays composed (a list tab draws
+                        // an opaque destination over it rather than tearing it down).
+                        if (mapComposed) {
+                            ObaMap(
+                                renderState = mapRenderState,
+                                callbacks = mapCallbacks,
+                                modifier = Modifier.fillMaxSize(),
+                                initialLatitude = mapSeedLat,
+                                initialLongitude = mapSeedLon,
+                                initialZoom = mapSeedZoom,
+                                savedInstanceState = mapSavedInstanceState,
+                                onMapReady = onMapReady,
+                            )
+                        }
+                        // Legacy View overlays (survey card + route-mode header) above the map. They are
+                        // transparent until shown, and are reached via findViewById on the activity, so
+                        // they must stay attached. (Composed away in later phases.)
+                        AndroidView(factory = { legacyMapOverlays }, modifier = Modifier.fillMaxSize())
                         MapChrome(
                             fabsVisible = state.fabsVisible,
                             zoomVisible = state.zoomControlsVisible,

@@ -19,7 +19,11 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.view.View;
 
+import androidx.annotation.Nullable;
+
 import org.onebusaway.android.BuildConfig;
+import org.onebusaway.android.map.compose.ObaMapCallbacks;
+import org.onebusaway.android.map.compose.ObaMapReadyListener;
 import org.onebusaway.android.ui.weather.RegionCallback;
 
 /**
@@ -32,12 +36,20 @@ import org.onebusaway.android.ui.weather.RegionCallback;
  * returning the held {@code Activity}/view); {@link ObaMapFragment} now delegates to a host so the
  * other map screens keep working unchanged.
  */
-public interface ObaMapHost extends MapModeController.ObaMapView {
+public interface ObaMapHost extends MapModeController.ObaMapView, ObaMapReadyListener {
+
+    /** Default camera zoom for the seed camera (matches the flavor hosts' own default). */
+    float CAMERA_DEFAULT_ZOOM = 16.0f;
 
     // ========================================================================
     // View + map operations (mirror ObaMapFragment minus asFragment())
     // ========================================================================
 
+    /**
+     * The host's map view, or {@code null} in controller mode (see {@link #newController}) where the
+     * owner composes the map itself via {@code ObaMap()} and the host only drives it via the handle
+     * delivered to {@link #onMapReady}.
+     */
     View getView();
 
     MapModeController.ObaMapView getMapView();
@@ -61,6 +73,15 @@ public interface ObaMapHost extends MapModeController.ObaMapView {
     void setOnLocationPermissionResultListener(OnLocationPermissionResultListener listener);
 
     void setRegionCallback(RegionCallback callback);
+
+    /**
+     * The flavor-specific tap callbacks to hand the {@code ObaMap()} composable when the owner
+     * composes the map itself (controller mode): the Google host returns {@code this} (it dispatches
+     * declarative marker/map taps); the maplibre host returns {@code null} (it wires listeners on the
+     * raw map). Returns {@code null} in view-owning mode (the host already passed these to its own view).
+     */
+    @Nullable
+    ObaMapCallbacks getMapCallbacks();
 
     // ========================================================================
     // Explicit lifecycle the owner forwards (replacing the Fragment's)
@@ -97,9 +118,10 @@ public interface ObaMapHost extends MapModeController.ObaMapView {
     // ========================================================================
 
     /**
-     * Creates the flavor-specific host. The concrete class name is provided by
-     * {@link BuildConfig#MAP_HOST_CLASS}; it must declare an
-     * {@code (Activity, MapHostDeps, Bundle)} constructor.
+     * Creates the flavor-specific host in view-owning mode (it builds its own map view, returned by
+     * {@link #getView()}). Used by the fragment screens. The concrete class name is provided by
+     * {@link BuildConfig#MAP_HOST_CLASS}; it must declare an {@code (Activity, MapHostDeps, Bundle)}
+     * constructor.
      */
     static ObaMapHost newInstance(Activity activity, MapHostDeps deps, Bundle args) {
         try {
@@ -110,5 +132,42 @@ public interface ObaMapHost extends MapModeController.ObaMapView {
             throw new RuntimeException("Map host implementation not found: "
                     + BuildConfig.MAP_HOST_CLASS, e);
         }
+    }
+
+    /**
+     * Creates the flavor-specific host in controller mode: it does NOT build a view ({@link #getView()}
+     * returns {@code null}). The owner composes the map itself via {@code ObaMap()} and hands the host
+     * the ready map through {@link #onMapReady}. Used by HomeActivity. Requires the host to declare an
+     * {@code (Activity, MapHostDeps, Bundle, boolean ownView)} constructor.
+     */
+    static ObaMapHost newController(Activity activity, MapHostDeps deps, Bundle args) {
+        try {
+            return (ObaMapHost) Class.forName(BuildConfig.MAP_HOST_CLASS)
+                    .getDeclaredConstructor(Activity.class, MapHostDeps.class, Bundle.class, boolean.class)
+                    .newInstance(activity, deps, args, false);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("Map host implementation not found: "
+                    + BuildConfig.MAP_HOST_CLASS, e);
+        }
+    }
+
+    /**
+     * Resolves the initial map camera (lat, lon, zoom) from saved state, then intent extras — the seed
+     * the owner passes to {@code ObaMap()} to avoid an initial flash before the map centers itself.
+     */
+    static double[] resolveInitialCamera(Activity activity, Bundle savedInstanceState) {
+        Bundle src = savedInstanceState;
+        if (src == null && activity != null) {
+            src = activity.getIntent().getExtras();
+        }
+        double lat = 0.0;
+        double lon = 0.0;
+        float zoom = CAMERA_DEFAULT_ZOOM;
+        if (src != null) {
+            lat = src.getDouble(MapParams.CENTER_LAT, 0.0);
+            lon = src.getDouble(MapParams.CENTER_LON, 0.0);
+            zoom = src.getFloat(MapParams.ZOOM, CAMERA_DEFAULT_ZOOM);
+        }
+        return new double[]{lat, lon, zoom};
     }
 }

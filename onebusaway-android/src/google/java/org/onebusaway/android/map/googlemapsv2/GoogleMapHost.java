@@ -38,12 +38,14 @@ import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaShape;
 import org.onebusaway.android.io.elements.ObaStop;
+import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.DirectionsMapController;
 import org.onebusaway.android.map.LayerActivationListener;
 import org.onebusaway.android.map.LayerInfo;
 import org.onebusaway.android.map.MapHostDeps;
 import org.onebusaway.android.map.MapModeController;
+import org.onebusaway.android.map.MapNavigation;
 import org.onebusaway.android.map.MapParams;
 import org.onebusaway.android.map.ObaMapFragment.OnFocusChangedListener;
 import org.onebusaway.android.map.ObaMapFragment.OnLocationPermissionResultListener;
@@ -1203,6 +1205,16 @@ public class GoogleMapHost
                         ? R.string.analytics_label_bike_station_marker_clicked
                         : R.string.analytics_label_floating_bike_marker_clicked),
                 null);
+    }
+
+    @Override
+    public void onVehicleInfoWindowClick(ObaTripStatus status) {
+        MapNavigation.openVehicleTripDetails(mActivity, status, mFocusStopId);
+    }
+
+    @Override
+    public void onBikeInfoWindowClick(BikeRentalStation station) {
+        MapNavigation.openBikeDeepLink(mActivity, station);
     }
 
     /**

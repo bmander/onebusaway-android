@@ -17,6 +17,7 @@ package org.onebusaway.android.map.googlemapsv2.compose
 
 import com.google.android.gms.maps.model.LatLng
 import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.io.elements.ObaTripStatus
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 /**
@@ -31,4 +32,10 @@ interface ObaMapCallbacks {
     fun onMapClick(latLng: LatLng)
 
     fun onBikeClick(station: BikeRentalStation)
+
+    /** The vehicle info-window "more info" tap — the host navigates (e.g. to TripDetails). */
+    fun onVehicleInfoWindowClick(status: ObaTripStatus)
+
+    /** The bike info-window "more info" tap — the host navigates (e.g. the bikeshare deep link). */
+    fun onBikeInfoWindowClick(station: BikeRentalStation)
 }

@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.map.googlemapsv2.compose
 
-import android.content.Context
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
@@ -32,7 +31,6 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.StrokeStyle
 import com.google.android.gms.maps.model.StyleSpan
 import com.google.android.gms.maps.model.TextureStyle
-import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.maps.android.compose.CameraPositionState
 import com.google.maps.android.compose.GoogleMapComposable
 import com.google.maps.android.compose.Marker
@@ -41,20 +39,12 @@ import com.google.maps.android.compose.MarkerInfoWindowContent
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberMarkerState
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
-import org.onebusaway.android.io.ObaAnalytics
-import org.onebusaway.android.io.PlausibleAnalytics
-import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.map.googlemapsv2.StopIconFactory
 import org.onebusaway.android.map.googlemapsv2.VehicleIconFactory
 import org.onebusaway.android.map.render.BikeBand
 import org.onebusaway.android.map.render.MapRenderState
 import org.onebusaway.android.map.render.bikeZoomBand
 import org.onebusaway.android.map.render.shouldAnimateVehicle
-import org.onebusaway.android.ui.TripDetailsActivity
-import org.onebusaway.android.util.RegionUtils
-import org.onebusaway.android.util.UIUtils
-import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 /**
  * Declarative render of [MapRenderState] inside a `GoogleMap {}` content lambda. This is the
@@ -144,7 +134,6 @@ fun ObaMapContent(
     // maps-compose markers, leaving maps-compose's info-window adapter to draw the content.
     val vehicleResponse = snapshot.vehicleResponse
     if (vehicleResponse != null) {
-        val focusedStopId = snapshot.focusedStopId
         snapshot.vehicles.forEach { vehicle ->
             key(vehicle.activeTripId) {
                 val target = LatLng(vehicle.point.latitude, vehicle.point.longitude)
@@ -177,9 +166,7 @@ fun ObaMapContent(
                     state = markerState,
                     icon = icon,
                     zIndex = 1f,
-                    onInfoWindowClick = {
-                        openVehicleTripDetails(context, vehicle.status, focusedStopId)
-                    },
+                    onInfoWindowClick = { callbacks.onVehicleInfoWindowClick(vehicle.status) },
                 ) {
                     VehicleInfoWindow(vehicle.status, vehicleResponse)
                 }
@@ -211,51 +198,11 @@ fun ObaMapContent(
                     visible = snapshot.bikeshareVisible && band != BikeBand.HIDDEN,
                     // false: also show the info window (the legacy markerClicked did both).
                     onClick = { callbacks.onBikeClick(bike.station); false },
-                    onInfoWindowClick = { openBikeDeepLink(context, bike.station) },
+                    onInfoWindowClick = { callbacks.onBikeInfoWindowClick(bike.station) },
                 ) {
                     BikeInfoWindow(bike.station)
                 }
             }
         }
     }
-}
-
-/** Deep links into TripDetails for the tapped vehicle, scoped to the focused stop when there is one. */
-private fun openVehicleTripDetails(
-    context: Context,
-    status: ObaTripStatus,
-    focusedStopId: String?,
-) {
-    val builder = TripDetailsActivity.Builder(context, status.activeTripId)
-        .setScrollMode(TripDetailsActivity.SCROLL_MODE_VEHICLE)
-        .setUpMode("back")
-    if (focusedStopId != null) {
-        builder.setStopId(focusedStopId)
-    }
-    builder.start()
-}
-
-/**
- * The bike info-window "more info" tap. A proof-of-concept deep link hard-coded to the Tampa region's
- * Hopr app (preserved verbatim from the legacy BikeStationOverlay.onInfoWindowClick).
- */
-private fun openBikeDeepLink(context: Context, station: BikeRentalStation) {
-    val region = Application.get().currentRegion ?: return
-    if (region.id != RegionUtils.TAMPA_REGION_ID.toLong()) {
-        return
-    }
-    ObaAnalytics.reportUiEvent(
-        FirebaseAnalytics.getInstance(context),
-        Application.get().plausibleInstance,
-        PlausibleAnalytics.REPORT_BIKE_EVENT_URL,
-        context.getString(
-            if (station.isFloatingBike) {
-                R.string.analytics_label_bike_station_balloon_clicked
-            } else {
-                R.string.analytics_label_floating_bike_balloon_clicked
-            }
-        ),
-        null,
-    )
-    UIUtils.launchTampaHoprApp(context)
 }

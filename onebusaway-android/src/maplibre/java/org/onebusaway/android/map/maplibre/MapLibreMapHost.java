@@ -54,11 +54,14 @@ import org.onebusaway.android.map.ObaMapHost;
 import org.onebusaway.android.map.RouteMapController;
 import org.onebusaway.android.map.StopMapController;
 import org.onebusaway.android.map.bike.BikeshareMapController;
+import org.onebusaway.android.map.MapNavigation;
 import org.onebusaway.android.map.MapViewModel;
+import org.onebusaway.android.map.render.BikeMarker;
 import org.onebusaway.android.map.render.GeoPoint;
 import org.onebusaway.android.map.render.MapRenderState;
 import org.onebusaway.android.map.render.RoutePolyline;
 import org.onebusaway.android.map.render.StopMarker;
+import org.onebusaway.android.map.render.VehicleMarker;
 import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.ui.weather.RegionCallback;
 import org.onebusaway.android.util.LayerUtils;
@@ -325,7 +328,8 @@ public class MapLibreMapHost
 
         // Map / marker clicks. A stop tap focuses + recenters; a tap on empty map clears focus;
         // vehicle/bike taps fall through (return false) so the classic title/snippet info window
-        // shows (the rich Google Compose info windows are a Google-flavor enhancement).
+        // shows (the rich Google Compose info windows are a Google-flavor enhancement). Tapping that
+        // info window deep links via the shared MapNavigation (same policy as the Google host).
         mMap.addOnMapClickListener(point -> {
             onMapTapped(point);
             return false;
@@ -335,6 +339,20 @@ public class MapLibreMapHost
             StopMarker stop = mRenderer.stopForMarker(marker);
             if (stop != null) {
                 onStopTapped(stop.getStop());
+                return true;
+            }
+            return false;
+        });
+
+        mMap.setOnInfoWindowClickListener(marker -> {
+            VehicleMarker vehicle = mRenderer.vehicleForMarker(marker);
+            if (vehicle != null) {
+                MapNavigation.openVehicleTripDetails(mActivity, vehicle.getStatus(), mFocusStopId);
+                return true;
+            }
+            BikeMarker bike = mRenderer.bikeForMarker(marker);
+            if (bike != null) {
+                MapNavigation.openBikeDeepLink(mActivity, bike.getStation());
                 return true;
             }
             return false;

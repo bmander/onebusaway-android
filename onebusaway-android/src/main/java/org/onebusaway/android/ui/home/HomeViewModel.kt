@@ -64,7 +64,6 @@ class HomeViewModel(
     private var selectedItem: HomeNavItem = readNavItem(savedState) ?: HomeNavItem.NEARBY
     private var environment = HomeEnvironment()
     private var dialog: HomeDialog = HomeDialog.None
-    private var helpShowContactUs: Boolean = true
     private var mapLoading: Boolean = false
     // The sheet's last resting position, reported up from the screen; drives the map padding/recenter
     // side-effects + the tutorial gate. Pure coordination state (no Compose reads it), so it's a plain
@@ -219,28 +218,6 @@ class HomeViewModel(
         recompute()
     }
 
-    fun showHelp(showContactUs: Boolean) {
-        helpShowContactUs = showContactUs
-        dialog = HomeDialog.Help
-        recompute()
-    }
-
-    fun showWhatsNew() {
-        dialog = HomeDialog.WhatsNew
-        recompute()
-    }
-
-    /** The arrival-color legend (Help menu). */
-    fun showLegend() {
-        dialog = HomeDialog.Legend
-        recompute()
-    }
-
-    fun dismissDialog() {
-        dialog = HomeDialog.None
-        recompute()
-    }
-
     /**
      * Refreshes/resolves the current region (replaces HomeActivity.checkRegionStatus + ObaRegionsTask).
      * The repository performs the region model writes on Dispatchers.IO; this maps the outcome to the
@@ -333,7 +310,7 @@ class HomeViewModel(
 
     private fun recompute() {
         _uiState.value = buildState(
-            selectedItem, navItems, environment, dialog, helpShowContactUs,
+            selectedItem, navItems, environment, dialog,
             focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering
         )
     }
@@ -374,7 +351,6 @@ internal fun buildState(
     navItems: List<HomeNavItem>,
     environment: HomeEnvironment,
     dialog: HomeDialog,
-    helpShowContactUs: Boolean,
     focusedStop: FocusedStop? = null,
     focusedBikeStationId: String? = null,
     mapLoading: Boolean = false,
@@ -399,7 +375,6 @@ internal fun buildState(
         layersFabVisible = nearby && environment.bikeshareEnabled,
         bikeshareActive = environment.bikeshareActive,
         dialog = dialog,
-        helpShowContactUs = helpShowContactUs,
         showListSortMenu = listTab,
         showListClearMenu = starredTab,
     )

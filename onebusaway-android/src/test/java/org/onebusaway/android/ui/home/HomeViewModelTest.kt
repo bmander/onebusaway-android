@@ -293,18 +293,6 @@ class HomeViewModelTest {
         assertEquals(stop, viewModel(savedState = handle).uiState.value.focusedStop)
     }
 
-    // --- dialogs ---
-
-    @Test
-    fun `showing and dismissing the help dialog updates state`() = runTest {
-        val vm = viewModel()
-        vm.showHelp(showContactUs = false)
-        assertEquals(HomeDialog.Help, vm.uiState.value.dialog)
-        assertFalse(vm.uiState.value.helpShowContactUs)
-        vm.dismissDialog()
-        assertEquals(HomeDialog.None, vm.uiState.value.dialog)
-    }
-
     // --- region refresh (events + manual-picker dialog) ---
 
     @Test
@@ -498,7 +486,7 @@ class HomeStateTest {
         mapLoading: Boolean = false,
         focusedStop: FocusedStop? = null,
     ) = buildState(
-        selected, emptyList(), env, HomeDialog.None, true,
+        selected, emptyList(), env, HomeDialog.None,
         focusedStop = focusedStop, mapLoading = mapLoading,
     )
 

@@ -71,6 +71,7 @@ import org.onebusaway.android.ui.home.DefaultWeatherRepository
 import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
 import org.onebusaway.android.ui.home.FocusedStop
 import org.onebusaway.android.ui.home.HelpAction
+import org.onebusaway.android.ui.home.HelpViewModel
 import org.onebusaway.android.ui.home.HomeEnvironment
 import org.onebusaway.android.ui.home.HomeCallbacks
 import org.onebusaway.android.ui.home.HomeEvent
@@ -148,6 +149,9 @@ class HomeActivity : AppCompatActivity(),
         viewModelFactory { initializer { WeatherViewModel(DefaultWeatherRepository()) } }
     }
 
+    // The help / what's-new / legend dialogs feature module. Activity-scoped.
+    private val helpViewModel: HelpViewModel by viewModels()
+
     // The host can't call requestPermissions() itself (it's neither Activity nor Fragment), so it asks
     // through MapHostDeps and we drive the real launcher, delivering the outcome back to the host.
     private val permissionLauncher = registerForActivityResult(
@@ -216,7 +220,6 @@ class HomeActivity : AppCompatActivity(),
             onHelpAction = ::onHelpAction,
             onWhatsNewDismissed = ::onWhatsNewDismissed,
             onRegionChosen = viewModel::onRegionChosen,
-            onDismissDialog = viewModel::dismissDialog,
             onSheetSettled = viewModel::onSheetSettled,
             onClearFocus = viewModel::requestClearMapFocus,
             onArrivalsLoaded = ::onArrivalsLoaded,
@@ -245,6 +248,7 @@ class HomeActivity : AppCompatActivity(),
                 surveyViewModel = surveyViewModel,
                 donationViewModel = donationViewModel,
                 weatherViewModel = weatherViewModel,
+                helpViewModel = helpViewModel,
                 listVms = listVms,
                 callbacks = homeCallbacks,
             )
@@ -410,7 +414,7 @@ class HomeActivity : AppCompatActivity(),
             HomeNavItem.SETTINGS ->
                 startActivity(Intent(this@HomeActivity, SettingsActivity::class.java))
             // Hide "Contact Us" when a custom API URL is set (no contact email to use).
-            HomeNavItem.HELP -> viewModel.showHelp(TextUtils.isEmpty(Application.get().customApiUrl))
+            HomeNavItem.HELP -> helpViewModel.showMenu(TextUtils.isEmpty(Application.get().customApiUrl))
             HomeNavItem.SEND_FEEDBACK -> goToSendFeedBack()
             HomeNavItem.OPEN_SOURCE ->
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.open_source_github))))
@@ -521,7 +525,7 @@ class HomeActivity : AppCompatActivity(),
         else -> Unit
     }
 
-    // --- Help / What's-New dialog actions (passed to HomeScreen as lambdas) ---
+    // --- Help-menu actions that are Activity operations (the dialog-opening ones live in HelpFeature) ---
 
     private fun onHelpAction(action: HelpAction) {
         when (action) {
@@ -529,8 +533,6 @@ class HomeActivity : AppCompatActivity(),
                 ShowcaseViewUtils.resetAllTutorials(this)
                 NavHelp.goHome(this, true)
             }
-            HelpAction.LEGEND -> viewModel.showLegend()
-            HelpAction.WHATS_NEW -> viewModel.showWhatsNew()
             HelpAction.AGENCIES -> AgenciesActivity.start(this)
             HelpAction.TWITTER -> {
                 var twitterUrl = TWITTER_URL
@@ -549,6 +551,8 @@ class HomeActivity : AppCompatActivity(),
                 )
             }
             HelpAction.CONTACT_US -> goToSendFeedBack()
+            // LEGEND / WHATS_NEW open dialogs — handled by HelpFeature against HelpViewModel.
+            HelpAction.LEGEND, HelpAction.WHATS_NEW -> Unit
         }
     }
 
@@ -558,35 +562,6 @@ class HomeActivity : AppCompatActivity(),
         if (showOptOut) {
             ShowcaseViewUtils.showOptOutDialog(this)
         }
-    }
-
-    /**
-     * Show the "What's New" message if a new version was just installed
-     *
-     * @return true if a new version was just installed, false if not
-     */
-    @Suppress("DEPRECATION")
-    private fun autoShowWhatsNew(): Boolean {
-        val settings = Application.getPrefs()
-
-        // Get the current app version.
-        val pm = packageManager
-        val appInfo = try {
-            pm.getPackageInfo(packageName, PackageManager.GET_META_DATA)
-        } catch (e: PackageManager.NameNotFoundException) {
-            // Do nothing, perhaps we'll get to show it again? Or never.
-            return false
-        }
-
-        val oldVer = settings.getInt(WHATS_NEW_VER, 0)
-        val newVer = appInfo.versionCode
-
-        if (oldVer < newVer && !isFinishing) {
-            viewModel.showWhatsNew()
-            PreferenceUtils.saveInt(WHATS_NEW_VER, appInfo.versionCode)
-            return true
-        }
-        return false
     }
 
     /**
@@ -710,7 +685,7 @@ class HomeActivity : AppCompatActivity(),
      */
     private fun onRegionResolved(currentRegionChanged: Boolean) {
         // Show "What's New" (which might need refreshed Regions API contents)
-        val update = autoShowWhatsNew()
+        val update = helpViewModel.maybeAutoShowWhatsNew()
 
         // Rebuild the region-gated nav items if the region changed, or if we just installed a new version
         if (currentRegionChanged || update) {
@@ -905,8 +880,6 @@ class HomeActivity : AppCompatActivity(),
 
     companion object {
         const val TWITTER_URL = "http://mobile.twitter.com/onebusaway"
-
-        private const val WHATS_NEW_VER = "whatsNewVer"
 
         // The remembered nav tab, keyed by HomeNavItem.name. STATE_SELECTED_POSITION is the legacy
         // int key (NavigationDrawerFragment's), read once as a migration fallback for old installs.

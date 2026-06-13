@@ -72,7 +72,6 @@ class HomeCallbacks(
     val onHelpAction: (HelpAction) -> Unit,
     val onWhatsNewDismissed: () -> Unit,
     val onRegionChosen: (ObaRegion) -> Unit,
-    val onDismissDialog: () -> Unit,
     val onSheetSettled: (ArrivalsSheetState, Int) -> Unit,
     val onClearFocus: () -> Unit,
     val onArrivalsLoaded: (ObaArrivalInfoResponse) -> Unit,
@@ -116,6 +115,7 @@ fun HomeScreen(
     surveyViewModel: SurveyViewModel,
     donationViewModel: DonationViewModel,
     weatherViewModel: WeatherViewModel,
+    helpViewModel: HelpViewModel,
     listVms: HomeListViewModels,
     // All the screen's tap/UI lambdas, bundled (see [HomeCallbacks]); brought into scope below via
     // `with` so the body references them unqualified.
@@ -317,13 +317,14 @@ fun HomeScreen(
             }
         }
 
-        HomeDialogs(
-            dialog = state.dialog,
-            showContactUs = state.helpShowContactUs,
+        HomeDialogs(dialog = state.dialog, onRegionChosen = onRegionChosen)
+
+        // The help / what's-new / legend dialogs feature module (self-rendering from its ViewModel; the
+        // genuinely-Activity actions + the what's-new opt-out are forwarded to the host).
+        HelpFeature(
+            viewModel = helpViewModel,
             onHelpAction = onHelpAction,
             onWhatsNewDismissed = onWhatsNewDismissed,
-            onRegionChosen = onRegionChosen,
-            onDismiss = onDismissDialog
         )
     }
     }

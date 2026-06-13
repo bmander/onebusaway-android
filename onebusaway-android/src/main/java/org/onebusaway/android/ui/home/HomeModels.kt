@@ -110,7 +110,6 @@ data class HomeUiState(
     val bikeshareActive: Boolean = false,
     // dialogs (HomeDialog lives in HomeDialogs.kt)
     val dialog: HomeDialog = HomeDialog.None,
-    val helpShowContactUs: Boolean = true,
     // toolbar menu groups — derived from selectedItem. Sort shows on any list tab; clear only on the
     // two starred tabs (recents/reminders aren't user-clearable from here).
     val showListSortMenu: Boolean = false,

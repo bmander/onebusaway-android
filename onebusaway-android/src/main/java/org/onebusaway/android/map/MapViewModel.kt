@@ -15,32 +15,70 @@
  */
 package org.onebusaway.android.map
 
+import android.graphics.Color
+import android.location.Location
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filterNot
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import org.onebusaway.android.directions.util.OTPConstants
+import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.elements.ObaReferences
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaShape
+import org.onebusaway.android.io.elements.ObaShapeElement
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.elements.Status
+import org.onebusaway.android.io.request.ObaStopsForLocationResponse
+import org.onebusaway.android.io.request.ObaStopsForRouteResponse
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse
+import org.onebusaway.android.map.bike.BikeAction
+import org.onebusaway.android.map.bike.BikeStationsRepository
+import org.onebusaway.android.map.bike.DefaultBikeStationsRepository
+import org.onebusaway.android.map.bike.bikeAction
+import org.onebusaway.android.map.bike.filterStations
 import org.onebusaway.android.map.render.BikeMarker
+import org.onebusaway.android.map.render.CameraCommand
+import org.onebusaway.android.map.render.CameraSnapshot
 import org.onebusaway.android.map.render.GeoPoint
 import org.onebusaway.android.map.render.MapRenderState
 import org.onebusaway.android.map.render.RoutePolyline
 import org.onebusaway.android.map.render.StopMarker
 import org.onebusaway.android.map.render.VehicleMarker
 import org.onebusaway.android.map.render.primaryRouteType
+import org.onebusaway.android.app.Application
+import org.onebusaway.android.util.LocationUtils
+import org.onebusaway.android.util.RegionUtils
+import org.onebusaway.android.util.UIUtils
+import org.opentripplanner.api.model.EncodedPolylineBean
+import org.opentripplanner.api.model.Itinerary
+import org.opentripplanner.api.model.Leg
+import org.opentripplanner.api.model.VertexType
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
+import org.opentripplanner.routing.core.TraverseMode
 
 /**
  * The route-mode header content (the old `R.id.route_info` overlay): the route's short/long name +
- * agency, or a loading state while the route loads. Published by [RouteMapController] and rendered as
- * a Compose overlay by the home screen. Null when not in route mode.
+ * agency, or a loading state while the route loads. Published while in [MapMode.Route] and rendered
+ * as a Compose overlay by the home screen. Null when not in route mode.
  */
 data class RouteHeader(
     val loading: Boolean,
@@ -50,24 +88,391 @@ data class RouteHeader(
 )
 
 /**
- * The map's view model: the single owner of the flavor-neutral [MapRenderState] and of the logic
- * that shapes the raw `io/elements` responses into render markers. This used to be duplicated in
- * both flavor hosts (`GoogleMapHost` + `MapLibreMapHost`) — accumulating stops with the 200-cap,
- * resolving icon route types, filtering vehicles, building bike markers; folding it here both
- * de-duplicates the hosts and (as an androidx [ViewModel]) lets the rendered state survive a
- * configuration change. The coroutine controllers (StopMapController, RouteMapController, …) stay as
- * the loaders that drive these methods; the hosts become thin renderers of [renderState].
+ * The map's view model and single source of truth. It owns the flavor-neutral [MapRenderState]
+ * (overlays + padding + the camera-command write path), shapes the raw `io/elements` responses into
+ * render markers, **and** orchestrates loading: [setMode] launches the reactive loaders that replaced
+ * the old `MapModeController` set (StopMapController / RouteMapController / DirectionsMapController /
+ * BikeshareMapController). The loaders react to the live camera ([onCameraIdle]) on
+ * [viewModelScope], so there is no imperative host driving them — a flavor adapter only renders
+ * [renderState] and feeds the camera + taps back in.
  *
- * Scoped to the hosting Activity (the host obtains it via `ViewModelProvider`), so all map screens in
- * an Activity share one render model.
+ * Scoped to the hosting Activity (obtained via `ViewModelProvider` / `by viewModels()`), so all map
+ * screens in an Activity share one model, and the rendered state survives a configuration change.
+ *
+ * A plain [ViewModel] (not `AndroidViewModel`): like the other feature view models here it reaches
+ * the app context via the `Application.get()` singleton, kept off the construction path (lazy repos)
+ * so the model stays constructible in JVM unit tests.
  */
 class MapViewModel : ViewModel() {
 
     val renderState = MapRenderState()
 
-    // The route-mode header (route name/agency or loading), published by RouteMapController via the
-    // host and rendered as a Compose overlay by the home screen. Null outside route mode.
+    private val stopsRepository: StopsRepository by lazy { DefaultStopsRepository(Application.get()) }
+
+    private val routeRepository by lazy { DefaultRouteMapRepository(Application.get()) }
+
+    private val bikeStationsRepository: BikeStationsRepository by lazy {
+        DefaultBikeStationsRepository(Application.get())
+    }
+
+    // ----- Camera read-back (the hot path) -----
+
+    // The live camera, published by the flavor adapter on every camera-idle. The reactive loaders
+    // debounce + dedup off this, replacing the controllers' MapWatcher/onMapChanged callbacks.
+    private val _camera = MutableStateFlow<CameraSnapshot?>(null)
+
+    val camera: StateFlow<CameraSnapshot?> = _camera.asStateFlow()
+
+    fun onCameraIdle(snapshot: CameraSnapshot) {
+        _camera.value = snapshot
+    }
+
+    // ----- Loading / region status + one-shot effects -----
+
+    private val _progress = MutableStateFlow(false)
+
+    /** Whether a viewport/route load is in flight (the old `Callback.showProgress`). */
+    val progress: StateFlow<Boolean> = _progress.asStateFlow()
+
+    private val _regionValid = MutableStateFlow(false)
+
+    /** True once stops loaded for an in-range viewport; false when the viewport is out of range. */
+    val regionValid: StateFlow<Boolean> = _regionValid.asStateFlow()
+
+    private val _effects = MutableSharedFlow<MapEffect>(extraBufferCapacity = 8)
+
+    /** One-shot events that need an Activity (e.g. the out-of-range prompt). */
+    val effects: SharedFlow<MapEffect> = _effects.asSharedFlow()
+
+    // ----- Bikeshare layer toggle (overlays every mode) -----
+
+    // Defaults off; the host pushes the real `LayerUtils.isBikeshareLayerVisible()` value on resume
+    // (kept off the construction path so the model stays JVM-constructible, like WeatherViewModel).
+    private val _bikeshareVisible = MutableStateFlow(false)
+
+    fun setBikeshareLayerVisible(visible: Boolean) {
+        _bikeshareVisible.value = visible
+    }
+
+    // ----- Mode + the loaders it drives -----
+
+    private var currentMode: MapMode? = null
+
+    private var stopJob: Job? = null
+
+    private var routeJob: Job? = null
+
+    private var vehicleJob: Job? = null
+
+    private var bikeJob: Job? = null
+
+    // Route-mode loader state (the old RouteMapController fields).
+    private var routeId: String? = null
+
+    private var lineOverlayColor: Int = Color.BLUE
+
+    private var zoomToRoute = false
+
+    private var zoomIncludeClosestVehicle = false
+
+    // Directions-mode loader state.
+    private var selectedBikeStationIds: List<String>? = null
+
+    private val directionsMarkerIds = HashSet<Int>()
+
+    /**
+     * Switches what the map shows. Cancels the prior mode's loaders, clears its transient overlays
+     * (keeping the focused stop), then launches the new mode's loaders. Re-entering the same route
+     * is a no-op (the overlays + poll + header stay), matching the legacy "returning to the route
+     * view just shows the header" path.
+     */
+    fun setMode(mode: MapMode) {
+        val prev = currentMode
+        if (mode is MapMode.Route && prev is MapMode.Route && prev.routeId == mode.routeId) {
+            return
+        }
+
+        cancelModeJobs()
+        // Leaving the prior mode: clear its transient overlays (keep the focused stop, like the
+        // controllers' clearCurrentState / removeStopOverlay(false)).
+        clearRoute()
+        clearVehicles()
+        clearDirectionsMarkers()
+        clearStops(false)
+        setRouteHeader(null)
+        _progress.value = false
+        selectedBikeStationIds = null
+        currentMode = mode
+
+        when (mode) {
+            is MapMode.Stop -> stopJob = launchStopLoader()
+            is MapMode.Route -> startRouteMode(mode)
+            is MapMode.Directions -> {
+                selectedBikeStationIds = bikeStationIdsFromItinerary(mode.itinerary)
+                startDirectionsMode(mode.itinerary)
+            }
+        }
+        bikeJob = launchBikeLoader(mode)
+    }
+
+    private fun cancelModeJobs() {
+        stopJob?.cancel()
+        routeJob?.cancel()
+        vehicleJob?.cancel()
+        bikeJob?.cancel()
+        stopJob = null
+        routeJob = null
+        vehicleJob = null
+        bikeJob = null
+    }
+
+    // ----- Stop loader (replaces StopMapController) -----
+
+    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+    private fun launchStopLoader(): Job = viewModelScope.launch {
+        // The "is the last load still good for this viewport?" state (the old StopsResponse): the
+        // camera the last completed load was made at + whether it had a response + its limit flag.
+        var lastLoad: CameraSnapshot? = null
+        var lastHadResponse = false
+        var lastLimitExceeded = false
+
+        _camera
+            .filterNotNull()
+            .debounce(STOP_LOAD_DEBOUNCE_MS)
+            .filterNot { next -> stopRequestFulfilled(lastLoad, lastHadResponse, lastLimitExceeded, next) }
+            .flatMapLatest { snapshot ->
+                // flatMapLatest cancels an in-flight load when a newer viewport arrives, matching the
+                // controller's `loadJob?.cancel()`; a cancelled load leaves lastLoad untouched.
+                flow {
+                    _progress.value = true
+                    val response = stopsRepository
+                        .getStops(snapshot.center.toLocation(), snapshot.latSpan, snapshot.lonSpan)
+                        .getOrNull()
+                    lastLoad = snapshot
+                    lastHadResponse = response != null
+                    lastLimitExceeded = response?.limitExceeded ?: false
+                    emit(response)
+                }
+            }
+            .collect { response ->
+                _progress.value = false
+                onStopsLoaded(response)
+            }
+    }
+
+    private fun onStopsLoaded(response: ObaStopsForLocationResponse?) {
+        if (response == null) {
+            // Initial install can generate a null response if all is still ok, so do nothing (#615).
+            return
+        }
+        if (response.code != ObaApi.OBA_OK) {
+            MapUtils.showMapError(response)
+            return
+        }
+        if (response.outOfRange) {
+            notifyOutOfRange()
+            return
+        }
+
+        // Workaround for https://github.com/OneBusAway/onebusaway-application-modules/issues/59 where
+        // the outOfRange element is false even if the location was out of range. We also make sure the
+        // list of stops is empty, otherwise we'd screen out valid responses.
+        val myLocation = Application.getLastKnownLocation(Application.get())
+        val region = Application.get().currentRegion
+        if (myLocation != null && region != null) {
+            var inRegion = true // Assume user is in region unless we detect otherwise.
+            try {
+                inRegion = RegionUtils.isLocationWithinRegion(myLocation, region)
+            } catch (e: IllegalArgumentException) {
+                // Issue #69 - some devices are providing invalid lat/long coordinates.
+                Log.e(
+                    TAG, "Invalid latitude or longitude - lat = " + myLocation.latitude +
+                            ", long = " + myLocation.longitude
+                )
+            }
+            if (!inRegion && response.stops.isEmpty()) {
+                Log.d(TAG, "Device location is outside region range, notifying...")
+                notifyOutOfRange()
+                return
+            }
+        }
+
+        _regionValid.value = true
+        showStops(response.stops.toList(), response)
+    }
+
+    private fun notifyOutOfRange() {
+        _regionValid.value = false
+        _effects.tryEmit(MapEffect.OutOfRange)
+    }
+
+    // ----- Route loader (replaces RouteMapController) -----
+
+    private fun startRouteMode(mode: MapMode.Route) {
+        routeId = mode.routeId
+        zoomToRoute = mode.zoomToRoute
+        zoomIncludeClosestVehicle = mode.zoomIncludeClosestVehicle
+        setRouteHeader(RouteHeader(loading = true, shortName = "", longName = "", agency = ""))
+        _progress.value = true
+        loadRoute()
+        startVehiclePolling(0L)
+    }
+
+    private fun loadRoute() {
+        val id = routeId ?: return
+        routeJob?.cancel()
+        routeJob = viewModelScope.launch {
+            onRouteLoaded(routeRepository.getRoute(id).getOrNull())
+        }
+    }
+
+    private fun onRouteLoaded(response: ObaStopsForRouteResponse?) {
+        if (response == null || response.code != ObaApi.OBA_OK) {
+            MapUtils.showMapError(response)
+            return
+        }
+        val route = response.getRoute(response.routeId)
+        setRouteHeader(
+            RouteHeader(
+                loading = false,
+                shortName = UIUtils.formatDisplayText(UIUtils.getRouteDisplayName(route)),
+                longName = UIUtils.formatDisplayText(UIUtils.getRouteDescription(route)),
+                agency = response.getAgency(route.agencyId).name ?: "",
+            )
+        )
+        route.color?.let { lineOverlayColor = it }
+        setRoute(lineOverlayColor, response.shapes, clear = true)
+        showStops(response.stops, response)
+        _progress.value = false
+        if (zoomToRoute) {
+            dispatchCamera(CameraCommand.FitToRoute)
+            zoomToRoute = false
+        }
+    }
+
+    /**
+     * (Re)starts the real-time vehicle poll: after [initialDelayMs], reload vehicles every
+     * [VEHICLE_REFRESH_PERIOD_MS] measured from each load's completion (so network time is excluded),
+     * matching the legacy `postDelayed`-after-`onLoadFinished` cadence. The loop continues on a fixed
+     * cadence even if a load fails.
+     */
+    private fun startVehiclePolling(initialDelayMs: Long) {
+        vehicleJob?.cancel()
+        vehicleJob = viewModelScope.launch {
+            if (initialDelayMs > 0L) {
+                delay(initialDelayMs)
+            }
+            while (isActive) {
+                val id = routeId
+                if (id != null) {
+                    onVehiclesLoaded(id, routeRepository.getVehicles(id).getOrNull())
+                }
+                delay(VEHICLE_REFRESH_PERIOD_MS)
+            }
+        }
+    }
+
+    private fun onVehiclesLoaded(routeId: String, response: ObaTripsForRouteResponse?) {
+        if (response == null || response.code != ObaApi.OBA_OK) {
+            MapUtils.showMapError(response)
+            return
+        }
+        val routes = hashSetOf(routeId)
+        updateVehicles(routes, response)
+        if (zoomIncludeClosestVehicle) {
+            dispatchCamera(CameraCommand.IncludeClosestVehicle(routes, response))
+            zoomIncludeClosestVehicle = false
+        }
+    }
+
+    // ----- Directions loader (replaces DirectionsMapController) -----
+
+    private fun startDirectionsMode(itinerary: Itinerary) {
+        val legs = itinerary.legs
+        if (legs.isEmpty()) {
+            return
+        }
+        val firstLeg = legs.first()
+        val lastLeg = legs.last()
+        val startLat = firstLeg.from.lat
+        val startLon = firstLeg.from.lon
+        val endLat = lastLeg.to.lat
+        val endLon = lastLeg.to.lon
+
+        var hasRoute = false
+        for (leg in legs) {
+            val shape = LegShape(leg.legGeometry)
+            if (shape.length > 0) {
+                hasRoute = true
+                // Append each leg's polyline in its own color (clear=false), like the legacy controller.
+                setRoute(resolveLegColor(leg), arrayOf<ObaShape>(shape), clear = false)
+            }
+        }
+
+        directionsMarkerIds.add(addMarker(startLat, startLon, HUE_GREEN))
+        directionsMarkerIds.add(addMarker(endLat, endLon, HUE_RED))
+
+        if (hasRoute) {
+            dispatchCamera(CameraCommand.FitToItinerary)
+        } else {
+            dispatchCamera(CameraCommand.Recenter(startLat, startLon, animate = false, applyRouteBias = false))
+            dispatchCamera(CameraCommand.SetZoom(MapParams.DEFAULT_ZOOM.toFloat()))
+        }
+    }
+
+    private fun clearDirectionsMarkers() {
+        directionsMarkerIds.forEach { removeMarker(it) }
+        directionsMarkerIds.clear()
+    }
+
+    // ----- Bike loader (replaces BikeshareMapController) -----
+
+    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+    private fun launchBikeLoader(mode: MapMode): Job = viewModelScope.launch {
+        val directions = mode is MapMode.Directions
+        combine(
+            _camera.filterNotNull().debounce(STOP_LOAD_DEBOUNCE_MS),
+            _bikeshareVisible,
+        ) { camera, layerVisible -> camera to layerVisible }
+            // collectLatest so a newer viewport cancels an in-flight station load (the old loadJob?.cancel()).
+            .collectLatest { (camera, layerVisible) ->
+                if (!Application.isBikeshareEnabled()) {
+                    return@collectLatest
+                }
+                when (bikeAction(directions, selectedBikeStationIds, layerVisible)) {
+                    BikeAction.LEAVE -> {}
+                    BikeAction.CLEAR -> clearBikeStations()
+                    BikeAction.SHOW -> {
+                        val stations = bikeStationsRepository
+                            .getStations(camera.southWest.toLocation(), camera.northEast.toLocation())
+                            .getOrNull() ?: return@collectLatest
+                        filterStations(stations, selectedBikeStationIds)?.let {
+                            showBikeStations(it, bikeshareVisible = directions || layerVisible)
+                        }
+                    }
+                }
+            }
+    }
+
+    private fun bikeStationIdsFromItinerary(itinerary: Itinerary): List<String> {
+        val ids = ArrayList<String>()
+        for (leg in itinerary.legs) {
+            if (TraverseMode.BICYCLE.toString() == leg.mode) {
+                if (VertexType.BIKESHARE == leg.from.vertexType) {
+                    ids.add(leg.from.bikeShareId)
+                }
+                if (VertexType.BIKESHARE == leg.to.vertexType) {
+                    ids.add(leg.to.bikeShareId)
+                }
+            }
+        }
+        return ids
+    }
+
+    // The route-mode header, published while in route mode and rendered as a Compose overlay by the
+    // home screen. Null outside route mode.
     private val _routeHeader = MutableStateFlow<RouteHeader?>(null)
+
     val routeHeader: StateFlow<RouteHeader?> = _routeHeader.asStateFlow()
 
     fun setRouteHeader(header: RouteHeader?) {
@@ -90,6 +495,8 @@ class MapViewModel : ViewModel() {
     fun dispatchMapCommand(command: MapCommand) {
         _mapCommands.tryEmit(command)
     }
+
+    private fun dispatchCamera(command: CameraCommand) = renderState.dispatchCamera(command)
 
     // Stop accumulation across pans (capped, keeping the focused stop) + the routes cache used to
     // resolve a stop's icon route type and to report a stop's routes to focus listeners.
@@ -230,7 +637,46 @@ class MapViewModel : ViewModel() {
 
     fun removeMarker(id: Int) = renderState.removeMarker(id)
 
+    private fun GeoPoint.toLocation(): Location = LocationUtils.makeLocation(latitude, longitude)
+
+    private fun resolveLegColor(leg: Leg): Int {
+        // Color for transit routes when planning a trip.
+        if (TraverseMode.valueOf(leg.mode).isTransit) {
+            return OTPConstants.OTP_TRANSIT_COLOR
+        }
+        // Use the route's custom color if available.
+        leg.routeColor?.let { hex ->
+            try {
+                return java.lang.Long.decode("0xFF$hex").toInt()
+            } catch (ex: Exception) {
+                Log.e(TAG, "Error parsing color=$hex: ${ex.message}")
+            }
+        }
+        // Defaults to grey, which represents walking.
+        return Color.GRAY
+    }
+
+    /** An [ObaShape] over an OTP [EncodedPolylineBean] leg geometry (ported from DirectionsMapController). */
+    private class LegShape(private val bean: EncodedPolylineBean) : ObaShape {
+        override fun getLength(): Int = bean.length
+        override fun getRawLevels(): String = bean.levels
+        override fun getLevels(): List<Int> = ObaShapeElement.decodeLevels(bean.levels, bean.length)
+        override fun getPoints(): List<Location> = ObaShapeElement.decodeLine(bean.points, bean.length)
+        override fun getRawPoints(): String = bean.points
+    }
+
     companion object {
+        private const val TAG = "MapViewModel"
+
         private const val FUZZY_MAX_STOP_COUNT = 200
+
+        // Debounce before reacting to a camera move, matching the old MapWatcher poll cadence.
+        private const val STOP_LOAD_DEBOUNCE_MS = 250L
+
+        // BitmapDescriptorFactory hues for the directions start/end pins (green/red), kept as literals
+        // since the map package can't depend on the Google Maps classes.
+        private const val HUE_GREEN = 120.0f
+
+        private const val HUE_RED = 0.0f
     }
 }

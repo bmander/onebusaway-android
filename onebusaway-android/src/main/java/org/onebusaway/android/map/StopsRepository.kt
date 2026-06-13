@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.request.ObaStopsForLocationRequest
 import org.onebusaway.android.io.request.ObaStopsForLocationResponse
+import org.onebusaway.android.map.render.CameraSnapshot
 
 /**
  * Loads the stops visible in the current map viewport. Replaces the `StopsLoader`
@@ -97,4 +98,36 @@ internal fun zoomFulfills(
         return false
     }
     return true
+}
+
+/**
+ * The whole-request replacement for the legacy `StopsResponse.fulfills`: is the new viewport [next]
+ * already satisfied by the last completed stop load, so no reload is needed? The reactive stop loader
+ * in [MapViewModel] uses this in place of the controller's `lastResponse?.fulfills(request)` check.
+ *
+ * The legacy version compared the request center as an Android [Location] — which has *reference*
+ * equality, so a fresh `getMapCenterAsLocation()` instance almost never matched and the center gate
+ * rarely short-circuited. [CameraSnapshot.center] is a value type, so the center comparison here is
+ * honest value-equality (the intended behavior; see [CameraSnapshot]). The zoom/limit-exceeded half
+ * delegates to [zoomFulfills], unchanged.
+ *
+ * @param last the camera the last completed load was made at, or null if nothing has loaded yet
+ * @param lastHadResponse whether that load produced a non-null response (a null response — e.g. no
+ * API endpoint — fulfilled future same-center viewports, matching the legacy null-response no-op)
+ * @param lastLimitExceeded that response's `limitExceeded` flag
+ * @param next the new viewport
+ */
+internal fun stopRequestFulfilled(
+    last: CameraSnapshot?,
+    lastHadResponse: Boolean,
+    lastLimitExceeded: Boolean,
+    next: CameraSnapshot,
+): Boolean {
+    if (last == null) {
+        return false
+    }
+    if (last.center != next.center) {
+        return false
+    }
+    return zoomFulfills(lastHadResponse, lastLimitExceeded, last.zoom, next.zoom)
 }

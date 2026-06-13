@@ -53,4 +53,43 @@ class BikeStationFilterTest {
     fun `filter ids not present yield an empty list`() {
         assertEquals(emptyList<BikeRentalStation>(), filterStations(all, selectedIds = listOf("z")))
     }
+
+    // --- bikeAction: the pure layer/mode gate from BikeshareMapController.updateData + showBikes ---
+
+    @Test
+    fun `outside directions, bikes follow the layer toggle`() {
+        assertEquals(BikeAction.SHOW, bikeAction(isDirections = false, selectedIds = null, layerVisible = true))
+        assertEquals(BikeAction.CLEAR, bikeAction(isDirections = false, selectedIds = null, layerVisible = false))
+    }
+
+    @Test
+    fun `directions with stations always shows them, ignoring the toggle`() {
+        assertEquals(
+            BikeAction.SHOW,
+            bikeAction(isDirections = true, selectedIds = listOf("a"), layerVisible = false)
+        )
+    }
+
+    @Test
+    fun `directions before its station filter is known leaves the overlay`() {
+        // selectedIds == null in directions mode == "filter not computed yet" → don't touch the overlay.
+        assertEquals(
+            BikeAction.LEAVE,
+            bikeAction(isDirections = true, selectedIds = null, layerVisible = true)
+        )
+    }
+
+    @Test
+    fun `directions with an empty station filter follows the toggle`() {
+        // An itinerary with no bike stations: not a special case, just the toggle (then filterStations
+        // returns null so nothing is drawn).
+        assertEquals(
+            BikeAction.SHOW,
+            bikeAction(isDirections = true, selectedIds = emptyList(), layerVisible = true)
+        )
+        assertEquals(
+            BikeAction.CLEAR,
+            bikeAction(isDirections = true, selectedIds = emptyList(), layerVisible = false)
+        )
+    }
 }

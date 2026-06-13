@@ -116,19 +116,8 @@ public final class StopIconFactory {
             ObaRoute.TYPE_FERRY
     };
 
-    /**
-     * Priority order for determining a stop's primary route type.
-     * Rail/subway/tram/ferry are more visually important than bus at transit hubs.
-     */
-    private static final int[] ROUTE_TYPE_PRIORITY = {
-            ObaRoute.TYPE_RAIL,
-            ObaRoute.TYPE_SUBWAY,
-            ObaRoute.TYPE_TRAM,
-            ObaRoute.TYPE_FERRY,
-            ObaRoute.TYPE_CABLECAR,
-            ObaRoute.TYPE_GONDOLA,
-            ObaRoute.TYPE_FUNICULAR
-    };
+    // (The primary-route-type priority that used to live here is now the pure primaryRouteType() in
+    // src/main, called by GoogleMapHost when it builds StopMarkers.)
 
     private static final float FOCUS_ICON_SCALE = 1.5f;
 

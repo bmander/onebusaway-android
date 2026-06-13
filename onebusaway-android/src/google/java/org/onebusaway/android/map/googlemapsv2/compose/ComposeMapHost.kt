@@ -31,12 +31,12 @@ import org.onebusaway.android.map.render.MapRenderState
 
 /**
  * Bridges the Java [org.onebusaway.android.map.googlemapsv2.GoogleMapHost] onto the
- * android-maps-compose `GoogleMap {}` composable. The host still drives the raw [GoogleMap]
- * imperatively for camera/listeners and hands the ready map back via [onMapReady] (the host
- * implements [OnMapReadyCallback]), but overlay *content* is now declarative: the host pushes it
- * into [renderState] and [ObaMapContent] renders it inside the map. Camera state is still
- * read/written through the raw map, so the composable's CameraPositionState only seeds the initial
- * position and avoids a flash.
+ * android-maps-compose `GoogleMap {}` composable. All overlay *content* is declarative now: the host
+ * mutates [renderState] and [ObaMapContent] renders it; marker/map taps come back through
+ * [callbacks]. The host still holds the ready raw [GoogleMap] (handed back via [onMapReady]) — but
+ * only for camera reads/writes (projection, visible region, animateCamera) and the camera-change
+ * signal that drives stop loading, which have no clean Compose equivalent. CameraPositionState seeds
+ * the initial position (avoiding a flash) and feeds the bike zoom-band; it is not the camera's owner.
  */
 @JvmOverloads
 fun createComposeMapView(

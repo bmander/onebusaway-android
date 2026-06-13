@@ -19,8 +19,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.map.MapCommand
-import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.HomeMapController
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,9 +45,9 @@ class HomeViewModel(
     private val wideAlertsRepo: WideAlertsRepository,
     private val regionRepo: RegionStatusRepository,
     private val startupRepo: StartupPreferencesRepository,
-    // The map layer this VM drives declaratively (padding state + host-level map commands), instead of
-    // HomeActivity translating events into mapHost calls.
-    private val map: MapViewModel,
+    // The narrow slice of the map view model this VM drives (sheet padding, recenter, route mode, clear
+    // focus, region re-zoom) — an interface so this VM stays unit-testable with a fake.
+    private val map: HomeMapController,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -158,7 +157,7 @@ class HomeViewModel(
         when (state) {
             ArrivalsSheetState.Expanded -> {
                 map.setBottomPadding(peekPx)
-                focusedStop?.let { map.dispatchMapCommand(MapCommand.Recenter(it.lat, it.lon)) }
+                focusedStop?.let { map.recenterOnFocusedStop(it.lat, it.lon) }
             }
             ArrivalsSheetState.Collapsed -> map.setBottomPadding(peekPx)
             ArrivalsSheetState.Hidden -> map.setBottomPadding(0)
@@ -193,7 +192,7 @@ class HomeViewModel(
     /** "Show vehicles on map" — collapse the sheet (screen), then switch the map to route mode. */
     fun requestShowRouteOnMap(routeId: String) {
         emit(HomeEvent.CollapseSheet)
-        map.dispatchMapCommand(MapCommand.ShowRoute(routeId))
+        map.showRoute(routeId)
     }
 
     /**
@@ -205,7 +204,7 @@ class HomeViewModel(
      */
     fun requestClearMapFocus() {
         onStopFocused(null)
-        map.dispatchMapCommand(MapCommand.ClearFocus)
+        map.clearFocus()
     }
 
     private fun emit(event: HomeEvent) {
@@ -281,7 +280,7 @@ class HomeViewModel(
      * survey retry) via the one-shot event.
      */
     private fun resolvedRegion(changed: Boolean, name: String?) {
-        map.dispatchMapCommand(MapCommand.RegionChanged(changed))
+        map.onRegionChanged(changed)
         emit(HomeEvent.RegionResolved(changed, name))
     }
 

@@ -15,23 +15,32 @@
  */
 package org.onebusaway.android.map.googlemapsv2.compose
 
+import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapEffect
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.rememberCameraPositionState
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import org.onebusaway.android.R
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.ObaComposeMapAdapter
 import org.onebusaway.android.map.compose.ObaMapCallbacks
@@ -116,9 +125,41 @@ class GoogleComposeAdapter : ObaComposeMapAdapter {
                     .collect { mapViewModel.onCameraIdle(it) }
             }
         }
+        // Declarative styling + my-location, applied only when the view model drives the map (Home).
+        // For the view-owning host path (mapViewModel == null) the host still styles the raw map in
+        // onMapReady, so we leave the defaults untouched there. The blue dot tracks the VM's
+        // permission-derived flag, and the map style is the dark theme or POI-removal (was the host's
+        // onMapReady + initMap UiSettings).
+        val myLocationFlow = remember(mapViewModel) {
+            mapViewModel?.myLocationEnabled ?: MutableStateFlow(false)
+        }
+        val myLocationEnabled by myLocationFlow.collectAsState()
+        val properties = remember(mapViewModel, myLocationEnabled, context) {
+            if (mapViewModel != null) {
+                MapProperties(
+                    isMyLocationEnabled = myLocationEnabled,
+                    mapStyleOptions = resolveMapStyle(context),
+                )
+            } else {
+                MapProperties()
+            }
+        }
+        val uiSettings = remember(mapViewModel) {
+            if (mapViewModel != null) {
+                MapUiSettings(
+                    myLocationButtonEnabled = false,
+                    zoomControlsEnabled = false,
+                    mapToolbarEnabled = false,
+                )
+            } else {
+                MapUiSettings()
+            }
+        }
         GoogleMap(
             modifier = modifier,
             cameraPositionState = cameraPositionState,
+            properties = properties,
+            uiSettings = uiSettings,
             contentPadding = PaddingValues(
                 top = with(density) { padding.topPx.toDp() },
                 bottom = with(density) { padding.bottomPx.toDp() },
@@ -135,4 +176,28 @@ class GoogleComposeAdapter : ObaComposeMapAdapter {
             ObaMapContent(renderState, cameraPositionState, cb)
         }
     }
+}
+
+/** The map style for the current night-mode state: the dark theme, or POI removal in light mode. */
+private fun resolveMapStyle(context: Context): MapStyleOptions =
+    if (isInDarkMode(context)) {
+        MapStyleOptions.loadRawResourceStyle(context, R.raw.dark_map)
+    } else {
+        // Light mode: just hide POIs (ported from GoogleMapHost.onMapReady).
+        MapStyleOptions(
+            "[{\"featureType\":\"poi\",\"elementType\":\"all\",\"stylers\":[{\"visibility\":\"off\"}]}]"
+        )
+    }
+
+/** Mirrors the former GoogleMapHost.inDarkMode: app night-mode override, else the system config. */
+private fun isInDarkMode(context: Context): Boolean {
+    val mode = AppCompatDelegate.getDefaultNightMode()
+    if (mode == AppCompatDelegate.MODE_NIGHT_YES) {
+        return true
+    }
+    if (mode == AppCompatDelegate.MODE_NIGHT_NO) {
+        return false
+    }
+    return (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+        Configuration.UI_MODE_NIGHT_YES
 }

@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.onebusaway.android.R
 import org.onebusaway.android.directions.util.OTPConstants
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.elements.ObaReferences
@@ -65,7 +66,10 @@ import org.onebusaway.android.map.render.StopMarker
 import org.onebusaway.android.map.render.VehicleMarker
 import org.onebusaway.android.map.render.primaryRouteType
 import org.onebusaway.android.app.Application
+import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.LocationUtils
+import org.onebusaway.android.util.PermissionUtils
+import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.RegionUtils
 import org.onebusaway.android.util.UIUtils
 import org.opentripplanner.api.model.EncodedPolylineBean
@@ -88,6 +92,23 @@ data class RouteHeader(
 )
 
 /**
+ * The narrow slice of [MapViewModel] the home view model drives (sheet padding, recenter, route mode,
+ * clear focus, region re-zoom). HomeViewModel depends on this interface — not the Android-coupled
+ * concrete view model — so it stays unit-testable with a fake, like its repositories.
+ */
+interface HomeMapController {
+    fun setBottomPadding(px: Int)
+
+    fun recenterOnFocusedStop(lat: Double, lon: Double)
+
+    fun showRoute(routeId: String)
+
+    fun clearFocus()
+
+    fun onRegionChanged(changed: Boolean)
+}
+
+/**
  * The map's view model and single source of truth. It owns the flavor-neutral [MapRenderState]
  * (overlays + padding + the camera-command write path), shapes the raw `io/elements` responses into
  * render markers, **and** orchestrates loading: [setMode] launches the reactive loaders that replaced
@@ -103,7 +124,7 @@ data class RouteHeader(
  * the app context via the `Application.get()` singleton, kept off the construction path (lazy repos)
  * so the model stays constructible in JVM unit tests.
  */
-class MapViewModel : ViewModel() {
+class MapViewModel : ViewModel(), HomeMapController {
 
     val renderState = MapRenderState()
 
@@ -174,6 +195,9 @@ class MapViewModel : ViewModel() {
     private var zoomToRoute = false
 
     private var zoomIncludeClosestVehicle = false
+
+    // The last vehicle load's timestamp (nanos), so a resume mid-period waits only the remainder.
+    private var lastVehicleLoadNanos = 0L
 
     // Directions-mode loader state.
     private var selectedBikeStationIds: List<String>? = null
@@ -383,6 +407,7 @@ class MapViewModel : ViewModel() {
             dispatchCamera(CameraCommand.IncludeClosestVehicle(routes, response))
             zoomIncludeClosestVehicle = false
         }
+        lastVehicleLoadNanos = UIUtils.getCurrentTimeForComparison()
     }
 
     // ----- Directions loader (replaces DirectionsMapController) -----
@@ -484,19 +509,170 @@ class MapViewModel : ViewModel() {
     // imperative mapView.setPadding(...) relay through HomeActivity.
     fun setTopPadding(px: Int) = renderState.setTopPadding(px)
 
-    fun setBottomPadding(px: Int) = renderState.setBottomPadding(px)
-
-    // Host-level map commands (focus / route mode / recenter / region re-zoom) the view models dispatch
-    // and ObaMapHost.executeMapCommand carries out — replacing HomeActivity's imperative event relay.
-    private val _mapCommands = MutableSharedFlow<MapCommand>(extraBufferCapacity = 16)
-
-    val mapCommands: SharedFlow<MapCommand> = _mapCommands.asSharedFlow()
-
-    fun dispatchMapCommand(command: MapCommand) {
-        _mapCommands.tryEmit(command)
-    }
+    override fun setBottomPadding(px: Int) = renderState.setBottomPadding(px)
 
     private fun dispatchCamera(command: CameraCommand) = renderState.dispatchCamera(command)
+
+    // ----- Focus -----
+    // The view model owns only the *render* focus (the 1.5x icon, via renderState.focusedStopId) and
+    // the camera move. The home-side focus (the arrivals sheet + analytics) is driven directly by the
+    // owner's tap callback calling its own focus handler — so a re-tap of the same stop isn't swallowed
+    // by state-dedup, and there's no tap → state → home feedback flow to reason about.
+
+    /** A stop marker was tapped: render-focus it + center on it (the old GoogleMapHost.onStopClick). */
+    fun onStopTapped(stop: ObaStop) {
+        setFocusedStopId(stop.id)
+        val loc = stop.location
+        dispatchCamera(CameraCommand.CenterOnStopTap(loc.latitude, loc.longitude))
+    }
+
+    /** A tap away from any marker clears the render focus (the old onMapClick). */
+    fun onMapTapped() {
+        setFocusedStopId(null)
+    }
+
+    /**
+     * Programmatic focus for a restored/deep-linked stop once its arrivals load (the old
+     * MapCommand.FocusStop): ensure the stop is on the map + render-focused, and center on it
+     * (route-header bias only in route mode when the sheet settled expanded).
+     */
+    fun focusStop(stop: ObaStop, routes: List<ObaRoute>?, overlayExpanded: Boolean) {
+        val loc = stop.location
+        dispatchCamera(
+            CameraCommand.Recenter(
+                loc.latitude, loc.longitude,
+                animate = false,
+                applyRouteBias = isRouteMode && overlayExpanded,
+            )
+        )
+        setFocusStop(stop, routes)
+    }
+
+    /** Clear the render focus (back-press from a peeking sheet; the old MapCommand.ClearFocus). */
+    override fun clearFocus() {
+        setFocusStop(null, null)
+    }
+
+    /** Recenter on the focused stop after the arrivals sheet expands over it (old MapCommand.Recenter). */
+    override fun recenterOnFocusedStop(lat: Double, lon: Double) {
+        dispatchCamera(
+            CameraCommand.Recenter(lat, lon, animate = true, applyRouteBias = isRouteMode)
+        )
+    }
+
+    private val isRouteMode: Boolean get() = currentMode is MapMode.Route
+
+    /** The current mode, or null before the first [setMode] (used to init mode once after process death). */
+    val currentMapMode: MapMode? get() = currentMode
+
+    // ----- "Show route on map" / leave route mode (replaces ShowRoute / ExitRouteMode commands) -----
+
+    /** Enter route mode for [routeId], framing the nearest vehicle (the "show route on map" action). */
+    override fun showRoute(routeId: String) {
+        setMode(MapMode.Route(routeId, zoomToRoute = false, zoomIncludeClosestVehicle = true))
+    }
+
+    /** Leave route mode back to stop mode, preserving the current camera (the route header's cancel). */
+    fun exitRouteMode() {
+        setMode(MapMode.Stop)
+    }
+
+    // ----- Region re-zoom (the old ObaRegionsTask.Callback.onRegionTaskFinished) -----
+
+    /**
+     * A region resolved: if it changed and we have no location (or the camera is still at the (0,0)
+     * seed), frame the user's location if we have one, else the region. Sets [regionValid] from the
+     * region presence (the old checkRegionWeather(false)).
+     */
+    override fun onRegionChanged(changed: Boolean) {
+        _regionValid.value = Application.get().currentRegion != null
+        val location = Application.getLastKnownLocation(Application.get())
+        val center = _camera.value?.center
+        val atSeed = center == null || (center.latitude == 0.0 && center.longitude == 0.0)
+        when (regionRezoom(changed, hasLocation = location != null, cameraAtSeed = atSeed)) {
+            RegionRezoom.FrameMyLocation -> requestMyLocation(useDefaultZoom = true, animate = false)
+            RegionRezoom.FrameRegion -> dispatchCamera(CameraCommand.ZoomToRegion)
+            RegionRezoom.None -> {}
+        }
+    }
+
+    // ----- My-location / styling / permission (replaces the host's location machinery) -----
+
+    private val _myLocationEnabled = MutableStateFlow(false)
+
+    /** Whether the blue-dot my-location layer is enabled (granted permission). Applied by the adapter. */
+    val myLocationEnabled: StateFlow<Boolean> = _myLocationEnabled.asStateFlow()
+
+    /** Re-reads the location permission and reflects it in [myLocationEnabled] (call on resume/grant). */
+    fun refreshMyLocationEnabled() {
+        _myLocationEnabled.value =
+            PermissionUtils.hasGrantedAtLeastOnePermission(Application.get(), PermissionUtils.LOCATION_PERMISSIONS)
+    }
+
+    /** The Activity delivered a location-permission result; reflect it (blue dot on grant). */
+    fun onLocationPermissionResult(granted: Boolean) {
+        PreferenceUtils.setUserDeniedLocationPermissions(!granted)
+        if (granted) {
+            _myLocationEnabled.value = true
+        }
+    }
+
+    /**
+     * The my-location FAB / a programmatic recenter: center on the user's location, or raise the
+     * appropriate effect (services off / permission needed / no fix yet). Ported from
+     * GoogleMapHost.setMyLocation; the dialogs + the permission launcher are Activity effects.
+     */
+    fun requestMyLocation(useDefaultZoom: Boolean, animate: Boolean) {
+        val app = Application.get()
+        val last = Application.getLastKnownLocation(app)
+        val action = myLocationAction(
+            locationEnabled = LocationUtils.isLocationEnabled(app),
+            neverShowLocationDialog = Application.getPrefs()
+                .getBoolean(app.getString(R.string.preference_key_never_show_location_dialog), false),
+            hasLastKnownLocation = last != null,
+            hasPermission = PermissionUtils.hasGrantedAtLeastOnePermission(
+                app, PermissionUtils.LOCATION_PERMISSIONS
+            ),
+            userDeniedPermission = PreferenceUtils.userDeniedLocationPermission(),
+        )
+        when (action) {
+            MyLocationAction.MoveToLocation -> last?.let {
+                dispatchCamera(
+                    CameraCommand.MoveToLocation(it.latitude, it.longitude, useDefaultZoom, animate)
+                )
+            }
+            MyLocationAction.ShowNoLocationDialog -> _effects.tryEmit(MapEffect.NoLocation)
+            MyLocationAction.ShowPermissionRationale -> _effects.tryEmit(MapEffect.ShowPermissionRationale)
+            MyLocationAction.ShowWaitingToast -> _effects.tryEmit(MapEffect.WaitingForLocation)
+            MyLocationAction.None -> {}
+        }
+    }
+
+    fun zoomIn() = dispatchCamera(CameraCommand.ZoomIn)
+
+    fun zoomOut() = dispatchCamera(CameraCommand.ZoomOut)
+
+    /** Frame the current region's bounds (the out-of-range dialog's "take me there"). */
+    fun zoomToRegion() = dispatchCamera(CameraCommand.ZoomToRegion)
+
+    // ----- Lifecycle (the owner forwards onPause/onResume) -----
+
+    /** Stop the vehicle poll and persist the camera for the next launch's seed (the host's onPause). */
+    fun onPause() {
+        vehicleJob?.cancel()
+        _camera.value?.let {
+            PreferenceUtils.saveMapViewToPreferences(it.center.latitude, it.center.longitude, it.zoom.toFloat())
+        }
+    }
+
+    /** Refresh prefs-backed state and restart the vehicle poll if in route mode (the host's onResume). */
+    fun onResume() {
+        setBikeshareLayerVisible(LayerUtils.isBikeshareLayerVisible())
+        refreshMyLocationEnabled()
+        if (isRouteMode && vehicleJob?.isActive != true) {
+            startVehiclePolling(nextVehicleDelay(lastVehicleLoadNanos, UIUtils.getCurrentTimeForComparison()))
+        }
+    }
 
     // Stop accumulation across pans (capped, keeping the focused stop) + the routes cache used to
     // resolve a stop's icon route type and to report a stop's routes to focus listeners.

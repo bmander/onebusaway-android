@@ -59,12 +59,24 @@ sealed interface MapMode {
 /**
  * A one-shot map event that needs an Activity to carry out (so it can't be plain state). The view
  * model emits these on [MapViewModel.effects]; the hosting Activity collects them while STARTED and
- * shows the corresponding UI. Grows one case per phase of the host dissolution; for now the only
- * loader-produced effect is the out-of-range prompt the stop loader used to raise via
- * `MapModeController.Callback.notifyOutOfRange`.
+ * shows the corresponding UI (the dialog/toast bodies are the ones that used to live in the flavor
+ * host's `showOutOfRangeDialog` / `showNoLocationDialog` / `showLocationPermissionDialog` / the
+ * my-location toast + the permission-launcher relay).
  */
 sealed interface MapEffect {
 
     /** The viewport (or the device) is outside the current region — prompt the user to switch regions. */
     object OutOfRange : MapEffect
+
+    /** Location services are off — show the "enable location" dialog (with its never-ask-again opt-out). */
+    object NoLocation : MapEffect
+
+    /** Explain why location permission is needed, before asking for it (the rationale dialog). */
+    object ShowPermissionRationale : MapEffect
+
+    /** Launch the system location-permission request (the Activity owns the result launcher). */
+    object RequestLocationPermission : MapEffect
+
+    /** We have permission + services but no fix yet — "waiting for location" toast. */
+    object WaitingForLocation : MapEffect
 }

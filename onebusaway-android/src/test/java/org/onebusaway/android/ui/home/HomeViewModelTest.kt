@@ -29,8 +29,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.map.MapCommand
-import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.HomeMapController
 import org.onebusaway.android.testing.MainDispatcherRule
 
 private class FakeWideAlertsRepository(private val alerts: List<WideAlert>) : WideAlertsRepository {
@@ -58,6 +57,20 @@ private class FakeStartupPreferencesRepository(
     override fun clearInitialStartup() { cleared++; initial = false }
 }
 
+/** Records the map operations HomeViewModel drives, so they can be asserted without a real (Android) VM. */
+private class FakeHomeMapController : HomeMapController {
+    var lastBottomPadding: Int = -1
+    val recenters = mutableListOf<Pair<Double, Double>>()
+    val routesShown = mutableListOf<String>()
+    var clearFocusCount = 0
+    val regionChanges = mutableListOf<Boolean>()
+    override fun setBottomPadding(px: Int) { lastBottomPadding = px }
+    override fun recenterOnFocusedStop(lat: Double, lon: Double) { recenters.add(lat to lon) }
+    override fun showRoute(routeId: String) { routesShown.add(routeId) }
+    override fun clearFocus() { clearFocusCount++ }
+    override fun onRegionChanged(changed: Boolean) { regionChanges.add(changed) }
+}
+
 /**
  * Unit tests for [HomeViewModel] and the pure [buildState] gate logic lifted out of HomeActivity.
  * Mirrors the established ViewModel test pattern (MainDispatcherRule + runTest + hand-written fakes).
@@ -74,7 +87,7 @@ class HomeViewModelTest {
         regionRepo: FakeRegionStatusRepository = FakeRegionStatusRepository(regionStatus),
         startupRepo: FakeStartupPreferencesRepository = FakeStartupPreferencesRepository(),
         savedState: SavedStateHandle = SavedStateHandle(),
-        map: MapViewModel = MapViewModel(),
+        map: HomeMapController = FakeHomeMapController(),
     ) = HomeViewModel(
         savedState, FakeWideAlertsRepository(alerts), regionRepo, startupRepo, map
     )
@@ -153,49 +166,39 @@ class HomeViewModelTest {
 
     @Test
     fun `expanding over a focused stop sets padding and recenters`() = runTest {
-        val map = MapViewModel()
+        val map = FakeHomeMapController()
         val vm = viewModel(map = map)
         vm.onStopFocused(FocusedStop("1", "Main St", "100", 47.6, -122.3))
-        val commands = mutableListOf<MapCommand>()
-        val job = launch { map.mapCommands.collect { commands.add(it) } }
-        advanceUntilIdle()
 
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
         vm.onSheetSettled(ArrivalsSheetState.Expanded, 120)
-        advanceUntilIdle()
 
-        assertEquals(120, map.renderState.padding.value.bottomPx)
-        assertEquals(listOf<MapCommand>(MapCommand.Recenter(47.6, -122.3)), commands)
-        job.cancel()
+        assertEquals(120, map.lastBottomPadding)
+        assertEquals(listOf(47.6 to -122.3), map.recenters)
     }
 
     @Test
     fun `expanding with no focused stop only sets padding`() = runTest {
-        val map = MapViewModel()
+        val map = FakeHomeMapController()
         val vm = viewModel(map = map)
-        val commands = mutableListOf<MapCommand>()
-        val job = launch { map.mapCommands.collect { commands.add(it) } }
-        advanceUntilIdle()
 
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
         vm.onSheetSettled(ArrivalsSheetState.Expanded, 120)
-        advanceUntilIdle()
 
-        assertEquals(120, map.renderState.padding.value.bottomPx)
-        assertTrue(commands.isEmpty())
-        job.cancel()
+        assertEquals(120, map.lastBottomPadding)
+        assertTrue(map.recenters.isEmpty())
     }
 
     @Test
     fun `collapsing and hiding set the map padding`() = runTest {
-        val map = MapViewModel()
+        val map = FakeHomeMapController()
         val vm = viewModel(map = map)
 
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 80)
-        assertEquals(80, map.renderState.padding.value.bottomPx)
+        assertEquals(80, map.lastBottomPadding)
         vm.onSheetSettled(ArrivalsSheetState.Hidden, 80)
-        assertEquals(0, map.renderState.padding.value.bottomPx)
+        assertEquals(0, map.lastBottomPadding)
         assertEquals(ArrivalsSheetState.Hidden, vm.lastSettledSheet)
     }
 
@@ -228,39 +231,31 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `show route on map collapses the sheet and dispatches ShowRoute`() = runTest {
-        val map = MapViewModel()
+    fun `show route on map collapses the sheet and shows the route`() = runTest {
+        val map = FakeHomeMapController()
         val vm = viewModel(map = map)
         val events = mutableListOf<HomeEvent>()
-        val commands = mutableListOf<MapCommand>()
         val eventJob = launch { vm.events.collect { events.add(it) } }
-        val commandJob = launch { map.mapCommands.collect { commands.add(it) } }
         advanceUntilIdle()
 
         vm.requestShowRouteOnMap("42")
         advanceUntilIdle()
 
         assertEquals(listOf<HomeEvent>(HomeEvent.CollapseSheet), events)
-        assertEquals(listOf<MapCommand>(MapCommand.ShowRoute("42")), commands)
+        assertEquals(listOf("42"), map.routesShown)
         eventJob.cancel()
-        commandJob.cancel()
     }
 
     @Test
-    fun `clear map focus clears the focused stop and dispatches ClearFocus`() = runTest {
-        val map = MapViewModel()
+    fun `clear map focus clears the focused stop and the map focus`() = runTest {
+        val map = FakeHomeMapController()
         val vm = viewModel(map = map)
         vm.onStopFocused(FocusedStop("1", "Main St", "100", 47.6, -122.3))
-        val commands = mutableListOf<MapCommand>()
-        val job = launch { map.mapCommands.collect { commands.add(it) } }
-        advanceUntilIdle()
 
         vm.requestClearMapFocus()
-        advanceUntilIdle()
 
         assertNull(vm.uiState.value.focusedStop)
-        assertEquals(listOf<MapCommand>(MapCommand.ClearFocus), commands)
-        job.cancel()
+        assertEquals(1, map.clearFocusCount)
     }
 
     // --- focus + SavedStateHandle ---

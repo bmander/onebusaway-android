@@ -16,13 +16,11 @@
  */
 package org.onebusaway.android.map.googlemapsv2;
 
-import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.LocationSource;
 import com.google.android.gms.maps.UiSettings;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.VisibleRegion;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -62,7 +60,6 @@ import org.onebusaway.android.map.RouteHeader;
 import org.onebusaway.android.map.render.GeoPoint;
 import org.onebusaway.android.map.render.CameraCommand;
 import org.onebusaway.android.map.render.MapRenderState;
-import org.onebusaway.android.map.render.RoutePolyline;
 import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.ui.weather.RegionCallback;
 import org.onebusaway.android.util.LayerUtils;
@@ -127,8 +124,6 @@ public class GoogleMapHost
     private static final String TAG = "MapFragment";
 
     public static final float CAMERA_DEFAULT_ZOOM = 16.0f;
-
-    public static final float DEFAULT_MAP_PADDING_DP = 20.0f;
 
     // The hosting environment, supplied by the owner (Activity or thin fragment wrapper).
     private final Activity mActivity;
@@ -914,22 +909,6 @@ public class GoogleMapHost
     @Override
     public void removeVehicleOverlay() {
         mViewModel.clearVehicles();
-    }
-
-    /**
-     * Builds the bounds enclosing the current route/itinerary polylines (now sourced from the render
-     * state rather than live Polyline objects), or {@code null} if there are no points to enclose.
-     */
-    private LatLngBounds routePolylineBounds() {
-        LatLngBounds.Builder builder = new LatLngBounds.Builder();
-        boolean any = false;
-        for (RoutePolyline p : mRenderState.getRoutePolylines()) {
-            for (GeoPoint pt : p.getPoints()) {
-                builder.include(new LatLng(pt.getLatitude(), pt.getLongitude()));
-                any = true;
-            }
-        }
-        return any ? builder.build() : null;
     }
 
     @Override

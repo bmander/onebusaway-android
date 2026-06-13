@@ -77,8 +77,9 @@ fun SurveyOverlay(
     callbacks: SurveyCallbacks,
     modifier: Modifier = Modifier,
 ) {
+    // The hero card shows while a survey is loaded and the remaining-questions sheet isn't up.
     val hero = state.heroQuestion
-    if (state.heroVisible && hero != null) {
+    if (hero != null && state.sheet == null) {
         SurveyHeroCard(state, hero, callbacks, modifier)
     }
     if (state.sheet != null) {
@@ -208,17 +209,11 @@ private fun SurveyQuestionInput(
             val selected = state.textRadioAnswers[id]
             Column {
                 question.content.options.orEmpty().forEach { option ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { callbacks.onTextOrRadio(id, option) },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+                    OptionRow(option, onClick = { callbacks.onTextOrRadio(id, option) }) {
                         RadioButton(
                             selected = selected == option,
                             onClick = { callbacks.onTextOrRadio(id, option) },
                         )
-                        Text(option)
                     }
                 }
             }
@@ -232,17 +227,14 @@ private fun SurveyQuestionInput(
                     Modifier.padding(bottom = 4.dp),
                 )
                 question.content.options.orEmpty().forEach { option ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { callbacks.onToggleCheckbox(id, option, option !in selected) },
-                        verticalAlignment = Alignment.CenterVertically,
+                    OptionRow(
+                        option,
+                        onClick = { callbacks.onToggleCheckbox(id, option, option !in selected) },
                     ) {
                         Checkbox(
                             checked = option in selected,
                             onCheckedChange = { callbacks.onToggleCheckbox(id, option, it) },
                         )
-                        Text(option)
                     }
                 }
             }
@@ -260,6 +252,20 @@ private fun SurveyQuestionInput(
         }
 
         else -> { /* label / external: the label text already shows via questionLabel */ }
+    }
+}
+
+/** A clickable option row: a leading [control] (radio button / checkbox) + its [text] label. */
+@Composable
+private fun OptionRow(text: String, onClick: () -> Unit, control: @Composable () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        control()
+        Text(text)
     }
 }
 

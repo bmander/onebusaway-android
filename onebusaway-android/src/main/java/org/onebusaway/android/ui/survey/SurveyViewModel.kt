@@ -16,7 +16,6 @@
 package org.onebusaway.android.ui.survey
 
 import android.app.Application
-import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +37,6 @@ import org.onebusaway.android.io.request.survey.model.StudyResponse
 import org.onebusaway.android.io.request.survey.model.SubmitSurveyResponse
 import org.onebusaway.android.io.request.survey.submit.ObaSubmitSurveyRequest
 import org.onebusaway.android.io.request.survey.submit.SubmitSurveyRequestListener
-import org.onebusaway.android.ui.survey.activities.SurveyWebViewActivity
 import org.onebusaway.android.ui.survey.utils.SurveyDbHelper
 import org.onebusaway.android.ui.survey.utils.SurveyUtils
 import org.onebusaway.android.app.Application as ObaApplication
@@ -58,7 +56,6 @@ data class SurveySheetState(
  * builder + validation can be reused.
  */
 data class SurveyUiState(
-    val heroVisible: Boolean = false,
     val survey: StudyResponse.Surveys? = null,
     val heroQuestion: StudyResponse.Surveys.Questions? = null,
     val heroMode: Int = SurveyUtils.DEFAULT_SURVEY,
@@ -72,7 +69,7 @@ data class SurveyUiState(
 
 /** One-shot effects the host carries out (launching the external-survey activity, showing a toast). */
 sealed interface SurveyEffect {
-    data class OpenExternalSurvey(val intent: Intent) : SurveyEffect
+    data class OpenExternalSurvey(val url: String, val embeddedData: ArrayList<String>?) : SurveyEffect
     data class ShowToast(val resId: Int) : SurveyEffect
 }
 
@@ -99,11 +96,15 @@ class SurveyViewModel(app: Application) : AndroidViewModel(app) {
     private var requested = false
 
     /**
-     * Requests the survey once per the gating rules (every Nth launch, no pending reminder, donation
-     * UI not showing). Safe to call repeatedly; only the first eligible call fires the request.
+     * Requests the survey once per the gating rules (a region is resolved, every Nth launch, no pending
+     * reminder, donation UI not showing). Safe to call repeatedly; only the first eligible call fires
+     * the request — until a region is present it no-ops without latching, so a later call (e.g. on
+     * region resolve) retries.
      */
     fun maybeRequestSurvey() {
         if (requested) return
+        // A region is required to build the study request URL; defer (without latching) until resolved.
+        if (ObaApplication.get().currentRegion == null) return
         val studiesEnabled = ObaApplication.getPrefs()
             .getBoolean(context.getString(R.string.preference_key_show_available_studies), true)
         if (!studiesEnabled || !SurveyUtils.shouldShowSurveyView(context, false)) return
@@ -132,7 +133,6 @@ class SurveyViewModel(app: Application) : AndroidViewModel(app) {
         }
         _state.update {
             it.copy(
-                heroVisible = true,
                 survey = survey,
                 heroQuestion = hero,
                 heroMode = mode,
@@ -183,7 +183,6 @@ class SurveyViewModel(app: Application) : AndroidViewModel(app) {
             updateSurveyPath = response.surveyResponse?.id
             _state.update {
                 it.copy(
-                    heroVisible = false,
                     sheet = SurveySheetState(
                         title = survey.study?.name.orEmpty(),
                         description = survey.study?.description.orEmpty(),
@@ -260,13 +259,7 @@ class SurveyViewModel(app: Application) : AndroidViewModel(app) {
     private fun openExternal(url: String, externalQuestionIndex: Int) {
         val survey = _state.value.survey ?: return
         val embedded = survey.questions.getOrNull(externalQuestionIndex)?.content?.embedded_data_fields
-        val intent = Intent(context, SurveyWebViewActivity::class.java).apply {
-            putExtra("url", url)
-            if (SurveyUtils.isValidEmbeddedDataList(embedded)) {
-                putStringArrayListExtra("embedded_data", embedded)
-            }
-        }
-        _effects.tryEmit(SurveyEffect.OpenExternalSurvey(intent))
+        _effects.tryEmit(SurveyEffect.OpenExternalSurvey(url, embedded))
     }
 
     private fun submitUrl(hero: Boolean): String {
@@ -330,11 +323,9 @@ class SurveyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun buildSharedInfo(fields: List<String>?): String? {
-        if (fields.isNullOrEmpty()) return null
-        val parts = fields
-            .filter { it != SurveyUtils.USER_ID }
-            .map { it.replace("_id", "").replace("_", " ") }
-        if (parts.isEmpty()) return null
-        return context.getString(R.string.sharing_survey_info_message) + parts.joinToString(", ")
+        val shared = fields.orEmpty().filter { it != SurveyUtils.USER_ID }
+        if (shared.isEmpty()) return null
+        return context.getString(R.string.sharing_survey_info_message) +
+            shared.joinToString(", ") { it.replace("_id", "").replace("_", " ") }
     }
 }

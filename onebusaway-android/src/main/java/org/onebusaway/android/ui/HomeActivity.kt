@@ -87,6 +87,7 @@ import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
 import org.onebusaway.android.ui.survey.SurveyEffect
 import org.onebusaway.android.ui.survey.SurveyViewModel
+import org.onebusaway.android.ui.survey.activities.SurveyWebViewActivity
 import org.onebusaway.android.ui.weather.RegionCallback
 import org.onebusaway.android.ui.weather.WeatherUtils
 import org.onebusaway.android.util.LayerUtils
@@ -119,8 +120,9 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Whether the deferred first nav selection has run. Gates the survey (requested on the first NEARBY
-     * selection) so it stays dormant until a tab is applied. The selected tab itself lives in the VM.
+     * Whether the deferred first nav selection has run. Distinguishes the initial (posted) selection
+     * from a user re-tap of the active tab, so the first selection always runs its per-item work even
+     * when the restored tab matches the VM default. The selected tab itself lives in the VM.
      */
     private var navSelectionApplied = false
 
@@ -300,7 +302,14 @@ class HomeActivity : AppCompatActivity(),
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 surveyViewModel.effects.collect { effect ->
                     when (effect) {
-                        is SurveyEffect.OpenExternalSurvey -> startActivity(effect.intent)
+                        is SurveyEffect.OpenExternalSurvey -> startActivity(
+                            Intent(this@HomeActivity, SurveyWebViewActivity::class.java).apply {
+                                putExtra("url", effect.url)
+                                if (!effect.embeddedData.isNullOrEmpty()) {
+                                    putStringArrayListExtra("embedded_data", effect.embeddedData)
+                                }
+                            }
+                        )
                         is SurveyEffect.ShowToast ->
                             Toast.makeText(this@HomeActivity, effect.resId, Toast.LENGTH_SHORT).show()
                     }

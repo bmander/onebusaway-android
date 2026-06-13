@@ -47,7 +47,7 @@ import org.onebusaway.android.nav.model.Path;
 import org.onebusaway.android.nav.model.PathLink;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.ui.FeedbackActivity;
-import org.onebusaway.android.ui.TripDetailsListFragment;
+import org.onebusaway.android.ui.TripDetailsActivity;
 import org.onebusaway.android.util.LocationHelper;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.PreferenceUtils;
@@ -195,7 +195,7 @@ public class NavigationService extends Service implements LocationHelper.Listene
      * Sends broadcast so that flag of destination alert is removed from trip detail screen
      */
     private void sendBroadcast() {
-        Intent intent = new Intent(TripDetailsListFragment.ACTION_SERVICE_DESTROYED);
+        Intent intent = new Intent(TripDetailsActivity.ACTION_SERVICE_DESTROYED);
         sendBroadcast(intent);
     }
 

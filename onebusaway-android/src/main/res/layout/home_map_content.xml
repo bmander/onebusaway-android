@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2010 Paul Watts (paulcwatts@gmail.com),
+     Copyright (C) 2026 Open Transit Software Foundation
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+
+     P2 of the HomeActivity Compose migration: the former `main_content` subtree (the map container
+     plus its overlaid chrome) extracted as a standalone root so it can be the `content` of a Compose
+     BottomSheetScaffold. The arrivals panel that used to be the SlidingUpPanelLayout's second child
+     now lives in home_arrivals_sheet.xml as the scaffold's `sheetContent`.
+-->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                android:id="@+id/main_content"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+    <!-- Fragment is added here programmatically -->
+    <RelativeLayout
+            android:id="@+id/main_fragment_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
+    <!-- The my-location FAB, zoom controls, and layers FAB are now the Compose MapChrome overlay
+         (see HomeShellHost / MapChrome.kt), so they no longer live here. -->
+
+    <!-- The weather chip + donation card are now Compose overlays (WeatherCard.kt / DonationCard.kt
+         in HomeShellHost), so they no longer live here. -->
+
+    <include
+        android:id="@+id/surveyView"
+        android:layout_width="match_parent"
+        android:layout_marginStart="8dp"
+        android:visibility="gone"
+        android:layout_marginEnd="8dp"
+        android:layout_marginTop="58dp"
+        android:layout_height="wrap_content"
+        layout="@layout/item_survey"/>
+
+    <!-- ROUTE MODE HEADER -->
+    <include android:id="@+id/route_info"
+             layout="@layout/route_info_head"
+             android:layout_width="fill_parent"
+             android:layout_height="wrap_content"
+             android:layout_alignParentTop="true"
+             android:layout_alignParentLeft="true"
+             android:visibility="gone"/>
+    <!-- The map-loading indicator is now the Compose LinearProgressIndicator in MapChrome,
+         driven by HomeUiState.mapLoading. -->
+</RelativeLayout>

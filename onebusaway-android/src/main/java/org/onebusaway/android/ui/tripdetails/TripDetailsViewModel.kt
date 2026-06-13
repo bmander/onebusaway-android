@@ -1,0 +1,92 @@
+/*
+ * Copyright (C) 2026 Open Transit Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.onebusaway.android.ui.tripdetails
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+/**
+ * ViewModel for the trip details screen. The 60-second polling loop lives in the screen (driven by
+ * the activity lifecycle); this exposes [refresh] for it to call. The destination-reminder stop is
+ * held here so the host can set it (after starting the reminder) or clear it (when the trip ends).
+ */
+class TripDetailsViewModel(
+    private val tripId: String,
+    private val stopId: String?,
+    private val scrollMode: String?,
+    private val repository: TripDetailsRepository,
+    initialDestinationId: String? = null
+) : ViewModel() {
+
+    private val _state = MutableStateFlow<TripDetailsUiState>(TripDetailsUiState.Loading)
+    val state: StateFlow<TripDetailsUiState> = _state.asStateFlow()
+
+    private var destinationId: String? = initialDestinationId
+
+    /** Wall-clock time of the last completed load, read by the screen's polling loop. */
+    var lastResponseTimeMs: Long = 0L
+        private set
+
+    /**
+     * Loads the trip details once. A failed refresh keeps any existing content (the repository
+     * returns the last good data); it only surfaces [TripDetailsUiState.Error] when there is nothing
+     * to show.
+     */
+    suspend fun refresh() {
+        val result = repository.getTripDetails(tripId, stopId, scrollMode, destinationId)
+        lastResponseTimeMs = System.currentTimeMillis()
+        result.fold(
+            onSuccess = { data -> _state.value = data.toContent() },
+            onFailure = { error ->
+                if (_state.value !is TripDetailsUiState.Content) {
+                    _state.value = TripDetailsUiState.Error(error.message.orEmpty())
+                }
+            }
+        )
+    }
+
+    /** Refreshes from a user action (the toolbar refresh button or Retry). */
+    fun manualRefresh() {
+        viewModelScope.launch { refresh() }
+    }
+
+    /** The trip's route id, for the host's "show on map" action (null until the first load). */
+    fun routeId(): String? = (_state.value as? TripDetailsUiState.Content)?.routeId
+
+    /** The last good response, for the host to resolve stops when setting a destination reminder. */
+    fun lastResponse() = repository.lastResponse()
+
+    /**
+     * Sets (or clears with null) the destination-reminder stop and reloads so the flag updates. The
+     * host calls this after starting/cancelling a reminder.
+     */
+    fun setDestinationId(id: String?) {
+        destinationId = id
+        manualRefresh()
+    }
+
+    private fun TripDetailsData.toContent() = TripDetailsUiState.Content(
+        header = header,
+        stops = stops,
+        scrollToIndex = scrollToIndex,
+        routeId = routeId,
+        lineColorArgb = lineColorArgb
+    )
+}

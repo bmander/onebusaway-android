@@ -1,0 +1,128 @@
+/*
+ * Copyright (C) 2026 Open Transit Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.onebusaway.android.ui.mylists
+
+import androidx.annotation.StringRes
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.onebusaway.android.ui.HomeActivity
+import org.onebusaway.android.ui.compose.findActivity
+import org.onebusaway.android.ui.editReminder
+import org.onebusaway.android.ui.openRoute
+import org.onebusaway.android.ui.openRouteSearchResult
+import org.onebusaway.android.ui.openStop
+import org.onebusaway.android.ui.openStopSearchResult
+import org.onebusaway.android.ui.reminderActions
+import org.onebusaway.android.ui.routeActions
+import org.onebusaway.android.ui.search.RouteSearchContent
+import org.onebusaway.android.ui.search.RouteSearchResult
+import org.onebusaway.android.ui.search.SearchViewModel
+import org.onebusaway.android.ui.search.StopSearchContent
+import org.onebusaway.android.ui.search.StopSearchResult
+import org.onebusaway.android.ui.stopActions
+import org.onebusaway.android.util.UIUtils
+
+/**
+ * The shared list/search "destinations": body composables hosted by both the Compose [MyTabsScreen]
+ * (the `My*` tab activities) and the Compose home overlays ([org.onebusaway.android.ui.home]). Each
+ * mirrors the `onCreateView` of the fragment it replaced — [MyListContent] + a row + the
+ * `AppCompatActivity` nav/action helpers ([openStop]/[stopActions]/…) — with the host resolved via
+ * [findActivity] and an explicit [shortcutMode] (the `My*` launcher-shortcut picker returns a
+ * shortcut intent instead of opening the destination).
+ */
+
+@Composable
+fun StopListDestination(
+    viewModel: MyListViewModel<StopListItem>,
+    @StringRes emptyText: Int,
+    @StringRes removeLabel: Int,
+    shortcutMode: Boolean,
+) {
+    val host = LocalContext.current.findActivity()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    MyListContent(state, emptyText = stringResource(emptyText), itemKey = { it.id }) { stop ->
+        StopRow(
+            stop,
+            onClick = { host.openStop(stop, shortcutMode) },
+            actions = host.stopActions(stop, removeLabel, shortcutMode) { viewModel.remove(stop.id) }
+        )
+    }
+}
+
+@Composable
+fun RouteListDestination(
+    viewModel: MyListViewModel<RouteListItem>,
+    @StringRes emptyText: Int,
+    @StringRes removeLabel: Int,
+    shortcutMode: Boolean,
+) {
+    val host = LocalContext.current.findActivity()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    MyListContent(state, emptyText = stringResource(emptyText), itemKey = { it.id }) { route ->
+        RouteRow(
+            route,
+            onClick = { host.openRoute(route, shortcutMode) },
+            actions = host.routeActions(route, removeLabel, shortcutMode) { viewModel.remove(route.id) }
+        )
+    }
+}
+
+@Composable
+fun ReminderListDestination(
+    viewModel: MyListViewModel<ReminderItem>,
+    @StringRes emptyText: Int,
+) {
+    val host = LocalContext.current.findActivity()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    MyListContent(
+        state,
+        emptyText = stringResource(emptyText),
+        itemKey = { "${it.tripId}:${it.stopId}" }
+    ) { reminder ->
+        ReminderRow(
+            reminder,
+            onClick = { host.editReminder(reminder) },
+            actions = host.reminderActions(reminder)
+        )
+    }
+}
+
+@Composable
+fun StopSearchDestination(viewModel: SearchViewModel<StopSearchResult>, shortcutMode: Boolean) {
+    val host = LocalContext.current.findActivity()
+    StopSearchContent(
+        viewModel = viewModel,
+        shortcutMode = shortcutMode,
+        onStopClick = { host.openStopSearchResult(it, shortcutMode) },
+        onShowOnMap = { HomeActivity.start(host, it.id, it.latitude, it.longitude) }
+    )
+}
+
+@Composable
+fun RouteSearchDestination(viewModel: SearchViewModel<RouteSearchResult>, shortcutMode: Boolean) {
+    val host = LocalContext.current.findActivity()
+    RouteSearchContent(
+        viewModel = viewModel,
+        shortcutMode = shortcutMode,
+        onRouteClick = { host.openRouteSearchResult(it, shortcutMode) },
+        onShowOnMap = { HomeActivity.start(host, it.id) },
+        onShowSchedule = { route -> route.url?.let { UIUtils.goToUrl(host, it) } },
+        onCreateShortcut = { UIUtils.createRouteShortcut(host, it.id, it.shortName) }
+    )
+}

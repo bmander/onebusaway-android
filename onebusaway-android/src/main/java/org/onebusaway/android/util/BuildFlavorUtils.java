@@ -94,6 +94,20 @@ public class BuildFlavorUtils {
     }
 
     /**
+     * Persists the user's arrival info style selection (the legacy "sort by" view-mode toggle),
+     * stored as the same preference option string that {@link #getArrivalInfoStyleFromPreferences()}
+     * reads back — keeping the option-string format in a single place.
+     *
+     * @param style one of the ARRIVAL_INFO_STYLE_* constants in this class
+     */
+    public static void setArrivalInfoStyle(int style) {
+        Resources r = Application.get().getResources();
+        PreferenceUtils.saveString(
+                r.getString(R.string.preference_key_arrival_info_style),
+                getPreferenceOptionForArrivalInfoBuildFlavorStyle(style));
+    }
+
+    /**
      * Returns true if the Pelias API key is non-empty, false if it is not
      *
      * @return true if the Pelias API key is non-empty, false if it is not

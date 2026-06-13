@@ -56,6 +56,41 @@ import org.onebusaway.android.ui.survey.SurveyUiState
 import org.onebusaway.android.ui.weather.WeatherUtils
 
 /**
+ * The home screen's tap/UI callbacks, bundled into one holder (mirrors [SurveyCallbacks]) so
+ * [HomeScreen]'s signature stays a handful of parameters — state + the map/survey plumbing + this —
+ * instead of ~30 individual lambdas. Each is dispatched up to HomeActivity or a view model.
+ */
+class HomeCallbacks(
+    val onNavItemSelected: (HomeNavItem) -> Unit,
+    val onSearch: (String) -> Unit,
+    val onRecentStopsRoutes: () -> Unit,
+    val onListSort: () -> Unit,
+    val onListClear: () -> Unit,
+    val onMyLocation: () -> Unit,
+    val onZoomIn: () -> Unit,
+    val onZoomOut: () -> Unit,
+    val onToggleBikeshare: () -> Unit,
+    val onWeatherClick: () -> Unit,
+    val onDonationClose: () -> Unit,
+    val onDonationLearnMore: () -> Unit,
+    val onDonationDonate: () -> Unit,
+    val onDonationDismissForever: () -> Unit,
+    val onDonationRemindLater: () -> Unit,
+    val onHelpAction: (HelpAction) -> Unit,
+    val onWhatsNewDismissed: () -> Unit,
+    val onRegionChosen: (ObaRegion) -> Unit,
+    val onDismissDialog: () -> Unit,
+    val onSheetSettled: (ArrivalsSheetState, Int) -> Unit,
+    val onClearFocus: () -> Unit,
+    val onArrivalsLoaded: (ObaArrivalInfoResponse) -> Unit,
+    val onShowRouteOnMap: (String) -> Unit,
+    val onToggleSheet: () -> Unit,
+    val onPreferredHeight: (previewCount: Int, filtering: Boolean) -> Unit,
+    val onCancelRouteMode: () -> Unit,
+    val onRouteHeaderHeight: (Int) -> Unit,
+)
+
+/**
  * The declarative home screen: a Compose `ModalNavigationDrawer` + [HomeTopBar] + Material3
  * `BottomSheetScaffold`, rendered from [HomeUiState] (state down) with taps dispatched through plain
  * lambda callbacks + [HomeViewModel] events (up). Replaces the imperative `HomeShellHost` bridge.
@@ -85,37 +120,14 @@ fun HomeScreen(
     mapSavedInstanceState: Bundle?,
     mapComposed: Boolean,
     routeHeader: RouteHeader?,
-    onCancelRouteMode: () -> Unit,
-    onRouteHeaderHeight: (Int) -> Unit,
     survey: SurveyUiState,
     surveyCallbacks: SurveyCallbacks,
     listVms: HomeListViewModels,
-    onNavItemSelected: (HomeNavItem) -> Unit,
-    onSearch: (String) -> Unit,
-    onRecentStopsRoutes: () -> Unit,
-    onListSort: () -> Unit,
-    onListClear: () -> Unit,
-    onMyLocation: () -> Unit,
-    onZoomIn: () -> Unit,
-    onZoomOut: () -> Unit,
-    onToggleBikeshare: () -> Unit,
-    onWeatherClick: () -> Unit,
-    onDonationClose: () -> Unit,
-    onDonationLearnMore: () -> Unit,
-    onDonationDonate: () -> Unit,
-    onDonationDismissForever: () -> Unit,
-    onDonationRemindLater: () -> Unit,
-    onHelpAction: (HelpAction) -> Unit,
-    onWhatsNewDismissed: () -> Unit,
-    onRegionChosen: (ObaRegion) -> Unit,
-    onDismissDialog: () -> Unit,
-    onSheetSettled: (ArrivalsSheetState, Int) -> Unit,
-    onClearFocus: () -> Unit,
-    onArrivalsLoaded: (ObaArrivalInfoResponse) -> Unit,
-    onShowRouteOnMap: (String) -> Unit,
-    onToggleSheet: () -> Unit,
-    onPreferredHeight: (previewCount: Int, filtering: Boolean) -> Unit,
+    // All the screen's tap/UI lambdas, bundled (see [HomeCallbacks]); brought into scope below via
+    // `with` so the body references them unqualified.
+    callbacks: HomeCallbacks,
 ) {
+    with(callbacks) {
     ObaTheme {
         val scope = rememberCoroutineScope()
         val density = LocalDensity.current
@@ -325,6 +337,7 @@ fun HomeScreen(
             onRegionChosen = onRegionChosen,
             onDismiss = onDismissDialog
         )
+    }
     }
 }
 

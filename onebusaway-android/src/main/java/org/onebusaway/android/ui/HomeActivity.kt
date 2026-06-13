@@ -70,6 +70,7 @@ import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
 import org.onebusaway.android.ui.home.FocusedStop
 import org.onebusaway.android.ui.home.HelpAction
 import org.onebusaway.android.ui.home.HomeEnvironment
+import org.onebusaway.android.ui.home.HomeCallbacks
 import org.onebusaway.android.ui.home.HomeEvent
 import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
@@ -212,6 +213,36 @@ class HomeActivity : AppCompatActivity(),
             onCancelDismiss = surveyViewModel::cancelDismiss,
         )
 
+        val homeCallbacks = HomeCallbacks(
+            onNavItemSelected = ::onHomeNavItemSelected,
+            onSearch = ::onSearch,
+            onRecentStopsRoutes = ::onRecentStopsRoutes,
+            onListSort = ::onListSortSelected,
+            onListClear = ::onListClearSelected,
+            onMyLocation = ::onMyLocation,
+            onZoomIn = ::onZoomIn,
+            onZoomOut = ::onZoomOut,
+            onToggleBikeshare = ::onToggleBikeshare,
+            onWeatherClick = ::onWeatherClick,
+            onDonationClose = ::onDonationClose,
+            onDonationLearnMore = ::onDonationLearnMore,
+            onDonationDonate = ::onDonationDonate,
+            onDonationDismissForever = ::onDonationDismissForever,
+            onDonationRemindLater = ::onDonationRemindLater,
+            onHelpAction = ::onHelpAction,
+            onWhatsNewDismissed = ::onWhatsNewDismissed,
+            onRegionChosen = viewModel::onRegionChosen,
+            onDismissDialog = viewModel::dismissDialog,
+            onSheetSettled = viewModel::onSheetSettled,
+            onClearFocus = viewModel::requestClearMapFocus,
+            onArrivalsLoaded = ::onArrivalsLoaded,
+            onShowRouteOnMap = viewModel::requestShowRouteOnMap,
+            onToggleSheet = viewModel::requestToggleSheet,
+            onPreferredHeight = viewModel::onPreferredHeight,
+            onCancelRouteMode = ::onCancelRouteMode,
+            onRouteHeaderHeight = ::onRouteHeaderHeight,
+        )
+
         setContent {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
             val routeHeader by mapViewModel.routeHeader.collectAsStateWithLifecycle()
@@ -228,36 +259,10 @@ class HomeActivity : AppCompatActivity(),
                 mapSavedInstanceState = savedInstanceState,
                 mapComposed = mapComposed,
                 routeHeader = routeHeader,
-                onCancelRouteMode = ::onCancelRouteMode,
-                onRouteHeaderHeight = ::onRouteHeaderHeight,
                 survey = survey,
                 surveyCallbacks = surveyCallbacks,
                 listVms = listVms,
-                onNavItemSelected = ::onHomeNavItemSelected,
-                onSearch = ::onSearch,
-                onRecentStopsRoutes = ::onRecentStopsRoutes,
-                onListSort = ::onListSortSelected,
-                onListClear = ::onListClearSelected,
-                onMyLocation = ::onMyLocation,
-                onZoomIn = ::onZoomIn,
-                onZoomOut = ::onZoomOut,
-                onToggleBikeshare = ::onToggleBikeshare,
-                onWeatherClick = ::onWeatherClick,
-                onDonationClose = ::onDonationClose,
-                onDonationLearnMore = ::onDonationLearnMore,
-                onDonationDonate = ::onDonationDonate,
-                onDonationDismissForever = ::onDonationDismissForever,
-                onDonationRemindLater = ::onDonationRemindLater,
-                onHelpAction = ::onHelpAction,
-                onWhatsNewDismissed = ::onWhatsNewDismissed,
-                onRegionChosen = viewModel::onRegionChosen,
-                onDismissDialog = viewModel::dismissDialog,
-                onSheetSettled = viewModel::onSheetSettled,
-                onClearFocus = viewModel::requestClearMapFocus,
-                onArrivalsLoaded = ::onArrivalsLoaded,
-                onShowRouteOnMap = viewModel::requestShowRouteOnMap,
-                onToggleSheet = viewModel::requestToggleSheet,
-                onPreferredHeight = viewModel::onPreferredHeight,
+                callbacks = homeCallbacks,
             )
         }
 
@@ -289,7 +294,12 @@ class HomeActivity : AppCompatActivity(),
             handleFcmNotificationIntent(intent)
         }
 
-        // The map survey's one-shot effects: launch the external-survey web view / show a toast.
+        observeSurveyEffects()
+        observeViewModelEvents()
+    }
+
+    /** The map survey's one-shot effects: launch the external-survey web view / show a toast. */
+    private fun observeSurveyEffects() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 surveyViewModel.effects.collect { effect ->
@@ -308,8 +318,10 @@ class HomeActivity : AppCompatActivity(),
                 }
             }
         }
+    }
 
-        // Carry out one-shot effects from the ViewModel (currently the GTFS wide-alert dialog).
+    /** Carry out one-shot effects from the ViewModel (currently the GTFS wide-alert dialog). */
+    private fun observeViewModelEvents() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.events.collect { event ->

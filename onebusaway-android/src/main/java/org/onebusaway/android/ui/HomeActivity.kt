@@ -60,8 +60,9 @@ import org.onebusaway.android.map.LayerActivationListener
 import org.onebusaway.android.map.MapHostDeps
 import org.onebusaway.android.map.LayerInfo
 import org.onebusaway.android.map.MapParams
-import org.onebusaway.android.map.ObaMapFragment
 import org.onebusaway.android.map.ObaMapHost
+import org.onebusaway.android.map.OnFocusChangedListener
+import org.onebusaway.android.map.OnProgressBarChangedListener
 import org.onebusaway.android.region.ObaRegionsTask
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
@@ -100,8 +101,8 @@ import org.onebusaway.android.widealerts.GtfsAlertsHelper
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 class HomeActivity : AppCompatActivity(),
-    ObaMapFragment.OnFocusChangedListener,
-    ObaMapFragment.OnProgressBarChangedListener,
+    OnFocusChangedListener,
+    OnProgressBarChangedListener,
     RegionCallback {
 
     private val viewModel: HomeViewModel by viewModels {

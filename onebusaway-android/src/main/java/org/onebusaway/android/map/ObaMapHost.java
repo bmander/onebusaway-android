@@ -51,14 +51,14 @@ public interface ObaMapHost extends MapModeController.ObaMapView {
     void zoomOut();
 
     // ========================================================================
-    // Listeners (reuse ObaMapFragment's nested interfaces — same types the owner implements)
+    // Listeners (shared map-callback interfaces — same types the owner implements)
     // ========================================================================
 
-    void setOnFocusChangeListener(ObaMapFragment.OnFocusChangedListener listener);
+    void setOnFocusChangeListener(OnFocusChangedListener listener);
 
-    void setOnProgressBarChangedListener(ObaMapFragment.OnProgressBarChangedListener listener);
+    void setOnProgressBarChangedListener(OnProgressBarChangedListener listener);
 
-    void setOnLocationPermissionResultListener(ObaMapFragment.OnLocationPermissionResultListener listener);
+    void setOnLocationPermissionResultListener(OnLocationPermissionResultListener listener);
 
     void setRegionCallback(RegionCallback callback);
 

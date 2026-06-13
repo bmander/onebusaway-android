@@ -47,6 +47,7 @@ import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.elements.ObaStopElement
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.ObaMapFragment
+import org.onebusaway.android.map.OnFocusChangedListener
 import org.onebusaway.android.report.ui.dialog.ReportSuccessDialog
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.report.infrastructure.DefaultGeocodeAddressRepository
@@ -73,7 +74,7 @@ import org.onebusaway.android.util.UIUtils
  * report fragments) and the manifest entry stay valid.
  */
 class InfrastructureIssueActivity : BaseReportActivity(),
-    ObaMapFragment.OnFocusChangedListener,
+    OnFocusChangedListener,
     ReportProblemFragmentCallback,
     SimpleArrivalsPickerFragment.Callback {
 

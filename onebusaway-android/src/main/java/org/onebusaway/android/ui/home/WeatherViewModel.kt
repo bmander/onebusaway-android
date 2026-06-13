@@ -1,0 +1,67 @@
+/*
+ * Copyright (C) 2026 Open Transit Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.onebusaway.android.ui.home
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import org.onebusaway.android.ui.weather.WeatherUtils
+
+/** The weather chip's state: the forecast (null until fetched) + the hide-weather preference. */
+data class WeatherUiState(val data: WeatherData? = null, val hidden: Boolean = false)
+
+/**
+ * Owns the weather chip as a self-contained feature module (mirrors [DonationViewModel]/SurveyViewModel):
+ * the region-keyed forecast fetch (once per region) + the hide-weather preference. Pulls weather out of
+ * HomeViewModel/HomeUiState (the fetch in `onRegionValid`, the `weather` field, the
+ * `HomeEnvironment.weatherHidden` gate). The NEARBY-tab gate stays in HomeScreen, like the other chrome;
+ * the chip's tap (toast the summary) is handled in [WeatherFeature].
+ */
+class WeatherViewModel(private val weatherRepo: WeatherRepository) : ViewModel() {
+
+    // hidden starts false and is set by refreshHiddenPref() on resume (reading the pref here would
+    // touch Application — bad for unit tests; harmless in practice since the chip also needs async data).
+    private val _state = MutableStateFlow(WeatherUiState())
+    val state: StateFlow<WeatherUiState> = _state.asStateFlow()
+
+    // Guard so the forecast is fetched once per region (not on every region-valid callback).
+    private var fetchedRegionId: Long? = null
+
+    /** Region validity changed: fetch the forecast once per region, or clear it when [regionId] is null. */
+    fun setRegion(regionId: Long?) {
+        if (regionId == null) {
+            fetchedRegionId = null
+            _state.update { it.copy(data = null) }
+            return
+        }
+        if (fetchedRegionId == regionId) {
+            return
+        }
+        fetchedRegionId = regionId
+        viewModelScope.launch {
+            weatherRepo.currentForecast(regionId).onSuccess { data ->
+                _state.update { it.copy(data = data) }
+            }
+        }
+    }
+
+    /** Re-read the hide-weather preference (it can change in Settings). Call on resume. */
+    fun refreshHiddenPref() = _state.update { it.copy(hidden = WeatherUtils.isWeatherViewHiddenPref()) }
+}

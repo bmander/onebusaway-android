@@ -53,7 +53,6 @@ import org.onebusaway.android.map.compose.ObaMapReadyListener
 import org.onebusaway.android.map.render.MapRenderState
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.survey.SurveyViewModel
-import org.onebusaway.android.ui.weather.WeatherUtils
 
 /**
  * The home screen's tap/UI callbacks, bundled into one holder (mirrors [SurveyCallbacks]) so
@@ -70,7 +69,6 @@ class HomeCallbacks(
     val onZoomIn: () -> Unit,
     val onZoomOut: () -> Unit,
     val onToggleBikeshare: () -> Unit,
-    val onWeatherClick: () -> Unit,
     val onHelpAction: (HelpAction) -> Unit,
     val onWhatsNewDismissed: () -> Unit,
     val onRegionChosen: (ObaRegion) -> Unit,
@@ -117,6 +115,7 @@ fun HomeScreen(
     routeHeader: RouteHeader?,
     surveyViewModel: SurveyViewModel,
     donationViewModel: DonationViewModel,
+    weatherViewModel: WeatherViewModel,
     listVms: HomeListViewModels,
     // All the screen's tap/UI lambdas, bundled (see [HomeCallbacks]); brought into scope below via
     // `with` so the body references them unqualified.
@@ -269,16 +268,12 @@ fun HomeScreen(
                             onZoomOut = onZoomOut,
                             onToggleBikeshare = onToggleBikeshare,
                         )
-                        val weather = state.weather
-                        if (weather != null) {
-                            WeatherCard(
-                                iconRes = WeatherUtils.getWeatherIconRes(weather.icon),
-                                tempText = WeatherUtils.formatTemperature(weather.temperatureF),
-                                fitIcon = WeatherUtils.isFitIcon(weather.icon),
-                                onClick = onWeatherClick,
-                                modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-                            )
-                        }
+                        // The weather chip feature module: self-wiring from its ViewModel, NEARBY-gated.
+                        WeatherFeature(
+                            viewModel = weatherViewModel,
+                            onNearby = state.selectedItem == HomeNavItem.NEARBY,
+                            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+                        )
                         // The donation feature module: the card (NEARBY + DonationsManager-gated) plus
                         // its dismiss dialog. Self-wiring from its ViewModel; NEARBY-gated like the
                         // other chrome.

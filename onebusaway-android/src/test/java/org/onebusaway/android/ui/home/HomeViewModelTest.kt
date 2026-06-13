@@ -16,7 +16,6 @@
 package org.onebusaway.android.ui.home
 
 import androidx.lifecycle.SavedStateHandle
-import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -33,14 +32,6 @@ import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.map.MapCommand
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.testing.MainDispatcherRule
-
-private class FakeWeatherRepository(var result: Result<WeatherData>) : WeatherRepository {
-    val requestedRegions = mutableListOf<Long>()
-    override suspend fun currentForecast(regionId: Long): Result<WeatherData> {
-        requestedRegions.add(regionId)
-        return result
-    }
-}
 
 private class FakeWideAlertsRepository(private val alerts: List<WideAlert>) : WideAlertsRepository {
     override fun wideAlerts(regionId: String): Flow<WideAlert> = flow {
@@ -77,10 +68,7 @@ class HomeViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private val forecast = WeatherData(icon = "clear-day", temperatureF = 70.0, summary = "Clear")
-
     private fun viewModel(
-        weather: Result<WeatherData> = Result.success(forecast),
         alerts: List<WideAlert> = emptyList(),
         regionStatus: RegionStatus = RegionStatus.Unchanged,
         regionRepo: FakeRegionStatusRepository = FakeRegionStatusRepository(regionStatus),
@@ -88,73 +76,8 @@ class HomeViewModelTest {
         savedState: SavedStateHandle = SavedStateHandle(),
         map: MapViewModel = MapViewModel(),
     ) = HomeViewModel(
-        savedState, FakeWeatherRepository(weather), FakeWideAlertsRepository(alerts), regionRepo,
-        startupRepo, map
+        savedState, FakeWideAlertsRepository(alerts), regionRepo, startupRepo, map
     )
-
-    // --- weather (async) ---
-
-    @Test
-    fun `weather shows on nearby after the region becomes valid`() = runTest {
-        val vm = viewModel()
-        vm.onRegionValid(1L)
-        advanceUntilIdle()
-        assertEquals(forecast, vm.uiState.value.weather)
-    }
-
-    @Test
-    fun `weather stays hidden when the preference hides it`() = runTest {
-        val vm = viewModel()
-        vm.onEnvironmentRefreshed(HomeEnvironment(weatherHidden = true))
-        vm.onRegionValid(1L)
-        advanceUntilIdle()
-        assertNull(vm.uiState.value.weather)
-    }
-
-    @Test
-    fun `weather is hidden off the nearby tab`() = runTest {
-        val vm = viewModel()
-        vm.onRegionValid(1L)
-        advanceUntilIdle()
-        vm.onNavItemSelected(HomeNavItem.STARRED_STOPS)
-        assertNull(vm.uiState.value.weather)
-    }
-
-    @Test
-    fun `an invalid region clears the weather`() = runTest {
-        val vm = viewModel()
-        vm.onRegionValid(1L)
-        advanceUntilIdle()
-        vm.onRegionValid(null)
-        assertNull(vm.uiState.value.weather)
-    }
-
-    @Test
-    fun `a weather fetch failure leaves the chip hidden`() = runTest {
-        val vm = viewModel(weather = Result.failure(IOException("boom")))
-        vm.onRegionValid(1L)
-        advanceUntilIdle()
-        assertNull(vm.uiState.value.weather)
-    }
-
-    @Test
-    fun `weather is fetched once per region, again when the region changes`() = runTest {
-        val repo = FakeWeatherRepository(Result.success(forecast))
-        val vm = HomeViewModel(
-            SavedStateHandle(), repo, FakeWideAlertsRepository(emptyList()),
-            FakeRegionStatusRepository(), FakeStartupPreferencesRepository(), MapViewModel()
-        )
-
-        vm.onRegionValid(1L)
-        advanceUntilIdle()
-        vm.onRegionValid(1L) // same region: no refetch
-        advanceUntilIdle()
-        assertEquals(listOf(1L), repo.requestedRegions)
-
-        vm.onRegionValid(2L) // new region: refetch
-        advanceUntilIdle()
-        assertEquals(listOf(1L, 2L), repo.requestedRegions)
-    }
 
     // --- map loading + peek inputs ---
 
@@ -572,11 +495,10 @@ class HomeStateTest {
     private fun state(
         selected: HomeNavItem,
         env: HomeEnvironment = HomeEnvironment(),
-        weather: WeatherData? = WeatherData("clear-day", 70.0, null),
         mapLoading: Boolean = false,
         focusedStop: FocusedStop? = null,
     ) = buildState(
-        selected, emptyList(), env, weather, HomeDialog.None, true,
+        selected, emptyList(), env, HomeDialog.None, true,
         focusedStop = focusedStop, mapLoading = mapLoading,
     )
 
@@ -609,14 +531,6 @@ class HomeStateTest {
     fun `left-hand mode follows the preference regardless of tab`() {
         assertTrue(state(HomeNavItem.NEARBY, HomeEnvironment(leftHandMode = true)).leftHandMode)
         assertTrue(state(HomeNavItem.STARRED_STOPS, HomeEnvironment(leftHandMode = true)).leftHandMode)
-    }
-
-    @Test
-    fun `weather chip needs nearby data and a non-hidden preference`() {
-        assertEquals("clear-day", state(HomeNavItem.NEARBY).weather?.icon)
-        assertNull(state(HomeNavItem.NEARBY, HomeEnvironment(weatherHidden = true)).weather)
-        assertNull(state(HomeNavItem.STARRED_STOPS).weather)
-        assertNull(state(HomeNavItem.NEARBY, weather = null).weather)
     }
 
     @Test

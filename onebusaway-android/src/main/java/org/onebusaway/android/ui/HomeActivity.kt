@@ -65,6 +65,7 @@ import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.DefaultRegionStatusRepository
 import org.onebusaway.android.ui.home.DonationViewModel
+import org.onebusaway.android.ui.home.WeatherViewModel
 import org.onebusaway.android.ui.home.DefaultStartupPreferencesRepository
 import org.onebusaway.android.ui.home.DefaultWeatherRepository
 import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
@@ -86,7 +87,6 @@ import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
 import org.onebusaway.android.ui.survey.SurveyViewModel
 import org.onebusaway.android.ui.weather.RegionCallback
-import org.onebusaway.android.ui.weather.WeatherUtils
 import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
@@ -106,7 +106,6 @@ class HomeActivity : AppCompatActivity(),
             initializer {
                 HomeViewModel(
                     createSavedStateHandle(),
-                    DefaultWeatherRepository(),
                     DefaultWideAlertsRepository(),
                     DefaultRegionStatusRepository(applicationContext),
                     DefaultStartupPreferencesRepository(),
@@ -142,6 +141,12 @@ class HomeActivity : AppCompatActivity(),
 
     // The donation card feature module (Compose), shown over the map on NEARBY. Activity-scoped.
     private val donationViewModel: DonationViewModel by viewModels()
+
+    // The weather chip feature module (Compose), shown over the map on NEARBY. Activity-scoped; takes
+    // the weather repository, so it needs a factory.
+    private val weatherViewModel: WeatherViewModel by viewModels {
+        viewModelFactory { initializer { WeatherViewModel(DefaultWeatherRepository()) } }
+    }
 
     // The host can't call requestPermissions() itself (it's neither Activity nor Fragment), so it asks
     // through MapHostDeps and we drive the real launcher, delivering the outcome back to the host.
@@ -208,7 +213,6 @@ class HomeActivity : AppCompatActivity(),
             onZoomIn = ::onZoomIn,
             onZoomOut = ::onZoomOut,
             onToggleBikeshare = ::onToggleBikeshare,
-            onWeatherClick = ::onWeatherClick,
             onHelpAction = ::onHelpAction,
             onWhatsNewDismissed = ::onWhatsNewDismissed,
             onRegionChosen = viewModel::onRegionChosen,
@@ -240,6 +244,7 @@ class HomeActivity : AppCompatActivity(),
                 routeHeader = routeHeader,
                 surveyViewModel = surveyViewModel,
                 donationViewModel = donationViewModel,
+                weatherViewModel = weatherViewModel,
                 listVms = listVms,
                 callbacks = homeCallbacks,
             )
@@ -730,9 +735,10 @@ class HomeActivity : AppCompatActivity(),
 
     /**
      * Snapshots the non-reactive environment (preferences + app-global flags) and feeds it to the
-     * ViewModel, which recomputes the gated chrome/overlay visibility (zoom controls, left-hand
-     * mode, layers FAB, weather chip, donation card). Called whenever those inputs may have changed:
-     * onResume, after a nav selection, after a region update, and after toggling the bikeshare layer.
+     * ViewModel, which recomputes the gated chrome visibility (zoom controls, left-hand mode, layers
+     * FAB). Called whenever those inputs may have changed: onResume, after a nav selection, after a
+     * region update, and after toggling the bikeshare layer. (The weather + donation feature modules
+     * read their own prefs.)
      */
     private fun pushEnvironment() {
         val prefs = Application.getPrefs()
@@ -746,7 +752,6 @@ class HomeActivity : AppCompatActivity(),
                 leftHandMode = prefs.getBoolean(
                     getString(R.string.preference_key_left_hand_mode), false
                 ),
-                weatherHidden = WeatherUtils.isWeatherViewHiddenPref(),
             )
         )
     }
@@ -893,14 +898,9 @@ class HomeActivity : AppCompatActivity(),
     // Getting a callback from the map fragment to check if we are in a valid region or not. The
     // ViewModel fetches the weather + streams GTFS wide alerts for a valid region (null clears them).
     override fun onValidRegion(isValid: Boolean) {
-        viewModel.onRegionValid(if (isValid) Application.get().currentRegion.id else null)
-    }
-
-    private fun onWeatherClick() {
-        val summary = viewModel.uiState.value.weather?.summary
-        if (summary != null) {
-            Toast.makeText(applicationContext, summary.trim(), Toast.LENGTH_SHORT).show()
-        }
+        val regionId = if (isValid) Application.get().currentRegion.id else null
+        viewModel.onRegionValid(regionId)
+        weatherViewModel.setRegion(regionId)
     }
 
     companion object {

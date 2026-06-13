@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.ui.home
 
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,11 +29,51 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.onebusaway.android.ui.weather.WeatherUtils
+
+/**
+ * Self-wiring weather feature module: collects [WeatherViewModel] state, re-reads the hide-weather
+ * preference on resume, and renders the [WeatherCard] when the chip should show ([onNearby] +
+ * not-hidden + a forecast loaded). The tap toasts the forecast summary. The host just places this with
+ * its ViewModel + whether the map's NEARBY tab is showing.
+ */
+@Composable
+fun WeatherFeature(viewModel: WeatherViewModel, onNearby: Boolean, modifier: Modifier = Modifier) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshHiddenPref()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val data = state.data
+    if (onNearby && !state.hidden && data != null) {
+        WeatherCard(
+            iconRes = WeatherUtils.getWeatherIconRes(data.icon),
+            tempText = WeatherUtils.formatTemperature(data.temperatureF),
+            fitIcon = WeatherUtils.isFitIcon(data.icon),
+            onClick = {
+                data.summary?.let { Toast.makeText(context, it.trim(), Toast.LENGTH_SHORT).show() }
+            },
+            modifier = modifier,
+        )
+    }
+}
 
 /**
  * The small weather chip overlaid at the top of the map (current icon + temperature), replacing the

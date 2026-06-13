@@ -43,7 +43,6 @@ import kotlinx.coroutines.launch
  */
 class HomeViewModel(
     private val savedState: SavedStateHandle,
-    private val weatherRepo: WeatherRepository,
     private val wideAlertsRepo: WideAlertsRepository,
     private val regionRepo: RegionStatusRepository,
     private val startupRepo: StartupPreferencesRepository,
@@ -64,7 +63,6 @@ class HomeViewModel(
     // ViewModel itself); the cross-session remembered tab is the activity's enum-name preference.
     private var selectedItem: HomeNavItem = readNavItem(savedState) ?: HomeNavItem.NEARBY
     private var environment = HomeEnvironment()
-    private var weatherData: WeatherData? = null
     private var dialog: HomeDialog = HomeDialog.None
     private var helpShowContactUs: Boolean = true
     private var mapLoading: Boolean = false
@@ -87,8 +85,8 @@ class HomeViewModel(
     private var focusedStop: FocusedStop? = readFocusedStop(savedState)
     private var focusedBikeStationId: String? = savedState[KEY_BIKE_STATION]
 
-    // Guards so weather + alerts are fetched once per region (not on every region-valid callback).
-    private var weatherRegionId: Long? = null
+    // Guard so wide alerts are streamed once per region (not on every region-valid callback).
+    private var alertsRegionId: Long? = null
     private var alertsJob: Job? = null
 
     init {
@@ -311,30 +309,20 @@ class HomeViewModel(
     }
 
     /**
-     * The map fragment reported region validity. A non-null [regionId] fetches the weather forecast
-     * and starts streaming wide alerts (once per region); null clears the weather.
+     * The map reported region validity. A non-null [regionId] starts streaming wide alerts (once per
+     * region); null stops them. (The weather forecast is its own feature module — see WeatherViewModel.)
      */
     fun onRegionValid(regionId: Long?) {
         if (regionId == null) {
-            weatherData = null
-            weatherRegionId = null
+            alertsRegionId = null
             alertsJob?.cancel()
             alertsJob = null
-            recompute()
             return
         }
-        if (weatherRegionId == regionId) {
+        if (alertsRegionId == regionId) {
             return
         }
-        weatherRegionId = regionId
-
-        viewModelScope.launch {
-            weatherRepo.currentForecast(regionId).onSuccess { data ->
-                weatherData = data
-                recompute()
-            }
-        }
-
+        alertsRegionId = regionId
         alertsJob?.cancel()
         alertsJob = viewModelScope.launch {
             wideAlertsRepo.wideAlerts(regionId.toString()).collect { alert ->
@@ -345,7 +333,7 @@ class HomeViewModel(
 
     private fun recompute() {
         _uiState.value = buildState(
-            selectedItem, navItems, environment, weatherData, dialog, helpShowContactUs,
+            selectedItem, navItems, environment, dialog, helpShowContactUs,
             focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering
         )
     }
@@ -377,15 +365,14 @@ class HomeViewModel(
 /**
  * Pure projection of the raw inputs onto the rendered [HomeUiState] — the home screen's
  * visibility-gating rules, lifted out of HomeActivity so they can be unit-tested. Mirrors the legacy
- * gates: chrome shows only on NEARBY; the layers FAB additionally needs bikeshare; the weather chip
- * needs data and a non-hidden preference. (The donation card is its own feature module — see
- * DonationViewModel — so its gate is no longer here.)
+ * gates: chrome shows only on NEARBY; the layers FAB additionally needs bikeshare. (The weather chip
+ * and the donation card are their own feature modules — see WeatherViewModel / DonationViewModel — so
+ * their gates are no longer here.)
  */
 internal fun buildState(
     selectedItem: HomeNavItem,
     navItems: List<HomeNavItem>,
     environment: HomeEnvironment,
-    weatherData: WeatherData?,
     dialog: HomeDialog,
     helpShowContactUs: Boolean,
     focusedStop: FocusedStop? = null,
@@ -411,7 +398,6 @@ internal fun buildState(
         leftHandMode = environment.leftHandMode,
         layersFabVisible = nearby && environment.bikeshareEnabled,
         bikeshareActive = environment.bikeshareActive,
-        weather = if (nearby && !environment.weatherHidden) weatherData else null,
         dialog = dialog,
         helpShowContactUs = helpShowContactUs,
         showListSortMenu = listTab,

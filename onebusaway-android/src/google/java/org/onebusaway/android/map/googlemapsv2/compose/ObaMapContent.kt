@@ -18,6 +18,7 @@ package org.onebusaway.android.map.googlemapsv2.compose
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
@@ -25,7 +26,9 @@ import com.google.android.gms.maps.model.StrokeStyle
 import com.google.android.gms.maps.model.StyleSpan
 import com.google.android.gms.maps.model.TextureStyle
 import com.google.maps.android.compose.GoogleMapComposable
+import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.Polyline
+import com.google.maps.android.compose.rememberMarkerState
 import org.onebusaway.android.R
 import org.onebusaway.android.map.render.MapRenderState
 
@@ -33,7 +36,8 @@ import org.onebusaway.android.map.render.MapRenderState
  * Declarative render of [MapRenderState] inside a `GoogleMap {}` content lambda. This is the
  * counterpart of the imperative overlay classes: the flavor host pushes overlay content into the
  * shared [MapRenderState] via its `ObaMapView` methods, and this composable draws whatever the
- * current snapshot holds. It grows one overlay per phase — MM1 renders route / itinerary polylines.
+ * current snapshot holds. It grows one overlay per phase — currently route / itinerary polylines
+ * and generic pins (trip-plan start/end, the report location picker).
  */
 @Composable
 @GoogleMapComposable
@@ -56,5 +60,19 @@ fun ObaMapContent(renderState: MapRenderState) {
                 StyleSpan(StrokeStyle.colorBuilder(polyline.color).stamp(arrow).build())
             ),
         )
+    }
+
+    // Generic pins (trip-plan start/end, report location picker). Keyed by their stable id so a pin
+    // keeps its node across recompositions; a null hue renders the SDK's default marker.
+    snapshot.genericMarkers.forEach { (id, marker) ->
+        key(id) {
+            val markerState = rememberMarkerState(
+                position = LatLng(marker.point.latitude, marker.point.longitude)
+            )
+            Marker(
+                state = markerState,
+                icon = marker.hue?.let { remember(it) { BitmapDescriptorFactory.defaultMarker(it) } },
+            )
+        }
     }
 }

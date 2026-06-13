@@ -29,9 +29,16 @@ data class GeoPoint(val latitude: Double, val longitude: Double)
  */
 data class RoutePolyline(val color: Int, val points: List<GeoPoint>)
 
+/**
+ * A generic pin added by code outside the map package (trip-plan start/end, the report location
+ * picker). [hue] is a Google `BitmapDescriptorFactory` hue in [0, 360), or null for the default pin.
+ */
+data class GenericMarker(val point: GeoPoint, val hue: Float?)
+
 /** Immutable snapshot of everything the map should render. Grows one overlay per phase. */
 data class MapRenderSnapshot(
     val routePolylines: List<RoutePolyline> = emptyList(),
+    val genericMarkers: Map<Int, GenericMarker> = emptyMap(),
 )
 
 /**
@@ -56,4 +63,21 @@ class MapRenderState {
     }
 
     fun clearRoutePolylines() = setRoutePolylines(emptyList())
+
+    // --- Generic markers (the old SimpleMarkerOverlay): monotonic int IDs the caller keeps to ---
+    // --- remove the marker later. Unlike the old overlay, these survive until the map renders, ---
+    // --- so addMarker never has to return a "not ready" sentinel. ---
+
+    private var nextMarkerId = 0
+
+    @Synchronized
+    fun addMarker(point: GeoPoint, hue: Float?): Int {
+        val id = nextMarkerId++
+        _snapshot.update { it.copy(genericMarkers = it.genericMarkers + (id to GenericMarker(point, hue))) }
+        return id
+    }
+
+    fun removeMarker(id: Int) {
+        _snapshot.update { it.copy(genericMarkers = it.genericMarkers - id) }
+    }
 }

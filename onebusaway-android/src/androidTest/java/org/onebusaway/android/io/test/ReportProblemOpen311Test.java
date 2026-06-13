@@ -19,7 +19,6 @@ import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.mock.MockRegion;
-import org.onebusaway.android.report.connection.ServiceListTask;
 
 import android.location.Location;
 import android.text.TextUtils;

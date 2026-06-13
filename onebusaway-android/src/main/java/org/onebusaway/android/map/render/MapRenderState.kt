@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 
 /** A geographic point, flavor-neutral (carries no Google/maplibre `LatLng` dependency). */
 data class GeoPoint(val latitude: Double, val longitude: Double)
@@ -35,10 +37,28 @@ data class RoutePolyline(val color: Int, val points: List<GeoPoint>)
  */
 data class GenericMarker(val point: GeoPoint, val hue: Float?)
 
+/**
+ * One real-time vehicle marker. [status] is the raw io/elements status (the renderer derives the
+ * icon, color, and info-window text from it, paired with the shared [MapRenderSnapshot.vehicleResponse]);
+ * [activeTripId] is the stable key used for marker identity + animation; [isRealtime] is the
+ * populate-time decision (last-known location present + predicted) that selects the live-vs-scheduled icon.
+ */
+data class VehicleMarker(
+    val activeTripId: String,
+    val point: GeoPoint,
+    val isRealtime: Boolean,
+    val status: ObaTripStatus,
+)
+
 /** Immutable snapshot of everything the map should render. Grows one overlay per phase. */
 data class MapRenderSnapshot(
     val routePolylines: List<RoutePolyline> = emptyList(),
     val genericMarkers: Map<Int, GenericMarker> = emptyMap(),
+    val vehicles: List<VehicleMarker> = emptyList(),
+    val vehicleResponse: ObaTripsForRouteResponse? = null,
+    // The currently focused stop id, couriered so the vehicle info-window's "more info" tap can deep
+    // link into TripDetails scoped to that stop (the legacy VehicleOverlay.Controller hook).
+    val focusedStopId: String? = null,
 )
 
 /**
@@ -79,5 +99,19 @@ class MapRenderState {
 
     fun removeMarker(id: Int) {
         _snapshot.update { it.copy(genericMarkers = it.genericMarkers - id) }
+    }
+
+    // --- Vehicles (the old VehicleOverlay): all vehicles share one response for route/trip lookups. ---
+
+    fun setVehicles(vehicles: List<VehicleMarker>, response: ObaTripsForRouteResponse?) {
+        _snapshot.update { it.copy(vehicles = vehicles, vehicleResponse = response) }
+    }
+
+    fun clearVehicles() {
+        _snapshot.update { it.copy(vehicles = emptyList(), vehicleResponse = null) }
+    }
+
+    fun setFocusedStopId(stopId: String?) {
+        _snapshot.update { it.copy(focusedStopId = stopId) }
     }
 }

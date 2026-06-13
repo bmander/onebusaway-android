@@ -15,11 +15,16 @@
  */
 package org.onebusaway.android.map.googlemapsv2.compose
 
+import android.content.Context
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.StrokeStyle
@@ -27,10 +32,15 @@ import com.google.android.gms.maps.model.StyleSpan
 import com.google.android.gms.maps.model.TextureStyle
 import com.google.maps.android.compose.GoogleMapComposable
 import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerInfoWindow
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberMarkerState
 import org.onebusaway.android.R
+import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.map.googlemapsv2.VehicleIconFactory
 import org.onebusaway.android.map.render.MapRenderState
+import org.onebusaway.android.map.render.shouldAnimateVehicle
+import org.onebusaway.android.ui.TripDetailsActivity
 
 /**
  * Declarative render of [MapRenderState] inside a `GoogleMap {}` content lambda. This is the
@@ -43,6 +53,7 @@ import org.onebusaway.android.map.render.MapRenderState
 @GoogleMapComposable
 fun ObaMapContent(renderState: MapRenderState) {
     val snapshot by renderState.snapshot.collectAsState()
+    val context = LocalContext.current
 
     // The chevron texture is color-independent, so decode it once; the per-polyline color is applied
     // by the StrokeStyle below. Safe to build here: the map SDK is initialized before this content
@@ -75,4 +86,68 @@ fun ObaMapContent(renderState: MapRenderState) {
             )
         }
     }
+
+    // Real-time vehicles. The marker animates to a new position when it moves a short distance and
+    // snaps for large jumps (the legacy < 400m rule). Tapping shows a Compose MarkerInfoWindow; the
+    // SDK renders it because GoogleMapHost's imperative marker-click listener returns false for these
+    // maps-compose markers, leaving maps-compose's info-window adapter to draw the content.
+    val vehicleResponse = snapshot.vehicleResponse
+    if (vehicleResponse != null) {
+        val focusedStopId = snapshot.focusedStopId
+        snapshot.vehicles.forEach { vehicle ->
+            key(vehicle.activeTripId) {
+                val target = LatLng(vehicle.point.latitude, vehicle.point.longitude)
+                val markerState = rememberMarkerState(position = target)
+                LaunchedEffect(target) {
+                    val start = markerState.position
+                    if (start.latitude == target.latitude && start.longitude == target.longitude) {
+                        return@LaunchedEffect
+                    }
+                    val dist = VehicleIconFactory.distanceMeters(
+                        start.latitude, start.longitude, target.latitude, target.longitude
+                    )
+                    if (shouldAnimateVehicle(dist)) {
+                        animate(0f, 1f, animationSpec = tween(durationMillis = 1000)) { f, _ ->
+                            markerState.position = LatLng(
+                                start.latitude + (target.latitude - start.latitude) * f,
+                                start.longitude + (target.longitude - start.longitude) * f,
+                            )
+                        }
+                    } else {
+                        markerState.position = target
+                    }
+                }
+                val icon = remember(vehicle.status) {
+                    VehicleIconFactory.getVehicleIcon(
+                        context, vehicle.isRealtime, vehicle.status, vehicleResponse
+                    )
+                }
+                MarkerInfoWindow(
+                    state = markerState,
+                    icon = icon,
+                    zIndex = 1f,
+                    onInfoWindowClick = {
+                        openVehicleTripDetails(context, vehicle.status, focusedStopId)
+                    },
+                ) {
+                    VehicleInfoWindow(vehicle.status, vehicleResponse)
+                }
+            }
+        }
+    }
+}
+
+/** Deep links into TripDetails for the tapped vehicle, scoped to the focused stop when there is one. */
+private fun openVehicleTripDetails(
+    context: Context,
+    status: ObaTripStatus,
+    focusedStopId: String?,
+) {
+    val builder = TripDetailsActivity.Builder(context, status.activeTripId)
+        .setScrollMode(TripDetailsActivity.SCROLL_MODE_VEHICLE)
+        .setUpMode("back")
+    if (focusedStopId != null) {
+        builder.setStopId(focusedStopId)
+    }
+    builder.start()
 }

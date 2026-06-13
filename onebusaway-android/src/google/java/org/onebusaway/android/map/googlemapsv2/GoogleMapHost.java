@@ -39,6 +39,9 @@ import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaShape;
 import org.onebusaway.android.io.elements.ObaStop;
+import org.onebusaway.android.io.elements.ObaTripDetails;
+import org.onebusaway.android.io.elements.ObaTripStatus;
+import org.onebusaway.android.io.elements.Status;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.map.DirectionsMapController;
 import org.onebusaway.android.map.LayerActivationListener;
@@ -58,6 +61,7 @@ import org.onebusaway.android.map.googlemapsv2.compose.ComposeMapHostKt;
 import org.onebusaway.android.map.render.GeoPoint;
 import org.onebusaway.android.map.render.MapRenderState;
 import org.onebusaway.android.map.render.RoutePolyline;
+import org.onebusaway.android.map.render.VehicleMarker;
 import org.onebusaway.android.region.ObaRegionsTask;
 import org.onebusaway.android.ui.weather.RegionCallback;
 import org.onebusaway.android.util.LocationHelper;
@@ -115,7 +119,7 @@ public class GoogleMapHost
         LocationSource, LocationHelper.Listener,
         GoogleMap.OnCameraChangeListener,
         StopOverlay.OnFocusChangedListener, OnMapReadyCallback,
-        VehicleOverlay.Controller, LayerActivationListener {
+        LayerActivationListener {
 
     private static final String TAG = "MapFragment";
 
@@ -149,8 +153,6 @@ public class GoogleMapHost
 
     // The host controls the stop overlay, since that is used by both modes.
     private StopOverlay mStopOverlay;
-
-    private VehicleOverlay mVehicleOverlay;
 
     private BikeStationOverlay mBikeStationOverlay;
 
@@ -371,6 +373,7 @@ public class GoogleMapHost
 
     private void initMapState(Bundle args) {
         mFocusStopId = args.getString(MapParams.STOP_ID);
+        mRenderState.setFocusedStopId(mFocusStopId);
 
         mMapPaddingLeft = args.getInt(MapParams.MAP_PADDING_LEFT, MapParams.DEFAULT_MAP_PADDING);
         mMapPaddingTop = args.getInt(MapParams.MAP_PADDING_TOP, MapParams.DEFAULT_MAP_PADDING);
@@ -547,13 +550,6 @@ public class GoogleMapHost
         mStopOverlay = new StopOverlay(mActivity, mMap);
         mStopOverlay.setOnFocusChangeListener(this);
         return true;
-    }
-
-    public void setupVehicleOverlay() {
-        if (mVehicleOverlay == null && mActivity != null) {
-            mVehicleOverlay = new VehicleOverlay(mActivity, mMap);
-            mVehicleOverlay.setController(this);
-        }
     }
 
     public void setupBikeStationOverlay(boolean isInDirectionsMode) {
@@ -763,6 +759,9 @@ public class GoogleMapHost
                 } else {
                     mFocusStopId = null;
                 }
+                // Courier the focused stop to the render state so a vehicle info-window tap can deep
+                // link into TripDetails scoped to it (the old VehicleOverlay.Controller hook).
+                mRenderState.setFocusedStopId(mFocusStopId);
 
                 // Pass overlay focus event up to listeners
                 if (mOnFocusChangedListener != null) {
@@ -996,17 +995,41 @@ public class GoogleMapHost
 
     @Override
     public void updateVehicles(HashSet<String> routeIds, ObaTripsForRouteResponse response) {
-        setupVehicleOverlay();
-        if (mVehicleOverlay != null) {
-            mVehicleOverlay.updateVehicles(routeIds, response);
+        // Build the marker list (the old VehicleOverlay.MarkerData.populate filter) and push it to the
+        // render state; ObaMapContent draws + animates the markers and renders their info windows.
+        List<VehicleMarker> markers = new ArrayList<>();
+        for (ObaTripDetails trip : response.getTrips()) {
+            ObaTripStatus status = trip.getStatus();
+            if (status == null) {
+                continue;
+            }
+            // Only show vehicles running a route we asked for, and that aren't CANCELED.
+            String activeRoute = response.getTrip(status.getActiveTripId()).getRouteId();
+            if (!routeIds.contains(activeRoute) || Status.CANCELED.equals(status.getStatus())) {
+                continue;
+            }
+            Location l = status.getLastKnownLocation();
+            boolean isRealtime = true;
+            if (l == null) {
+                // No extrapolated location available - fall back to the last reported position.
+                l = status.getPosition();
+                isRealtime = false;
+            }
+            if (!status.isPredicted()) {
+                isRealtime = false;
+            }
+            markers.add(new VehicleMarker(
+                    status.getActiveTripId(),
+                    new GeoPoint(l.getLatitude(), l.getLongitude()),
+                    isRealtime,
+                    status));
         }
+        mRenderState.setVehicles(markers, response);
     }
 
     @Override
     public void removeVehicleOverlay() {
-        if (mVehicleOverlay != null) {
-            mVehicleOverlay.clear();
-        }
+        mRenderState.clearVehicles();
     }
 
     /**
@@ -1144,14 +1167,6 @@ public class GoogleMapHost
     }
 
     //
-    // VehicleOverlay.Controller
-    //
-    @Override
-    public String getFocusedStopId() {
-        return mFocusStopId;
-    }
-
-    //
     // Dialogs
     //
 
@@ -1238,11 +1253,6 @@ public class GoogleMapHost
             if (mBikeStationOverlay != null) {
                 mBikeStationOverlay.removeMarkerClicked(latLng);
             }
-
-            if (mVehicleOverlay != null) {
-                mVehicleOverlay.removeMarkerClicked(latLng);
-            }
-
         }
 
         @Override
@@ -1257,9 +1267,8 @@ public class GoogleMapHost
                     return true;
                 }
             }
-            if (mVehicleOverlay != null) {
-                return mVehicleOverlay.markerClicked(marker);
-            }
+            // Vehicles are maps-compose markers: returning false lets the SDK show their info window
+            // via maps-compose's adapter (see ObaMapContent).
             return false;
         }
     }

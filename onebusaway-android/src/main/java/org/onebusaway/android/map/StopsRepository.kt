@@ -41,19 +41,24 @@ interface StopsRepository {
 class DefaultStopsRepository(private val context: Context) : StopsRepository {
 
     override suspend fun getStops(center: Location, latSpan: Double, lonSpan: Double):
-            Result<ObaStopsForLocationResponse?> = withContext(Dispatchers.IO) {
-        runCatching {
-            if (!hasObaApiEndpoint()) {
-                null
-            } else {
-                ObaStopsForLocationRequest.Builder(context, center)
-                    .setSpan(latSpan, lonSpan)
-                    .build()
-                    .call()
-            }
-        }
+            Result<ObaStopsForLocationResponse?> = obaApiCall {
+        ObaStopsForLocationRequest.Builder(context, center)
+            .setSpan(latSpan, lonSpan)
+            .build()
+            .call()
     }
 }
+
+/**
+ * Runs a blocking OBA REST [block] on the IO dispatcher, wrapped in a [Result]. Returns
+ * `success(null)` when there is no endpoint to contact yet (no current region and no custom API
+ * URL) — the legacy map loaders produced a null-bodied response there and the controllers treat it
+ * as a no-op. Shared by the map repositories that gate on an OBA endpoint.
+ */
+internal suspend fun <T> obaApiCall(block: () -> T): Result<T?> =
+    withContext(Dispatchers.IO) {
+        runCatching { if (!hasObaApiEndpoint()) null else block() }
+    }
 
 /**
  * True when there is an OBA REST API endpoint to contact — a current region or a manually entered

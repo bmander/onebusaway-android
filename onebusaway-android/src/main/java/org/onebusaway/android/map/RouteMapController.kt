@@ -90,14 +90,11 @@ class RouteMapController(callback: MapModeController.Callback) : MapModeControll
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    private val repository = DefaultRouteMapRepository(callback.activity)
+    private val repository = DefaultRouteMapRepository(callback.activity.applicationContext)
 
     private var routeJob: Job? = null
 
     private var vehicleJob: Job? = null
-
-    /** Reused single-route set passed to the vehicle overlay. */
-    private val routes = HashSet<String>(1)
 
     override fun setState(args: Bundle?) {
         requireNotNull(args) { "args cannot be null" }
@@ -294,8 +291,7 @@ class RouteMapController(callback: MapModeController.Callback) : MapModeControll
             return
         }
 
-        routes.clear()
-        routes.add(routeId)
+        val routes = hashSetOf(routeId)
 
         obaMapView.updateVehicles(routes, response)
 

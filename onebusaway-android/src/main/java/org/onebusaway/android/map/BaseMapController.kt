@@ -117,8 +117,7 @@ abstract class BaseMapController(
     override fun onNoLocation() {}
 
     private fun refresh() {
-        // The old refresh() posted updateData() to the UI thread; updateData() now launches on the
-        // Main-dispatcher [scope], so we can call it directly.
+        // updateData() launches on the Main-dispatcher [scope], so no thread hop is needed here.
         updateData()
     }
 

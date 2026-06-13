@@ -16,8 +16,6 @@
 package org.onebusaway.android.map
 
 import android.content.Context
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.request.ObaStopsForRouteRequest
 import org.onebusaway.android.io.request.ObaStopsForRouteResponse
 import org.onebusaway.android.io.request.ObaTripsForRouteRequest
@@ -47,30 +45,18 @@ class DefaultRouteMapRepository(private val context: Context) :
     RouteShapesRepository, RouteVehiclesRepository {
 
     override suspend fun getRoute(routeId: String): Result<ObaStopsForRouteResponse?> =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                if (!hasObaApiEndpoint()) {
-                    null
-                } else {
-                    ObaStopsForRouteRequest.Builder(context, routeId)
-                        .setIncludeShapes(true)
-                        .build()
-                        .call()
-                }
-            }
+        obaApiCall {
+            ObaStopsForRouteRequest.Builder(context, routeId)
+                .setIncludeShapes(true)
+                .build()
+                .call()
         }
 
     override suspend fun getVehicles(routeId: String): Result<ObaTripsForRouteResponse?> =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                if (!hasObaApiEndpoint()) {
-                    null
-                } else {
-                    ObaTripsForRouteRequest.Builder(context, routeId)
-                        .setIncludeStatus(true)
-                        .build()
-                        .call()
-                }
-            }
+        obaApiCall {
+            ObaTripsForRouteRequest.Builder(context, routeId)
+                .setIncludeStatus(true)
+                .build()
+                .call()
         }
 }

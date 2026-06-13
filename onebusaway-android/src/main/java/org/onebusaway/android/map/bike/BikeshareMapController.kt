@@ -35,7 +35,8 @@ import org.opentripplanner.routing.core.TraverseMode
  */
 class BikeshareMapController(callback: MapModeController.Callback) : BaseMapController(callback) {
 
-    private val repository: BikeStationsRepository = DefaultBikeStationsRepository(mCallback.activity)
+    private val repository: BikeStationsRepository =
+        DefaultBikeStationsRepository(mCallback.activity.applicationContext)
 
     private var selectedBikeStationIds: List<String>? = null
 
@@ -48,26 +49,27 @@ class BikeshareMapController(callback: MapModeController.Callback) : BaseMapCont
     }
 
     fun showBikes(showBikes: Boolean) {
-        if (showBikes) {
-            val mode = mapMode ?: return
-            // Bike stations load unless we're in directions mode with no itinerary stations to show.
-            // (The legacy code's `ids != null || ids.size() > 0` NPEs on a null ids in directions
-            // mode; ids is always set there in practice, so we just gate on non-null.)
-            if (mode != MapParams.MODE_DIRECTIONS || selectedBikeStationIds != null) {
-                loadJob?.cancel()
-                loadJob = scope.launch {
-                    val stations =
-                        repository.getStations(mCallback.southWest, mCallback.northEast).getOrNull()
-                            ?: return@launch
-                    filterStations(stations, selectedBikeStationIds)?.let {
-                        mCallback.showBikeStations(it)
-                    }
-                }
-            }
-        } else {
+        if (!showBikes) {
             mCallback.clearBikeStations()
             loadJob?.cancel()
             loadJob = null
+            return
+        }
+        val mode = mapMode ?: return
+        // Bike stations load unless we're in directions mode with no itinerary stations to show.
+        // (The legacy code's `ids != null || ids.size() > 0` NPEs on a null ids in directions
+        // mode; ids is always set there in practice, so we just gate on non-null.)
+        if (mode == MapParams.MODE_DIRECTIONS && selectedBikeStationIds == null) {
+            return
+        }
+        loadJob?.cancel()
+        loadJob = scope.launch {
+            val stations =
+                repository.getStations(mCallback.southWest, mCallback.northEast).getOrNull()
+                    ?: return@launch
+            filterStations(stations, selectedBikeStationIds)?.let {
+                mCallback.showBikeStations(it)
+            }
         }
     }
 

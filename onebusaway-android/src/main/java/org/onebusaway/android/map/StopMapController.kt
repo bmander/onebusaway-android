@@ -63,7 +63,7 @@ internal class StopsResponse(
  */
 class StopMapController(callback: MapModeController.Callback) : BaseMapController(callback) {
 
-    private val repository: StopsRepository = DefaultStopsRepository(mCallback.activity)
+    private val repository: StopsRepository = DefaultStopsRepository(mCallback.activity.applicationContext)
 
     private var lastResponse: StopsResponse? = null
 

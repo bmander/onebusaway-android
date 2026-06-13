@@ -64,8 +64,6 @@ import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.DefaultRegionStatusRepository
-import org.onebusaway.android.ui.home.DonationCallbacks
-import org.onebusaway.android.ui.home.DonationEffect
 import org.onebusaway.android.ui.home.DonationViewModel
 import org.onebusaway.android.ui.home.DefaultStartupPreferencesRepository
 import org.onebusaway.android.ui.home.DefaultWeatherRepository
@@ -77,7 +75,6 @@ import org.onebusaway.android.ui.home.HomeCallbacks
 import org.onebusaway.android.ui.home.HomeEvent
 import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
-import org.onebusaway.android.ui.home.SurveyCallbacks
 import org.onebusaway.android.ui.home.persistedNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
@@ -87,9 +84,7 @@ import org.onebusaway.android.ui.mylists.StarredStopsRepository
 import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
-import org.onebusaway.android.ui.survey.SurveyEffect
 import org.onebusaway.android.ui.survey.SurveyViewModel
-import org.onebusaway.android.ui.survey.activities.SurveyWebViewActivity
 import org.onebusaway.android.ui.weather.RegionCallback
 import org.onebusaway.android.ui.weather.WeatherUtils
 import org.onebusaway.android.util.LayerUtils
@@ -203,27 +198,6 @@ class HomeActivity : AppCompatActivity(),
 
         val mapSeed = ObaMapHost.resolveInitialCamera(this, savedInstanceState)
 
-        val surveyCallbacks = SurveyCallbacks(
-            onTextOrRadio = surveyViewModel::setTextOrRadioAnswer,
-            onToggleCheckbox = surveyViewModel::toggleCheckbox,
-            onSubmitHero = surveyViewModel::submitHero,
-            onOpenExternalWithoutHero = surveyViewModel::openExternalWithoutHero,
-            onSubmitSheet = surveyViewModel::submitSheet,
-            onRequestDismiss = surveyViewModel::requestDismiss,
-            onSkip = surveyViewModel::skipSurvey,
-            onRemindLater = surveyViewModel::remindMeLater,
-            onCancelDismiss = surveyViewModel::cancelDismiss,
-        )
-
-        val donationCallbacks = DonationCallbacks(
-            onClose = donationViewModel::requestDismiss,
-            onLearnMore = donationViewModel::learnMore,
-            onDonate = donationViewModel::donate,
-            onDismissForever = donationViewModel::dismissForever,
-            onRemindLater = donationViewModel::remindLater,
-            onCancelDismiss = donationViewModel::cancelDismiss,
-        )
-
         val homeCallbacks = HomeCallbacks(
             onNavItemSelected = ::onHomeNavItemSelected,
             onSearch = ::onSearch,
@@ -252,8 +226,6 @@ class HomeActivity : AppCompatActivity(),
         setContent {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
             val routeHeader by mapViewModel.routeHeader.collectAsStateWithLifecycle()
-            val survey by surveyViewModel.state.collectAsStateWithLifecycle()
-            val donation by donationViewModel.state.collectAsStateWithLifecycle()
             HomeScreen(
                 state = state,
                 events = viewModel.events,
@@ -266,10 +238,8 @@ class HomeActivity : AppCompatActivity(),
                 mapSavedInstanceState = savedInstanceState,
                 mapComposed = mapComposed,
                 routeHeader = routeHeader,
-                survey = survey,
-                surveyCallbacks = surveyCallbacks,
-                donation = donation,
-                donationCallbacks = donationCallbacks,
+                surveyViewModel = surveyViewModel,
+                donationViewModel = donationViewModel,
                 listVms = listVms,
                 callbacks = homeCallbacks,
             )
@@ -303,32 +273,8 @@ class HomeActivity : AppCompatActivity(),
             handleFcmNotificationIntent(intent)
         }
 
-        observeSurveyEffects()
         observeViewModelEvents()
         observeMapCommands()
-        observeDonationEffects()
-    }
-
-    /** The map survey's one-shot effects: launch the external-survey web view / show a toast. */
-    private fun observeSurveyEffects() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                surveyViewModel.effects.collect { effect ->
-                    when (effect) {
-                        is SurveyEffect.OpenExternalSurvey -> startActivity(
-                            Intent(this@HomeActivity, SurveyWebViewActivity::class.java).apply {
-                                putExtra("url", effect.url)
-                                if (!effect.embeddedData.isNullOrEmpty()) {
-                                    putStringArrayListExtra("embedded_data", effect.embeddedData)
-                                }
-                            }
-                        )
-                        is SurveyEffect.ShowToast ->
-                            Toast.makeText(this@HomeActivity, effect.resId, Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        }
     }
 
     /** Carry out one-shot effects from the ViewModel (currently the GTFS wide-alert dialog). */
@@ -410,10 +356,9 @@ class HomeActivity : AppCompatActivity(),
 
         // Re-snapshot preferences + app-global flags so the ViewModel recomputes the chrome/overlay
         // visibility gates (zoom controls, left-hand mode, layers FAB, weather).
-        // (The arrivals panel's collapsed state is derived live from the sheet in HomeScreen now.)
+        // (The arrivals panel's collapsed state is derived live from the sheet in HomeScreen now;
+        // the survey + donation feature modules self-wire their own state/effects/refresh.)
         pushEnvironment()
-        // The donation card is its own module; re-gate it on resume (time/dismissal-based).
-        donationViewModel.refresh()
     }
 
     override fun onPause() {
@@ -955,22 +900,6 @@ class HomeActivity : AppCompatActivity(),
         val summary = viewModel.uiState.value.weather?.summary
         if (summary != null) {
             Toast.makeText(applicationContext, summary.trim(), Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /** The donation card's one-shot navigation (the VM owns the DonationsManager state). */
-    private fun observeDonationEffects() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                donationViewModel.effects.collect { effect ->
-                    when (effect) {
-                        DonationEffect.OpenLearnMore ->
-                            startActivity(Intent(this@HomeActivity, DonationLearnMoreActivity::class.java))
-                        DonationEffect.OpenDonatePage ->
-                            startActivity(Application.getDonationsManager().buildOpenDonationsPageIntent())
-                    }
-                }
-            }
         }
     }
 

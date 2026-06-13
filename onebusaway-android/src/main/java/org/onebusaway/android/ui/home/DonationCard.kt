@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.ui.home
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,14 +32,74 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import org.onebusaway.android.R
+import org.onebusaway.android.app.Application
+import org.onebusaway.android.ui.DonationLearnMoreActivity
+
+/**
+ * Self-wiring donation feature module: collects [DonationViewModel] state, builds its callbacks, runs
+ * its effects (open the learn-more / donations page — STARTED-gated so it can't startActivity from the
+ * background), re-gates availability on each resume, and renders [DonationOverlay]. The host just
+ * places this with its ViewModel + whether the map's NEARBY tab is showing.
+ */
+@Composable
+fun DonationFeature(viewModel: DonationViewModel, onNearby: Boolean, cardModifier: Modifier = Modifier) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(viewModel, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.effects.collect { effect ->
+                when (effect) {
+                    DonationEffect.OpenLearnMore ->
+                        context.startActivity(Intent(context, DonationLearnMoreActivity::class.java))
+                    DonationEffect.OpenDonatePage ->
+                        context.startActivity(Application.getDonationsManager().buildOpenDonationsPageIntent())
+                }
+            }
+        }
+    }
+    val callbacks = remember(viewModel) {
+        DonationCallbacks(
+            onClose = viewModel::requestDismiss,
+            onLearnMore = viewModel::learnMore,
+            onDonate = viewModel::donate,
+            onDismissForever = viewModel::dismissForever,
+            onRemindLater = viewModel::remindLater,
+            onCancelDismiss = viewModel::cancelDismiss,
+        )
+    }
+    DonationOverlay(
+        cardVisible = onNearby && state.available,
+        dismissDialogVisible = state.showDismissDialog,
+        callbacks = callbacks,
+        cardModifier = cardModifier,
+    )
+}
 
 /** The donation card's callbacks, reported back to [DonationViewModel] (mirrors SurveyCallbacks). */
 class DonationCallbacks(

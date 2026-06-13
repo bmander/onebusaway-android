@@ -52,7 +52,7 @@ import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.map.compose.ObaMapReadyListener
 import org.onebusaway.android.map.render.MapRenderState
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.ui.survey.SurveyUiState
+import org.onebusaway.android.ui.survey.SurveyViewModel
 import org.onebusaway.android.ui.weather.WeatherUtils
 
 /**
@@ -115,10 +115,8 @@ fun HomeScreen(
     mapSavedInstanceState: Bundle?,
     mapComposed: Boolean,
     routeHeader: RouteHeader?,
-    survey: SurveyUiState,
-    surveyCallbacks: SurveyCallbacks,
-    donation: DonationUiState,
-    donationCallbacks: DonationCallbacks,
+    surveyViewModel: SurveyViewModel,
+    donationViewModel: DonationViewModel,
     listVms: HomeListViewModels,
     // All the screen's tap/UI lambdas, bundled (see [HomeCallbacks]); brought into scope below via
     // `with` so the body references them unqualified.
@@ -282,11 +280,11 @@ fun HomeScreen(
                             )
                         }
                         // The donation feature module: the card (NEARBY + DonationsManager-gated) plus
-                        // its dismiss dialog, driven by DonationViewModel.
-                        DonationOverlay(
-                            cardVisible = state.selectedItem == HomeNavItem.NEARBY && donation.available,
-                            dismissDialogVisible = donation.showDismissDialog,
-                            callbacks = donationCallbacks,
+                        // its dismiss dialog. Self-wiring from its ViewModel; NEARBY-gated like the
+                        // other chrome.
+                        DonationFeature(
+                            viewModel = donationViewModel,
+                            onNearby = state.selectedItem == HomeNavItem.NEARBY,
                             cardModifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .fillMaxWidth()
@@ -306,9 +304,9 @@ fun HomeScreen(
                             LaunchedEffect(Unit) { onRouteHeaderHeight(0) }
                         }
                         // The map survey (Compose): hero card over the map + remaining-questions sheet.
-                        SurveyOverlay(
-                            state = survey,
-                            callbacks = surveyCallbacks,
+                        // Self-wiring from its ViewModel.
+                        SurveyFeature(
+                            viewModel = surveyViewModel,
                             modifier = Modifier.align(Alignment.TopCenter),
                         )
                         // A selected list tab draws its destination over the map (an opaque, full-size

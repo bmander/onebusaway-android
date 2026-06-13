@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.ui.home
 
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,15 +44,71 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import org.onebusaway.android.R
 import org.onebusaway.android.io.request.survey.model.StudyResponse
+import org.onebusaway.android.ui.survey.SurveyEffect
 import org.onebusaway.android.ui.survey.SurveyUiState
+import org.onebusaway.android.ui.survey.SurveyViewModel
+import org.onebusaway.android.ui.survey.activities.SurveyWebViewActivity
 import org.onebusaway.android.ui.survey.utils.SurveyUtils
+
+/**
+ * Self-wiring survey feature module: collects [SurveyViewModel] state, builds its callbacks, carries
+ * out its one-shot effects (open the external-survey web view / show a toast — STARTED-gated so they
+ * don't fire while backgrounded), and renders [SurveyOverlay]. The host just places this with its
+ * ViewModel; the survey's request triggers (first NEARBY / region resolved) stay with the host.
+ */
+@Composable
+fun SurveyFeature(viewModel: SurveyViewModel, modifier: Modifier = Modifier) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(viewModel, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.effects.collect { effect ->
+                when (effect) {
+                    is SurveyEffect.OpenExternalSurvey -> context.startActivity(
+                        Intent(context, SurveyWebViewActivity::class.java).apply {
+                            putExtra("url", effect.url)
+                            if (!effect.embeddedData.isNullOrEmpty()) {
+                                putStringArrayListExtra("embedded_data", effect.embeddedData)
+                            }
+                        }
+                    )
+                    is SurveyEffect.ShowToast ->
+                        Toast.makeText(context, effect.resId, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    val callbacks = remember(viewModel) {
+        SurveyCallbacks(
+            onTextOrRadio = viewModel::setTextOrRadioAnswer,
+            onToggleCheckbox = viewModel::toggleCheckbox,
+            onSubmitHero = viewModel::submitHero,
+            onOpenExternalWithoutHero = viewModel::openExternalWithoutHero,
+            onSubmitSheet = viewModel::submitSheet,
+            onRequestDismiss = viewModel::requestDismiss,
+            onSkip = viewModel::skipSurvey,
+            onRemindLater = viewModel::remindMeLater,
+            onCancelDismiss = viewModel::cancelDismiss,
+        )
+    }
+    SurveyOverlay(state, callbacks, modifier)
+}
 
 /** Callbacks the survey overlay reports back to the [org.onebusaway.android.ui.survey.SurveyViewModel]. */
 class SurveyCallbacks(

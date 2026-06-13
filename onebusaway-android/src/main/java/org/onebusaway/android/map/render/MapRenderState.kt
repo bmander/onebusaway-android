@@ -15,8 +15,11 @@
  */
 package org.onebusaway.android.map.render
 
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import org.onebusaway.android.io.elements.ObaStop
@@ -124,6 +127,17 @@ class MapRenderState {
     fun setTopPadding(px: Int) = _padding.update { it.copy(topPx = px) }
 
     fun setBottomPadding(px: Int) = _padding.update { it.copy(bottomPx = px) }
+
+    // One-shot camera intents the host dispatches (from its ObaMapView camera methods) and the
+    // renderer applies in the Compose layer (Google: against CameraPositionState). Buffered so the
+    // synchronous host dispatch never suspends or drops under a brief burst (e.g. the vehicle poll).
+    private val _cameraCommands = MutableSharedFlow<CameraCommand>(extraBufferCapacity = 16)
+
+    val cameraCommands: SharedFlow<CameraCommand> = _cameraCommands.asSharedFlow()
+
+    fun dispatchCamera(command: CameraCommand) {
+        _cameraCommands.tryEmit(command)
+    }
 
     fun getRoutePolylines(): List<RoutePolyline> = _snapshot.value.routePolylines
 

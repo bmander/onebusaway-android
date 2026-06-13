@@ -18,9 +18,11 @@ package org.onebusaway.android.map.googlemapsv2.compose
 import android.os.Bundle
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -69,6 +71,14 @@ class GoogleComposeAdapter : ObaComposeMapAdapter {
         // contentPadding instead of an imperative mapView.setPadding(...) poke from the activity.
         val padding by renderState.padding.collectAsState()
         val density = LocalDensity.current
+        val context = LocalContext.current
+        // Declarative camera: apply the host-dispatched camera intents against this CameraPositionState
+        // (replacing the host's direct mMap.animateCamera/moveCamera calls).
+        LaunchedEffect(cameraPositionState) {
+            renderState.cameraCommands.collect { command ->
+                applyCameraCommand(command, cameraPositionState, renderState, context)
+            }
+        }
         GoogleMap(
             modifier = modifier,
             cameraPositionState = cameraPositionState,

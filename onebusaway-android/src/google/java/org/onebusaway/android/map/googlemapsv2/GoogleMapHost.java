@@ -60,6 +60,7 @@ import org.onebusaway.android.map.googlemapsv2.compose.GoogleMapHandle;
 import org.onebusaway.android.map.MapViewModel;
 import org.onebusaway.android.map.RouteHeader;
 import org.onebusaway.android.map.render.GeoPoint;
+import org.onebusaway.android.map.render.CameraCommand;
 import org.onebusaway.android.map.render.MapRenderState;
 import org.onebusaway.android.map.render.RoutePolyline;
 import org.onebusaway.android.region.ObaRegionsTask;
@@ -306,11 +307,11 @@ public class GoogleMapHost
     }
 
     public void zoomIn() {
-        mMap.animateCamera(CameraUpdateFactory.zoomIn());
+        mRenderState.dispatchCamera(CameraCommand.ZoomIn.INSTANCE);
     }
 
     public void zoomOut() {
-        mMap.animateCamera(CameraUpdateFactory.zoomOut());
+        mRenderState.dispatchCamera(CameraCommand.ZoomOut.INSTANCE);
     }
 
     /**
@@ -794,27 +795,8 @@ public class GoogleMapHost
     }
 
     private void setMyLocation(Location l, boolean useDefaultZoom, boolean animateToLocation) {
-        if (mMap != null) {
-            // Move camera to current location
-            CameraPosition.Builder cameraPosition = new CameraPosition.Builder()
-                    .target(MapHelpV2.makeLatLng(l));
-
-            if (useDefaultZoom) {
-                // Use default zoom level
-                cameraPosition.zoom(CAMERA_DEFAULT_ZOOM);
-            } else {
-                // Use current zoom level
-                cameraPosition.zoom(mMap.getCameraPosition().zoom);
-            }
-
-            if (animateToLocation) {
-                // Smooth animation to position
-                mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition.build()));
-            } else {
-                // Abrupt change to position
-                mMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPosition.build()));
-            }
-        }
+        mRenderState.dispatchCamera(new CameraCommand.MoveToLocation(
+                l.getLatitude(), l.getLongitude(), useDefaultZoom, animateToLocation));
 
         if (mControllers != null) {
             for (MapModeController controller : mControllers) {
@@ -824,18 +806,7 @@ public class GoogleMapHost
     }
 
     public void zoomToRegion() {
-        // If we have a region, then zoom to it.
-        ObaRegion region = Application.get().getCurrentRegion();
-
-        if (region != null && mMap != null) {
-            LatLngBounds b = MapHelpV2.getRegionBounds(region);
-
-            // Use screen dimensions to avoid IllegalStateException (#581)
-            int width = mActivity.getResources().getDisplayMetrics().widthPixels;
-            int height = mActivity.getResources().getDisplayMetrics().heightPixels;
-            int padding = 0;
-            mMap.animateCamera((CameraUpdateFactory.newLatLngBounds(b, width, height, padding)));
-        }
+        mRenderState.dispatchCamera(CameraCommand.ZoomToRegion.INSTANCE);
     }
 
     private RegionCallback regionCallback;
@@ -882,9 +853,7 @@ public class GoogleMapHost
 
     @Override
     public void setZoom(float zoomLevel) {
-        if (mMap != null) {
-            mMap.moveCamera(CameraUpdateFactory.zoomTo(zoomLevel));
-        }
+        mRenderState.dispatchCamera(new CameraCommand.SetZoom(zoomLevel));
     }
 
     @Override
@@ -903,40 +872,11 @@ public class GoogleMapHost
     @Override
     public void setMapCenter(Location location, boolean animateToLocation,
                              boolean overlayExpanded) {
-        if (mMap != null) {
-            CameraPosition cp = mMap.getCameraPosition();
-
-            LatLng target = MapHelpV2.makeLatLng(location);
-            LatLng offsetTarget;
-
-            if (isRouteDisplayed() && overlayExpanded) {
-                // Adjust camera target if the route header is currently displayed - map padding
-                // doesn't get this quite right, as the header is slid up some and full padding doesn't apply
-                double percentageOffset = 0.2;
-                double bias =
-                        (getLongitudeSpanInDecDegrees() * percentageOffset) / 2;
-                offsetTarget = new LatLng(target.latitude - bias, target.longitude);
-                target = offsetTarget;
-            }
-
-            if (animateToLocation) {
-                mMap.animateCamera(CameraUpdateFactory.newCameraPosition(
-                        new CameraPosition.Builder().target(target)
-                                .zoom(cp.zoom)
-                                .bearing(cp.bearing)
-                                .tilt(cp.tilt)
-                                .build()
-                ));
-            } else {
-                mMap.moveCamera(CameraUpdateFactory.newCameraPosition(
-                        new CameraPosition.Builder().target(target)
-                                .zoom(cp.zoom)
-                                .bearing(cp.bearing)
-                                .tilt(cp.tilt)
-                                .build()
-                ));
-            }
-        }
+        // The route-header recenter bias only applies in route mode; the host owns the mode, so it
+        // resolves the flag here and the renderer applies the bias against the live viewport.
+        mRenderState.dispatchCamera(new CameraCommand.Recenter(
+                location.getLatitude(), location.getLongitude(), animateToLocation,
+                isRouteDisplayed() && overlayExpanded));
     }
 
     @Override
@@ -994,60 +934,18 @@ public class GoogleMapHost
 
     @Override
     public void zoomToRoute() {
-        if (mMap != null) {
-            LatLngBounds bounds = routePolylineBounds();
-            if (bounds != null) {
-                if (mActivity != null) {
-                    int padding = UIUtils.dpToPixels(mActivity, DEFAULT_MAP_PADDING_DP);
-                    mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding));
-                }
-            } else {
-                Toast.makeText(mActivity, mActivity.getString(R.string.route_info_no_shape_data),
-                        Toast.LENGTH_SHORT).show();
-            }
-        }
+        mRenderState.dispatchCamera(CameraCommand.FitToRoute.INSTANCE);
     }
 
     @Override
     public void zoomToItinerary() {
-        if (mMap != null) {
-            LatLngBounds bounds = routePolylineBounds();
-            if (bounds != null && mActivity != null) {
-                int padding = UIUtils.dpToPixels(mActivity, DEFAULT_MAP_PADDING_DP);
-                mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds,
-                        mActivity.getResources().getDisplayMetrics().widthPixels,
-                        mActivity.getResources().getDisplayMetrics().heightPixels,
-                        padding));
-            }
-        }
+        mRenderState.dispatchCamera(CameraCommand.FitToItinerary.INSTANCE);
     }
 
     @Override
     public void zoomIncludeClosestVehicle(HashSet<String> routeIds,
                                           ObaTripsForRouteResponse response) {
-        if (mMap == null) {
-            return;
-        }
-        LatLng closestVehicleLocation = MapHelpV2
-                .getClosestVehicle(response, routeIds, getMapCenterAsLocation());
-
-        LatLngBounds visibleBounds = mMap.getProjection().getVisibleRegion().latLngBounds;
-
-        if (closestVehicleLocation == null || visibleBounds.contains(closestVehicleLocation)) {
-            // Closest vehicle is already in view or is null - don't change camera
-            return;
-        }
-
-        // Zoom to include current map bounds and closest vehicle location
-        LatLngBounds.Builder builder = new LatLngBounds.Builder();
-        builder.include(visibleBounds.northeast);
-        builder.include(visibleBounds.southwest);
-        builder.include(closestVehicleLocation);
-
-        if (mActivity != null) {
-            int padding = UIUtils.dpToPixels(mActivity, DEFAULT_MAP_PADDING_DP);
-            mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), padding));
-        }
+        mRenderState.dispatchCamera(new CameraCommand.IncludeClosestVehicle(routeIds, response));
     }
 
     @Override
@@ -1189,16 +1087,9 @@ public class GoogleMapHost
     public void onStopClick(ObaStop stop) {
         // Focus the stop + notify listeners, then animate the camera onto it (old markerClicked).
         onFocusChanged(stop, mViewModel.cachedRoutes(), stop.getLocation());
-        if (mMap != null) {
-            LatLng pos = MapHelpV2.makeLatLng(stop.getLocation());
-            float currentZoom = mMap.getCameraPosition().zoom;
-            if (currentZoom < BaseMapFragment.CAMERA_DEFAULT_ZOOM) {
-                mMap.animateCamera(
-                        CameraUpdateFactory.newLatLngZoom(pos, BaseMapFragment.CAMERA_DEFAULT_ZOOM));
-            } else {
-                mMap.animateCamera(CameraUpdateFactory.newLatLng(pos));
-            }
-        }
+        Location loc = stop.getLocation();
+        mRenderState.dispatchCamera(
+                new CameraCommand.CenterOnStopTap(loc.getLatitude(), loc.getLongitude()));
     }
 
     @Override
@@ -1316,12 +1207,6 @@ public class GoogleMapHost
      * Resets camera tilt to defaults (0 degrees)
      */
     private void resetCameraTilt() {
-        mMap.moveCamera(CameraUpdateFactory.newCameraPosition(
-                new CameraPosition.Builder()
-                        .target(mMap.getCameraPosition().target)
-                        .zoom(mMap.getCameraPosition().zoom)
-                        .tilt(0)
-                        .build()
-        ));
+        mRenderState.dispatchCamera(CameraCommand.ResetTilt.INSTANCE);
     }
 }

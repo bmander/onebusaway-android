@@ -52,7 +52,6 @@ import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
-import org.onebusaway.android.map.LayerActivationListener
 import org.onebusaway.android.map.MapHostDeps
 import org.onebusaway.android.map.LayerInfo
 import org.onebusaway.android.map.MapParams
@@ -836,11 +835,10 @@ class HomeActivity : AppCompatActivity(),
         val host = mapHost
         val active = LayerUtils.isBikeshareLayerVisible()
         val layer: LayerInfo = LayerUtils.bikeshareLayerInfo
-        val mapLayers = host as LayerActivationListener
         if (active) {
-            mapLayers.onDeactivateLayer(layer)
+            host.onDeactivateLayer(layer)
         } else {
-            mapLayers.onActivateLayer(layer)
+            host.onActivateLayer(layer)
         }
         // Persist the toggled state (mirrors the legacy LayersSpeedDialAdapter), then re-snapshot the
         // environment so the ViewModel reflects the new bikeshare-active tint.

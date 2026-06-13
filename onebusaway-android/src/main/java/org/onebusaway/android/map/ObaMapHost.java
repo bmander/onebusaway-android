@@ -36,7 +36,8 @@ import org.onebusaway.android.ui.weather.RegionCallback;
  * returning the held {@code Activity}/view); {@link ObaMapFragment} now delegates to a host so the
  * other map screens keep working unchanged.
  */
-public interface ObaMapHost extends MapModeController.ObaMapView, ObaMapReadyListener {
+public interface ObaMapHost extends MapModeController.ObaMapView, ObaMapReadyListener,
+        LayerActivationListener {
 
     /** Default camera zoom for the seed camera (matches the flavor hosts' own default). */
     float CAMERA_DEFAULT_ZOOM = 16.0f;

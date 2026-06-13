@@ -38,14 +38,6 @@
         android:layout_height="wrap_content"
         layout="@layout/item_survey"/>
 
-    <!-- ROUTE MODE HEADER -->
-    <include android:id="@+id/route_info"
-             layout="@layout/route_info_head"
-             android:layout_width="fill_parent"
-             android:layout_height="wrap_content"
-             android:layout_alignParentTop="true"
-             android:layout_alignParentLeft="true"
-             android:visibility="gone"/>
-    <!-- The map-loading indicator is now the Compose LinearProgressIndicator in MapChrome,
-         driven by HomeUiState.mapLoading. -->
+    <!-- The route-mode header is now the Compose RouteHeaderOverlay (driven by MapViewModel.routeHeader),
+         and the map-loading indicator is the Compose LinearProgressIndicator in MapChrome. -->
 </RelativeLayout>

@@ -28,6 +28,8 @@ import android.location.Location;
 import android.os.Bundle;
 import android.view.View;
 
+import androidx.annotation.Nullable;
+
 import java.util.HashSet;
 import java.util.List;
 
@@ -58,6 +60,9 @@ public interface MapModeController {
         //LoaderManager getLoaderManager();
 
         void showProgress(boolean show);
+
+        /** Publishes the route-mode header content (or null to hide it) for the host to surface. */
+        void setRouteHeader(@Nullable RouteHeader header);
 
         String getMapMode();
 

@@ -48,6 +48,7 @@ import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
+import org.onebusaway.android.map.RouteHeader
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.map.compose.ObaMapReadyListener
@@ -85,6 +86,9 @@ fun HomeScreen(
     mapSavedInstanceState: Bundle?,
     mapComposed: Boolean,
     legacyMapOverlays: View,
+    routeHeader: RouteHeader?,
+    onCancelRouteMode: () -> Unit,
+    onRouteHeaderHeight: (Int) -> Unit,
     listVms: HomeListViewModels,
     onNavItemSelected: (HomeNavItem) -> Unit,
     onSearch: (String) -> Unit,
@@ -245,9 +249,9 @@ fun HomeScreen(
                                 onMapReady = onMapReady,
                             )
                         }
-                        // Legacy View overlays (survey card + route-mode header) above the map. They are
-                        // transparent until shown, and are reached via findViewById on the activity, so
-                        // they must stay attached. (Composed away in later phases.)
+                        // Legacy View overlay (the survey card) above the map. It is transparent until
+                        // shown, and is reached via findViewById on the activity, so it must stay
+                        // attached. (Composed away in Phase 3.)
                         AndroidView(factory = { legacyMapOverlays }, modifier = Modifier.fillMaxSize())
                         MapChrome(
                             fabsVisible = state.fabsVisible,
@@ -282,6 +286,19 @@ fun HomeScreen(
                                     .fillMaxWidth()
                                     .padding(start = 16.dp, end = 16.dp, top = 62.dp)
                             )
+                        }
+                        // The route-mode header (Compose), top-aligned over the map — drawn above the
+                        // weather/donation cards so its opaque bar + cancel button own the top in route
+                        // mode. Reports its height for the map's top padding; clears it when dismissed.
+                        if (routeHeader != null) {
+                            RouteHeaderOverlay(
+                                header = routeHeader,
+                                onCancel = onCancelRouteMode,
+                                onHeight = onRouteHeaderHeight,
+                                modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
+                            )
+                        } else {
+                            LaunchedEffect(Unit) { onRouteHeaderHeight(0) }
                         }
                         // A selected list tab draws its destination over the map (an opaque, full-size
                         // Surface), covering the map chrome; NEARBY shows the map through.

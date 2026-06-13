@@ -16,6 +16,9 @@
 package org.onebusaway.android.map
 
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.onebusaway.android.io.elements.ObaReferences
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaShape
@@ -32,6 +35,18 @@ import org.onebusaway.android.map.render.primaryRouteType
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 /**
+ * The route-mode header content (the old `R.id.route_info` overlay): the route's short/long name +
+ * agency, or a loading state while the route loads. Published by [RouteMapController] and rendered as
+ * a Compose overlay by the home screen. Null when not in route mode.
+ */
+data class RouteHeader(
+    val loading: Boolean,
+    val shortName: String,
+    val longName: String,
+    val agency: String,
+)
+
+/**
  * The map's view model: the single owner of the flavor-neutral [MapRenderState] and of the logic
  * that shapes the raw `io/elements` responses into render markers. This used to be duplicated in
  * both flavor hosts (`GoogleMapHost` + `MapLibreMapHost`) — accumulating stops with the 200-cap,
@@ -46,6 +61,15 @@ import org.opentripplanner.routing.bike_rental.BikeRentalStation
 class MapViewModel : ViewModel() {
 
     val renderState = MapRenderState()
+
+    // The route-mode header (route name/agency or loading), published by RouteMapController via the
+    // host and rendered as a Compose overlay by the home screen. Null outside route mode.
+    private val _routeHeader = MutableStateFlow<RouteHeader?>(null)
+    val routeHeader: StateFlow<RouteHeader?> = _routeHeader.asStateFlow()
+
+    fun setRouteHeader(header: RouteHeader?) {
+        _routeHeader.value = header
+    }
 
     // Stop accumulation across pans (capped, keeping the focused stop) + the routes cache used to
     // resolve a stop's icon route type and to report a stop's routes to focus listeners.

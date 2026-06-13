@@ -222,6 +222,7 @@ class HomeActivity : AppCompatActivity(),
 
         setContent {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
+            val routeHeader by mapViewModel.routeHeader.collectAsStateWithLifecycle()
             HomeScreen(
                 state = state,
                 events = viewModel.events,
@@ -234,6 +235,9 @@ class HomeActivity : AppCompatActivity(),
                 mapSavedInstanceState = mSavedMapState,
                 mapComposed = mapComposed,
                 legacyMapOverlays = mMapContent,
+                routeHeader = routeHeader,
+                onCancelRouteMode = ::onCancelRouteMode,
+                onRouteHeaderHeight = ::onRouteHeaderHeight,
                 listVms = listVms,
                 onNavItemSelected = ::onHomeNavItemSelected,
                 onSearch = ::onSearch,
@@ -467,6 +471,31 @@ class HomeActivity : AppCompatActivity(),
         // composed — list tabs draw an opaque destination over it rather than tearing it down — so this
         // is idempotent. The host's lifecycle is forwarded normally; the map composes when the gate flips.
         mapComposed = true
+    }
+
+    // Keeps vehicle markers from being hidden under the route-mode header (was RoutePopup's logic).
+    private val routeHeaderMarkerPaddingPx by lazy {
+        resources.getDimensionPixelSize(R.dimen.map_route_vehicle_markers_padding)
+    }
+
+    /** The Compose route header reports its measured height; set the map's top padding accordingly. */
+    private fun onRouteHeaderHeight(heightPx: Int) {
+        val top = if (heightPx > 0) heightPx + routeHeaderMarkerPaddingPx else 0
+        mMapHost?.mapView?.setPadding(null, top, null, null)
+    }
+
+    /** The route header's cancel button: return to stop mode, preserving the current zoom + center. */
+    private fun onCancelRouteMode() {
+        val host = mMapHost ?: return
+        val mapView = host.mapView
+        val bundle = Bundle().apply {
+            putBoolean(MapParams.DO_N0T_CENTER_ON_LOCATION, true)
+            putFloat(MapParams.ZOOM, mapView.zoomLevelAsFloat)
+            val point = mapView.mapCenterAsLocation
+            putDouble(MapParams.CENTER_LAT, point.latitude)
+            putDouble(MapParams.CENTER_LON, point.longitude)
+        }
+        host.setMapMode(MapParams.MODE_STOP, bundle)
     }
 
     /**

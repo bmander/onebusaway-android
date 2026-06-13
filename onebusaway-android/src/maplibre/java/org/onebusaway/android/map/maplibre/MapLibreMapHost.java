@@ -54,6 +54,7 @@ import org.onebusaway.android.map.StopMapController;
 import org.onebusaway.android.map.bike.BikeshareMapController;
 import org.onebusaway.android.map.MapNavigation;
 import org.onebusaway.android.map.MapViewModel;
+import org.onebusaway.android.map.RouteHeader;
 import org.onebusaway.android.map.compose.ObaComposeMapKt;
 import org.onebusaway.android.map.compose.ObaMapCallbacks;
 import org.onebusaway.android.map.compose.ObaMapHandle;
@@ -675,6 +676,12 @@ public class MapLibreMapHost
         if (mOnProgressBarChangedListener != null) {
             mOnProgressBarChangedListener.onProgressBarChanged(show);
         }
+    }
+
+    @Override
+    public void setRouteHeader(RouteHeader header) {
+        // Published to the shared VM; the home screen renders it as a Compose overlay.
+        mViewModel.setRouteHeader(header);
     }
 
     @Override

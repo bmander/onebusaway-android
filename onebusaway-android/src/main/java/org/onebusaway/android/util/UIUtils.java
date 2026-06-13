@@ -339,25 +339,6 @@ public final class UIUtils {
         }
     }
 
-    // Common code to set a route list item view
-    public static void setRouteView(View view, ObaRoute route) {
-        TextView shortNameText = (TextView) view.findViewById(R.id.short_name);
-        TextView longNameText = (TextView) view.findViewById(R.id.long_name);
-
-        String shortName = route.getShortName();
-        String longName = UIUtils.formatDisplayText(route.getLongName());
-
-        if (TextUtils.isEmpty(shortName)) {
-            shortName = longName;
-        }
-        if (TextUtils.isEmpty(longName) || shortName.equals(longName)) {
-            longName = UIUtils.formatDisplayText(route.getDescription());
-        }
-
-        shortNameText.setText(shortName);
-        longNameText.setText(longName);
-    }
-
     /**
      * Returns a comma-delimited list of route display names that serve a stop
      * <p/>

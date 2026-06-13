@@ -58,6 +58,7 @@ import org.onebusaway.android.map.compose.ObaMapCallbacks;
 import org.onebusaway.android.map.compose.ObaMapHandle;
 import org.onebusaway.android.map.googlemapsv2.compose.GoogleMapHandle;
 import org.onebusaway.android.map.MapViewModel;
+import org.onebusaway.android.map.RouteHeader;
 import org.onebusaway.android.map.render.GeoPoint;
 import org.onebusaway.android.map.render.MapRenderState;
 import org.onebusaway.android.map.render.RoutePolyline;
@@ -647,6 +648,12 @@ public class GoogleMapHost
         if (mOnProgressBarChangedListener != null) {
             mOnProgressBarChangedListener.onProgressBarChanged(show);
         }
+    }
+
+    @Override
+    public void setRouteHeader(RouteHeader header) {
+        // Published to the shared VM; the home screen renders it as a Compose overlay.
+        mViewModel.setRouteHeader(header);
     }
 
     @Override

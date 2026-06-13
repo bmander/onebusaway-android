@@ -16,11 +16,7 @@
  */
 package org.onebusaway.android.map
 
-import android.app.Activity
 import android.os.Bundle
-import android.view.View
-import android.widget.ProgressBar
-import android.widget.TextView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -65,8 +61,8 @@ internal fun nextVehicleDelay(lastUpdated: Long, now: Long): Long {
 /**
  * Shows a route's stops + shape and its real-time vehicles on the map. The two `AsyncTaskLoader`s
  * (route shapes, polled vehicles) and the `Handler`-based 10s vehicle refresh are replaced by
- * coroutines on a controller-owned [scope]; the imperative route-mode header ([RoutePopup], which
- * mutates `R.id.route_info`) is carried over unchanged.
+ * coroutines on a controller-owned [scope]; the route-mode header ([RoutePopup]) publishes
+ * [RouteHeader] state to the shared view model, which the home screen renders as a Compose overlay.
  */
 class RouteMapController(callback: MapModeController.Callback) : MapModeController {
 
@@ -80,9 +76,6 @@ class RouteMapController(callback: MapModeController.Callback) : MapModeControll
 
     private var mLineOverlayColor: Int =
         callback.activity.resources.getColor(R.color.route_line_color_default)
-
-    private val mShortAnimationDuration: Int =
-        callback.activity.resources.getInteger(android.R.integer.config_shortAnimTime)
 
     private val mRoutePopup = RoutePopup()
 
@@ -304,81 +297,37 @@ class RouteMapController(callback: MapModeController.Callback) : MapModeControll
     }
 
     //
-    // Map popup (route-mode header) — stays imperative; mutates R.id.route_info directly.
+    // Route-mode header — publishes RouteHeader state to the shared VM (via the host); the home screen
+    // renders it as a Compose overlay and reports its height back for map top-padding. The cancel
+    // button + the header-height → map-padding now live in the home screen.
     //
     private inner class RoutePopup {
 
-        private val mActivity: Activity = mFragment.activity
-
-        private val mView: View
-
-        private val mRouteShortName: TextView
-
-        private val mRouteLongName: TextView
-
-        private val mAgencyName: TextView
-
-        private val mProgressBar: ProgressBar
-
-        /** Prevents completely hiding vehicle markers at the top of the route. */
-        private val vehicleMarkerPadding: Int
-
-        init {
-            val paddingDp =
-                mActivity.resources.getDimension(R.dimen.map_route_vehicle_markers_padding) /
-                        mActivity.resources.displayMetrics.density
-            vehicleMarkerPadding = UIUtils.dpToPixels(mActivity, paddingDp)
-            mView = mActivity.findViewById(R.id.route_info)
-            mFragment.mapView.setPadding(null, mView.height + vehicleMarkerPadding, null, null)
-            mRouteShortName = mView.findViewById(R.id.short_name)
-            mRouteLongName = mView.findViewById(R.id.long_name)
-            mAgencyName = mView.findViewById(R.id.agency)
-            mProgressBar = mView.findViewById(R.id.route_info_loading_spinner)
-
-            // Make sure the cancel button is shown
-            val cancel = mView.findViewById<View>(R.id.cancel_route_mode)
-            cancel.visibility = View.VISIBLE
-            cancel.setOnClickListener {
-                val obaMapView = mFragment.mapView
-                // We want to preserve the current zoom and center.
-                val bundle = Bundle()
-                bundle.putBoolean(MapParams.DO_N0T_CENTER_ON_LOCATION, true)
-                bundle.putFloat(MapParams.ZOOM, obaMapView.zoomLevelAsFloat)
-                val point = obaMapView.mapCenterAsLocation
-                bundle.putDouble(MapParams.CENTER_LAT, point.latitude)
-                bundle.putDouble(MapParams.CENTER_LON, point.longitude)
-                mFragment.setMapMode(MapParams.MODE_STOP, bundle)
-            }
-        }
+        private var current: RouteHeader? = null
 
         fun showLoading() {
-            mFragment.mapView.setPadding(null, mView.height + vehicleMarkerPadding, null, null)
-            UIUtils.hideViewWithoutAnimation(mRouteShortName)
-            UIUtils.hideViewWithoutAnimation(mRouteLongName)
-            UIUtils.showViewWithoutAnimation(mView)
-            UIUtils.showViewWithoutAnimation(mProgressBar)
+            current = RouteHeader(loading = true, shortName = "", longName = "", agency = "")
+            mFragment.setRouteHeader(current)
         }
 
-        /** Show the route header and populate it with the provided information. */
+        /** Show the route header populated with the provided information. */
         fun show(route: ObaRoute, agencyName: String?) {
-            mRouteShortName.text = UIUtils.formatDisplayText(UIUtils.getRouteDisplayName(route))
-            mRouteLongName.text = UIUtils.formatDisplayText(UIUtils.getRouteDescription(route))
-            mAgencyName.text = agencyName
-            show()
+            current = RouteHeader(
+                loading = false,
+                shortName = UIUtils.formatDisplayText(UIUtils.getRouteDisplayName(route)),
+                longName = UIUtils.formatDisplayText(UIUtils.getRouteDescription(route)),
+                agency = agencyName ?: "",
+            )
+            mFragment.setRouteHeader(current)
         }
 
-        /** Show the route header with the existing route information. */
+        /** Re-show the existing header (returning to an already-loaded route, resume, un-hide). */
         fun show() {
-            UIUtils.hideViewWithAnimation(mProgressBar, mShortAnimationDuration)
-            UIUtils.showViewWithAnimation(mRouteShortName, mShortAnimationDuration)
-            UIUtils.showViewWithAnimation(mRouteLongName, mShortAnimationDuration)
-            UIUtils.showViewWithAnimation(mView, mShortAnimationDuration)
-            mFragment.mapView.setPadding(null, mView.height + vehicleMarkerPadding, null, null)
+            current?.let { mFragment.setRouteHeader(it) }
         }
 
         fun hide() {
-            mFragment.mapView.setPadding(null, 0, null, null)
-            UIUtils.hideViewWithAnimation(mView, mShortAnimationDuration)
+            mFragment.setRouteHeader(null)
         }
     }
 }

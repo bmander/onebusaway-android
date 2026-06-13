@@ -13,23 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.map.googlemapsv2.compose
+package org.onebusaway.android.map.compose
 
-import com.google.android.gms.maps.model.LatLng
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.map.render.GeoPoint
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 /**
- * Map interaction the host ([org.onebusaway.android.map.googlemapsv2.GoogleMapHost]) handles. Once
- * all markers are declarative, maps-compose owns the click dispatch, so these replace the imperative
- * `MapClickListeners` + the overlay focus listeners: a stop tap focuses the stop, a map tap clears
- * focus, a bike tap reports bike focus.
+ * Map interaction a flavor's [ObaComposeMapAdapter] reports back to its host. Flavor-neutral (no
+ * map-SDK types — [onMapClick] takes a [GeoPoint], not a Google/maplibre `LatLng`), so it lives in
+ * `src/main` and both flavor adapters/hosts share it. A stop tap focuses the stop, a map tap clears
+ * focus, a bike tap reports bike focus, and the two info-window taps deep link via the host.
+ *
+ * Adapters that own their own marker-click dispatch (the maplibre classic API, where the host wires
+ * listeners on the raw map) may ignore this and receive null instead.
  */
 interface ObaMapCallbacks {
     fun onStopClick(stop: ObaStop)
 
-    fun onMapClick(latLng: LatLng)
+    fun onMapClick(point: GeoPoint?)
 
     fun onBikeClick(station: BikeRentalStation)
 

@@ -29,7 +29,7 @@ import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 /**
  * Navigation launched from a map info-window tap. Flavor-neutral (no map-SDK types), so both the
- * Google host (via [org.onebusaway.android.map.googlemapsv2.compose.ObaMapCallbacks]) and the maplibre
+ * Google host (via [org.onebusaway.android.map.compose.ObaMapCallbacks]) and the maplibre
  * host (via its info-window-click listener) route here instead of each carrying the policy — and the
  * renderers stay pure rendering. Lifted from the old `ObaMapContent` private functions.
  */

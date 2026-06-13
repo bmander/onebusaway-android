@@ -16,7 +16,6 @@
  */
 package org.onebusaway.android.map.maplibre;
 
-import org.maplibre.android.MapLibre;
 import org.maplibre.android.camera.CameraPosition;
 import org.maplibre.android.camera.CameraUpdateFactory;
 import org.maplibre.android.geometry.LatLng;
@@ -27,7 +26,6 @@ import org.maplibre.android.location.modes.CameraMode;
 import org.maplibre.android.location.modes.RenderMode;
 import org.maplibre.android.maps.MapLibreMap;
 import org.maplibre.android.maps.MapView;
-import org.maplibre.android.maps.OnMapReadyCallback;
 import org.maplibre.android.maps.Style;
 import org.maplibre.android.maps.UiSettings;
 
@@ -56,6 +54,9 @@ import org.onebusaway.android.map.StopMapController;
 import org.onebusaway.android.map.bike.BikeshareMapController;
 import org.onebusaway.android.map.MapNavigation;
 import org.onebusaway.android.map.MapViewModel;
+import org.onebusaway.android.map.compose.ObaComposeMapKt;
+import org.onebusaway.android.map.compose.ObaMapHandle;
+import org.onebusaway.android.map.maplibre.compose.MapLibreMapHandle;
 import org.onebusaway.android.map.render.BikeMarker;
 import org.onebusaway.android.map.render.GeoPoint;
 import org.onebusaway.android.map.render.MapRenderState;
@@ -120,7 +121,7 @@ public class MapLibreMapHost
         implements ObaMapHost, MapModeController.Callback, ObaRegionsTask.Callback,
         MapModeController.ObaMapView,
         LocationHelper.Listener,
-        OnMapReadyCallback, LayerActivationListener {
+        LayerActivationListener {
 
     private static final String TAG = "MapLibreMapHost";
 
@@ -136,7 +137,11 @@ public class MapLibreMapHost
 
     private final MapHostDeps mDeps;
 
-    private final MapView mMapView;
+    // The ComposeView (built from the flavor-neutral ObaMap composable) the owner mounts; the maplibre
+    // MapView lives inside it via the adapter, and is handed back here (mMapView) when ready.
+    private final View mView;
+
+    private MapView mMapView;
 
     private boolean mDestroyed = false;
 
@@ -188,18 +193,19 @@ public class MapLibreMapHost
         mViewModel = new ViewModelProvider((ViewModelStoreOwner) activity).get(MapViewModel.class);
         mRenderState = mViewModel.getRenderState();
 
-        // Initialize MapLibre before any map usage
-        MapLibre.getInstance(activity);
-
         mUserDeniedPermission = PreferenceUtils.userDeniedLocationPermission();
         mLocationHelper = new LocationHelper(activity);
 
         mLastSavedInstanceState = args;
 
-        // Build the raw MapView (replacing SupportMapFragment) and drive its lifecycle explicitly.
-        mMapView = new MapView(activity);
-        mMapView.onCreate(args);
-        mMapView.getMapAsync(this);
+        // Host the map in a ComposeView via the flavor-neutral ObaMap composable. The maplibre adapter
+        // owns the MapView + its Compose lifecycle; it hands the ready map back here in
+        // onMapHandleReady(), where this host does all its setup (style, renderer, listeners, location)
+        // exactly as before. Clicks are wired on the raw map in initMap(), so the adapter gets no
+        // callbacks. The seed camera is unused by maplibre (initMapState centers the map).
+        mView = ObaComposeMapKt.createObaMapView(
+                activity, mRenderState, null, 0.0, 0.0, CAMERA_DEFAULT_ZOOM,
+                args, this::onMapHandleReady);
 
         // If we have a recent location, show this while we're waiting on the LocationHelper
         Location l = Application.getLastKnownLocation(activity);
@@ -218,7 +224,7 @@ public class MapLibreMapHost
 
     @Override
     public View getView() {
-        return mMapView;
+        return mView;
     }
 
     // ============================================================================================
@@ -276,8 +282,19 @@ public class MapLibreMapHost
         );
     }
 
-    @Override
-    public void onMapReady(@NonNull MapLibreMap map) {
+    /**
+     * Invoked once when the maplibre {@link MapView} (owned by {@code MapLibreComposeAdapter}) has its
+     * map ready. The adapter hands back the {@link MapLibreMap} + its {@link MapView} in a
+     * {@link MapLibreMapHandle}; the host keeps the MapView (for {@code onSaveInstanceState}) and does
+     * all of its existing setup on the map.
+     */
+    private void onMapHandleReady(ObaMapHandle handle) {
+        MapLibreMapHandle h = (MapLibreMapHandle) handle;
+        mMapView = h.getMapView();
+        onMapReady(h.getMap());
+    }
+
+    private void onMapReady(@NonNull MapLibreMap map) {
         mMap = map;
 
         String styleUrl = inDarkMode() ? STYLE_URL_DARK : STYLE_URL_LIGHT;
@@ -399,7 +416,7 @@ public class MapLibreMapHost
 
     @Override
     public void onStart() {
-        mMapView.onStart();
+        // The Compose-hosted MapView manages its own view-tree lifecycle (see MapLibreComposeAdapter).
     }
 
     @Override
@@ -409,7 +426,6 @@ public class MapLibreMapHost
             mLocationHelper.onResume();
         }
         mRunning = true;
-        mMapView.onResume();
 
         if (mControllers != null) {
             for (MapModeController controller : mControllers) {
@@ -437,17 +453,16 @@ public class MapLibreMapHost
         }
 
         mRunning = false;
-        mMapView.onPause();
     }
 
     @Override
     public void onStop() {
-        mMapView.onStop();
+        // The Compose-hosted MapView manages its own view-tree lifecycle (see MapLibreComposeAdapter).
     }
 
     @Override
     public void onLowMemory() {
-        mMapView.onLowMemory();
+        // The Compose-hosted MapView manages its own memory.
     }
 
     @Override
@@ -470,7 +485,11 @@ public class MapLibreMapHost
         outState.putInt(MapParams.MAP_PADDING_RIGHT, mMapPaddingRight);
         outState.putInt(MapParams.MAP_PADDING_BOTTOM, mMapPaddingBottom);
 
-        mMapView.onSaveInstanceState(outState);
+        // The MapView is owned by the adapter, but onSaveInstanceState has no Compose lifecycle event,
+        // so the host still drives it (once the map has been handed back).
+        if (mMapView != null) {
+            mMapView.onSaveInstanceState(outState);
+        }
     }
 
     @Override
@@ -502,7 +521,7 @@ public class MapLibreMapHost
                 controller.destroy();
             }
         }
-        mMapView.onDestroy();
+        // The adapter's DisposableEffect drives MapView.onDestroy() when its composition disposes.
     }
 
     @SuppressLint("MissingPermission")

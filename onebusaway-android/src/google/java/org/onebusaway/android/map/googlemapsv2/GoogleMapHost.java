@@ -19,7 +19,6 @@ package org.onebusaway.android.map.googlemapsv2;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.LocationSource;
-import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.UiSettings;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
@@ -54,8 +53,10 @@ import org.onebusaway.android.map.OnProgressBarChangedListener;
 import org.onebusaway.android.map.RouteMapController;
 import org.onebusaway.android.map.StopMapController;
 import org.onebusaway.android.map.bike.BikeshareMapController;
-import org.onebusaway.android.map.googlemapsv2.compose.ComposeMapHostKt;
-import org.onebusaway.android.map.googlemapsv2.compose.ObaMapCallbacks;
+import org.onebusaway.android.map.compose.ObaComposeMapKt;
+import org.onebusaway.android.map.compose.ObaMapCallbacks;
+import org.onebusaway.android.map.compose.ObaMapHandle;
+import org.onebusaway.android.map.googlemapsv2.compose.GoogleMapHandle;
 import org.onebusaway.android.map.MapViewModel;
 import org.onebusaway.android.map.render.GeoPoint;
 import org.onebusaway.android.map.render.MapRenderState;
@@ -119,7 +120,7 @@ public class GoogleMapHost
         MapModeController.ObaMapView,
         LocationSource, LocationHelper.Listener,
         GoogleMap.OnCameraChangeListener,
-        OnMapReadyCallback, LayerActivationListener, ObaMapCallbacks {
+        LayerActivationListener, ObaMapCallbacks {
 
     private static final String TAG = "MapFragment";
 
@@ -216,12 +217,14 @@ public class GoogleMapHost
         // consumes it just like the old getMapAsync() callback did.
         mLastSavedInstanceState = args;
 
-        // Host the map in a ComposeView via android-maps-compose. The host keeps driving the raw
-        // GoogleMap imperatively in onMapReady() + the overlays; the seed camera only avoids an
-        // initial flash before initMap() centers the map.
+        // Host the map in a ComposeView via the flavor-neutral ObaMap composable (the Google adapter
+        // runs android-maps-compose's GoogleMap {}). The host keeps driving the raw GoogleMap
+        // imperatively once it's handed back via the handle in onMapHandleReady() + the overlays; the
+        // seed camera only avoids an initial flash before initMap() centers the map.
         double[] seed = resolveInitialCamera(args);
-        mView = ComposeMapHostKt.createComposeMapView(
-                activity, mRenderState, this, this, seed[0], seed[1], (float) seed[2]);
+        mView = ObaComposeMapKt.createObaMapView(
+                activity, mRenderState, this, seed[0], seed[1], (float) seed[2],
+                args, this::onMapHandleReady);
 
         // If we have a recent location, show this while we're waiting on the LocationHelper
         Location l = Application.getLastKnownLocation(activity);
@@ -306,12 +309,16 @@ public class GoogleMapHost
         mMap.animateCamera(CameraUpdateFactory.zoomOut());
     }
 
-    @Override
-    public void onMapReady(com.google.android.gms.maps.GoogleMap map) {
-        mMap = map;
+    /**
+     * Invoked once (via the Compose {@code MapEffect} inside {@link GoogleComposeAdapter}) when the
+     * underlying map is ready. The adapter hands back the raw {@link GoogleMap} in a
+     * {@link GoogleMapHandle}; the host keeps it for all imperative camera/styling/location work.
+     */
+    private void onMapHandleReady(ObaMapHandle handle) {
+        mMap = ((GoogleMapHandle) handle).getMap();
 
         // Marker + map-click handling is owned by maps-compose now (every overlay is declarative);
-        // the host receives those taps through ObaMapCallbacks (see ComposeMapHost / ObaMapContent).
+        // the host receives those taps through ObaMapCallbacks (see GoogleComposeAdapter / ObaMapContent).
 
         if (inDarkMode()) {
             mMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(mActivity, R.raw.dark_map));
@@ -1184,9 +1191,14 @@ public class GoogleMapHost
     }
 
     @Override
-    public void onMapClick(LatLng latLng) {
+    public void onMapClick(GeoPoint point) {
         // A tap away from any marker clears stop + bike focus (the old removeMarkerClicked paths).
-        Location location = latLng != null ? MapHelpV2.makeLocation(latLng) : null;
+        Location location = null;
+        if (point != null) {
+            location = new Location("");
+            location.setLatitude(point.getLatitude());
+            location.setLongitude(point.getLongitude());
+        }
         onFocusChanged(null, null, location);
         if (mOnFocusChangedListener != null) {
             mOnFocusChangedListener.onFocusChanged((BikeRentalStation) null);

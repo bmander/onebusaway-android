@@ -237,8 +237,11 @@ class HomeActivity : AppCompatActivity() {
                 viewModel.events.collect { event ->
                     when (event) {
                         is HomeEvent.RegionResolved -> {
-                            // The map re-zoom is driven directly by the VM (onRegionChanged); here we run
-                            // only the non-map side effects: analytics, what's-new/drawer/toast.
+                            // The map re-zoom (VM onRegionChanged), nav items (VM refreshNavItems), the
+                            // region-found snackbar (HomeUiState.regionFoundName), what's-new (HelpFeature,
+                            // regionReady), and the survey (SurveyFeature, regionReady) are all handled
+                            // elsewhere; here we run only the residual host side effects: analytics + the
+                            // environment refresh (a region change can flip bikeshare availability).
                             if (event.changed && event.regionName != null) {
                                 ObaAnalytics.setRegion(
                                     Application.get().plausibleInstance,
@@ -246,8 +249,7 @@ class HomeActivity : AppCompatActivity() {
                                     event.regionName
                                 )
                             }
-                            onRegionResolved()
-                            // The survey self-triggers on region resolve (SurveyFeature reads regionReady).
+                            pushEnvironment()
                         }
                         // Sheet / drawer commands are carried out by HomeScreen.
                         else -> Unit
@@ -568,14 +570,6 @@ class HomeActivity : AppCompatActivity() {
      * re-zoom is done by the caller; this handles What's-New, the nav-drawer redraw, and the
      * region-found toast. Body preserved verbatim from the legacy callback.
      */
-    private fun onRegionResolved() {
-        // Show "What's New" (which might need refreshed Regions API contents). The nav items are rebuilt
-        // by the ViewModel on every region resolve (refreshNavItems), and the "Found X region" snackbar
-        // is driven by HomeUiState.regionFoundName, so there's no drawer/toast work here.
-        helpViewModel.maybeAutoShowWhatsNew()
-        pushEnvironment()
-    }
-
     /**
      * Snapshots the non-reactive environment (preferences + app-global flags) and feeds it to the
      * ViewModel, which recomputes the gated chrome visibility (zoom controls, left-hand mode, layers

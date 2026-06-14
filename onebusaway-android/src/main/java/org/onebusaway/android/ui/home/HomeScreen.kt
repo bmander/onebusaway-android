@@ -327,10 +327,12 @@ fun HomeScreen(
         // one-shot event -> GtfsAlertsHelper.showWideAlertDialog path).
         state.wideAlert?.let { WideAlertDialog(it) { homeViewModel.dismissWideAlert() } }
 
-        // The help / what's-new / legend dialogs feature module (self-rendering from its ViewModel; the
-        // genuinely-Activity actions + the what's-new opt-out are forwarded to the host).
+        // The help / what's-new / legend dialogs feature module (self-rendering from its ViewModel;
+        // self-shows what's-new once a region resolves; the genuinely-Activity actions + the what's-new
+        // opt-out are forwarded to the host).
         HelpFeature(
             viewModel = helpViewModel,
+            regionReady = state.regionReady,
             onHelpAction = onHelpAction,
             onWhatsNewDismissed = onWhatsNewDismissed,
         )

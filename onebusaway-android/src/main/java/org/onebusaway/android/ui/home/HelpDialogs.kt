@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,17 +53,27 @@ enum class HelpAction { TUTORIALS, LEGEND, WHATS_NEW, AGENCIES, TWITTER, CONTACT
 
 /**
  * Self-rendering help feature module: draws the help menu / what's-new / legend dialogs from
- * [HelpViewModel] state. Legend + what's-new taps transition the VM's dialog; the other menu actions
- * (reset tutorials, agencies, Twitter, contact us) are genuine Activity operations, forwarded through
- * [onHelpAction]. What's-new dismissal also pings [onWhatsNewDismissed] (the opt-out dialog).
+ * [HelpViewModel] state, and auto-shows "What's New" once a region has resolved ([regionReady]). Legend
+ * + what's-new taps transition the VM's dialog; the other menu actions (reset tutorials, agencies,
+ * Twitter, contact us) are genuine Activity operations, forwarded through [onHelpAction]. What's-new
+ * dismissal also pings [onWhatsNewDismissed] (the opt-out dialog).
  */
 @Composable
 fun HelpFeature(
     viewModel: HelpViewModel,
+    regionReady: Boolean,
     onHelpAction: (HelpAction) -> Unit,
     onWhatsNewDismissed: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // Auto-show "What's New" once a region has resolved (its content may need refreshed Regions API
+    // data — the old onRegionResolved poke). maybeAutoShowWhatsNew is self-gating (shows at most once
+    // per app-version bump), so re-running on recomposition / config change is safe.
+    LaunchedEffect(regionReady) {
+        if (regionReady) {
+            viewModel.maybeAutoShowWhatsNew()
+        }
+    }
     when (state.dialog) {
         HelpDialog.Menu -> HelpMenuDialog(
             showContactUs = state.showContactUs,

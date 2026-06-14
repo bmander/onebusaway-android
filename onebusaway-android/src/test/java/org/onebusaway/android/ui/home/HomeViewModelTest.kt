@@ -99,10 +99,10 @@ class HomeViewModelTest {
         val vm = viewModel()
         vm.onMapLoading(true)
         assertTrue(vm.uiState.value.mapLoading)
-        vm.onNavItemSelected(HomeNavItem.STARRED_STOPS)
+        vm.selectNav(HomeNavItem.STARRED_STOPS)
         assertFalse(vm.uiState.value.mapLoading)
         vm.onMapLoading(false)
-        vm.onNavItemSelected(HomeNavItem.NEARBY)
+        vm.selectNav(HomeNavItem.NEARBY)
         assertFalse(vm.uiState.value.mapLoading)
     }
 
@@ -429,7 +429,7 @@ class HomeViewModelTest {
     @Test
     fun `selected nav item is restored from SavedStateHandle on recreation`() = runTest {
         val handle = SavedStateHandle()
-        viewModel(savedState = handle).onNavItemSelected(HomeNavItem.STARRED_ROUTES)
+        viewModel(savedState = handle).selectNav(HomeNavItem.STARRED_ROUTES)
         // A fresh ViewModel over the same handle simulates process-death recreation.
         assertEquals(HomeNavItem.STARRED_ROUTES, viewModel(savedState = handle).uiState.value.selectedItem)
     }
@@ -438,9 +438,31 @@ class HomeViewModelTest {
     fun `selecting an activity-launching item neither changes nor persists the selection`() = runTest {
         val handle = SavedStateHandle()
         val vm = viewModel(savedState = handle)
-        vm.onNavItemSelected(HomeNavItem.SETTINGS)
+        vm.selectNav(HomeNavItem.SETTINGS)
         assertEquals(HomeNavItem.NEARBY, vm.uiState.value.selectedItem)
         assertEquals(HomeNavItem.NEARBY, viewModel(savedState = handle).uiState.value.selectedItem)
+    }
+
+    @Test
+    fun `the first selection is fresh even when it matches the default tab`() = runTest {
+        val vm = viewModel() // selectedItem defaults to NEARBY
+        assertTrue(vm.selectNav(HomeNavItem.NEARBY))
+    }
+
+    @Test
+    fun `re-tapping the active in-place tab is not fresh, a different tab is`() = runTest {
+        val vm = viewModel()
+        assertTrue(vm.selectNav(HomeNavItem.STARRED_STOPS)) // first selection -> fresh
+        assertFalse(vm.selectNav(HomeNavItem.STARRED_STOPS)) // re-tap -> suppressed
+        assertTrue(vm.selectNav(HomeNavItem.STARRED_ROUTES)) // different tab -> fresh
+    }
+
+    @Test
+    fun `activity-launching items are always fresh`() = runTest {
+        val vm = viewModel()
+        vm.selectNav(HomeNavItem.STARRED_STOPS)
+        assertTrue(vm.selectNav(HomeNavItem.SETTINGS)) // launcher -> fresh (runs every tap)
+        assertTrue(vm.selectNav(HomeNavItem.SETTINGS)) // and again
     }
 }
 

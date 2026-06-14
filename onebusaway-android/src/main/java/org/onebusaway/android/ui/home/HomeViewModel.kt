@@ -61,6 +61,9 @@ class HomeViewModel(
     // Restored from SavedStateHandle so the tab survives process death (config change survives via the
     // ViewModel itself); the cross-session remembered tab is the activity's enum-name preference.
     private var selectedItem: HomeNavItem = readNavItem(savedState) ?: HomeNavItem.NEARBY
+    // Whether the first nav selection has been applied — so [selectNav] reports the first selection as
+    // fresh even when it matches the default/restored tab (the host posts it after onCreate).
+    private var navApplied = false
     private var environment = HomeEnvironment()
     private var dialog: HomeDialog = HomeDialog.None
     private var mapLoading: Boolean = false
@@ -98,12 +101,21 @@ class HomeViewModel(
         recompute()
     }
 
-    /** A selectable (in-place) nav item became the current destination. */
-    fun onNavItemSelected(item: HomeNavItem) {
-        if (item.launchesActivity) return
-        selectedItem = item
-        savedState[KEY_SELECTED_ITEM] = item.name
-        recompute()
+    /**
+     * A drawer item was selected. Updates the in-place selection (launcher items don't change it) and
+     * returns whether this is a *fresh* selection — the host should run the per-item work (showMap /
+     * analytics) — vs. a re-tap of the already-active in-place tab, which suppresses the redundant
+     * work. The first selection is always fresh, even when it matches the default/restored tab.
+     */
+    fun selectNav(item: HomeNavItem): Boolean {
+        val reselect = navApplied && !item.launchesActivity && selectedItem == item
+        navApplied = true
+        if (!item.launchesActivity) {
+            selectedItem = item
+            savedState[KEY_SELECTED_ITEM] = item.name
+            recompute()
+        }
+        return !reselect
     }
 
     /** A map stop gained focus (non-null) or focus was cleared (null). Persists across process death. */

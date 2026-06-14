@@ -102,13 +102,6 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Whether the deferred first nav selection has run. Distinguishes the initial (posted) selection
-     * from a user re-tap of the active tab, so the first selection always runs its per-item work even
-     * when the restored tab matches the VM default. The selected tab itself lives in the VM.
-     */
-    private var navSelectionApplied = false
-
     // The map view model — the single source of truth for the map. MapFeature (in HomeScreen) renders it
     // and self-wires the callbacks/collectors/effects/lifecycle; the activity only constructs it here
     // (shared with HomeViewModel) and reads its mode/camera in onSaveInstanceState + sets the mode/seed.
@@ -675,18 +668,14 @@ class HomeActivity : AppCompatActivity() {
 
     /** Routes a Compose-drawer selection to the ViewModel selection + the imperative per-item work. */
     private fun onHomeNavItemSelected(item: HomeNavItem) {
-        // Capture before the VM update so re-tapping the active in-place tab suppresses redundant work.
-        // navSelectionApplied gates the *first* selection (the legacy -1 sentinel) so startup always
-        // runs showMap(), even when the restored tab is NEARBY (the VM's default).
-        val reselect = navSelectionApplied &&
-            !item.launchesActivity && viewModel.uiState.value.selectedItem == item
+        // The VM owns the fresh-vs-re-tap decision (and the first-selection bookkeeping); a re-tap of
+        // the active in-place tab returns false to suppress the redundant showMap()/analytics.
+        val fresh = viewModel.selectNav(item)
         if (!item.launchesActivity) {
-            viewModel.onNavItemSelected(item)
-            // Remember the tab across sessions, keyed by enum name (mirrors the legacy pref).
+            // Remember the tab across sessions, keyed by enum name (the cross-session pref boundary).
             PreferenceUtils.saveString(STATE_SELECTED_NAV_ITEM, item.name)
         }
-        navSelectionApplied = true
-        goToNavDrawerItem(item, reselect)
+        goToNavDrawerItem(item, reselect = !fresh)
     }
 
     /**

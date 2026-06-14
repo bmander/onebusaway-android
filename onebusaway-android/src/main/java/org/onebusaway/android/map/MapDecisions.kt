@@ -15,6 +15,36 @@
  */
 package org.onebusaway.android.map
 
+import org.onebusaway.android.map.render.StopMarker
+
+/**
+ * Clears [accum] down to just the focused stop, in place: keeps the entry for [focusedId] (if present)
+ * and drops the rest. The focus-retention behavior shared by the stop-accumulation cap and
+ * `clearStops(false)`. Pure (operates on a plain map of [StopMarker]) so it's unit-testable.
+ */
+internal fun retainOnlyFocusedStop(accum: LinkedHashMap<String, StopMarker>, focusedId: String?) {
+    val focused = focusedId?.let { accum[it] }
+    accum.clear()
+    if (focused != null) {
+        accum[focused.id] = focused
+    }
+}
+
+/**
+ * The stop-accumulation cap: once [accum] reaches [cap] stops, clear it (keeping only the focused
+ * stop) so the next batch starts fresh — bounding the marker count as the user pans. No-op below the
+ * cap. Pure, so the (easily-broken) keep-the-focused-stop-on-cap behavior is unit-testable.
+ */
+internal fun capStopAccumulation(
+    accum: LinkedHashMap<String, StopMarker>,
+    focusedId: String?,
+    cap: Int,
+) {
+    if (accum.size >= cap) {
+        retainOnlyFocusedStop(accum, focusedId)
+    }
+}
+
 /**
  * The pure decision branches behind [MapViewModel]'s location/region behavior, split out from the
  * `Application`/`LocationUtils`/`PermissionUtils` reads (which stay at the call site) so the branch

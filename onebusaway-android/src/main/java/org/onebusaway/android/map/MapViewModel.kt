@@ -711,13 +711,7 @@ class MapViewModel : ViewModel(), HomeMapController {
 
     fun showStops(stops: List<ObaStop>, refs: ObaReferences) {
         cacheRoutes(refs.routes)
-        if (stopAccum.size >= FUZZY_MAX_STOP_COUNT) {
-            val focused = renderState.snapshot.value.focusedStopId?.let { stopAccum[it] }
-            stopAccum.clear()
-            if (focused != null) {
-                stopAccum[focused.id] = focused
-            }
-        }
+        capStopAccumulation(stopAccum, renderState.snapshot.value.focusedStopId, FUZZY_MAX_STOP_COUNT)
         for (stop in stops) {
             if (!stopAccum.containsKey(stop.id)) {
                 stopAccum[stop.id] = toStopMarker(stop)
@@ -728,13 +722,11 @@ class MapViewModel : ViewModel(), HomeMapController {
 
     /** Clears accumulated stops; keeps the focused one unless [clearFocusedStop]. */
     fun clearStops(clearFocusedStop: Boolean) {
-        val focusedId = renderState.snapshot.value.focusedStopId
-        val focused = if (!clearFocusedStop && focusedId != null) stopAccum[focusedId] else null
-        stopAccum.clear()
-        if (focused != null) {
-            stopAccum[focused.id] = focused
-        } else if (clearFocusedStop) {
+        if (clearFocusedStop) {
+            stopAccum.clear()
             renderState.setFocusedStopId(null)
+        } else {
+            retainOnlyFocusedStop(stopAccum, renderState.snapshot.value.focusedStopId)
         }
         renderState.setStops(ArrayList(stopAccum.values))
     }

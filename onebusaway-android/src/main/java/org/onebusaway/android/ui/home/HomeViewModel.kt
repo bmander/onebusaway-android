@@ -102,6 +102,9 @@ class HomeViewModel(
     // HomeScreen), or null when none. Plain state rather than a one-shot event so the dialog survives
     // recomposition / config change and is driven declaratively.
     private var wideAlert: WideAlert? = null
+    // The just-auto-selected region's name to announce in a snackbar (the old "Found X region" toast),
+    // or null. Set on an auto-select resolve; cleared by [onRegionFoundShown] once HomeScreen shows it.
+    private var regionFoundName: String? = null
 
     init {
         // Build the initial (region-gated) drawer items + reflect any SavedStateHandle-restored focus.
@@ -326,10 +329,19 @@ class HomeViewModel(
         map.onRegionChanged(changed)
         // A region is now available; surface it so SurveyFeature can (re)attempt its request. Idempotent.
         regionReady = true
+        // Announce an auto-selected region via a snackbar — [name] is non-null only for an auto-select
+        // change (the old "Found X region" toast; a manual pick passes null, so it isn't re-announced).
+        regionFoundName = name
         // Region capabilities (OTP / fare payment) may have changed, so rebuild the gated nav items
         // (also recomputes the rendered state). Replaces the host's onRegionResolved refreshDrawerItems().
         refreshNavItems()
         emit(HomeEvent.RegionResolved(changed, name))
+    }
+
+    /** HomeScreen has shown the region-found snackbar; clear it so it isn't re-shown on recomposition. */
+    fun onRegionFoundShown() {
+        regionFoundName = null
+        recompute()
     }
 
     /**
@@ -366,7 +378,7 @@ class HomeViewModel(
         _uiState.value = buildState(
             selectedItem, navItems, environment, dialog,
             focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering, mapComposed,
-            wideAlert, regionReady
+            wideAlert, regionReady, regionFoundName
         )
     }
 
@@ -414,6 +426,7 @@ internal fun buildState(
     mapComposed: Boolean = false,
     wideAlert: WideAlert? = null,
     regionReady: Boolean = false,
+    regionFoundName: String? = null,
 ): HomeUiState {
     val nearby = selectedItem == HomeNavItem.NEARBY
     val starredTab = selectedItem == HomeNavItem.STARRED_STOPS ||
@@ -436,6 +449,7 @@ internal fun buildState(
         bikeshareActive = environment.bikeshareActive,
         dialog = dialog,
         wideAlert = wideAlert,
+        regionFoundName = regionFoundName,
         showListSortMenu = listTab,
         showListClearMenu = starredTab,
     )

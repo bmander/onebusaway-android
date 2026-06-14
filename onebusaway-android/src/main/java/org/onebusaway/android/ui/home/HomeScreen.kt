@@ -27,15 +27,20 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.SheetValue
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
@@ -117,6 +122,8 @@ fun HomeScreen(
     ObaTheme {
         val scope = rememberCoroutineScope()
         val density = LocalDensity.current
+        val context = LocalContext.current
+        val snackbarHostState = remember { SnackbarHostState() }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val sheetState = rememberStandardBottomSheetState(
             initialValue = SheetValue.Hidden,
@@ -166,6 +173,18 @@ fun HomeScreen(
             }
         }
 
+        // The "Found X region" snackbar (replaces the legacy toast), shown once per auto-select resolve
+        // then cleared in the VM. showSnackbar suspends until dismissed; Long ~ the old Toast.LENGTH_LONG.
+        LaunchedEffect(state.regionFoundName) {
+            state.regionFoundName?.let { name ->
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.region_region_found, name),
+                    duration = SnackbarDuration.Long,
+                )
+                homeViewModel.onRegionFoundShown()
+            }
+        }
+
         // Back collapses an expanded sheet first, then (from peek) clears the focus, which hides it.
         // A hidden sheet leaves back to the system (mirrors the legacy !isSheetHidden() gate).
         BackHandler(enabled = sheetState.currentValue != SheetValue.Hidden) {
@@ -210,6 +229,7 @@ fun HomeScreen(
                 BottomSheetScaffold(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     scaffoldState = scaffoldState,
+                    snackbarHost = { SnackbarHost(snackbarHostState) },
                     // The reported header height, plus room for the drag handle above it.
                     sheetPeekHeight = peekHeaderDp + DRAG_HANDLE_ALLOWANCE,
                     sheetContent = {

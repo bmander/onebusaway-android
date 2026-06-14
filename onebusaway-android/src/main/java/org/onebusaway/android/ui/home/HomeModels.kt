@@ -119,6 +119,9 @@ data class HomeUiState(
     // A region-wide GTFS alert to surface in a (non-dismissible) dialog; null when none is showing.
     // Concurrent alerts collapse to the most recent — they're rare (usually zero or one per region).
     val wideAlert: WideAlert? = null,
+    // The just-auto-selected region's name, to announce once in a snackbar (the old "Found X region"
+    // toast), or null. Cleared by the VM once the snackbar has been shown (onRegionFoundShown).
+    val regionFoundName: String? = null,
     // toolbar menu groups — derived from selectedItem. Sort shows on any list tab; clear only on the
     // two starred tabs (recents/reminders aren't user-clearable from here).
     val showListSortMenu: Boolean = false,

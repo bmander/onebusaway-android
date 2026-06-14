@@ -324,6 +324,28 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `an auto-selected region is announced via regionFoundName, then cleared`() = runTest {
+        val region = region(1)
+        val vm = viewModel(regionStatus = RegionStatus.Changed(region))
+        assertNull(vm.uiState.value.regionFoundName)
+
+        vm.refreshRegions()
+        advanceUntilIdle()
+        assertEquals(region.name, vm.uiState.value.regionFoundName)
+
+        vm.onRegionFoundShown()
+        assertNull(vm.uiState.value.regionFoundName)
+    }
+
+    @Test
+    fun `an unchanged region is not announced`() = runTest {
+        val vm = viewModel(regionStatus = RegionStatus.Unchanged)
+        vm.refreshRegions()
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.regionFoundName)
+    }
+
+    @Test
     fun `an unchanged region emits RegionResolved without a name`() = runTest {
         val vm = viewModel(regionStatus = RegionStatus.Unchanged)
         val events = mutableListOf<HomeEvent>()

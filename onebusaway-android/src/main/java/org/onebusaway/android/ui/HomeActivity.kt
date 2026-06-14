@@ -24,7 +24,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.accessibility.AccessibilityManager
-import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -247,7 +246,7 @@ class HomeActivity : AppCompatActivity() {
                                     event.regionName
                                 )
                             }
-                            onRegionResolved(event.changed)
+                            onRegionResolved()
                             // The survey self-triggers on region resolve (SurveyFeature reads regionReady).
                         }
                         // Sheet / drawer commands are carried out by HomeScreen.
@@ -569,24 +568,11 @@ class HomeActivity : AppCompatActivity() {
      * re-zoom is done by the caller; this handles What's-New, the nav-drawer redraw, and the
      * region-found toast. Body preserved verbatim from the legacy callback.
      */
-    private fun onRegionResolved(currentRegionChanged: Boolean) {
+    private fun onRegionResolved() {
         // Show "What's New" (which might need refreshed Regions API contents). The nav items are rebuilt
-        // by the ViewModel on every region resolve (refreshNavItems), so there's no drawer work here.
+        // by the ViewModel on every region resolve (refreshNavItems), and the "Found X region" snackbar
+        // is driven by HomeUiState.regionFoundName, so there's no drawer/toast work here.
         helpViewModel.maybeAutoShowWhatsNew()
-
-        // If region changed and was auto-selected, show user what region we're using
-        if (currentRegionChanged &&
-            Application.getPrefs()
-                .getBoolean(getString(R.string.preference_key_auto_select_region), true) &&
-            Application.get().currentRegion != null &&
-            UIUtils.canManageDialog(this)
-        ) {
-            Toast.makeText(
-                applicationContext,
-                getString(R.string.region_region_found, Application.get().currentRegion.name),
-                Toast.LENGTH_LONG
-            ).show()
-        }
         pushEnvironment()
     }
 

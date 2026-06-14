@@ -16,13 +16,16 @@
 package org.onebusaway.android.ui.report.types
 
 import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.onebusaway.android.ui.compose.ListUiState
 
 /** Exposes the (synchronously built) report-type list as a ready [ListUiState.Success]. */
-class ReportTypeListViewModel(repository: ReportTypeRepository) : ViewModel() {
+@HiltViewModel
+class ReportTypeListViewModel @Inject constructor(repository: ReportTypeRepository) : ViewModel() {
 
     private val _state = MutableStateFlow<ListUiState<ReportType>>(
         ListUiState.Success(repository.reportTypes())

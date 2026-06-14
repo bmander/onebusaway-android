@@ -24,9 +24,8 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.analytics.FirebaseAnalytics
+import dagger.hilt.android.AndroidEntryPoint
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
@@ -38,7 +37,6 @@ import org.onebusaway.android.report.constants.ReportConstants
 import org.onebusaway.android.report.ui.dialog.RegionValidateDialog
 import org.onebusaway.android.ui.SettingsActivity
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.ui.report.types.DefaultReportTypeRepository
 import org.onebusaway.android.ui.report.types.ReportAction
 import org.onebusaway.android.ui.report.types.ReportTypeListRoute
 import org.onebusaway.android.ui.report.types.ReportTypeListViewModel
@@ -53,17 +51,14 @@ import org.onebusaway.android.util.UIUtils
  * infrastructure, or app-feedback path. The [RegionValidateDialog] is still shown over it on first
  * launch; extends [BaseReportActivity] so a submitted report closes the whole stack.
  */
+@AndroidEntryPoint
 class ReportActivity : BaseReportActivity() {
 
     private var showTypeList by mutableStateOf(false)
 
     private lateinit var firebaseAnalytics: FirebaseAnalytics
 
-    private val viewModel: ReportTypeListViewModel by viewModels {
-        viewModelFactory {
-            initializer { ReportTypeListViewModel(DefaultReportTypeRepository(applicationContext)) }
-        }
-    }
+    private val viewModel: ReportTypeListViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

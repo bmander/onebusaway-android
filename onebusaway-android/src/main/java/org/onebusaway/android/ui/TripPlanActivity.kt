@@ -41,6 +41,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
 import com.google.firebase.analytics.FirebaseAnalytics
+import dagger.hilt.android.AndroidEntryPoint
 import java.util.Calendar
 import java.util.TimeZone
 import kotlinx.coroutines.launch
@@ -73,6 +74,7 @@ import org.opentripplanner.api.model.Itinerary
  * pieces: the date/time pickers, the contacts picker, current-location reads, the advanced-options
  * dialog, the error dialog, and rehydrating from a RealtimeService trip-update notification.
  */
+@AndroidEntryPoint
 class TripPlanActivity : AppCompatActivity() {
 
     private val viewModel: TripPlanViewModel by viewModels {

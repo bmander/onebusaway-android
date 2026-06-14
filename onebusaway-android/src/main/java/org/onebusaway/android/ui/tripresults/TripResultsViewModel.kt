@@ -17,6 +17,8 @@ package org.onebusaway.android.ui.tripresults
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -32,7 +34,8 @@ import org.opentripplanner.api.model.Itinerary
  * JVM-pure) and handed back to the repository to re-summarize/re-generate directions on selection.
  * [selectedItinerary] lets the host update the native map (the map is not Compose).
  */
-class TripResultsViewModel(
+@HiltViewModel
+class TripResultsViewModel @Inject constructor(
     private val repository: TripResultsRepository
 ) : ViewModel() {
 

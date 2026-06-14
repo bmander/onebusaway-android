@@ -34,8 +34,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
@@ -43,7 +42,6 @@ import org.onebusaway.android.directions.realtime.RealtimeService
 import org.onebusaway.android.directions.util.OTPConstants
 import org.onebusaway.android.map.MapMode
 import org.onebusaway.android.map.MapViewModel
-import org.onebusaway.android.map.mapViewModelFactory
 import org.onebusaway.android.map.compose.NoOpObaMapCallbacks
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.ui.compose.theme.ObaTheme
@@ -56,6 +54,7 @@ import org.opentripplanner.api.model.Itinerary
  * and shown/hidden by the list/map tab. Itineraries are seeded via the fragment arguments
  * ([OTPConstants.ITINERARIES] / [OTPConstants.SELECTED_ITINERARY] / [OTPConstants.SHOW_MAP]).
  */
+@AndroidEntryPoint
 class TripResultsFragment : Fragment() {
 
     /** Lets the host (the sliding panel in the legacy activity) anchor to the results container. */
@@ -63,19 +62,11 @@ class TripResultsFragment : Fragment() {
         fun onResultViewCreated(container: View)
     }
 
-    private val viewModel: TripResultsViewModel by viewModels {
-        viewModelFactory {
-            initializer {
-                TripResultsViewModel(DefaultTripResultsRepository(requireContext().applicationContext))
-            }
-        }
-    }
+    private val viewModel: TripResultsViewModel by viewModels()
 
     private var listener: Listener? = null
 
-    private val mapViewModel: MapViewModel by viewModels {
-        mapViewModelFactory(requireContext().applicationContext)
-    }
+    private val mapViewModel: MapViewModel by viewModels()
     private var currentItinerary: Itinerary? = null
     private var mapAdded = false
     // Re-frame the itinerary on the next camera idle (set when the itinerary or the shown state changes).

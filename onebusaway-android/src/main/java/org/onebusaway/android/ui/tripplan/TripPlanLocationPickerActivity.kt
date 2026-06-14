@@ -29,11 +29,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import dagger.hilt.android.AndroidEntryPoint
 import org.onebusaway.android.R
 import org.onebusaway.android.map.MapMode
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
-import org.onebusaway.android.map.mapViewModelFactory
 import org.onebusaway.android.map.compose.NoOpObaMapCallbacks
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.util.UIUtils
@@ -45,11 +45,12 @@ import org.onebusaway.android.util.UIUtils
  * [MapParams.CENTER_LAT]/[MapParams.CENTER_LON]. Launched with those same extras to set the initial
  * center.
  */
+@AndroidEntryPoint
 class TripPlanLocationPickerActivity : AppCompatActivity() {
 
     private var initialCenter: Location? = null
 
-    private val mapViewModel: MapViewModel by viewModels { mapViewModelFactory(applicationContext) }
+    private val mapViewModel: MapViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

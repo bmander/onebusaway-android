@@ -51,7 +51,6 @@ import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.mapModeToParams
 import org.onebusaway.android.map.resolveMapMode
 import org.onebusaway.android.map.resolveMapSeed
-import org.onebusaway.android.map.mapViewModelFactory
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.home.ArrivalsSheetState
@@ -107,9 +106,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     // The map view model — the single source of truth for the map. MapFeature (in HomeScreen) renders it
-    // and self-wires the callbacks/collectors/effects/lifecycle; the activity only constructs it here
-    // (shared with HomeViewModel) and reads its mode/camera in onSaveInstanceState + sets the mode/seed.
-    private val mapViewModel: MapViewModel by viewModels { mapViewModelFactory(applicationContext) }
+    // and self-wires the callbacks/collectors/effects/lifecycle; the activity only obtains it here (Hilt-
+    // injected, shared with HomeViewModel) and reads its mode/camera in onSaveInstanceState + sets the mode/seed.
+    private val mapViewModel: MapViewModel by viewModels()
 
     // The map survey (Compose), shown over the map on NEARBY. Activity-scoped.
     private val surveyViewModel: SurveyViewModel by viewModels()

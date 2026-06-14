@@ -40,6 +40,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import dagger.hilt.android.AndroidEntryPoint
 import edu.usf.cutr.open311client.Open311
 import edu.usf.cutr.open311client.models.Service
 import org.onebusaway.android.R
@@ -49,7 +50,6 @@ import org.onebusaway.android.io.elements.ObaStopElement
 import org.onebusaway.android.map.MapMode
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
-import org.onebusaway.android.map.mapViewModelFactory
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.report.ui.dialog.ReportSuccessDialog
@@ -76,11 +76,12 @@ import org.onebusaway.android.util.UIUtils
  * fragment transactions. Kept in this package so the hard-coded casts (ReportSuccessDialog, the
  * report fragments) and the manifest entry stay valid.
  */
+@AndroidEntryPoint
 class InfrastructureIssueActivity : BaseReportActivity(),
     ReportProblemFragmentCallback,
     SimpleArrivalsPickerFragment.Callback {
 
-    private val mapViewModel: MapViewModel by viewModels { mapViewModelFactory(applicationContext) }
+    private val mapViewModel: MapViewModel by viewModels()
 
     /** The single manual marker reconciled from the ViewModel's markerLocation. */
     private var manualMarkerId = NO_MARKER

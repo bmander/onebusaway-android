@@ -71,12 +71,10 @@ private class FakeHomeMapController : HomeMapController {
     val recenters = mutableListOf<Pair<Double, Double>>()
     val routesShown = mutableListOf<String>()
     var clearFocusCount = 0
-    val regionChanges = mutableListOf<Boolean>()
     override fun setBottomPadding(px: Int) { lastBottomPadding = px }
     override fun recenterOnFocusedStop(lat: Double, lon: Double) { recenters.add(lat to lon) }
     override fun showRoute(routeId: String) { routesShown.add(routeId) }
     override fun clearFocus() { clearFocusCount++ }
-    override fun onRegionChanged(changed: Boolean) { regionChanges.add(changed) }
 }
 
 /**

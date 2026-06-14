@@ -353,12 +353,13 @@ class HomeViewModel(
 
     /**
      * A region *resolve action* completed. The region-derived *state* (alerts, regionReady, nav items)
-     * is driven reactively by the region collector ([applyRegion]); this handles only the resolve-action
-     * outcomes: tell the map to re-zoom, announce an auto-selected region via a snackbar ([name] is
-     * non-null only for an auto-select change), and raise the activity's analytics event.
+     * is driven reactively by the region collector ([applyRegion]), and the map re-zoom by the map's own
+     * region collector; this handles only the remaining resolve-action outcomes: announce an
+     * auto-selected region via a snackbar ([name] is non-null only for an auto-select change), and raise
+     * the activity's analytics event.
      */
     private fun resolvedRegion(changed: Boolean, name: String?) {
-        map.onRegionChanged(changed)
+        // The map re-zoom is now driven by the map's own region collector (it observes RegionRepository).
         regionFoundName = name
         recompute() // surface regionFoundName for the snackbar
         emit(HomeEvent.RegionResolved(changed, name))

@@ -37,6 +37,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -70,6 +72,7 @@ import org.onebusaway.android.map.render.StopMarker
 import org.onebusaway.android.map.render.VehicleMarker
 import org.onebusaway.android.map.render.primaryRouteType
 import org.onebusaway.android.app.Application
+import org.onebusaway.android.ui.home.RegionRepository
 import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PermissionUtils
@@ -108,8 +111,6 @@ interface HomeMapController {
     fun showRoute(routeId: String)
 
     fun clearFocus()
-
-    fun onRegionChanged(changed: Boolean)
 }
 
 /**
@@ -123,6 +124,7 @@ fun mapViewModelFactory(context: Context): ViewModelProvider.Factory = viewModel
             DefaultStopsRepository(context),
             DefaultRouteMapRepository(context),
             DefaultBikeStationsRepository(context),
+            Application.getRegionRepository(),
         )
     }
 }
@@ -148,9 +150,22 @@ class MapViewModel(
     private val stopsRepository: StopsRepository,
     private val routeRepository: RouteMapRepository,
     private val bikeStationsRepository: BikeStationsRepository,
+    private val regionRepo: RegionRepository,
 ) : ViewModel(), HomeMapController {
 
     val renderState = MapRenderState()
+
+    init {
+        // Re-center on region changes (replaces the host's onRegionChanged push). The StateFlow replays
+        // its seed; drop it so the initial camera seed isn't yanked, then frame on each real id change to
+        // a present region. Network latency on the auto-select means the seed is collected before the
+        // resolve completes, so cold-start frames the newly-selected region.
+        viewModelScope.launch {
+            regionRepo.region.distinctUntilChangedBy { it?.id }.drop(1).collect { region ->
+                if (region != null) rezoomForRegion()
+            }
+        }
+    }
 
     // ----- Camera read-back (the hot path) -----
 
@@ -620,16 +635,15 @@ class MapViewModel(
     // ----- Region re-zoom (the old ObaRegionsTask.Callback.onRegionTaskFinished) -----
 
     /**
-     * A region resolved: if it changed and we have no location (or the camera is still at the (0,0)
-     * seed), frame the user's location if we have one, else the region. Sets [regionValid] from the
-     * region presence (the old checkRegionWeather(false)).
+     * The current region changed (driven by the region collector, so this only fires on a real change to
+     * a present region): if we have no location, or the camera is still at the (0,0) seed, frame the
+     * user's location if we have one, else the region — but don't yank a camera the user already moved.
      */
-    override fun onRegionChanged(changed: Boolean) {
-        _regionValid.value = Application.get().currentRegion != null
+    private fun rezoomForRegion() {
         val location = Application.getLastKnownLocation(Application.get())
         val center = _camera.value?.center
         val atSeed = center == null || (center.latitude == 0.0 && center.longitude == 0.0)
-        when (regionRezoom(changed, hasLocation = location != null, cameraAtSeed = atSeed)) {
+        when (regionRezoom(changed = true, hasLocation = location != null, cameraAtSeed = atSeed)) {
             RegionRezoom.FrameMyLocation -> requestMyLocation(useDefaultZoom = true, animate = false)
             RegionRezoom.FrameRegion -> dispatchCamera(CameraCommand.ZoomToRegion)
             RegionRezoom.None -> {}

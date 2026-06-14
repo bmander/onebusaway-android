@@ -99,6 +99,7 @@ class HomeActivity : AppCompatActivity() {
                     DefaultRegionStatusRepository(applicationContext),
                     DefaultStartupPreferencesRepository(),
                     DefaultNavItemsRepository(),
+                    Application.getRegionRepository(),
                     mapViewModel,
                 )
             }

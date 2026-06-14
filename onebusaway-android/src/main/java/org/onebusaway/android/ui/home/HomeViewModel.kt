@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
 
 /**
@@ -43,11 +44,15 @@ import kotlinx.coroutines.launch
 class HomeViewModel(
     private val savedState: SavedStateHandle,
     private val wideAlertsRepo: WideAlertsRepository,
-    private val regionRepo: RegionStatusRepository,
+    // The resolve *action* (refresh / manual-pick); writes through Application.setCurrentRegion.
+    private val regionStatusRepo: RegionStatusRepository,
     private val startupRepo: StartupPreferencesRepository,
     // Supplies the region/preference-derived gating inputs for the drawer items, so the VM rebuilds its
     // own (region-gated) nav list rather than the host pushing it in.
     private val navItemsRepo: NavItemsRepository,
+    // The observable current region (state); the VM self-subscribes for alerts / regionReady / nav items
+    // instead of being hand-fed by the host's region-resolution fan-out.
+    private val regionRepo: RegionRepository,
     // The narrow slice of the map view model this VM drives (sheet padding, recenter, route mode, clear
     // focus, region re-zoom) — an interface so this VM stays unit-testable with a fake.
     private val map: HomeMapController,
@@ -95,8 +100,7 @@ class HomeViewModel(
     private var focusedStop: FocusedStop? = readFocusedStop(savedState)
     private var focusedBikeStationId: String? = savedState[KEY_BIKE_STATION]
 
-    // Guard so wide alerts are streamed once per region (not on every region-valid callback).
-    private var alertsRegionId: Long? = null
+    // The wide-alert stream for the current region (cancelled + restarted when the region changes).
     private var alertsJob: Job? = null
     // The region-wide GTFS alert currently surfaced to the user (rendered as a Compose dialog by
     // HomeScreen), or null when none. Plain state rather than a one-shot event so the dialog survives
@@ -109,6 +113,19 @@ class HomeViewModel(
     init {
         // Build the initial (region-gated) drawer items + reflect any SavedStateHandle-restored focus.
         refreshNavItems()
+        // Self-subscribe to the current region (keyed on id; the StateFlow replays its seed): drive the
+        // wide-alert stream, the survey/help gate (regionReady), and the region-gated nav items —
+        // replacing the host's onRegionValid push + the regionReady/refreshNavItems in resolvedRegion.
+        viewModelScope.launch {
+            regionRepo.region.distinctUntilChangedBy { it?.id }.collect(::applyRegion)
+        }
+    }
+
+    /** A region became current (or null): refresh the region-derived state the VM owns. */
+    private fun applyRegion(region: ObaRegion?) {
+        regionReady = region != null
+        streamWideAlerts(region?.id)
+        refreshNavItems() // recomputes with the new regionReady + nav items
     }
 
     /**
@@ -286,7 +303,7 @@ class HomeViewModel(
      */
     fun refreshRegions() {
         viewModelScope.launch {
-            when (val status = regionRepo.refreshRegions()) {
+            when (val status = regionStatusRepo.refreshRegions()) {
                 is RegionStatus.Changed -> resolvedRegion(true, status.region.name)
                 RegionStatus.Unchanged -> resolvedRegion(false, null)
                 is RegionStatus.NeedsManualSelection -> {
@@ -326,7 +343,7 @@ class HomeViewModel(
     /** The user picked a region in the forced-choice dialog (old haveUserChooseRegion onClick). */
     fun onRegionChosen(region: ObaRegion) {
         viewModelScope.launch {
-            regionRepo.selectRegion(region)
+            regionStatusRepo.selectRegion(region)
             dialog = HomeDialog.None
             recompute()
             // regionName null: the legacy manual-pick path logged no analytics.
@@ -335,20 +352,15 @@ class HomeViewModel(
     }
 
     /**
-     * A region resolved: tell the map to re-zoom (the old `ObaRegionsTask.Callback` hook, now a
-     * declarative command) and raise the activity's non-map side effects (analytics, what's-new, toast,
-     * survey retry) via the one-shot event.
+     * A region *resolve action* completed. The region-derived *state* (alerts, regionReady, nav items)
+     * is driven reactively by the region collector ([applyRegion]); this handles only the resolve-action
+     * outcomes: tell the map to re-zoom, announce an auto-selected region via a snackbar ([name] is
+     * non-null only for an auto-select change), and raise the activity's analytics event.
      */
     private fun resolvedRegion(changed: Boolean, name: String?) {
         map.onRegionChanged(changed)
-        // A region is now available; surface it so SurveyFeature can (re)attempt its request. Idempotent.
-        regionReady = true
-        // Announce an auto-selected region via a snackbar — [name] is non-null only for an auto-select
-        // change (the old "Found X region" toast; a manual pick passes null, so it isn't re-announced).
         regionFoundName = name
-        // Region capabilities (OTP / fare payment) may have changed, so rebuild the gated nav items
-        // (also recomputes the rendered state). Replaces the host's onRegionResolved refreshDrawerItems().
-        refreshNavItems()
+        recompute() // surface regionFoundName for the snackbar
         emit(HomeEvent.RegionResolved(changed, name))
     }
 
@@ -359,25 +371,20 @@ class HomeViewModel(
     }
 
     /**
-     * The map reported region validity. A non-null [regionId] starts streaming wide alerts (once per
-     * region); null stops them. (The weather forecast is its own feature module — see WeatherViewModel.)
+     * (Re)starts the wide-alert stream for [regionId] (cancelling the prior region's), or stops it when
+     * null. Driven by the region collector, which already dedups by id. (Weather is its own feature
+     * module — see WeatherViewModel.)
      */
-    fun onRegionValid(regionId: Long?) {
-        if (regionId == null) {
-            alertsRegionId = null
-            alertsJob?.cancel()
-            alertsJob = null
-            return
-        }
-        if (alertsRegionId == regionId) {
-            return
-        }
-        alertsRegionId = regionId
+    private fun streamWideAlerts(regionId: Long?) {
         alertsJob?.cancel()
-        alertsJob = viewModelScope.launch {
-            wideAlertsRepo.wideAlerts(regionId.toString()).collect { alert ->
-                wideAlert = alert
-                recompute()
+        alertsJob = if (regionId == null) {
+            null
+        } else {
+            viewModelScope.launch {
+                wideAlertsRepo.wideAlerts(regionId.toString()).collect { alert ->
+                    wideAlert = alert
+                    recompute()
+                }
             }
         }
     }

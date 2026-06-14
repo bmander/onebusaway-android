@@ -95,10 +95,11 @@ class HomeViewModelTest {
         regionRepo: FakeRegionStatusRepository = FakeRegionStatusRepository(regionStatus),
         startupRepo: FakeStartupPreferencesRepository = FakeStartupPreferencesRepository(),
         navItemsRepo: FakeNavItemsRepository = FakeNavItemsRepository(),
+        regions: FakeRegionRepository = FakeRegionRepository(),
         savedState: SavedStateHandle = SavedStateHandle(),
         map: HomeMapController = FakeHomeMapController(),
     ) = HomeViewModel(
-        savedState, FakeWideAlertsRepository(alerts), regionRepo, startupRepo, navItemsRepo, map
+        savedState, FakeWideAlertsRepository(alerts), regionRepo, startupRepo, navItemsRepo, regions, map
     )
 
     // --- map loading + peek inputs ---
@@ -144,10 +145,11 @@ class HomeViewModelTest {
     @Test
     fun `a wide alert surfaces as state and is cleared on dismiss`() = runTest {
         val alert = WideAlert("Title", "Message", "https://example.org")
-        val vm = viewModel(alerts = listOf(alert))
+        val regions = FakeRegionRepository()
+        val vm = viewModel(alerts = listOf(alert), regions = regions)
         assertNull(vm.uiState.value.wideAlert)
 
-        vm.onRegionValid(1L)
+        regions.emit(region(1)) // a current region streams its wide alerts
         advanceUntilIdle()
         assertEquals(alert, vm.uiState.value.wideAlert)
 
@@ -344,14 +346,19 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `region resolution surfaces regionReady for the survey trigger`() = runTest {
-        val vm = viewModel(regionStatus = RegionStatus.Unchanged)
+    fun `a current region surfaces regionReady for the survey trigger`() = runTest {
+        val regions = FakeRegionRepository()
+        val vm = viewModel(regions = regions)
+        advanceUntilIdle()
         assertFalse(vm.uiState.value.regionReady)
 
-        vm.refreshRegions()
+        regions.emit(region(1))
         advanceUntilIdle()
-
         assertTrue(vm.uiState.value.regionReady)
+
+        regions.emit(null) // region cleared (e.g. custom API URL) -> no longer ready
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.regionReady)
     }
 
     @Test
@@ -550,16 +557,18 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `resolving a region rebuilds the nav items from current availability`() = runTest {
+    fun `a region change rebuilds the nav items from current availability`() = runTest {
         val repo = FakeNavItemsRepository(NavItemAvailability(false, false, false))
-        val vm = viewModel(navItemsRepo = repo)
+        val regions = FakeRegionRepository()
+        val vm = viewModel(navItemsRepo = repo, regions = regions)
+        advanceUntilIdle()
         assertFalse(vm.uiState.value.navItems.contains(HomeNavItem.PAY_FARE))
 
-        // The region now supports fare payment; resolving picks it up without a host push.
+        // The region now supports fare payment; a region change picks it up without a host push.
         repo.availability = NavItemAvailability(
             showReminders = false, planTripAvailable = false, payFareAvailable = true
         )
-        vm.refreshRegions()
+        regions.emit(region(1))
         advanceUntilIdle()
 
         assertTrue(vm.uiState.value.navItems.contains(HomeNavItem.PAY_FARE))

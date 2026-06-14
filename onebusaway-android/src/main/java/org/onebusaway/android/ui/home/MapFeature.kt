@@ -163,16 +163,10 @@ fun MapFeature(
         }
     }
 
-    // Map loading indicator, driven from the map view model. (Weather now self-subscribes to the region
-    // repository; the wide-alert region signal still rides regionValid below until that migrates too.)
+    // Map loading indicator, driven from the map view model. (Weather + wide alerts now self-subscribe to
+    // the region repository, so the regionValid → region-id seam that used to live here is gone.)
     LaunchedEffect(mapViewModel) {
         mapViewModel.progress.collect { homeViewModel.onMapLoading(it) }
-    }
-    LaunchedEffect(mapViewModel) {
-        mapViewModel.regionValid.collect { valid ->
-            val regionId = if (valid) Application.get().currentRegion?.id else null
-            homeViewModel.onRegionValid(regionId)
-        }
     }
 
     // One-shot effects -> Compose dialogs / the permission launcher / a toast.

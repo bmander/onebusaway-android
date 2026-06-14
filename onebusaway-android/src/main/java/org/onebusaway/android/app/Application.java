@@ -49,6 +49,8 @@ import org.onebusaway.android.io.ObaApi;
 import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
+import org.onebusaway.android.ui.home.DefaultRegionRepository;
+import org.onebusaway.android.ui.home.RegionRepository;
 import org.onebusaway.android.util.BuildFlavorUtils;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.PreferenceUtils;
@@ -85,6 +87,8 @@ public class Application extends android.app.Application {
 
     private GtfsAlerts mGtfsAlerts;
 
+    private DefaultRegionRepository mRegionRepository;
+
     private static Application mApp;
 
     /**
@@ -113,6 +117,9 @@ public class Application extends android.app.Application {
 
         initOba();
         initObaRegion();
+        // Seed the observable region with the region just loaded from prefs, before any view model can
+        // collect it. All later writes publish via setCurrentRegion().
+        mRegionRepository = new DefaultRegionRepository(getCurrentRegion());
         initOpen311(getCurrentRegion());
 
         reportAnalytics();
@@ -156,6 +163,11 @@ public class Application extends android.app.Application {
 
     public static GtfsAlerts getGtfsAlerts() {
         return get().mGtfsAlerts;
+    }
+
+    /** The observable current region (reactive replacement for static currentRegion reads). */
+    public static RegionRepository getRegionRepository() {
+        return get().mRegionRepository;
     }
 
     private static String appLaunchCountPreferencesKey = "appLaunchCountPreferencesKey";
@@ -320,6 +332,11 @@ public class Application extends android.app.Application {
         }
         // Init the reporting with the new endpoints
         initOpen311(region);
+        // Publish to the observable region (the single write choke point — covers modern, manual-pick,
+        // and legacy ObaRegionsTask writers). Null-guarded for any write before the repo is constructed.
+        if (mRegionRepository != null) {
+            mRegionRepository.publish(region);
+        }
     }
 
     /**

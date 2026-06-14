@@ -16,6 +16,8 @@
 package org.onebusaway.android.map.bike
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import android.location.Location
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -33,7 +35,7 @@ interface BikeStationsRepository {
             Result<List<BikeRentalStation>>
 }
 
-class DefaultBikeStationsRepository(private val context: Context) : BikeStationsRepository {
+class DefaultBikeStationsRepository @Inject constructor(@ApplicationContext private val context: Context) : BikeStationsRepository {
 
     override suspend fun getStations(southWest: Location, northEast: Location):
             Result<List<BikeRentalStation>> = withContext(Dispatchers.IO) {

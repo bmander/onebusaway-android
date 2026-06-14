@@ -16,6 +16,8 @@
 package org.onebusaway.android.map
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import android.location.Location
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -39,7 +41,7 @@ interface StopsRepository {
             Result<ObaStopsForLocationResponse?>
 }
 
-class DefaultStopsRepository(private val context: Context) : StopsRepository {
+class DefaultStopsRepository @Inject constructor(@ApplicationContext private val context: Context) : StopsRepository {
 
     override suspend fun getStops(center: Location, latSpan: Double, lonSpan: Double):
             Result<ObaStopsForLocationResponse?> = obaApiCall {

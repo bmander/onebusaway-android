@@ -16,6 +16,8 @@
 package org.onebusaway.android.ui.tripresults
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -42,7 +44,7 @@ interface TripResultsRepository {
     suspend fun directionsFor(itinerary: Itinerary): Result<List<DirectionItem>>
 }
 
-class DefaultTripResultsRepository(private val context: Context) : TripResultsRepository {
+class DefaultTripResultsRepository @Inject constructor(@ApplicationContext private val context: Context) : TripResultsRepository {
 
     override suspend fun summarize(
         itineraries: List<Itinerary>

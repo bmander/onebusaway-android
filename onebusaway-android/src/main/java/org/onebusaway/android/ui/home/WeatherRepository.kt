@@ -16,6 +16,7 @@
 package org.onebusaway.android.ui.home
 
 import java.io.IOException
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.request.weather.ObaWeatherRequest
@@ -33,7 +34,7 @@ interface WeatherRepository {
  * exception as a failure and only surfaced a response whose current forecast was present, so the
  * same is mapped to [Result.failure] here.
  */
-class DefaultWeatherRepository : WeatherRepository {
+class DefaultWeatherRepository @Inject constructor() : WeatherRepository {
 
     override suspend fun currentForecast(regionId: Long): Result<WeatherData> =
         withContext(Dispatchers.IO) {

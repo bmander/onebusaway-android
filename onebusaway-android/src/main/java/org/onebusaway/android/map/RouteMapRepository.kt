@@ -16,6 +16,8 @@
 package org.onebusaway.android.map
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import org.onebusaway.android.io.request.ObaStopsForRouteRequest
 import org.onebusaway.android.io.request.ObaStopsForRouteResponse
 import org.onebusaway.android.io.request.ObaTripsForRouteRequest
@@ -45,7 +47,7 @@ interface RouteVehiclesRepository {
  *  map view model as one collaborator (so a fake can supply both halves in tests). */
 interface RouteMapRepository : RouteShapesRepository, RouteVehiclesRepository
 
-class DefaultRouteMapRepository(private val context: Context) : RouteMapRepository {
+class DefaultRouteMapRepository @Inject constructor(@ApplicationContext private val context: Context) : RouteMapRepository {
 
     override suspend fun getRoute(routeId: String): Result<ObaStopsForRouteResponse?> =
         obaApiCall {

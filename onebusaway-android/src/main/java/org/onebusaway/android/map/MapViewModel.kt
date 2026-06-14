@@ -204,6 +204,12 @@ class MapViewModel : ViewModel(), HomeMapController {
 
     private val directionsMarkerIds = HashSet<Int>()
 
+    // The directions framing intent, kept so [frameDirections] can (re)apply it once the map is ready
+    // (the one-shot camera command dispatched at setMode time is lost before the adapter subscribes).
+    private var directionsHasRoute = false
+
+    private var directionsStart: GeoPoint? = null
+
     /**
      * Switches what the map shows. Cancels the prior mode's loaders, clears its transient overlays
      * (keeping the focused stop), then launches the new mode's loaders. Re-entering the same route
@@ -437,11 +443,24 @@ class MapViewModel : ViewModel(), HomeMapController {
         directionsMarkerIds.add(addMarker(startLat, startLon, HUE_GREEN))
         directionsMarkerIds.add(addMarker(endLat, endLon, HUE_RED))
 
-        if (hasRoute) {
+        directionsHasRoute = hasRoute
+        directionsStart = GeoPoint(startLat, startLon)
+        frameDirections()
+    }
+
+    /**
+     * Frames the current directions itinerary: fit the route shape, or (no route — start == end)
+     * center on the start at the default zoom. Re-appliable so the owner can frame once the map is
+     * ready (the frame dispatched at [setMode] time is lost before the adapter subscribes).
+     */
+    fun frameDirections() {
+        if (directionsHasRoute) {
             dispatchCamera(CameraCommand.FitToItinerary)
         } else {
-            dispatchCamera(CameraCommand.Recenter(startLat, startLon, animate = false, applyRouteBias = false))
-            dispatchCamera(CameraCommand.SetZoom(MapParams.DEFAULT_ZOOM.toFloat()))
+            directionsStart?.let {
+                dispatchCamera(CameraCommand.Recenter(it.latitude, it.longitude, animate = false, applyRouteBias = false))
+                dispatchCamera(CameraCommand.SetZoom(MapParams.DEFAULT_ZOOM.toFloat()))
+            }
         }
     }
 

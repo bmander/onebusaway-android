@@ -18,13 +18,14 @@ package org.onebusaway.android.ui.tripresults
 
 import android.app.NotificationManager
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
@@ -40,16 +41,18 @@ import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.directions.realtime.RealtimeService
 import org.onebusaway.android.directions.util.OTPConstants
-import org.onebusaway.android.map.MapParams
-import org.onebusaway.android.map.ObaMapFragment
+import org.onebusaway.android.map.MapMode
+import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.compose.NoOpObaMapCallbacks
+import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.opentripplanner.api.model.Itinerary
 
 /**
  * Shows the result of a trip plan: the itinerary option cards and directions are Jetpack Compose
- * ([TripResultsHeader]/[TripResultsList], driven by [TripResultsViewModel]); the map stays the
- * native [ObaMapFragment] (Google Maps SDK), hosted as a child fragment in the directions frame and
- * shown/hidden by the list/map tab. The host still seeds itineraries via the fragment arguments
+ * ([TripResultsHeader]/[TripResultsList], driven by [TripResultsViewModel]); the map is the
+ * declarative [ObaMap] driven by a [MapViewModel] in directions mode, added into the directions frame
+ * and shown/hidden by the list/map tab. Itineraries are seeded via the fragment arguments
  * ([OTPConstants.ITINERARIES] / [OTPConstants.SELECTED_ITINERARY] / [OTPConstants.SHOW_MAP]).
  */
 class TripResultsFragment : Fragment() {
@@ -69,8 +72,11 @@ class TripResultsFragment : Fragment() {
 
     private var listener: Listener? = null
 
-    private var mapFragment: ObaMapFragment? = null
-    private val mapBundle = Bundle()
+    private val mapViewModel: MapViewModel by viewModels()
+    private var currentItinerary: Itinerary? = null
+    private var mapAdded = false
+    // Re-frame the itinerary on the next camera idle (set when the itinerary or the shown state changes).
+    private var needsFraming = false
 
     private lateinit var directionsFrame: View
     private lateinit var mapFrame: View
@@ -122,7 +128,26 @@ class TripResultsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         bindResults()
         observeSelection()
+        observeMapReady()
         listener?.onResultViewCreated(directionsFrame)
+    }
+
+    /**
+     * Frames the itinerary once the map is ready + settled. The map view model publishes its camera on
+     * each idle, so the first non-null camera while the map is shown is a reliable "map ready" signal —
+     * the directions frame dispatched at setMode time is lost before the adapter subscribes.
+     */
+    private fun observeMapReady() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                mapViewModel.camera.collect { camera ->
+                    if (camera != null && needsFraming && showingMap) {
+                        needsFraming = false
+                        mapViewModel.frameDirections()
+                    }
+                }
+            }
+        }
     }
 
     /** Re-binds when the host updates the itineraries on an existing fragment instance. */
@@ -137,18 +162,18 @@ class TripResultsFragment : Fragment() {
         showingMap = args.getBoolean(OTPConstants.SHOW_MAP)
 
         viewModel.setItineraries(itineraries, rank, showingMap)
-        initMap(itineraries.getOrNull(rank))
+        setItinerary(itineraries.getOrNull(rank))
         setMapShown(showingMap)
         maybeStartRealtimeUpdates()
     }
 
-    /** Observes the selected option so the native map follows the selection. */
+    /** Observes the selected option so the map follows the selection. */
     private fun observeSelection() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.selectedItinerary.collect { (index, itinerary) ->
                     requireArguments().putInt(OTPConstants.SELECTED_ITINERARY, index)
-                    updateMap(itinerary)
+                    setItinerary(itinerary)
                     maybeStartRealtimeUpdates()
                 }
             }
@@ -159,29 +184,35 @@ class TripResultsFragment : Fragment() {
     private fun readItineraries(args: Bundle): List<Itinerary> =
         (args.getSerializable(OTPConstants.ITINERARIES) as? List<Itinerary>).orEmpty()
 
-    private fun initMap(itinerary: Itinerary?) {
+    /** Shows [itinerary] on the map (directions mode); re-frames on the next camera idle. */
+    private fun setItinerary(itinerary: Itinerary?) {
         itinerary ?: return
-        mapBundle.putString(MapParams.MODE, MapParams.MODE_DIRECTIONS)
-        mapBundle.putSerializable(MapParams.ITINERARY, itinerary)
-        // Legacy parity: the map reads its initial directions state from the activity intent.
-        activity?.intent = Intent().putExtras(mapBundle)
-        if (mapFragment == null) {
-            mapFragment = childFragmentManager.findFragmentByTag(ObaMapFragment.TAG) as? ObaMapFragment
-                ?: ObaMapFragment.newInstance().also {
-                    childFragmentManager.beginTransaction()
-                        .add(R.id.mapFragment, it.asFragment(), ObaMapFragment.TAG)
-                        .commit()
-                }
+        currentItinerary = itinerary
+        needsFraming = true
+        mapViewModel.setMode(MapMode.Directions(itinerary))
+    }
+
+    /** Adds the declarative map into the directions frame once (deferred until the map tab is shown). */
+    private fun ensureMapAdded() {
+        if (mapAdded) {
+            return
         }
+        val composeView = ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                ObaMap(
+                    renderState = mapViewModel.renderState,
+                    callbacks = NoOpObaMapCallbacks,
+                    modifier = Modifier.fillMaxSize(),
+                    mapViewModel = mapViewModel,
+                )
+            }
+        }
+        (mapFrame as ViewGroup).addView(composeView)
+        mapAdded = true
     }
 
-    private fun updateMap(itinerary: Itinerary?) {
-        itinerary ?: return
-        mapBundle.putSerializable(MapParams.ITINERARY, itinerary)
-        mapFragment?.setMapMode(MapParams.MODE_DIRECTIONS, mapBundle)
-    }
-
-    /** Toggles between the directions list and the native map frame. */
+    /** Toggles between the directions list and the map frame. */
     private fun setMapShown(show: Boolean) {
         showingMap = show
         requireArguments().putBoolean(OTPConstants.SHOW_MAP, show)
@@ -189,7 +220,9 @@ class TripResultsFragment : Fragment() {
         if (show) {
             listComposeView.visibility = View.GONE
             mapFrame.visibility = View.VISIBLE
-            mapFragment?.setMapMode(MapParams.MODE_DIRECTIONS, mapBundle)
+            ensureMapAdded()
+            // Re-frame the itinerary once the map settles (mirrors the legacy zoom-to-itinerary on show).
+            needsFraming = true
         } else {
             mapFrame.visibility = View.GONE
             listComposeView.visibility = View.VISIBLE

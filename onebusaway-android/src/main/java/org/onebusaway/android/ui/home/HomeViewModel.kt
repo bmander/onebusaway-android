@@ -67,6 +67,9 @@ class HomeViewModel(
     // Whether the map has been shown at least once (a latch; see HomeUiState.mapComposed). Survives a
     // configuration change in the ViewModel, so the map doesn't flash off + back on across rotation.
     private var mapComposed = false
+    // Whether a region has resolved (currentRegion available); see HomeUiState.regionReady. A latch
+    // surfaced as state so SurveyFeature self-triggers its (region-gated) request when NEARBY is shown.
+    private var regionReady = false
     private var environment = HomeEnvironment()
     private var dialog: HomeDialog = HomeDialog.None
     private var mapLoading: Boolean = false
@@ -308,6 +311,9 @@ class HomeViewModel(
      */
     private fun resolvedRegion(changed: Boolean, name: String?) {
         map.onRegionChanged(changed)
+        // A region is now available; surface it so SurveyFeature can (re)attempt its request. Idempotent.
+        regionReady = true
+        recompute()
         emit(HomeEvent.RegionResolved(changed, name))
     }
 
@@ -345,7 +351,7 @@ class HomeViewModel(
         _uiState.value = buildState(
             selectedItem, navItems, environment, dialog,
             focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering, mapComposed,
-            wideAlert
+            wideAlert, regionReady
         )
     }
 
@@ -392,6 +398,7 @@ internal fun buildState(
     routeFiltering: Boolean = false,
     mapComposed: Boolean = false,
     wideAlert: WideAlert? = null,
+    regionReady: Boolean = false,
 ): HomeUiState {
     val nearby = selectedItem == HomeNavItem.NEARBY
     val starredTab = selectedItem == HomeNavItem.STARRED_STOPS ||
@@ -405,6 +412,7 @@ internal fun buildState(
         peekArrivalCount = peekArrivalCount,
         routeFiltering = routeFiltering,
         mapComposed = mapComposed,
+        regionReady = regionReady,
         mapLoading = nearby && mapLoading,
         fabsVisible = nearby,
         zoomControlsVisible = nearby && environment.zoomControlsPref,

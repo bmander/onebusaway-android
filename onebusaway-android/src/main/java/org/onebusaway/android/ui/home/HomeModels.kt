@@ -104,6 +104,9 @@ data class HomeUiState(
     // Whether the map has been shown at least once (NEARBY selected). A latch: once true it stays so,
     // so list tabs draw over a still-composed map rather than tearing it down (defers SDK init).
     val mapComposed: Boolean = false,
+    // Whether a region has resolved (so currentRegion is available). The survey needs a region to build
+    // its study URL, so SurveyFeature self-triggers its request once this + NEARBY are both true.
+    val regionReady: Boolean = false,
     // chrome — derived from selectedItem + environment
     val mapLoading: Boolean = false,
     val fabsVisible: Boolean = true,

@@ -68,14 +68,29 @@ import org.onebusaway.android.ui.survey.utils.SurveyUtils
 /**
  * Self-wiring survey feature module: collects [SurveyViewModel] state, builds its callbacks, carries
  * out its one-shot effects (open the external-survey web view / show a toast — STARTED-gated so they
- * don't fire while backgrounded), and renders [SurveyOverlay]. The host just places this with its
- * ViewModel; the survey's request triggers (first NEARBY / region resolved) stay with the host.
+ * don't fire while backgrounded), self-triggers its request, and renders [SurveyOverlay]. The host
+ * just places this with its ViewModel + the two gating inputs ([onNearby], [regionReady]).
+ *
+ * The request fires when NEARBY is showing and a region has resolved — the survey needs a region to
+ * build its study URL. [SurveyViewModel.maybeRequestSurvey] is idempotent and region-gated, so the
+ * effect can re-run freely on tab / region changes (replacing the host's first-NEARBY + region-resolved
+ * pokes).
  */
 @Composable
-fun SurveyFeature(viewModel: SurveyViewModel, modifier: Modifier = Modifier) {
+fun SurveyFeature(
+    viewModel: SurveyViewModel,
+    onNearby: Boolean,
+    regionReady: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(onNearby, regionReady) {
+        if (onNearby && regionReady) {
+            viewModel.maybeRequestSurvey()
+        }
+    }
     LaunchedEffect(viewModel, lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             viewModel.effects.collect { effect ->

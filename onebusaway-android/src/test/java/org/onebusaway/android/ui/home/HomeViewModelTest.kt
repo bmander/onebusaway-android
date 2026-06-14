@@ -305,6 +305,17 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `region resolution surfaces regionReady for the survey trigger`() = runTest {
+        val vm = viewModel(regionStatus = RegionStatus.Unchanged)
+        assertFalse(vm.uiState.value.regionReady)
+
+        vm.refreshRegions()
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.regionReady)
+    }
+
+    @Test
     fun `an unchanged region emits RegionResolved without a name`() = runTest {
         val vm = viewModel(regionStatus = RegionStatus.Unchanged)
         val events = mutableListOf<HomeEvent>()

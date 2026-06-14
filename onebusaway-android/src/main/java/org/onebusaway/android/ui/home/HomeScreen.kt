@@ -280,9 +280,12 @@ fun HomeScreen(
                             LaunchedEffect(Unit) { onRouteHeaderHeight(0) }
                         }
                         // The map survey (Compose): hero card over the map + remaining-questions sheet.
-                        // Self-wiring from its ViewModel.
+                        // Self-wiring from its ViewModel; self-triggers its request when NEARBY is shown
+                        // and a region has resolved.
                         SurveyFeature(
                             viewModel = surveyViewModel,
+                            onNearby = state.selectedItem == HomeNavItem.NEARBY,
+                            regionReady = state.regionReady,
                             modifier = Modifier.align(Alignment.TopCenter),
                         )
                         // A selected list tab draws its destination over the map (an opaque, full-size

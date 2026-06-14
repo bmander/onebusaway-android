@@ -238,7 +238,7 @@ class HomeActivity : AppCompatActivity() {
                     when (event) {
                         is HomeEvent.RegionResolved -> {
                             // The map re-zoom is driven directly by the VM (onRegionChanged); here we run
-                            // only the non-map side effects: analytics, what's-new/drawer/toast, survey retry.
+                            // only the non-map side effects: analytics, what's-new/drawer/toast.
                             if (event.changed && event.regionName != null) {
                                 ObaAnalytics.setRegion(
                                     Application.get().plausibleInstance,
@@ -247,10 +247,7 @@ class HomeActivity : AppCompatActivity() {
                                 )
                             }
                             onRegionResolved(event.changed)
-                            // A valid region is required to request the survey; retry now it's resolved.
-                            if (viewModel.uiState.value.selectedItem == HomeNavItem.NEARBY) {
-                                surveyViewModel.maybeRequestSurvey()
-                            }
+                            // The survey self-triggers on region resolve (SurveyFeature reads regionReady).
                         }
                         // Sheet / drawer commands are carried out by HomeScreen.
                         else -> Unit
@@ -400,8 +397,7 @@ class HomeActivity : AppCompatActivity() {
         // over it rather than tearing it down), so this is idempotent. (MapFeature does the eager
         // location-permission prompt once the map shows.)
         viewModel.onMapShown()
-        // Request the map survey on the first NEARBY selection (idempotent + region-gated in the VM).
-        surveyViewModel.maybeRequestSurvey()
+        // The survey self-triggers when NEARBY is shown (SurveyFeature reads selectedItem + regionReady).
     }
 
     // Keeps vehicle markers from being hidden under the route-mode header (was RoutePopup's logic).

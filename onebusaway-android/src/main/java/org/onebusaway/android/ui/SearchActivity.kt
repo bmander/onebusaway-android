@@ -21,13 +21,11 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.analytics.FirebaseAnalytics
+import dagger.hilt.android.AndroidEntryPoint
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.ui.searchresults.DefaultSearchResultsRepository
 import org.onebusaway.android.ui.searchresults.SearchResultItem
 import org.onebusaway.android.ui.searchresults.SearchResultsRoute
 import org.onebusaway.android.ui.searchresults.SearchResultsViewModel
@@ -40,17 +38,12 @@ import org.onebusaway.android.util.DBUtil
  * query via an ACTION_SEARCH intent (re-delivered to this singleTop instance via [onNewIntent]
  * for a fresh search). State lives in [SearchResultsViewModel].
  */
+@AndroidEntryPoint
 class SearchActivity : AppCompatActivity() {
 
     private lateinit var firebaseAnalytics: FirebaseAnalytics
 
-    private val viewModel: SearchResultsViewModel by viewModels {
-        viewModelFactory {
-            initializer {
-                SearchResultsViewModel(DefaultSearchResultsRepository(applicationContext))
-            }
-        }
-    }
+    private val viewModel: SearchResultsViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

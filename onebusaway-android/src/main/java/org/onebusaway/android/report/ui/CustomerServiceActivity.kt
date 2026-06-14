@@ -22,9 +22,8 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.analytics.FirebaseAnalytics
+import dagger.hilt.android.AndroidEntryPoint
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
@@ -33,7 +32,6 @@ import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.report.customerservice.AgencyContact
 import org.onebusaway.android.ui.report.customerservice.CustomerServiceRoute
 import org.onebusaway.android.ui.report.customerservice.CustomerServiceViewModel
-import org.onebusaway.android.ui.report.customerservice.DefaultCustomerServiceRepository
 import org.onebusaway.android.util.UIUtils
 
 /**
@@ -41,13 +39,10 @@ import org.onebusaway.android.util.UIUtils
  * state lives in [CustomerServiceViewModel]; the Activity owns the platform contact intents and
  * analytics. Replaces the legacy AgenciesLoader-backed Activity.
  */
+@AndroidEntryPoint
 class CustomerServiceActivity : AppCompatActivity() {
 
-    private val viewModel: CustomerServiceViewModel by viewModels {
-        viewModelFactory {
-            initializer { CustomerServiceViewModel(DefaultCustomerServiceRepository(applicationContext)) }
-        }
-    }
+    private val viewModel: CustomerServiceViewModel by viewModels()
 
     private lateinit var firebaseAnalytics: FirebaseAnalytics
 

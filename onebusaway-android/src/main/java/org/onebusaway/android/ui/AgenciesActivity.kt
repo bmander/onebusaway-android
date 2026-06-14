@@ -21,11 +21,9 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
+import dagger.hilt.android.AndroidEntryPoint
 import org.onebusaway.android.ui.agencies.AgenciesRoute
 import org.onebusaway.android.ui.agencies.AgenciesViewModel
-import org.onebusaway.android.ui.agencies.DefaultAgenciesRepository
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 
 /**
@@ -34,13 +32,10 @@ import org.onebusaway.android.ui.compose.theme.ObaTheme
  * This is the app's pilot Compose + MVVM screen: the Activity is a thin host for
  * [AgenciesRoute]; all state lives in [AgenciesViewModel].
  */
+@AndroidEntryPoint
 class AgenciesActivity : AppCompatActivity() {
 
-    private val viewModel: AgenciesViewModel by viewModels {
-        viewModelFactory {
-            initializer { AgenciesViewModel(DefaultAgenciesRepository(applicationContext)) }
-        }
-    }
+    private val viewModel: AgenciesViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

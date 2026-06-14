@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.ui.searchresults
 
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,7 +27,8 @@ import org.onebusaway.android.ui.compose.ListLoadingViewModel
  * query arrives from the hosting activity's search intent (and again on re-search), so there is
  * no init-time load.
  */
-class SearchResultsViewModel(
+@HiltViewModel
+class SearchResultsViewModel @Inject constructor(
     private val repository: SearchResultsRepository
 ) : ListLoadingViewModel<SearchResultItem>() {
 

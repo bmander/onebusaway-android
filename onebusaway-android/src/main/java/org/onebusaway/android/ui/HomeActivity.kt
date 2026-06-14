@@ -45,8 +45,10 @@ import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
+import org.onebusaway.android.map.MapCameraSeed
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.map.mapViewModelFactory
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
@@ -150,7 +152,7 @@ class HomeActivity : AppCompatActivity() {
 
         // The map is driven by mapViewModel; the seed (saved state → intent → last-saved view) just
         // avoids an initial flash before the loaders/region center it.
-        val mapSeed = resolveMapSeed(savedInstanceState)
+        val mapSeed = readMapSeed(savedInstanceState)
 
         val homeCallbacks = HomeCallbacks(
             onNavItemSelected = ::onHomeNavItemSelected,
@@ -180,9 +182,9 @@ class HomeActivity : AppCompatActivity() {
                 events = viewModel.events,
                 homeViewModel = viewModel,
                 mapViewModel = mapViewModel,
-                mapSeedLat = mapSeed.first,
-                mapSeedLon = mapSeed.second,
-                mapSeedZoom = mapSeed.third,
+                mapSeedLat = mapSeed.lat,
+                mapSeedLon = mapSeed.lon,
+                mapSeedZoom = mapSeed.zoom,
                 mapSavedInstanceState = savedInstanceState,
                 routeHeader = routeHeader,
                 surveyViewModel = surveyViewModel,
@@ -286,23 +288,25 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
-     * Resolves the initial map camera seed (lat, lon, zoom) from saved state, then the intent, then the
-     * persisted last view (so the map opens where you left it) — replacing ObaMapHost.resolveInitialCamera
-     * + the host's maybeRestoreMapViewToBundle.
+     * Reads the initial map camera candidates from the launch sources — the primary seed (saved state,
+     * else the intent) and the persisted last view — and hands them to the pure [resolveMapSeed] for the
+     * precedence decision (so the map opens where you left it). Replaces ObaMapHost.resolveInitialCamera.
      */
-    private fun resolveMapSeed(savedInstanceState: Bundle?): Triple<Double, Double, Float> {
+    private fun readMapSeed(savedInstanceState: Bundle?): MapCameraSeed {
         val src = savedInstanceState ?: intent.extras
-        var lat = src?.getDouble(MapParams.CENTER_LAT, 0.0) ?: 0.0
-        var lon = src?.getDouble(MapParams.CENTER_LON, 0.0) ?: 0.0
-        var zoom = src?.getFloat(MapParams.ZOOM, MAP_DEFAULT_ZOOM) ?: MAP_DEFAULT_ZOOM
-        if (lat == 0.0 && lon == 0.0) {
-            val restored = Bundle()
-            PreferenceUtils.maybeRestoreMapViewToBundle(restored)
-            lat = restored.getDouble(MapParams.CENTER_LAT, 0.0)
-            lon = restored.getDouble(MapParams.CENTER_LON, 0.0)
-            zoom = restored.getFloat(MapParams.ZOOM, zoom)
-        }
-        return Triple(lat, lon, zoom)
+        val primary = MapCameraSeed(
+            lat = src?.getDouble(MapParams.CENTER_LAT, 0.0) ?: 0.0,
+            lon = src?.getDouble(MapParams.CENTER_LON, 0.0) ?: 0.0,
+            zoom = src?.getFloat(MapParams.ZOOM, MAP_DEFAULT_ZOOM) ?: MAP_DEFAULT_ZOOM,
+        )
+        val restored = Bundle().also { PreferenceUtils.maybeRestoreMapViewToBundle(it) }
+        val persisted = MapCameraSeed(
+            lat = restored.getDouble(MapParams.CENTER_LAT, 0.0),
+            lon = restored.getDouble(MapParams.CENTER_LON, 0.0),
+            // The persisted zoom defaults to the primary zoom (so an empty persisted view keeps it).
+            zoom = restored.getFloat(MapParams.ZOOM, primary.zoom),
+        )
+        return resolveMapSeed(primary, persisted)
     }
 
     /**

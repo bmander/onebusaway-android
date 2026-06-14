@@ -18,6 +18,18 @@ package org.onebusaway.android.map
 import org.onebusaway.android.map.render.StopMarker
 import java.util.concurrent.TimeUnit
 
+/** The map's initial camera (lat/lon/zoom) before the loaders / region centering take over. */
+data class MapCameraSeed(val lat: Double, val lon: Double, val zoom: Float)
+
+/**
+ * Resolves the initial map camera from the launch sources. The [primary] seed (saved instance state,
+ * else the launching intent) wins, unless it carries no explicit center — lat *and* lon both 0 — in
+ * which case we fall back to the [persisted] last-viewed camera. The caller applies the read defaults
+ * (e.g. the persisted zoom defaults to the primary zoom), so this is just the precedence decision.
+ */
+internal fun resolveMapSeed(primary: MapCameraSeed, persisted: MapCameraSeed): MapCameraSeed =
+    if (primary.lat == 0.0 && primary.lon == 0.0) persisted else primary
+
 /** How often the real-time vehicle positions are refreshed while a route is shown. */
 internal val VEHICLE_REFRESH_PERIOD_MS = TimeUnit.SECONDS.toMillis(10)
 

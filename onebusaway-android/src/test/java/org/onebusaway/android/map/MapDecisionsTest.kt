@@ -25,6 +25,40 @@ import org.junit.Test
  */
 class MapDecisionsTest {
 
+    // --- resolveMapSeed ---
+
+    @Test
+    fun `a primary seed with a center wins over the persisted view`() {
+        val primary = MapCameraSeed(47.6, -122.3, 16f)
+        val persisted = MapCameraSeed(40.0, -74.0, 12f)
+        assertEquals(primary, resolveMapSeed(primary, persisted))
+    }
+
+    @Test
+    fun `an empty primary seed falls back to the persisted view`() {
+        val primary = MapCameraSeed(0.0, 0.0, 16f)
+        val persisted = MapCameraSeed(40.0, -74.0, 12f)
+        assertEquals(persisted, resolveMapSeed(primary, persisted))
+    }
+
+    @Test
+    fun `with neither source set the empty persisted seed is returned`() {
+        // The caller defaults the persisted zoom to the primary zoom, so this is what the map gets when
+        // there's no saved/intent/last-view camera (the region/loaders then center it).
+        val primary = MapCameraSeed(0.0, 0.0, 16f)
+        val persisted = MapCameraSeed(0.0, 0.0, 16f)
+        assertEquals(persisted, resolveMapSeed(primary, persisted))
+    }
+
+    @Test
+    fun `only both-zero coordinates count as empty (a half-set primary is kept)`() {
+        // Mirrors the legacy `lat == 0.0 && lon == 0.0` sentinel: a primary with one nonzero coordinate
+        // is used as-is rather than falling back.
+        val primary = MapCameraSeed(47.6, 0.0, 16f)
+        val persisted = MapCameraSeed(40.0, -74.0, 12f)
+        assertEquals(primary, resolveMapSeed(primary, persisted))
+    }
+
     // --- myLocationAction ---
 
     @Test

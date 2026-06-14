@@ -92,6 +92,10 @@ class HomeViewModel(
     // Guard so wide alerts are streamed once per region (not on every region-valid callback).
     private var alertsRegionId: Long? = null
     private var alertsJob: Job? = null
+    // The region-wide GTFS alert currently surfaced to the user (rendered as a Compose dialog by
+    // HomeScreen), or null when none. Plain state rather than a one-shot event so the dialog survives
+    // recomposition / config change and is driven declaratively.
+    private var wideAlert: WideAlert? = null
 
     init {
         // Reflect any SavedStateHandle-restored focus in the initial rendered state.
@@ -325,15 +329,23 @@ class HomeViewModel(
         alertsJob?.cancel()
         alertsJob = viewModelScope.launch {
             wideAlertsRepo.wideAlerts(regionId.toString()).collect { alert ->
-                _events.emit(HomeEvent.ShowWideAlert(alert))
+                wideAlert = alert
+                recompute()
             }
         }
+    }
+
+    /** The user dismissed the region-wide alert dialog (Dismiss, or after following "More info"). */
+    fun dismissWideAlert() {
+        wideAlert = null
+        recompute()
     }
 
     private fun recompute() {
         _uiState.value = buildState(
             selectedItem, navItems, environment, dialog,
-            focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering, mapComposed
+            focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering, mapComposed,
+            wideAlert
         )
     }
 
@@ -379,6 +391,7 @@ internal fun buildState(
     peekArrivalCount: Int = 0,
     routeFiltering: Boolean = false,
     mapComposed: Boolean = false,
+    wideAlert: WideAlert? = null,
 ): HomeUiState {
     val nearby = selectedItem == HomeNavItem.NEARBY
     val starredTab = selectedItem == HomeNavItem.STARRED_STOPS ||
@@ -399,6 +412,7 @@ internal fun buildState(
         layersFabVisible = nearby && environment.bikeshareEnabled,
         bikeshareActive = environment.bikeshareActive,
         dialog = dialog,
+        wideAlert = wideAlert,
         showListSortMenu = listTab,
         showListClearMenu = starredTab,
     )

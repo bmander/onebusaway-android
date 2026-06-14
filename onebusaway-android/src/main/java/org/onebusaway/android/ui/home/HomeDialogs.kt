@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.ui.home
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,9 +24,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
@@ -49,6 +55,41 @@ fun HomeDialogs(dialog: HomeDialog, onRegionChosen: (ObaRegion) -> Unit) {
         is HomeDialog.ChooseRegion -> RegionChooserDialog(dialog.regions, onRegionChosen)
         HomeDialog.None -> Unit
     }
+}
+
+/**
+ * A region-wide GTFS alert (old `GtfsAlertsHelper.showWideAlertDialog`): a non-dismissible warning
+ * dialog driven by [HomeUiState.wideAlert]. "More info" opens [WideAlert.url] in a browser (shown
+ * only when a url is present) and dismisses; "Dismiss" just clears it. Back/scrim do nothing, mirroring
+ * the legacy `setCancelable(false)`.
+ */
+@Composable
+fun WideAlertDialog(alert: WideAlert, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = { },
+        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+        icon = {
+            Icon(painterResource(R.drawable.baseline_warning_24), contentDescription = null)
+        },
+        title = { Text(alert.title) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(alert.message)
+            }
+        },
+        confirmButton = {
+            if (alert.url != null) {
+                TextButton(onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(alert.url)))
+                    onDismiss()
+                }) { Text(stringResource(R.string.more_info)) }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dismiss)) }
+        },
+    )
 }
 
 /**

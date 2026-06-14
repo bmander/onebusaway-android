@@ -83,7 +83,6 @@ import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.ShowcaseViewUtils
 import org.onebusaway.android.util.UIUtils
-import org.onebusaway.android.widealerts.GtfsAlertsHelper
 
 class HomeActivity : AppCompatActivity() {
 
@@ -231,15 +230,12 @@ class HomeActivity : AppCompatActivity() {
         observeViewModelEvents()
     }
 
-    /** Carry out one-shot effects from the ViewModel (currently the GTFS wide-alert dialog). */
+    /** Carry out one-shot effects from the ViewModel (currently the region-resolved side effects). */
     private fun observeViewModelEvents() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.events.collect { event ->
                     when (event) {
-                        is HomeEvent.ShowWideAlert -> GtfsAlertsHelper.showWideAlertDialog(
-                            this@HomeActivity, event.alert.title, event.alert.message, event.alert.url
-                        )
                         is HomeEvent.RegionResolved -> {
                             // The map re-zoom is driven directly by the VM (onRegionChanged); here we run
                             // only the non-map side effects: analytics, what's-new/drawer/toast, survey retry.

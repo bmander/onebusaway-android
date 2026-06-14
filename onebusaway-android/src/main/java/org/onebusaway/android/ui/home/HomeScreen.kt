@@ -161,7 +161,7 @@ fun HomeScreen(
                         }
                     }
                     HomeEvent.CollapseSheet -> runCatching { sheetState.partialExpand() }
-                    else -> {} // ShowWideAlert is handled by the activity
+                    else -> {} // RegionResolved is handled by the activity
                 }
             }
         }
@@ -299,6 +299,10 @@ fun HomeScreen(
         }
 
         HomeDialogs(dialog = state.dialog, onRegionChosen = onRegionChosen)
+
+        // The region-wide GTFS alert dialog, driven declaratively by state (replaces the activity's
+        // one-shot event -> GtfsAlertsHelper.showWideAlertDialog path).
+        state.wideAlert?.let { WideAlertDialog(it) { homeViewModel.dismissWideAlert() } }
 
         // The help / what's-new / legend dialogs feature module (self-rendering from its ViewModel; the
         // genuinely-Activity actions + the what's-new opt-out are forwarded to the host).

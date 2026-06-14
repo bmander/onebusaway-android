@@ -130,21 +130,20 @@ class HomeViewModelTest {
         job.cancel()
     }
 
-    // --- GTFS wide alerts (events) ---
+    // --- GTFS wide alerts (state) ---
 
     @Test
-    fun `wide alerts are emitted as ShowWideAlert events`() = runTest {
+    fun `a wide alert surfaces as state and is cleared on dismiss`() = runTest {
         val alert = WideAlert("Title", "Message", "https://example.org")
         val vm = viewModel(alerts = listOf(alert))
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
-        advanceUntilIdle() // ensure the collector is subscribed before the region triggers alerts
+        assertNull(vm.uiState.value.wideAlert)
 
         vm.onRegionValid(1L)
         advanceUntilIdle()
+        assertEquals(alert, vm.uiState.value.wideAlert)
 
-        assertEquals(listOf(HomeEvent.ShowWideAlert(alert)), events)
-        job.cancel()
+        vm.dismissWideAlert()
+        assertNull(vm.uiState.value.wideAlert)
     }
 
     // --- arrivals sheet settled -> map padding / recenter ---

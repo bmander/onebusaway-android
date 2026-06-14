@@ -113,6 +113,9 @@ data class HomeUiState(
     val bikeshareActive: Boolean = false,
     // dialogs (HomeDialog lives in HomeDialogs.kt)
     val dialog: HomeDialog = HomeDialog.None,
+    // A region-wide GTFS alert to surface in a (non-dismissible) dialog; null when none is showing.
+    // Concurrent alerts collapse to the most recent — they're rare (usually zero or one per region).
+    val wideAlert: WideAlert? = null,
     // toolbar menu groups — derived from selectedItem. Sort shows on any list tab; clear only on the
     // two starred tabs (recents/reminders aren't user-clearable from here).
     val showListSortMenu: Boolean = false,
@@ -123,15 +126,13 @@ data class HomeUiState(
 enum class ArrivalsSheetState { Hidden, Collapsed, Expanded }
 
 /**
- * One-shot effects driven from the ViewModel. [ShowWideAlert] is handled by the activity; the sheet
+ * One-shot effects driven from the ViewModel. [RegionResolved] is handled by the activity; the sheet
  * commands are handled by [HomeScreen] (which alone holds the live `SheetState`). Both subscribe to
  * the same multicast `events` flow and ignore the others. (The drawer is opened directly by
- * [HomeTopBar]'s hamburger, so it needs no event.)
+ * [HomeTopBar]'s hamburger, so it needs no event. The region-wide GTFS alert is plain state now —
+ * [HomeUiState.wideAlert], rendered as a Compose dialog — not a one-shot event.)
  */
 sealed interface HomeEvent {
-    /** A region-wide GTFS alert arrived; the activity shows it in a dialog. */
-    data class ShowWideAlert(val alert: WideAlert) : HomeEvent
-
     /**
      * Region resolved (replaces ObaRegionsTask's callback). [changed] is the old
      * `currentRegionChanged`; [regionName] is non-null only for an auto-selected change (the

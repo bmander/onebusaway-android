@@ -37,8 +37,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChangedBy
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -156,13 +154,19 @@ class MapViewModel(
     val renderState = MapRenderState()
 
     init {
-        // Re-center on region changes (replaces the host's onRegionChanged push). The StateFlow replays
-        // its seed; drop it so the initial camera seed isn't yanked, then frame on each real id change to
-        // a present region. Network latency on the auto-select means the seed is collected before the
-        // resolve completes, so cold-start frames the newly-selected region.
+        // Re-center when the region changes from the one present at startup (replaces the host's
+        // onRegionChanged push). We compare each emission's id against the last-seen id, seeded with the
+        // region at construction — rather than dropping the first emission — so it's race-free: even if
+        // the auto-select resolves before this collector starts (making the first value the new region),
+        // id != seed still frames it. The startup region of a cached restart matches the seed, so the
+        // persisted camera isn't yanked. (The StateFlow already dedups same-id republishes via ObaRegion's
+        // id-based equals, so the unchanged-refresh doesn't emit.)
+        var lastRegionId = regionRepo.region.value?.id
         viewModelScope.launch {
-            regionRepo.region.distinctUntilChangedBy { it?.id }.drop(1).collect { region ->
-                if (region != null) rezoomForRegion()
+            regionRepo.region.collect { region ->
+                val id = region?.id
+                if (region != null && id != lastRegionId) rezoomForRegion()
+                lastRegionId = id
             }
         }
     }
@@ -177,6 +181,12 @@ class MapViewModel(
 
     fun onCameraIdle(snapshot: CameraSnapshot) {
         _camera.value = snapshot
+        // A region change that arrived before the map was ready deferred its framing to here (the first
+        // idle means the adapter is composed + subscribed to cameraCommands, so the command won't be lost).
+        if (pendingRegionFrame) {
+            pendingRegionFrame = false
+            frameCurrentRegion()
+        }
     }
 
     // ----- Loading / region status + one-shot effects -----
@@ -627,12 +637,29 @@ class MapViewModel(
 
     // ----- Region re-zoom (the old ObaRegionsTask.Callback.onRegionTaskFinished) -----
 
+    // Set when a region change wants to re-center but the map hasn't published its camera yet — the
+    // camera-command flow has no replay, so a command dispatched before the adapter subscribes is lost.
+    // Consumed on the first onCameraIdle (when the adapter is definitely subscribed).
+    private var pendingRegionFrame = false
+
     /**
      * The current region changed (driven by the region collector, so this only fires on a real change to
-     * a present region): if we have no location, or the camera is still at the (0,0) seed, frame the
-     * user's location if we have one, else the region — but don't yank a camera the user already moved.
+     * a present region). Frames it once the map is ready; if the map hasn't published a camera yet, defer
+     * to the first [onCameraIdle] so the camera command isn't lost.
      */
     private fun rezoomForRegion() {
+        if (_camera.value == null) {
+            pendingRegionFrame = true
+            return
+        }
+        frameCurrentRegion()
+    }
+
+    /**
+     * Frame the current region: if we have no location, or the camera is still at the (0,0) seed, frame
+     * the user's location if we have one, else the region — but don't yank a camera the user already moved.
+     */
+    private fun frameCurrentRegion() {
         val location = Application.getLastKnownLocation(Application.get())
         val center = _camera.value?.center
         val atSeed = center == null || (center.latitude == 0.0 && center.longitude == 0.0)

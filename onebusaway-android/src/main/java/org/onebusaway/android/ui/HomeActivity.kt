@@ -35,6 +35,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import com.google.firebase.analytics.FirebaseAnalytics
 import org.onebusaway.android.R
@@ -227,35 +228,43 @@ class HomeActivity : AppCompatActivity() {
             handleFcmNotificationIntent(intent)
         }
 
-        observeViewModelEvents()
+        observeRegionResolved()
     }
 
-    /** Carry out one-shot effects from the ViewModel (currently the region-resolved side effects). */
-    private fun observeViewModelEvents() {
+    /**
+     * Subscribes to the one [HomeEvent] the activity (as opposed to [HomeScreen]) cares about:
+     * [HomeEvent.RegionResolved]. The sheet/drawer commands on the same flow are consumed by HomeScreen,
+     * so this filters to just the region event rather than a `when` with an empty `else`.
+     */
+    private fun observeRegionResolved() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.events.collect { event ->
-                    when (event) {
-                        is HomeEvent.RegionResolved -> {
-                            // The map re-zoom (VM onRegionChanged), nav items (VM refreshNavItems), the
-                            // region-found snackbar (HomeUiState.regionFoundName), what's-new (HelpFeature,
-                            // regionReady), and the survey (SurveyFeature, regionReady) are all handled
-                            // elsewhere; here we run only the residual host side effects: analytics + the
-                            // environment refresh (a region change can flip bikeshare availability).
-                            if (event.changed && event.regionName != null) {
-                                ObaAnalytics.setRegion(
-                                    Application.get().plausibleInstance,
-                                    firebaseAnalytics,
-                                    event.regionName
-                                )
-                            }
-                            pushEnvironment()
-                        }
-                        // Sheet / drawer commands are carried out by HomeScreen.
-                        else -> Unit
-                    }
-                }
+                viewModel.events
+                    .filterIsInstance<HomeEvent.RegionResolved>()
+                    .collect(::onRegionResolved)
             }
+        }
+    }
+
+    /**
+     * The host-only effects of a region resolve. The map re-zoom (VM onRegionChanged), nav items (VM
+     * refreshNavItems), the region-found snackbar (HomeUiState.regionFoundName), what's-new (HelpFeature)
+     * and the survey (SurveyFeature) are all self-wired elsewhere; what remains here is analytics plus a
+     * chrome-environment refresh (a region change can flip bikeshare availability).
+     */
+    private fun onRegionResolved(event: HomeEvent.RegionResolved) {
+        reportRegionToAnalytics(event)
+        pushEnvironment()
+    }
+
+    /** Reports an auto-selected region change to analytics (a manual pick passes a null name, so none). */
+    private fun reportRegionToAnalytics(event: HomeEvent.RegionResolved) {
+        if (event.changed && event.regionName != null) {
+            ObaAnalytics.setRegion(
+                Application.get().plausibleInstance,
+                firebaseAnalytics,
+                event.regionName
+            )
         }
     }
 

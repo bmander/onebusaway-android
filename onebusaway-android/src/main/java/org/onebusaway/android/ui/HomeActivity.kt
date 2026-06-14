@@ -17,26 +17,17 @@
  */
 package org.onebusaway.android.ui
 
-import android.Manifest
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
-import android.location.Location
 import android.net.Uri
 import android.os.Bundle
-import android.provider.Settings
 import android.text.TextUtils
-import android.view.View
 import android.view.accessibility.AccessibilityManager
-import android.widget.CheckBox
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.graphics.drawable.DrawableCompat
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -54,17 +45,11 @@ import org.onebusaway.android.app.Application
 import org.onebusaway.android.donations.DonationsManager
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
-import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaStop
-import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.map.LayerInfo
-import org.onebusaway.android.map.MapEffect
-import org.onebusaway.android.map.MapNavigation
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
-import org.onebusaway.android.map.compose.ObaMapCallbacks
-import org.onebusaway.android.map.render.GeoPoint
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.home.ArrivalsSheetState
@@ -99,7 +84,6 @@ import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.ShowcaseViewUtils
 import org.onebusaway.android.util.UIUtils
 import org.onebusaway.android.widealerts.GtfsAlertsHelper
-import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 class HomeActivity : AppCompatActivity() {
 
@@ -124,13 +108,9 @@ class HomeActivity : AppCompatActivity() {
      */
     private var navSelectionApplied = false
 
-    // Guards the one-time eager location-permission prompt on first map show (see showMap()).
-    private var locationPromptRequested = false
-
-    // The map is composed directly by HomeScreen via ObaMap() and driven entirely by [mapViewModel]:
-    // setMode launches the reactive loaders, the Google adapter feeds the camera + styling back in, and
-    // taps come through [mapCallbacks]. There is no imperative host for the home map any more (the three
-    // other map screens still use the host until they're re-homed). State/effects are collected below.
+    // The map view model — the single source of truth for the map. MapFeature (in HomeScreen) renders it
+    // and self-wires the callbacks/collectors/effects/lifecycle; the activity only constructs it here
+    // (shared with HomeViewModel) and reads its mode/camera in onSaveInstanceState + sets the mode/seed.
     private val mapViewModel: MapViewModel by viewModels()
 
     // Gates ObaMap() composition: flipped true on the first NEARBY selection so the map SDK only
@@ -152,61 +132,6 @@ class HomeActivity : AppCompatActivity() {
     // The help / what's-new / legend dialogs feature module. Activity-scoped.
     private val helpViewModel: HelpViewModel by viewModels()
 
-    // The map view model can't call requestPermissions() itself, so it raises
-    // MapEffect.RequestLocationPermission and we drive the real launcher, delivering the outcome back to
-    // it (blue dot on grant) and completing the first-launch region check (the VM defers it until then).
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { result ->
-        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        mapViewModel.onLocationPermissionResult(granted)
-        viewModel.onLocationPermissionResult()
-    }
-
-    // Map taps (declarative markers via the Google adapter): focus → the view model (render) + this
-    // activity's focus handler (the arrivals sheet + analytics); the two info-window "more info" taps
-    // navigate (they need an Activity).
-    private val mapCallbacks = object : ObaMapCallbacks {
-        override fun onStopClick(stop: ObaStop) {
-            mapViewModel.onStopTapped(stop)
-            onFocusChanged(stop, null, null)
-        }
-
-        override fun onMapClick(point: GeoPoint?) {
-            mapViewModel.onMapTapped()
-            onFocusChanged(null, null, null)
-            onFocusChanged(null as BikeRentalStation?)
-        }
-
-        override fun onBikeClick(station: BikeRentalStation) {
-            onFocusChanged(station)
-            ObaAnalytics.reportUiEvent(
-                firebaseAnalytics,
-                Application.get().plausibleInstance,
-                PlausibleAnalytics.REPORT_BIKE_EVENT_URL,
-                getString(
-                    if (station.isFloatingBike) {
-                        R.string.analytics_label_bike_station_marker_clicked
-                    } else {
-                        R.string.analytics_label_floating_bike_marker_clicked
-                    }
-                ),
-                null
-            )
-        }
-
-        override fun onVehicleInfoWindowClick(status: ObaTripStatus) {
-            MapNavigation.openVehicleTripDetails(
-                this@HomeActivity, status, viewModel.uiState.value.focusedStop?.id
-            )
-        }
-
-        override fun onBikeInfoWindowClick(station: BikeRentalStation) {
-            MapNavigation.openBikeDeepLink(this@HomeActivity, station)
-        }
-    }
-
     // The three home list destinations (starred stops/routes, reminders) render as Compose overlays
     // over the map (HomeListDestinations) rather than swapped-in fragments. Their MyListViewModels are
     // owned here (keyed in the activity's ViewModelStore) so the toolbar sort/clear menu can reach
@@ -224,8 +149,8 @@ class HomeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // The map's center/zoom/focus/mode were written into the saved bundle by onSaveInstanceState;
-        // the host restores them when it's created below (and the seed avoids an initial map flash).
+        // The map's center/zoom/mode are restored from the saved bundle via initMapMode()/resolveMapSeed()
+        // below (the focus is restored by HomeViewModel's SavedStateHandle); the seed avoids a map flash.
         firebaseAnalytics = FirebaseAnalytics.getInstance(this)
 
         // Host the map content inside a Compose ModalNavigationDrawer + HomeTopBar + BottomSheetScaffold,
@@ -267,8 +192,7 @@ class HomeActivity : AppCompatActivity() {
             HomeScreen(
                 state = state,
                 events = viewModel.events,
-                mapRenderState = mapViewModel.renderState,
-                mapCallbacks = mapCallbacks,
+                homeViewModel = viewModel,
                 mapViewModel = mapViewModel,
                 mapSeedLat = mapSeed.first,
                 mapSeedLon = mapSeed.second,
@@ -320,7 +244,6 @@ class HomeActivity : AppCompatActivity() {
         }
 
         observeViewModelEvents()
-        setupMapCollectors()
     }
 
     /** Carry out one-shot effects from the ViewModel (currently the GTFS wide-alert dialog). */
@@ -354,104 +277,6 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         }
-    }
-
-    /**
-     * Collects the map view model's state + one-shot effects (replacing the host's listener callbacks):
-     * the loading indicator, the valid-region signal (weather + wide alerts), and the dialogs/toast/
-     * permission-launch that need an Activity. Stop/bike focus is driven directly by [mapCallbacks].
-     */
-    private fun setupMapCollectors() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch { mapViewModel.progress.collect { onProgressBarChanged(it) } }
-                launch { mapViewModel.regionValid.collect { onValidRegion(it) } }
-                launch { mapViewModel.effects.collect { handleMapEffect(it) } }
-            }
-        }
-    }
-
-    private fun handleMapEffect(effect: MapEffect) {
-        when (effect) {
-            MapEffect.OutOfRange -> showOutOfRangeDialog()
-            MapEffect.NoLocation -> showNoLocationDialog()
-            MapEffect.ShowPermissionRationale -> showLocationPermissionDialog()
-            MapEffect.RequestLocationPermission ->
-                permissionLauncher.launch(PermissionUtils.LOCATION_PERMISSIONS)
-            MapEffect.WaitingForLocation -> Toast.makeText(
-                this, getString(R.string.main_waiting_for_location), Toast.LENGTH_SHORT
-            ).show()
-        }
-    }
-
-    /** The out-of-range prompt (ported from GoogleMapHost.showOutOfRangeDialog). */
-    private fun showOutOfRangeDialog() {
-        if (!UIUtils.canManageDialog(this)) {
-            return
-        }
-        val region = Application.get().currentRegion
-        if (region == null && TextUtils.isEmpty(Application.get().customApiUrl)) {
-            return
-        }
-        val icon = resources.getDrawable(android.R.drawable.ic_dialog_map)
-        DrawableCompat.setTint(icon, resources.getColor(R.color.theme_primary))
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.main_outofrange_title)
-            .setIcon(icon)
-            .setCancelable(false)
-            .setMessage(getString(R.string.main_outofrange, region?.name ?: ""))
-            .setPositiveButton(R.string.main_outofrange_yes) { _, _ -> mapViewModel.zoomToRegion() }
-            .setNegativeButton(R.string.main_outofrange_no, null)
-            .show()
-    }
-
-    /** The "enable location" dialog with its never-ask-again opt-out (ported from the host). */
-    private fun showNoLocationDialog() {
-        if (!UIUtils.canManageDialog(this)) {
-            return
-        }
-        val view = layoutInflater.inflate(R.layout.no_location_dialog, null)
-        view.findViewById<TextView>(R.id.no_location_text).text =
-            getString(R.string.main_nolocation, getString(R.string.app_name))
-        view.findViewById<CheckBox>(R.id.location_never_ask_again)
-            .setOnCheckedChangeListener { _, isChecked ->
-                PreferenceUtils.saveBoolean(
-                    getString(R.string.preference_key_never_show_location_dialog), isChecked
-                )
-            }
-        val icon = resources.getDrawable(android.R.drawable.ic_dialog_map)
-        DrawableCompat.setTint(icon, resources.getColor(R.color.theme_primary))
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.main_nolocation_title)
-            .setIcon(icon)
-            .setCancelable(false)
-            .setView(view)
-            .setPositiveButton(R.string.rt_yes) { _, _ ->
-                startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-            }
-            .setNegativeButton(R.string.rt_no, null)
-            .show()
-    }
-
-    /** The location-permission rationale (ported from GoogleMapHost.showLocationPermissionDialog). */
-    private fun showLocationPermissionDialog() {
-        if (!UIUtils.canManageDialog(this)) {
-            return
-        }
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.location_permissions_title)
-            .setMessage(R.string.location_permissions_message)
-            .setCancelable(false)
-            .setPositiveButton(R.string.ok) { _, _ ->
-                PreferenceUtils.setUserDeniedLocationPermissions(false)
-                permissionLauncher.launch(PermissionUtils.LOCATION_PERMISSIONS)
-            }
-            .setNegativeButton(R.string.no_thanks) { _, _ ->
-                PreferenceUtils.setUserDeniedLocationPermissions(true)
-                mapViewModel.onLocationPermissionResult(false)
-                viewModel.onLocationPermissionResult()
-            }
-            .show()
     }
 
     /** Sets the initial map mode from the intent: route deep link, else nearby stops. */
@@ -518,18 +343,14 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        mapViewModel.onResume()
-
         // Re-snapshot preferences + app-global flags so the ViewModel recomputes the chrome/overlay
-        // visibility gates (zoom controls, left-hand mode, layers FAB, weather).
-        // (The arrivals panel's collapsed state is derived live from the sheet in HomeScreen now;
-        // the survey + donation feature modules self-wire their own state/effects/refresh.)
+        // visibility gates (zoom controls, left-hand mode, layers FAB, weather). The map's own
+        // resume/pause is handled by MapFeature; the survey/donation/weather modules self-wire theirs.
         pushEnvironment()
     }
 
     override fun onPause() {
         ShowcaseViewUtils.hideShowcaseView()
-        mapViewModel.onPause()
         super.onPause()
     }
 
@@ -604,17 +425,11 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showMap() {
-        // The host (controller) is created eagerly in onCreate; here we just flip the gate so HomeScreen
-        // composes ObaMap() (deferring the map SDK init to the first NEARBY selection). It then stays
-        // composed — list tabs draw an opaque destination over it rather than tearing it down — so this
-        // is idempotent. The host's lifecycle is forwarded normally; the map composes when the gate flips.
+        // Flip the gate so MapFeature composes ObaMap() (deferring the map SDK init to the first NEARBY
+        // selection). It then stays composed — list tabs draw an opaque destination over it rather than
+        // tearing it down — so this is idempotent. (MapFeature does the eager location-permission
+        // prompt once the map shows.)
         mapComposed = true
-        // First map show: prompt for location permission if needed (was the host's initMap eager
-        // prompt; also drives the deferred first-launch region check via the permission result). Once.
-        if (!locationPromptRequested) {
-            locationPromptRequested = true
-            mapViewModel.requestLocationPermissionIfNeeded()
-        }
         // Request the map survey on the first NEARBY selection (idempotent + region-gated in the VM).
         surveyViewModel.maybeRequestSurvey()
     }
@@ -722,64 +537,6 @@ class HomeActivity : AppCompatActivity() {
         if (showOptOut) {
             ShowcaseViewUtils.showOptOutDialog(this)
         }
-    }
-
-    /**
-     * Called by [mapCallbacks] when a stop obtains focus (tap), or focus is cleared (map tap).
-     */
-    private fun onFocusChanged(
-        stop: ObaStop?,
-        routes: HashMap<String, ObaRoute>?,
-        location: Location?
-    ) {
-        // Check to see if we're already focused on this same stop - if so, we shouldn't do anything
-        val focusedId = viewModel.uiState.value.focusedStop?.id
-        if (focusedId != null && stop != null && focusedId.equals(stop.id, ignoreCase = true)) {
-            return
-        }
-        // Ignore focus callbacks that arrive while we're stopped (state already saved) — updating the
-        // ViewModel then would be lost on the way down.
-        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-            return
-        }
-
-        if (stop != null) {
-            // A stop on the map was just tapped; the arrivals sheet shows itself from focusedStop.
-            viewModel.onStopFocused(
-                FocusedStop(stop.id, stop.name, stop.stopCode, stop.latitude, stop.longitude)
-            )
-
-            ObaAnalytics.reportUiEvent(
-                firebaseAnalytics,
-                Application.get().plausibleInstance,
-                PlausibleAnalytics.REPORT_MAP_EVENT_URL,
-                getString(R.string.analytics_label_button_press_map_icon),
-                null
-            )
-        } else {
-            // No stop is in focus (e.g., user tapped on the map), so clear the focus; the sheet (and
-            // its per-stop arrivals panel) hides + tears down once focusedStop is null.
-            viewModel.onStopFocused(null)
-        }
-    }
-
-    /**
-     * Called from [mapCallbacks] when a BikeRentalStation is clicked (or focus cleared on a map tap).
-     */
-    private fun onFocusChanged(bikeRentalStation: BikeRentalStation?) {
-        // Check to see if we're already focused on this same bike rental station
-        val bikeId = viewModel.uiState.value.focusedBikeStationId
-        if (bikeId != null && bikeRentalStation != null &&
-            bikeId.equals(bikeRentalStation.id, ignoreCase = true)
-        ) {
-            return
-        }
-
-        viewModel.onBikeStationFocused(bikeRentalStation?.id)
-    }
-
-    private fun onProgressBarChanged(showProgressBar: Boolean) {
-        viewModel.onMapLoading(showProgressBar)
     }
 
     /**
@@ -1035,14 +792,6 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         }
-    }
-
-    // Collected from the map view model's regionValid flow. The ViewModel fetches the weather + streams
-    // GTFS wide alerts for a valid region (null clears them).
-    private fun onValidRegion(isValid: Boolean) {
-        val regionId = if (isValid) Application.get().currentRegion.id else null
-        viewModel.onRegionValid(regionId)
-        weatherViewModel.setRegion(regionId)
     }
 
     companion object {

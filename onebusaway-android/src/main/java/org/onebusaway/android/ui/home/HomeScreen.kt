@@ -48,9 +48,6 @@ import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.map.RouteHeader
 import org.onebusaway.android.map.MapViewModel
-import org.onebusaway.android.map.compose.ObaMap
-import org.onebusaway.android.map.compose.ObaMapCallbacks
-import org.onebusaway.android.map.render.MapRenderState
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.survey.SurveyViewModel
 
@@ -92,7 +89,7 @@ class HomeCallbacks(
  * fights a user drag. **Expansion (peek<->full)** is the live `SheetState`, nudged by one-shot
  * [HomeEvent.ToggleSheet]/[HomeEvent.CollapseSheet] commands (the screen alone knows the live state),
  * plus [BackHandler]. The arrivals panel is hosted directly per focused stop (see [ArrivalsSheetHost]);
- * the map ([ObaMap]), the route-mode header ([RouteHeaderOverlay]), and the survey ([SurveyOverlay])
+ * the map ([MapFeature]), the route-mode header ([RouteHeaderOverlay]), and the survey ([SurveyOverlay])
  * are all composables now — no map-related `AndroidView` / View seam remains.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,11 +97,9 @@ class HomeCallbacks(
 fun HomeScreen(
     state: HomeUiState,
     events: SharedFlow<HomeEvent>,
-    // The map is rendered directly as a composable (ObaMap), gated by [mapComposed] so SDK init stays
-    // lazy until the first NEARBY selection. The route-mode header ([routeHeader]) and the survey
-    // ([survey]) are Compose overlays over it — no map-related View seam remains.
-    mapRenderState: MapRenderState,
-    mapCallbacks: ObaMapCallbacks?,
+    // The map is a self-wiring [MapFeature] (gated by [mapComposed] so SDK init stays lazy until the
+    // first NEARBY selection); the route-mode header and survey are Compose overlays over it.
+    homeViewModel: HomeViewModel,
     mapViewModel: MapViewModel,
     mapSeedLat: Double,
     mapSeedLon: Double,
@@ -240,21 +235,20 @@ fun HomeScreen(
                         0.dp
                     }
                     Box(Modifier.fillMaxSize()) {
-                        // The map itself, composed directly (no View seam). Gated so the map SDK only
-                        // initializes once NEARBY is first shown, then stays composed (a list tab draws
-                        // an opaque destination over it rather than tearing it down).
-                        if (mapComposed) {
-                            ObaMap(
-                                renderState = mapRenderState,
-                                callbacks = mapCallbacks,
-                                modifier = Modifier.fillMaxSize(),
-                                mapViewModel = mapViewModel,
-                                initialLatitude = mapSeedLat,
-                                initialLongitude = mapSeedLon,
-                                initialZoom = mapSeedZoom,
-                                savedInstanceState = mapSavedInstanceState,
-                            )
-                        }
+                        // The self-wiring map feature module: renders the map (gated so the SDK only
+                        // initializes once NEARBY is first shown, then stays composed) and owns its
+                        // callbacks / state collectors / effects-as-dialogs / permission / lifecycle.
+                        MapFeature(
+                            mapViewModel = mapViewModel,
+                            homeViewModel = homeViewModel,
+                            weatherViewModel = weatherViewModel,
+                            mapComposed = mapComposed,
+                            mapSeedLat = mapSeedLat,
+                            mapSeedLon = mapSeedLon,
+                            mapSeedZoom = mapSeedZoom,
+                            mapSavedInstanceState = mapSavedInstanceState,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                         MapChrome(
                             fabsVisible = state.fabsVisible,
                             zoomVisible = state.zoomControlsVisible,

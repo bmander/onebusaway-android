@@ -186,11 +186,6 @@ class MapViewModel(
     /** Whether a viewport/route load is in flight (the old `Callback.showProgress`). */
     val progress: StateFlow<Boolean> = _progress.asStateFlow()
 
-    private val _regionValid = MutableStateFlow(false)
-
-    /** True once stops loaded for an in-range viewport; false when the viewport is out of range. */
-    val regionValid: StateFlow<Boolean> = _regionValid.asStateFlow()
-
     private val _effects = MutableSharedFlow<MapEffect>(extraBufferCapacity = 8)
 
     /** One-shot events that need an Activity (e.g. the out-of-range prompt). */
@@ -358,12 +353,10 @@ class MapViewModel(
             }
         }
 
-        _regionValid.value = true
         showStops(response.stops.toList(), response)
     }
 
     private fun notifyOutOfRange() {
-        _regionValid.value = false
         _effects.tryEmit(MapEffect.OutOfRange)
     }
 

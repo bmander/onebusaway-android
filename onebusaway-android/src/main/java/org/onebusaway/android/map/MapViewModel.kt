@@ -70,7 +70,7 @@ import org.onebusaway.android.map.render.StopMarker
 import org.onebusaway.android.map.render.VehicleMarker
 import org.onebusaway.android.map.render.primaryRouteType
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.ui.home.RegionRepository
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PermissionUtils

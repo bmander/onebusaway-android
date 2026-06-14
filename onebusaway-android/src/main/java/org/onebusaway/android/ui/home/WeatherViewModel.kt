@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.ui.weather.WeatherUtils
 
 /** The weather chip's state: the forecast (null until fetched) + the hide-weather preference. */

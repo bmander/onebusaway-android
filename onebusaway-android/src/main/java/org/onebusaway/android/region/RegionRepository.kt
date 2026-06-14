@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.home
+package org.onebusaway.android.region
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,11 +24,13 @@ import org.onebusaway.android.io.elements.ObaRegion
  * The observable current region — the reactive replacement for reading `Application.currentRegion`
  * statically. Features that must react to a region change (weather, wide alerts, the survey/what's-new
  * gate, the nav-drawer items, the map's re-centering) collect [region] instead of being hand-fed by a
- * region-resolution fan-out. The *resolution action* lives separately in [RegionStatusRepository]; it
+ * region-resolution fan-out. The *resolution action* lives separately in `RegionStatusRepository`; it
  * writes through `Application.setCurrentRegion`, which is the single point that publishes here.
  *
  * One process-singleton instance is held on `Application` (mirroring `getGtfsAlerts()`), so every view
- * model shares the same flow; tests substitute a fake exposing a `MutableStateFlow`.
+ * model shares the same flow; tests substitute a fake exposing a `MutableStateFlow`. It lives in the
+ * neutral `region` package (alongside the other region infrastructure) so both the map and the home UI
+ * can depend on it without a backward dependency.
  */
 interface RegionRepository {
 

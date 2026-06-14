@@ -21,6 +21,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.region.DefaultRegionRepository
+import org.onebusaway.android.region.RegionRepository
 
 /** A controllable [RegionRepository] for ViewModel tests; shared across the package (see `region(id)`). */
 internal class FakeRegionRepository(initial: ObaRegion? = null) : RegionRepository {

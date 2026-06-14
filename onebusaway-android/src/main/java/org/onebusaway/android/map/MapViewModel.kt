@@ -15,11 +15,15 @@
  */
 package org.onebusaway.android.map
 
+import android.content.Context
 import android.graphics.Color
 import android.location.Location
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
@@ -109,6 +113,21 @@ interface HomeMapController {
 }
 
 /**
+ * Builds a [MapViewModel] with the production repositories for [context]. Map screens obtain the view
+ * model via `by viewModels { mapViewModelFactory(applicationContext) }`; tests construct the view model
+ * directly with fakes.
+ */
+fun mapViewModelFactory(context: Context): ViewModelProvider.Factory = viewModelFactory {
+    initializer {
+        MapViewModel(
+            DefaultStopsRepository(context),
+            DefaultRouteMapRepository(context),
+            DefaultBikeStationsRepository(context),
+        )
+    }
+}
+
+/**
  * The map's view model and single source of truth. It owns the flavor-neutral [MapRenderState]
  * (overlays + padding + the camera-command write path), shapes the raw `io/elements` responses into
  * render markers, **and** orchestrates loading: [setMode] launches the reactive loaders that replaced
@@ -117,24 +136,21 @@ interface HomeMapController {
  * [viewModelScope], so there is no imperative host driving them — a flavor adapter only renders
  * [renderState] and feeds the camera + taps back in.
  *
- * Scoped to the hosting Activity (obtained via `ViewModelProvider` / `by viewModels()`), so all map
- * screens in an Activity share one model, and the rendered state survives a configuration change.
+ * Scoped to the hosting Activity (obtained via `ViewModelProvider` / `by viewModels { mapViewModelFactory(...) }`),
+ * so all map screens in an Activity share one model, and the rendered state survives a configuration
+ * change.
  *
- * A plain [ViewModel] (not `AndroidViewModel`): like the other feature view models here it reaches
- * the app context via the `Application.get()` singleton, kept off the construction path (lazy repos)
- * so the model stays constructible in JVM unit tests.
+ * Its data collaborators are constructor-injected (via [mapViewModelFactory] in production, fakes in
+ * tests) — the standard pattern here, alongside HomeViewModel / WeatherViewModel. (It still reaches a
+ * few `Application.get()` statics — region/location/prefs — directly; those are the remaining boundary.)
  */
-class MapViewModel : ViewModel(), HomeMapController {
+class MapViewModel(
+    private val stopsRepository: StopsRepository,
+    private val routeRepository: RouteMapRepository,
+    private val bikeStationsRepository: BikeStationsRepository,
+) : ViewModel(), HomeMapController {
 
     val renderState = MapRenderState()
-
-    private val stopsRepository: StopsRepository by lazy { DefaultStopsRepository(Application.get()) }
-
-    private val routeRepository by lazy { DefaultRouteMapRepository(Application.get()) }
-
-    private val bikeStationsRepository: BikeStationsRepository by lazy {
-        DefaultBikeStationsRepository(Application.get())
-    }
 
     // ----- Camera read-back (the hot path) -----
 

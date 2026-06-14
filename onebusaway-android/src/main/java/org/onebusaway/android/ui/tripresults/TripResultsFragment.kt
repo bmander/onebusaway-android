@@ -43,6 +43,7 @@ import org.onebusaway.android.directions.realtime.RealtimeService
 import org.onebusaway.android.directions.util.OTPConstants
 import org.onebusaway.android.map.MapMode
 import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.mapViewModelFactory
 import org.onebusaway.android.map.compose.NoOpObaMapCallbacks
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.ui.compose.theme.ObaTheme
@@ -72,7 +73,9 @@ class TripResultsFragment : Fragment() {
 
     private var listener: Listener? = null
 
-    private val mapViewModel: MapViewModel by viewModels()
+    private val mapViewModel: MapViewModel by viewModels {
+        mapViewModelFactory(requireContext().applicationContext)
+    }
     private var currentItinerary: Itinerary? = null
     private var mapAdded = false
     // Re-frame the itinerary on the next camera idle (set when the itinerary or the shown state changes).

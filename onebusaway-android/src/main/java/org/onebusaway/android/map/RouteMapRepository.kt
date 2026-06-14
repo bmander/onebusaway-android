@@ -41,8 +41,11 @@ interface RouteVehiclesRepository {
     suspend fun getVehicles(routeId: String): Result<ObaTripsForRouteResponse?>
 }
 
-class DefaultRouteMapRepository(private val context: Context) :
-    RouteShapesRepository, RouteVehiclesRepository {
+/** The route-mode data the map needs: a route's shape/stops + its polled vehicles. Injected into the
+ *  map view model as one collaborator (so a fake can supply both halves in tests). */
+interface RouteMapRepository : RouteShapesRepository, RouteVehiclesRepository
+
+class DefaultRouteMapRepository(private val context: Context) : RouteMapRepository {
 
     override suspend fun getRoute(routeId: String): Result<ObaStopsForRouteResponse?> =
         obaApiCall {

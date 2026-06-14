@@ -49,6 +49,7 @@ import org.onebusaway.android.io.elements.ObaStopElement
 import org.onebusaway.android.map.MapMode
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.mapViewModelFactory
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.report.ui.dialog.ReportSuccessDialog
@@ -79,7 +80,7 @@ class InfrastructureIssueActivity : BaseReportActivity(),
     ReportProblemFragmentCallback,
     SimpleArrivalsPickerFragment.Callback {
 
-    private val mapViewModel: MapViewModel by viewModels()
+    private val mapViewModel: MapViewModel by viewModels { mapViewModelFactory(applicationContext) }
 
     /** The single manual marker reconciled from the ViewModel's markerLocation. */
     private var manualMarkerId = NO_MARKER

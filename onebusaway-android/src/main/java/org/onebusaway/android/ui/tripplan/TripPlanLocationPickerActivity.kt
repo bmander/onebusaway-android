@@ -33,6 +33,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.map.MapMode
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.mapViewModelFactory
 import org.onebusaway.android.map.compose.NoOpObaMapCallbacks
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.util.UIUtils
@@ -48,7 +49,7 @@ class TripPlanLocationPickerActivity : AppCompatActivity() {
 
     private var initialCenter: Location? = null
 
-    private val mapViewModel: MapViewModel by viewModels()
+    private val mapViewModel: MapViewModel by viewModels { mapViewModelFactory(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

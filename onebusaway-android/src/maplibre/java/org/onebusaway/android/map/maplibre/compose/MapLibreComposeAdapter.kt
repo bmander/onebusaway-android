@@ -48,7 +48,6 @@ import org.maplibre.android.maps.Style
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.ObaComposeMapAdapter
 import org.onebusaway.android.map.compose.ObaMapCallbacks
-import org.onebusaway.android.map.compose.ObaMapReadyListener
 import org.onebusaway.android.map.maplibre.MapLibreRenderer
 import org.onebusaway.android.map.render.CameraSnapshot
 import org.onebusaway.android.map.render.GeoPoint
@@ -62,19 +61,11 @@ private const val STYLE_URL_DARK = "https://tiles.openfreemap.org/styles/dark"
 /**
  * maplibre flavor's [ObaComposeMapAdapter]: hosts the classic maplibre [MapView] inside an
  * [AndroidView] (there is no maplibre-compose), bridging the MapView's imperative lifecycle to Compose
- * via a [LifecycleEventObserver].
- *
- * Two drive modes, by whether a [MapViewModel] is supplied:
- *  - **View-model mode (the home screen):** this adapter does everything the old `MapLibreMapHost`
- *    onMapReady did — sets the style, builds the [MapLibreRenderer] and re-renders on every render-state
- *    change, wires map/marker/info-window clicks to the view model + [callbacks], reports camera idles
- *    to [MapViewModel.onCameraIdle], and enables the location blue dot from the view model's
- *    permission-derived flag. There is no host.
- *  - **Host mode (the other map screens):** [mapViewModel] is null; the ready map is handed to
- *    `MapLibreMapHost` via [onMapReady] and the host does all of the above itself (unchanged).
- *
- * The camera-command flow is consumed in both modes (the home view model / the host both dispatch
- * camera intents to [MapRenderState.cameraCommands]).
+ * via a [LifecycleEventObserver], and drives the [MapViewModel]: it sets the style, builds the
+ * [MapLibreRenderer] and re-renders on every render-state change, wires map/marker/info-window clicks
+ * to the view model + [callbacks], reports camera idles to [MapViewModel.onCameraIdle], applies the
+ * dispatched camera intents from [MapRenderState.cameraCommands], and enables the location blue dot
+ * from the view model's permission-derived flag. There is no imperative host.
  *
  * Lifecycle note: `addObserver` on an already-STARTED/RESUMED lifecycle synchronously dispatches the
  * upward events, so the MapView still receives `onStart`/`onResume` when it enters composition late.
@@ -86,13 +77,12 @@ class MapLibreComposeAdapter : ObaComposeMapAdapter {
     override fun Content(
         renderState: MapRenderState,
         callbacks: ObaMapCallbacks?,
-        mapViewModel: MapViewModel?,
+        mapViewModel: MapViewModel,
         modifier: Modifier,
         initialLatitude: Double,
         initialLongitude: Double,
         initialZoom: Float,
         savedInstanceState: Bundle?,
-        onMapReady: ObaMapReadyListener,
     ) {
         val context = LocalContext.current
         val activity = remember(context) { context.findActivity() }
@@ -127,38 +117,32 @@ class MapLibreComposeAdapter : ObaComposeMapAdapter {
         DisposableEffect(mapView) {
             mapView.getMapAsync { map ->
                 mapLibreMap = map
-                if (mapViewModel != null) {
-                    // View-model mode: this adapter drives the map (no host).
-                    if (initialLatitude != 0.0 || initialLongitude != 0.0) {
-                        map.cameraPosition = CameraPosition.Builder()
-                            .target(LatLng(initialLatitude, initialLongitude))
-                            .zoom(initialZoom.toDouble())
-                            .build()
+                if (initialLatitude != 0.0 || initialLongitude != 0.0) {
+                    map.cameraPosition = CameraPosition.Builder()
+                        .target(LatLng(initialLatitude, initialLongitude))
+                        .zoom(initialZoom.toDouble())
+                        .build()
+                }
+                map.uiSettings.isCompassEnabled = false
+                val styleUrl = if (isInDarkMode(context)) STYLE_URL_DARK else STYLE_URL_LIGHT
+                map.setStyle(Style.Builder().fromUri(styleUrl)) { style ->
+                    loadedStyle = style
+                    val r = MapLibreRenderer(map, context, renderState)
+                    renderer = r
+                    wireClicks(map, r, mapViewModel, callbacks)
+                    map.addOnCameraIdleListener {
+                        map.cameraPosition.target?.let { mapViewModel.onCameraIdle(snapshot(map, it)) }
                     }
-                    map.uiSettings.isCompassEnabled = false
-                    val styleUrl = if (isInDarkMode(context)) STYLE_URL_DARK else STYLE_URL_LIGHT
-                    map.setStyle(Style.Builder().fromUri(styleUrl)) { style ->
-                        loadedStyle = style
-                        val r = MapLibreRenderer(map, context, renderState)
-                        renderer = r
-                        wireClicks(map, r, mapViewModel, callbacks)
-                        map.addOnCameraIdleListener {
-                            map.cameraPosition.target?.let { mapViewModel.onCameraIdle(snapshot(map, it)) }
-                        }
-                        r.render()
-                    }
-                } else {
-                    // Host mode: hand the ready map (+ MapView, for save-state) to the host.
-                    onMapReady.onMapReady(MapLibreMapHandle(mapView, map))
+                    r.render()
                 }
             }
             onDispose { }
         }
 
-        // View-model mode: re-render the maplibre annotations on every render-state change (replacing
-        // the host's imperative rerender() calls), and enable the blue dot from the permission flag.
+        // Re-render the maplibre annotations on every render-state change (replacing the old imperative
+        // rerender() calls), and enable the blue dot from the view model's permission flag.
         val activeRenderer = renderer
-        if (mapViewModel != null && activeRenderer != null) {
+        if (activeRenderer != null) {
             LaunchedEffect(activeRenderer) {
                 renderState.snapshot.collect { activeRenderer.render() }
             }
@@ -172,7 +156,7 @@ class MapLibreComposeAdapter : ObaComposeMapAdapter {
             }
         }
 
-        // Declarative camera: apply the dispatched camera intents to the map (both modes), once ready.
+        // Declarative camera: apply the dispatched camera intents to the map once ready.
         val map = mapLibreMap
         if (map != null) {
             LaunchedEffect(map) {

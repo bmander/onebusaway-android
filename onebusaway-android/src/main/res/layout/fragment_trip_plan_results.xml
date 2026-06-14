@@ -15,7 +15,7 @@
      limitations under the License.
 -->
 <!-- The option cards + list/map tabs and the directions list are Jetpack Compose
-     (TripResultsHeader / TripResultsList). The map remains the native ObaMapFragment, hosted in
+     (TripResultsHeader / TripResultsList). The map is a ComposeView hosting ObaMap(), added into
      the mapFragment frame and shown/hidden by the tab. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:orientation="vertical"

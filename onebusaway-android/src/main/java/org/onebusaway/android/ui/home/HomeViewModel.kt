@@ -179,7 +179,7 @@ class HomeViewModel(
     /**
      * Arrivals loaded for the focused stop. If a restore/deep-link focus is pending, consume the latch
      * and return the overlay-expanded flag (true iff the sheet settled expanded) so the activity can
-     * dispatch a [MapCommand.FocusStop] carrying the io/elements payload it holds; null if not pending.
+     * call MapViewModel.focusStop with the io/elements payload it holds; null if not pending.
      */
     fun onArrivalsLoaded(): Boolean? {
         if (!pendingMapFocus) {
@@ -197,9 +197,9 @@ class HomeViewModel(
 
     /**
      * Back-press from a peeking sheet — clear the focus. The VM owns the focused stop, so clearing it
-     * here hides the sheet (recompute); the [MapCommand.ClearFocus] clears the map's render focus. (The
-     * old path only told the map, relying on a focus-listener round-trip the host's setFocusStop(null)
-     * doesn't make — so the sheet never hid; clearing the VM state directly is both correct and the
+     * here hides the sheet (recompute); map.clearFocus() clears the map's render focus. (The old path
+     * only told the map, relying on a focus-listener round-trip the host's setFocusStop(null) doesn't
+     * make — so the sheet never hid; clearing the VM state directly is both correct and the
      * declarative source of truth.)
      */
     fun requestClearMapFocus() {

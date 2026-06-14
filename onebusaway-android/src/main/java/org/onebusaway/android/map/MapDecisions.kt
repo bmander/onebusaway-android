@@ -16,6 +16,31 @@
 package org.onebusaway.android.map
 
 import org.onebusaway.android.map.render.StopMarker
+import java.util.concurrent.TimeUnit
+
+/** How often the real-time vehicle positions are refreshed while a route is shown. */
+internal val VEHICLE_REFRESH_PERIOD_MS = TimeUnit.SECONDS.toMillis(10)
+
+/**
+ * The delay before the next vehicle refresh when (re)starting the poll — e.g. on resume. So resuming
+ * mid-period waits only the remainder. Pure and unit-tested; [lastUpdated]/[now] are nanosecond
+ * timestamps (`UIUtils.getCurrentTimeForComparison`).
+ *
+ *  - never loaded ([lastUpdated] == 0) → a full period
+ *  - already overdue → a near-immediate refresh (100 ms)
+ *  - otherwise → the remaining time in the current period
+ */
+internal fun nextVehicleDelay(lastUpdated: Long, now: Long): Long {
+    if (lastUpdated == 0L) {
+        return VEHICLE_REFRESH_PERIOD_MS
+    }
+    val elapsedMillis = TimeUnit.NANOSECONDS.toMillis(now - lastUpdated)
+    return if (elapsedMillis > VEHICLE_REFRESH_PERIOD_MS) {
+        100L
+    } else {
+        VEHICLE_REFRESH_PERIOD_MS - elapsedMillis
+    }
+}
 
 /**
  * Clears [accum] down to just the focused stop, in place: keeps the entry for [focusedId] (if present)

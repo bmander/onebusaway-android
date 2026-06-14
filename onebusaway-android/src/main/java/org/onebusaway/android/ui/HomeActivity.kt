@@ -63,10 +63,7 @@ import org.onebusaway.android.map.MapEffect
 import org.onebusaway.android.map.MapNavigation
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
-import org.onebusaway.android.map.OnFocusChangedListener
-import org.onebusaway.android.map.OnProgressBarChangedListener
 import org.onebusaway.android.map.compose.ObaMapCallbacks
-import org.onebusaway.android.map.compose.ObaMapReadyListener
 import org.onebusaway.android.map.render.GeoPoint
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
@@ -95,7 +92,6 @@ import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
 import org.onebusaway.android.ui.survey.SurveyViewModel
-import org.onebusaway.android.ui.weather.RegionCallback
 import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
@@ -105,10 +101,7 @@ import org.onebusaway.android.util.UIUtils
 import org.onebusaway.android.widealerts.GtfsAlertsHelper
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
-class HomeActivity : AppCompatActivity(),
-    OnFocusChangedListener,
-    OnProgressBarChangedListener,
-    RegionCallback {
+class HomeActivity : AppCompatActivity() {
 
     private val viewModel: HomeViewModel by viewModels {
         viewModelFactory {
@@ -277,7 +270,6 @@ class HomeActivity : AppCompatActivity(),
                 mapRenderState = mapViewModel.renderState,
                 mapCallbacks = mapCallbacks,
                 mapViewModel = mapViewModel,
-                onMapReady = ObaMapReadyListener {},
                 mapSeedLat = mapSeed.first,
                 mapSeedLon = mapSeed.second,
                 mapSeedZoom = mapSeed.third,
@@ -733,9 +725,9 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Called by the map host when a stop obtains focus, or no stop has focus.
+     * Called by [mapCallbacks] when a stop obtains focus (tap), or focus is cleared (map tap).
      */
-    override fun onFocusChanged(
+    private fun onFocusChanged(
         stop: ObaStop?,
         routes: HashMap<String, ObaRoute>?,
         location: Location?
@@ -772,9 +764,9 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * Called from the map host when a BikeRentalStation is clicked.
+     * Called from [mapCallbacks] when a BikeRentalStation is clicked (or focus cleared on a map tap).
      */
-    override fun onFocusChanged(bikeRentalStation: BikeRentalStation?) {
+    private fun onFocusChanged(bikeRentalStation: BikeRentalStation?) {
         // Check to see if we're already focused on this same bike rental station
         val bikeId = viewModel.uiState.value.focusedBikeStationId
         if (bikeId != null && bikeRentalStation != null &&
@@ -786,7 +778,7 @@ class HomeActivity : AppCompatActivity(),
         viewModel.onBikeStationFocused(bikeRentalStation?.id)
     }
 
-    override fun onProgressBarChanged(showProgressBar: Boolean) {
+    private fun onProgressBarChanged(showProgressBar: Boolean) {
         viewModel.onMapLoading(showProgressBar)
     }
 
@@ -1045,9 +1037,9 @@ class HomeActivity : AppCompatActivity(),
         }
     }
 
-    // Getting a callback from the map fragment to check if we are in a valid region or not. The
-    // ViewModel fetches the weather + streams GTFS wide alerts for a valid region (null clears them).
-    override fun onValidRegion(isValid: Boolean) {
+    // Collected from the map view model's regionValid flow. The ViewModel fetches the weather + streams
+    // GTFS wide alerts for a valid region (null clears them).
+    private fun onValidRegion(isValid: Boolean) {
         val regionId = if (isValid) Application.get().currentRegion.id else null
         viewModel.onRegionValid(regionId)
         weatherViewModel.setRegion(regionId)

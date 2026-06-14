@@ -33,32 +33,26 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.rememberCameraPositionState
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import org.onebusaway.android.R
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.ObaComposeMapAdapter
 import org.onebusaway.android.map.compose.ObaMapCallbacks
-import org.onebusaway.android.map.compose.ObaMapReadyListener
 import org.onebusaway.android.map.render.CameraSnapshot
 import org.onebusaway.android.map.render.GeoPoint
 import org.onebusaway.android.map.render.MapRenderState
 
 /**
  * Google flavor's [ObaComposeMapAdapter]: renders the shared [MapRenderState] inside an
- * android-maps-compose `GoogleMap {}`. All overlay content is declarative ([ObaMapContent]); marker
- * and map taps come back through [ObaMapCallbacks]. When the underlying `GoogleMap` is ready (the
- * `MapEffect` bridge), it's handed to the host via a [GoogleMapHandle] so the host keeps driving the
- * raw map (styling, camera, location). `CameraPositionState` seeds the initial position (avoiding a
- * flash) and feeds the bike zoom-band; it is not the camera's owner.
- *
- * This is the former `ComposeMapHost.createComposeMapView` body, now behind the flavor-neutral
- * interface so `src/main` can resolve it by reflection.
+ * android-maps-compose `GoogleMap {}` and drives the [MapViewModel]. All overlay content is
+ * declarative ([ObaMapContent]); marker and map taps come back through [ObaMapCallbacks]; the live
+ * camera is published to the view model on each idle, and styling + the my-location blue dot are
+ * applied from the view model's state. `CameraPositionState` seeds the initial position (avoiding a
+ * flash) and feeds the bike zoom-band.
  */
 class GoogleComposeAdapter : ObaComposeMapAdapter {
 
@@ -66,13 +60,12 @@ class GoogleComposeAdapter : ObaComposeMapAdapter {
     override fun Content(
         renderState: MapRenderState,
         callbacks: ObaMapCallbacks?,
-        mapViewModel: MapViewModel?,
+        mapViewModel: MapViewModel,
         modifier: Modifier,
         initialLatitude: Double,
         initialLongitude: Double,
         initialZoom: Float,
         savedInstanceState: Bundle?,
-        onMapReady: ObaMapReadyListener,
     ) {
         val cb = requireNotNull(callbacks) { "GoogleComposeAdapter requires ObaMapCallbacks" }
         val cameraPositionState = rememberCameraPositionState {
@@ -95,65 +88,49 @@ class GoogleComposeAdapter : ObaComposeMapAdapter {
             }
         }
         // Camera read-back: publish the live camera to the view model on each idle so its reactive
-        // loaders can react to pan/zoom (the declarative replacement for the host's onCameraChange /
+        // loaders can react to pan/zoom (the declarative replacement for the old onCameraChange /
         // MapWatcher). snapshotFlow re-emits when isMoving/projection/position change; the value-typed
-        // CameraSnapshot lets distinctUntilChanged drop redundant idles. No-op when no VM is supplied.
-        if (mapViewModel != null) {
-            LaunchedEffect(cameraPositionState, mapViewModel) {
-                snapshotFlow {
-                    if (cameraPositionState.isMoving) {
-                        null
-                    } else {
-                        cameraPositionState.projection?.let { projection ->
-                            val pos = cameraPositionState.position
-                            val bounds = projection.visibleRegion.latLngBounds
-                            val sw = bounds.southwest
-                            val ne = bounds.northeast
-                            CameraSnapshot(
-                                center = GeoPoint(pos.target.latitude, pos.target.longitude),
-                                zoom = pos.zoom.toDouble(),
-                                latSpan = ne.latitude - sw.latitude,
-                                lonSpan = ne.longitude - sw.longitude,
-                                southWest = GeoPoint(sw.latitude, sw.longitude),
-                                northEast = GeoPoint(ne.latitude, ne.longitude),
-                            )
-                        }
+        // CameraSnapshot lets distinctUntilChanged drop redundant idles.
+        LaunchedEffect(cameraPositionState, mapViewModel) {
+            snapshotFlow {
+                if (cameraPositionState.isMoving) {
+                    null
+                } else {
+                    cameraPositionState.projection?.let { projection ->
+                        val pos = cameraPositionState.position
+                        val bounds = projection.visibleRegion.latLngBounds
+                        val sw = bounds.southwest
+                        val ne = bounds.northeast
+                        CameraSnapshot(
+                            center = GeoPoint(pos.target.latitude, pos.target.longitude),
+                            zoom = pos.zoom.toDouble(),
+                            latSpan = ne.latitude - sw.latitude,
+                            lonSpan = ne.longitude - sw.longitude,
+                            southWest = GeoPoint(sw.latitude, sw.longitude),
+                            northEast = GeoPoint(ne.latitude, ne.longitude),
+                        )
                     }
                 }
-                    .filterNotNull()
-                    .distinctUntilChanged()
-                    .collect { mapViewModel.onCameraIdle(it) }
             }
+                .filterNotNull()
+                .distinctUntilChanged()
+                .collect { mapViewModel.onCameraIdle(it) }
         }
-        // Declarative styling + my-location, applied only when the view model drives the map (Home).
-        // For the view-owning host path (mapViewModel == null) the host still styles the raw map in
-        // onMapReady, so we leave the defaults untouched there. The blue dot tracks the VM's
-        // permission-derived flag, and the map style is the dark theme or POI-removal (was the host's
-        // onMapReady + initMap UiSettings).
-        val myLocationFlow = remember(mapViewModel) {
-            mapViewModel?.myLocationEnabled ?: MutableStateFlow(false)
+        // Declarative styling + my-location: the blue dot tracks the view model's permission-derived
+        // flag, and the map style is the dark theme or POI-removal (was the host's onMapReady + initMap).
+        val myLocationEnabled by mapViewModel.myLocationEnabled.collectAsState()
+        val properties = remember(myLocationEnabled, context) {
+            MapProperties(
+                isMyLocationEnabled = myLocationEnabled,
+                mapStyleOptions = resolveMapStyle(context),
+            )
         }
-        val myLocationEnabled by myLocationFlow.collectAsState()
-        val properties = remember(mapViewModel, myLocationEnabled, context) {
-            if (mapViewModel != null) {
-                MapProperties(
-                    isMyLocationEnabled = myLocationEnabled,
-                    mapStyleOptions = resolveMapStyle(context),
-                )
-            } else {
-                MapProperties()
-            }
-        }
-        val uiSettings = remember(mapViewModel) {
-            if (mapViewModel != null) {
-                MapUiSettings(
-                    myLocationButtonEnabled = false,
-                    zoomControlsEnabled = false,
-                    mapToolbarEnabled = false,
-                )
-            } else {
-                MapUiSettings()
-            }
+        val uiSettings = remember {
+            MapUiSettings(
+                myLocationButtonEnabled = false,
+                zoomControlsEnabled = false,
+                mapToolbarEnabled = false,
+            )
         }
         GoogleMap(
             modifier = modifier,
@@ -168,9 +145,6 @@ class GoogleComposeAdapter : ObaComposeMapAdapter {
             // map clears stop/bike focus; per-marker taps are handled in ObaMapContent.
             onMapClick = { latLng -> cb.onMapClick(GeoPoint(latLng.latitude, latLng.longitude)) },
         ) {
-            // Runs once when the underlying GoogleMap is ready; hands it to the host (which keeps all
-            // imperative setup) via the opaque handle.
-            MapEffect(Unit) { map -> onMapReady.onMapReady(GoogleMapHandle(map)) }
             // Declarative overlay content (polylines, markers, vehicles, bikes, stops). The camera
             // state lets bike icons react live to the zoom band.
             ObaMapContent(renderState, cameraPositionState, cb)

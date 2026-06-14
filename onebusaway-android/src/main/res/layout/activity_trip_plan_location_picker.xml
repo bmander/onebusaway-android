@@ -13,7 +13,7 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<!-- Trip-plan "pick a location on a map" screen: the native ObaMapFragment fills the frame; a
+<!-- Trip-plan "pick a location on a map" screen: a ComposeView hosting ObaMap() fills the frame; a
      fixed, non-clickable center crosshair marks the chosen point (the map pans under it) and a
      bottom button confirms. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"

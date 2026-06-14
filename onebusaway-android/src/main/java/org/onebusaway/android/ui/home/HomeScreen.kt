@@ -50,7 +50,6 @@ import org.onebusaway.android.map.RouteHeader
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.map.compose.ObaMapCallbacks
-import org.onebusaway.android.map.compose.ObaMapReadyListener
 import org.onebusaway.android.map.render.MapRenderState
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.survey.SurveyViewModel
@@ -107,7 +106,6 @@ fun HomeScreen(
     mapRenderState: MapRenderState,
     mapCallbacks: ObaMapCallbacks?,
     mapViewModel: MapViewModel,
-    onMapReady: ObaMapReadyListener,
     mapSeedLat: Double,
     mapSeedLon: Double,
     mapSeedZoom: Float,
@@ -255,7 +253,6 @@ fun HomeScreen(
                                 initialLongitude = mapSeedLon,
                                 initialZoom = mapSeedZoom,
                                 savedInstanceState = mapSavedInstanceState,
-                                onMapReady = onMapReady,
                             )
                         }
                         MapChrome(

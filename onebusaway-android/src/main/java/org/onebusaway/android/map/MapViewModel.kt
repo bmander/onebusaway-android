@@ -572,6 +572,11 @@ class MapViewModel : ViewModel(), HomeMapController {
         setFocusStop(null, null)
     }
 
+    /** Animate/move the camera to a point with no route-header bias (a general recenter for any screen). */
+    fun centerOn(lat: Double, lon: Double, animate: Boolean) {
+        dispatchCamera(CameraCommand.Recenter(lat, lon, animate, applyRouteBias = false))
+    }
+
     /** Recenter on the focused stop after the arrivals sheet expands over it (old MapCommand.Recenter). */
     override fun recenterOnFocusedStop(lat: Double, lon: Double) {
         dispatchCamera(

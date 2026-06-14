@@ -19,15 +19,17 @@ package org.onebusaway.android.report.ui
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.location.Location
 import android.os.Bundle
 import android.view.MenuItem
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.widget.Toolbar
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.Lifecycle
@@ -42,12 +44,13 @@ import edu.usf.cutr.open311client.Open311
 import edu.usf.cutr.open311client.models.Service
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaArrivalInfo
-import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.elements.ObaStopElement
+import org.onebusaway.android.map.MapMode
 import org.onebusaway.android.map.MapParams
-import org.onebusaway.android.map.ObaMapFragment
-import org.onebusaway.android.map.OnFocusChangedListener
+import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.compose.ObaMap
+import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.report.ui.dialog.ReportSuccessDialog
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.report.infrastructure.DefaultGeocodeAddressRepository
@@ -63,7 +66,6 @@ import org.onebusaway.android.ui.report.infrastructure.ServiceListItem
 import org.onebusaway.android.ui.report.open311.Open311IssueContext
 import org.onebusaway.android.ui.report.open311.Open311ProblemFragment
 import org.onebusaway.android.ui.report.problem.ProblemReportFragment
-import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.UIUtils
 
 /**
@@ -74,17 +76,42 @@ import org.onebusaway.android.util.UIUtils
  * report fragments) and the manifest entry stay valid.
  */
 class InfrastructureIssueActivity : BaseReportActivity(),
-    OnFocusChangedListener,
     ReportProblemFragmentCallback,
     SimpleArrivalsPickerFragment.Callback {
 
-    private lateinit var mapFragment: ObaMapFragment
+    private val mapViewModel: MapViewModel by viewModels()
 
-    /** The single manual marker the host reconciles from the ViewModel's markerLocation. */
+    /** The single manual marker reconciled from the ViewModel's markerLocation. */
     private var manualMarkerId = NO_MARKER
 
     private val viewModel: InfrastructureIssueViewModel by viewModels {
         viewModelFactory { initializer { createViewModel() } }
+    }
+
+    /**
+     * Map taps drive the report's location: a stop tap reports that stop, a tap on empty map reports
+     * the tapped point (for the manual pin). Both also update the map's render focus + recenter via the
+     * map view model — the bidirectional focus the host's OnFocusChangedListener used to carry.
+     */
+    private val mapCallbacks = object : ObaMapCallbacks {
+        override fun onStopClick(stop: ObaStop) {
+            mapViewModel.onStopTapped(stop)
+            val loc = stop.location
+            viewModel.onMapFocusChanged(stop, loc.latitude, loc.longitude)
+        }
+
+        override fun onMapClick(point: org.onebusaway.android.map.render.GeoPoint?) {
+            mapViewModel.onMapTapped()
+            point?.let { viewModel.onMapFocusChanged(null, it.latitude, it.longitude) }
+        }
+
+        override fun onBikeClick(station: org.opentripplanner.routing.bike_rental.BikeRentalStation) {
+            // Bike rental stations aren't reported here.
+        }
+
+        override fun onVehicleInfoWindowClick(status: org.onebusaway.android.io.elements.ObaTripStatus) {}
+
+        override fun onBikeInfoWindowClick(station: org.opentripplanner.routing.bike_rental.BikeRentalStation) {}
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,7 +123,7 @@ class InfrastructureIssueActivity : BaseReportActivity(),
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         setUpProgressBar()
 
-        setupMapFragment(savedInstanceState)
+        setupMap()
 
         findViewById<ComposeView>(R.id.ri_compose_view).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
@@ -115,18 +142,27 @@ class InfrastructureIssueActivity : BaseReportActivity(),
         observeViewModel()
     }
 
-    private fun setupMapFragment(savedInstanceState: Bundle?) {
-        val existing = supportFragmentManager.findFragmentByTag(ObaMapFragment.TAG) as? ObaMapFragment
-        mapFragment = existing ?: ObaMapFragment.newInstance().also { fragment ->
-            fragment.asFragment().arguments = savedInstanceState
-            supportFragmentManager.beginTransaction()
-                .add(R.id.ri_frame_map_view, fragment.asFragment(), ObaMapFragment.TAG)
-                .commit()
-        }
-        mapFragment.setOnFocusChangeListener(this)
-
+    private fun setupMap() {
         val location = viewModel.uiState.value.location
-        mapFragment.setMapCenter(LocationUtils.makeLocation(location.latitude, location.longitude), true, false)
+        val composeView = ComposeView(this).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                ObaMap(
+                    renderState = mapViewModel.renderState,
+                    callbacks = mapCallbacks,
+                    modifier = Modifier.fillMaxSize(),
+                    mapViewModel = mapViewModel,
+                    initialLatitude = location.latitude,
+                    initialLongitude = location.longitude,
+                    initialZoom = MapParams.DEFAULT_ZOOM.toFloat(),
+                )
+            }
+        }
+        findViewById<FrameLayout>(R.id.ri_frame_map_view).addView(composeView)
+        // Stop mode so nearby stops load + are tappable (the old view-owning host's default mode).
+        if (mapViewModel.currentMapMode == null) {
+            mapViewModel.setMode(MapMode.Stop)
+        }
     }
 
     private fun observeViewModel() {
@@ -180,20 +216,18 @@ class InfrastructureIssueActivity : BaseReportActivity(),
 
     private fun reconcileMarker(location: IssueLocation?) {
         if (manualMarkerId != NO_MARKER) {
-            mapFragment.removeMarker(manualMarkerId)
+            mapViewModel.removeMarker(manualMarkerId)
             manualMarkerId = NO_MARKER
         }
         if (location != null) {
-            manualMarkerId = mapFragment.addMarker(
-                LocationUtils.makeLocation(location.latitude, location.longitude), null
-            )
+            manualMarkerId = mapViewModel.addMarker(location.latitude, location.longitude, null)
         }
     }
 
     private fun handleEvent(event: InfrastructureIssueEvent) {
         when (event) {
             is InfrastructureIssueEvent.RecenterMap ->
-                mapFragment.setMapCenter(LocationUtils.makeLocation(event.latitude, event.longitude), true, true)
+                mapViewModel.centerOn(event.latitude, event.longitude, animate = true)
 
             InfrastructureIssueEvent.AddressNotFound ->
                 Toast.makeText(this, R.string.ri_address_not_found, Toast.LENGTH_LONG).show()
@@ -217,16 +251,7 @@ class InfrastructureIssueActivity : BaseReportActivity(),
         findViewById<LinearLayout>(R.id.ri_report_stop_problem).removeAllViews()
     }
 
-    // --- Map + form callbacks -------------------------------------------------------------------
-
-    override fun onFocusChanged(stop: ObaStop?, routes: HashMap<String, ObaRoute>?, location: Location?) {
-        val point = location ?: return
-        viewModel.onMapFocusChanged(stop, point.latitude, point.longitude)
-    }
-
-    override fun onFocusChanged(bikeRentalStation: org.opentripplanner.routing.bike_rental.BikeRentalStation?) {
-        // Bike rental stations aren't reported here.
-    }
+    // --- Form callbacks (map taps are handled by mapCallbacks above) -----------------------------
 
     override fun onReportSent() {
         viewModel.onReportSent()

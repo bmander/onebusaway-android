@@ -464,6 +464,14 @@ class HomeViewModelTest {
         assertTrue(vm.selectNav(HomeNavItem.SETTINGS)) // launcher -> fresh (runs every tap)
         assertTrue(vm.selectNav(HomeNavItem.SETTINGS)) // and again
     }
+
+    @Test
+    fun `onMapShown latches mapComposed`() = runTest {
+        val vm = viewModel()
+        assertFalse(vm.uiState.value.mapComposed)
+        vm.onMapShown()
+        assertTrue(vm.uiState.value.mapComposed)
+    }
 }
 
 /** Pure tests for [persistedNavItem] — the enum-name pref read with the legacy int-position fallback. */

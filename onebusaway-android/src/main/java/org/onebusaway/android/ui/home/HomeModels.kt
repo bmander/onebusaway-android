@@ -101,6 +101,9 @@ data class HomeUiState(
     // arrivals sheet peek size inputs (the screen maps these to a peek height)
     val peekArrivalCount: Int = 0,
     val routeFiltering: Boolean = false,
+    // Whether the map has been shown at least once (NEARBY selected). A latch: once true it stays so,
+    // so list tabs draw over a still-composed map rather than tearing it down (defers SDK init).
+    val mapComposed: Boolean = false,
     // chrome — derived from selectedItem + environment
     val mapLoading: Boolean = false,
     val fabsVisible: Boolean = true,

@@ -64,6 +64,9 @@ class HomeViewModel(
     // Whether the first nav selection has been applied — so [selectNav] reports the first selection as
     // fresh even when it matches the default/restored tab (the host posts it after onCreate).
     private var navApplied = false
+    // Whether the map has been shown at least once (a latch; see HomeUiState.mapComposed). Survives a
+    // configuration change in the ViewModel, so the map doesn't flash off + back on across rotation.
+    private var mapComposed = false
     private var environment = HomeEnvironment()
     private var dialog: HomeDialog = HomeDialog.None
     private var mapLoading: Boolean = false
@@ -116,6 +119,14 @@ class HomeViewModel(
             recompute()
         }
         return !reselect
+    }
+
+    /** The map was shown (NEARBY first selected). Latches [HomeUiState.mapComposed] true so it stays composed. */
+    fun onMapShown() {
+        if (!mapComposed) {
+            mapComposed = true
+            recompute()
+        }
     }
 
     /** A map stop gained focus (non-null) or focus was cleared (null). Persists across process death. */
@@ -322,7 +333,7 @@ class HomeViewModel(
     private fun recompute() {
         _uiState.value = buildState(
             selectedItem, navItems, environment, dialog,
-            focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering
+            focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering, mapComposed
         )
     }
 
@@ -367,6 +378,7 @@ internal fun buildState(
     mapLoading: Boolean = false,
     peekArrivalCount: Int = 0,
     routeFiltering: Boolean = false,
+    mapComposed: Boolean = false,
 ): HomeUiState {
     val nearby = selectedItem == HomeNavItem.NEARBY
     val starredTab = selectedItem == HomeNavItem.STARRED_STOPS ||
@@ -379,6 +391,7 @@ internal fun buildState(
         focusedBikeStationId = focusedBikeStationId,
         peekArrivalCount = peekArrivalCount,
         routeFiltering = routeFiltering,
+        mapComposed = mapComposed,
         mapLoading = nearby && mapLoading,
         fabsVisible = nearby,
         zoomControlsVisible = nearby && environment.zoomControlsPref,

@@ -29,8 +29,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
@@ -106,10 +104,6 @@ class HomeActivity : AppCompatActivity() {
     // and self-wires the callbacks/collectors/effects/lifecycle; the activity only constructs it here
     // (shared with HomeViewModel) and reads its mode/camera in onSaveInstanceState + sets the mode/seed.
     private val mapViewModel: MapViewModel by viewModels()
-
-    // Gates ObaMap() composition: flipped true on the first NEARBY selection so the map SDK only
-    // initializes then (and stays composed thereafter — list tabs draw over it, not tear it down).
-    private var mapComposed by mutableStateOf(false)
 
     // The map survey (Compose), shown over the map on NEARBY. Activity-scoped.
     private val surveyViewModel: SurveyViewModel by viewModels()
@@ -189,7 +183,6 @@ class HomeActivity : AppCompatActivity() {
                 mapSeedLon = mapSeed.second,
                 mapSeedZoom = mapSeed.third,
                 mapSavedInstanceState = savedInstanceState,
-                mapComposed = mapComposed,
                 routeHeader = routeHeader,
                 surveyViewModel = surveyViewModel,
                 donationViewModel = donationViewModel,
@@ -405,11 +398,11 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showMap() {
-        // Flip the gate so MapFeature composes ObaMap() (deferring the map SDK init to the first NEARBY
-        // selection). It then stays composed — list tabs draw an opaque destination over it rather than
-        // tearing it down — so this is idempotent. (MapFeature does the eager location-permission
-        // prompt once the map shows.)
-        mapComposed = true
+        // Latch the map shown (in the VM) so MapFeature composes ObaMap() — deferring the map SDK init
+        // to the first NEARBY selection, then staying composed (list tabs draw an opaque destination
+        // over it rather than tearing it down), so this is idempotent. (MapFeature does the eager
+        // location-permission prompt once the map shows.)
+        viewModel.onMapShown()
         // Request the map survey on the first NEARBY selection (idempotent + region-gated in the VM).
         surveyViewModel.maybeRequestSurvey()
     }
@@ -546,7 +539,9 @@ class HomeActivity : AppCompatActivity() {
         // If we can't see the map or arrivals sheet, we can't see the arrival info, so return. The map
         // is composed (and stays so — lists overlay it) once NEARBY is first selected, so mapComposed
         // == "map shown".
-        if (!mapComposed || viewModel.lastSettledSheet == ArrivalsSheetState.Hidden) {
+        if (!viewModel.uiState.value.mapComposed ||
+            viewModel.lastSettledSheet == ArrivalsSheetState.Hidden
+        ) {
             return
         }
 

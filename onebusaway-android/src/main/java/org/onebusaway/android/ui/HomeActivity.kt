@@ -47,7 +47,6 @@ import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
-import org.onebusaway.android.map.LayerInfo
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.report.ui.ReportActivity
@@ -171,10 +170,7 @@ class HomeActivity : AppCompatActivity() {
             onRecentStopsRoutes = ::onRecentStopsRoutes,
             onListSort = ::onListSortSelected,
             onListClear = ::onListClearSelected,
-            onMyLocation = ::onMyLocation,
-            onZoomIn = ::onZoomIn,
-            onZoomOut = ::onZoomOut,
-            onToggleBikeshare = ::onToggleBikeshare,
+            onBikeshareToggled = ::pushEnvironment,
             onHelpAction = ::onHelpAction,
             onWhatsNewDismissed = ::onWhatsNewDismissed,
             onRegionChosen = viewModel::onRegionChosen,
@@ -637,57 +633,6 @@ class HomeActivity : AppCompatActivity() {
                 ),
             )
         )
-    }
-
-    // --- Map-chrome FAB actions (passed to HomeScreen as lambdas) ---
-
-    private fun onMyLocation() {
-        // Reset the preferences that suppress the enable-location / permission prompts.
-        PreferenceUtils.saveBoolean(
-            getString(R.string.preference_key_never_show_location_dialog), false
-        )
-        PreferenceUtils.setUserDeniedLocationPermissions(false)
-
-        mapViewModel.requestMyLocation(useDefaultZoom = true, animate = true)
-        ObaAnalytics.reportUiEvent(
-            firebaseAnalytics,
-            Application.get().plausibleInstance,
-            PlausibleAnalytics.REPORT_MAP_EVENT_URL,
-            getString(R.string.analytics_label_button_press_location),
-            null
-        )
-    }
-
-    private fun onZoomIn() {
-        mapViewModel.zoomIn()
-    }
-
-    private fun onZoomOut() {
-        mapViewModel.zoomOut()
-    }
-
-    private fun onToggleBikeshare() {
-        val active = LayerUtils.isBikeshareLayerVisible()
-        val layer: LayerInfo = LayerUtils.bikeshareLayerInfo
-        // Persist the toggled state (mirrors the legacy LayersSpeedDialAdapter) and drive the view
-        // model's bike loader, then re-snapshot the environment for the bikeshare-active tint.
-        Application.getPrefs().edit()
-            .putBoolean(layer.sharedPreferenceKey, !active).apply()
-        mapViewModel.setBikeshareLayerVisible(!active)
-        ObaAnalytics.reportUiEvent(
-            firebaseAnalytics,
-            Application.get().plausibleInstance,
-            PlausibleAnalytics.REPORT_MAP_EVENT_URL,
-            getString(R.string.analytics_layer_bikeshare),
-            getString(
-                if (active) {
-                    R.string.analytics_label_bikeshare_deactivated
-                } else {
-                    R.string.analytics_label_bikeshare_activated
-                }
-            )
-        )
-        pushEnvironment()
     }
 
     private fun setupNavigationDrawer() {

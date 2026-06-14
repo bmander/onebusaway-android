@@ -62,10 +62,8 @@ class HomeCallbacks(
     val onRecentStopsRoutes: () -> Unit,
     val onListSort: () -> Unit,
     val onListClear: () -> Unit,
-    val onMyLocation: () -> Unit,
-    val onZoomIn: () -> Unit,
-    val onZoomOut: () -> Unit,
-    val onToggleBikeshare: () -> Unit,
+    // The bikeshare-layer toggle (in MapFeature) re-snapshots the host environment for the chrome tint.
+    val onBikeshareToggled: () -> Unit,
     val onHelpAction: (HelpAction) -> Unit,
     val onWhatsNewDismissed: () -> Unit,
     val onRegionChosen: (ObaRegion) -> Unit,
@@ -236,8 +234,9 @@ fun HomeScreen(
                     }
                     Box(Modifier.fillMaxSize()) {
                         // The self-wiring map feature module: renders the map (gated so the SDK only
-                        // initializes once NEARBY is first shown, then stays composed) and owns its
-                        // callbacks / state collectors / effects-as-dialogs / permission / lifecycle.
+                        // initializes once NEARBY is first shown, then stays composed) + its chrome FABs,
+                        // and owns its callbacks / state collectors / effects-as-dialogs / permission /
+                        // lifecycle. Only the sheet-derived FAB inset + the env-refresh ping come in.
                         MapFeature(
                             mapViewModel = mapViewModel,
                             homeViewModel = homeViewModel,
@@ -247,20 +246,9 @@ fun HomeScreen(
                             mapSeedLon = mapSeedLon,
                             mapSeedZoom = mapSeedZoom,
                             mapSavedInstanceState = mapSavedInstanceState,
+                            fabBottomInset = fabInsetTarget,
+                            onBikeshareToggled = onBikeshareToggled,
                             modifier = Modifier.fillMaxSize(),
-                        )
-                        MapChrome(
-                            fabsVisible = state.fabsVisible,
-                            zoomVisible = state.zoomControlsVisible,
-                            leftHandMode = state.leftHandMode,
-                            layersVisible = state.layersFabVisible,
-                            bikeshareActive = state.bikeshareActive,
-                            mapLoading = state.mapLoading,
-                            fabBottomInsetTarget = fabInsetTarget,
-                            onMyLocation = onMyLocation,
-                            onZoomIn = onZoomIn,
-                            onZoomOut = onZoomOut,
-                            onToggleBikeshare = onToggleBikeshare,
                         )
                         // The weather chip feature module: self-wiring from its ViewModel, NEARBY-gated.
                         WeatherFeature(

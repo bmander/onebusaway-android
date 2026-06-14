@@ -40,10 +40,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.firebase.analytics.FirebaseAnalytics
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
@@ -51,12 +53,14 @@ import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.map.LayerInfo
 import org.onebusaway.android.map.MapEffect
 import org.onebusaway.android.map.MapNavigation
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.map.render.GeoPoint
+import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
@@ -83,6 +87,8 @@ fun MapFeature(
     mapSeedLon: Double,
     mapSeedZoom: Float,
     mapSavedInstanceState: Bundle?,
+    fabBottomInset: Dp,
+    onBikeshareToggled: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -251,6 +257,58 @@ fun MapFeature(
             savedInstanceState = mapSavedInstanceState,
         )
     }
+
+    // The map chrome FABs (my-location / zoom / layers), over the map. Their actions drive the map view
+    // model directly; the bikeshare toggle also pings the host to re-snapshot the chrome environment.
+    val state by homeViewModel.uiState.collectAsStateWithLifecycle()
+    MapChrome(
+        fabsVisible = state.fabsVisible,
+        zoomVisible = state.zoomControlsVisible,
+        leftHandMode = state.leftHandMode,
+        layersVisible = state.layersFabVisible,
+        bikeshareActive = state.bikeshareActive,
+        mapLoading = state.mapLoading,
+        fabBottomInsetTarget = fabBottomInset,
+        onMyLocation = {
+            // Reset the prefs that suppress the enable-location / permission prompts, then recenter.
+            PreferenceUtils.saveBoolean(
+                context.getString(R.string.preference_key_never_show_location_dialog), false
+            )
+            PreferenceUtils.setUserDeniedLocationPermissions(false)
+            mapViewModel.requestMyLocation(useDefaultZoom = true, animate = true)
+            ObaAnalytics.reportUiEvent(
+                firebaseAnalytics,
+                Application.get().plausibleInstance,
+                PlausibleAnalytics.REPORT_MAP_EVENT_URL,
+                context.getString(R.string.analytics_label_button_press_location),
+                null,
+            )
+        },
+        onZoomIn = { mapViewModel.zoomIn() },
+        onZoomOut = { mapViewModel.zoomOut() },
+        onToggleBikeshare = {
+            val active = LayerUtils.isBikeshareLayerVisible()
+            val layer: LayerInfo = LayerUtils.bikeshareLayerInfo
+            // Persist the toggled state + drive the bike loader, then ping the host to re-snapshot the
+            // environment (so the bikeshare-active tint updates).
+            Application.getPrefs().edit().putBoolean(layer.sharedPreferenceKey, !active).apply()
+            mapViewModel.setBikeshareLayerVisible(!active)
+            ObaAnalytics.reportUiEvent(
+                firebaseAnalytics,
+                Application.get().plausibleInstance,
+                PlausibleAnalytics.REPORT_MAP_EVENT_URL,
+                context.getString(R.string.analytics_layer_bikeshare),
+                context.getString(
+                    if (active) {
+                        R.string.analytics_label_bikeshare_deactivated
+                    } else {
+                        R.string.analytics_label_bikeshare_activated
+                    }
+                ),
+            )
+            onBikeshareToggled()
+        },
+    )
 }
 
 /** The viewport (or device) is outside the current region (ported from GoogleMapHost.showOutOfRange). */

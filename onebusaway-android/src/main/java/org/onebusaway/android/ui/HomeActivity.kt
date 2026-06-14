@@ -70,6 +70,8 @@ import org.onebusaway.android.ui.home.HomeNavItem
 import org.onebusaway.android.ui.home.persistedNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
+import org.onebusaway.android.ui.home.analyticsLabelRes
+import org.onebusaway.android.ui.home.homeNavItems
 import org.onebusaway.android.ui.mylists.RemindersRepository
 import org.onebusaway.android.ui.mylists.StarredRoutesRepository
 import org.onebusaway.android.ui.mylists.StarredStopsRepository
@@ -403,18 +405,7 @@ class HomeActivity : AppCompatActivity() {
 
     /** Per-item menu analytics, preserving the legacy labels (PAY_FARE intentionally reports none). */
     private fun reportNavAnalytics(item: HomeNavItem) {
-        val label = when (item) {
-            HomeNavItem.NEARBY -> R.string.analytics_label_button_press_nearby
-            HomeNavItem.STARRED_STOPS, HomeNavItem.STARRED_ROUTES ->
-                R.string.analytics_label_button_press_star
-            HomeNavItem.MY_REMINDERS -> R.string.analytics_label_button_press_reminders
-            HomeNavItem.PLAN_TRIP -> R.string.analytics_label_button_press_trip_plan
-            HomeNavItem.SETTINGS -> R.string.analytics_label_button_press_settings
-            HomeNavItem.HELP -> R.string.analytics_label_button_press_help
-            HomeNavItem.SEND_FEEDBACK -> R.string.analytics_label_button_press_feedback
-            HomeNavItem.OPEN_SOURCE -> R.string.analytics_label_button_press_open_source
-            HomeNavItem.PAY_FARE -> return
-        }
+        val label = item.analyticsLabelRes ?: return
         ObaAnalytics.reportUiEvent(
             firebaseAnalytics,
             Application.get().plausibleInstance,
@@ -723,31 +714,18 @@ class HomeActivity : AppCompatActivity() {
         window.decorView.post { onHomeNavItemSelected(item) }
     }
 
-    /** Rebuilds the region-gated drawer item list (mirrors NavigationDrawerFragment.populateNavDrawer). */
+    /** Rebuilds the region-gated drawer item list (the gating logic lives in pure [homeNavItems]). */
     private fun refreshDrawerItems() {
         val region = Application.get().currentRegion
-        val items = mutableListOf<HomeNavItem>()
-        items.add(HomeNavItem.NEARBY)
-        items.add(HomeNavItem.STARRED_STOPS)
-        items.add(HomeNavItem.STARRED_ROUTES)
-        if (ReminderUtils.shouldShowReminders()) {
-            items.add(HomeNavItem.MY_REMINDERS)
-        }
-        if (region != null) {
-            if (!TextUtils.isEmpty(region.otpBaseUrl) ||
-                !TextUtils.isEmpty(Application.get().customOtpApiUrl)
-            ) {
-                items.add(HomeNavItem.PLAN_TRIP)
-            }
-            if (!TextUtils.isEmpty(region.paymentAndroidAppId)) {
-                items.add(HomeNavItem.PAY_FARE)
-            }
-        }
-        items.add(HomeNavItem.OPEN_SOURCE)
-        items.add(HomeNavItem.SETTINGS)
-        items.add(HomeNavItem.HELP)
-        items.add(HomeNavItem.SEND_FEEDBACK)
-        viewModel.setNavItems(items)
+        viewModel.setNavItems(
+            homeNavItems(
+                showReminders = ReminderUtils.shouldShowReminders(),
+                planTripAvailable = region != null &&
+                    (!TextUtils.isEmpty(region.otpBaseUrl) ||
+                        !TextUtils.isEmpty(Application.get().customOtpApiUrl)),
+                payFareAvailable = region != null && !TextUtils.isEmpty(region.paymentAndroidAppId),
+            )
+        )
     }
 
     /** Routes a Compose-drawer selection to the ViewModel selection + the imperative per-item work. */

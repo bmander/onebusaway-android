@@ -57,6 +57,13 @@ private class FakeStartupPreferencesRepository(
     override fun clearInitialStartup() { cleared++; initial = false }
 }
 
+private class FakeNavItemsRepository(
+    var availability: NavItemAvailability =
+        NavItemAvailability(showReminders = false, planTripAvailable = false, payFareAvailable = false)
+) : NavItemsRepository {
+    override fun availability(): NavItemAvailability = availability
+}
+
 /** Records the map operations HomeViewModel drives, so they can be asserted without a real (Android) VM. */
 private class FakeHomeMapController : HomeMapController {
     var lastBottomPadding: Int = -1
@@ -86,10 +93,11 @@ class HomeViewModelTest {
         regionStatus: RegionStatus = RegionStatus.Unchanged,
         regionRepo: FakeRegionStatusRepository = FakeRegionStatusRepository(regionStatus),
         startupRepo: FakeStartupPreferencesRepository = FakeStartupPreferencesRepository(),
+        navItemsRepo: FakeNavItemsRepository = FakeNavItemsRepository(),
         savedState: SavedStateHandle = SavedStateHandle(),
         map: HomeMapController = FakeHomeMapController(),
     ) = HomeViewModel(
-        savedState, FakeWideAlertsRepository(alerts), regionRepo, startupRepo, map
+        savedState, FakeWideAlertsRepository(alerts), regionRepo, startupRepo, navItemsRepo, map
     )
 
     // --- map loading + peek inputs ---
@@ -473,6 +481,35 @@ class HomeViewModelTest {
         vm.selectNav(HomeNavItem.STARRED_STOPS)
         assertTrue(vm.selectNav(HomeNavItem.SETTINGS)) // launcher -> fresh (runs every tap)
         assertTrue(vm.selectNav(HomeNavItem.SETTINGS)) // and again
+    }
+
+    // --- nav items (built by the VM from the repository) ---
+
+    @Test
+    fun `nav items are built from the repository availability at init`() = runTest {
+        val repo = FakeNavItemsRepository(
+            NavItemAvailability(showReminders = true, planTripAvailable = true, payFareAvailable = false)
+        )
+        val items = viewModel(navItemsRepo = repo).uiState.value.navItems
+        assertTrue(items.contains(HomeNavItem.MY_REMINDERS))
+        assertTrue(items.contains(HomeNavItem.PLAN_TRIP))
+        assertFalse(items.contains(HomeNavItem.PAY_FARE))
+    }
+
+    @Test
+    fun `resolving a region rebuilds the nav items from current availability`() = runTest {
+        val repo = FakeNavItemsRepository(NavItemAvailability(false, false, false))
+        val vm = viewModel(navItemsRepo = repo)
+        assertFalse(vm.uiState.value.navItems.contains(HomeNavItem.PAY_FARE))
+
+        // The region now supports fare payment; resolving picks it up without a host push.
+        repo.availability = NavItemAvailability(
+            showReminders = false, planTripAvailable = false, payFareAvailable = true
+        )
+        vm.refreshRegions()
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.navItems.contains(HomeNavItem.PAY_FARE))
     }
 
     @Test

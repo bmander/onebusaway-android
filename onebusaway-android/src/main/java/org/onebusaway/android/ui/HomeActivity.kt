@@ -51,6 +51,7 @@ import org.onebusaway.android.map.mapViewModelFactory
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.home.ArrivalsSheetState
+import org.onebusaway.android.ui.home.DefaultNavItemsRepository
 import org.onebusaway.android.ui.home.DefaultRegionStatusRepository
 import org.onebusaway.android.ui.home.DonationViewModel
 import org.onebusaway.android.ui.home.WeatherViewModel
@@ -69,7 +70,6 @@ import org.onebusaway.android.ui.home.persistedNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
 import org.onebusaway.android.ui.home.analyticsLabelRes
-import org.onebusaway.android.ui.home.homeNavItems
 import org.onebusaway.android.ui.mylists.RemindersRepository
 import org.onebusaway.android.ui.mylists.StarredRoutesRepository
 import org.onebusaway.android.ui.mylists.StarredStopsRepository
@@ -94,6 +94,7 @@ class HomeActivity : AppCompatActivity() {
                     DefaultWideAlertsRepository(),
                     DefaultRegionStatusRepository(applicationContext),
                     DefaultStartupPreferencesRepository(),
+                    DefaultNavItemsRepository(),
                     mapViewModel,
                 )
             }
@@ -569,13 +570,9 @@ class HomeActivity : AppCompatActivity() {
      * region-found toast. Body preserved verbatim from the legacy callback.
      */
     private fun onRegionResolved(currentRegionChanged: Boolean) {
-        // Show "What's New" (which might need refreshed Regions API contents)
-        val update = helpViewModel.maybeAutoShowWhatsNew()
-
-        // Rebuild the region-gated nav items if the region changed, or if we just installed a new version
-        if (currentRegionChanged || update) {
-            refreshDrawerItems()
-        }
+        // Show "What's New" (which might need refreshed Regions API contents). The nav items are rebuilt
+        // by the ViewModel on every region resolve (refreshNavItems), so there's no drawer work here.
+        helpViewModel.maybeAutoShowWhatsNew()
 
         // If region changed and was auto-selected, show user what region we're using
         if (currentRegionChanged &&
@@ -617,8 +614,8 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun setupNavigationDrawer() {
-        refreshDrawerItems()
-
+        // The nav items themselves are built by the ViewModel (init + on region resolve); here we only
+        // determine and apply the initial selection.
         // Determine the initial selection: NEARBY if launched to show a route/stop, else the last
         // remembered tab (mirrors NavigationDrawerFragment's saved-position behavior). Read the
         // enum-name pref, falling back to the legacy int position for installs from before P16.
@@ -638,20 +635,6 @@ class HomeActivity : AppCompatActivity() {
         // Defer the first content selection until after onCreate (so the Compose content has composed
         // and lazy map/survey gating reads the applied selection).
         window.decorView.post { onHomeNavItemSelected(item) }
-    }
-
-    /** Rebuilds the region-gated drawer item list (the gating logic lives in pure [homeNavItems]). */
-    private fun refreshDrawerItems() {
-        val region = Application.get().currentRegion
-        viewModel.setNavItems(
-            homeNavItems(
-                showReminders = ReminderUtils.shouldShowReminders(),
-                planTripAvailable = region != null &&
-                    (!TextUtils.isEmpty(region.otpBaseUrl) ||
-                        !TextUtils.isEmpty(Application.get().customOtpApiUrl)),
-                payFareAvailable = region != null && !TextUtils.isEmpty(region.paymentAndroidAppId),
-            )
-        )
     }
 
     /** Routes a Compose-drawer selection to the ViewModel selection + the imperative per-item work. */

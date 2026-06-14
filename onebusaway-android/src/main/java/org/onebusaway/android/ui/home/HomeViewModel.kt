@@ -45,6 +45,9 @@ class HomeViewModel(
     private val wideAlertsRepo: WideAlertsRepository,
     private val regionRepo: RegionStatusRepository,
     private val startupRepo: StartupPreferencesRepository,
+    // Supplies the region/preference-derived gating inputs for the drawer items, so the VM rebuilds its
+    // own (region-gated) nav list rather than the host pushing it in.
+    private val navItemsRepo: NavItemsRepository,
     // The narrow slice of the map view model this VM drives (sheet padding, recenter, route mode, clear
     // focus, region re-zoom) — an interface so this VM stays unit-testable with a fake.
     private val map: HomeMapController,
@@ -101,13 +104,23 @@ class HomeViewModel(
     private var wideAlert: WideAlert? = null
 
     init {
-        // Reflect any SavedStateHandle-restored focus in the initial rendered state.
-        recompute()
+        // Build the initial (region-gated) drawer items + reflect any SavedStateHandle-restored focus.
+        refreshNavItems()
     }
 
-    /** Updates the (already region-gated) drawer item list. */
-    fun setNavItems(items: List<HomeNavItem>) {
-        navItems = items
+    /**
+     * Rebuilds the region-gated drawer item list from the current environment (region capabilities +
+     * the reminder preference), via the pure [homeNavItems] policy. Called at init and on every region
+     * resolve (region capabilities may have changed). Idempotent: an unchanged list is deduped by the
+     * StateFlow.
+     */
+    fun refreshNavItems() {
+        val availability = navItemsRepo.availability()
+        navItems = homeNavItems(
+            showReminders = availability.showReminders,
+            planTripAvailable = availability.planTripAvailable,
+            payFareAvailable = availability.payFareAvailable,
+        )
         recompute()
     }
 
@@ -313,7 +326,9 @@ class HomeViewModel(
         map.onRegionChanged(changed)
         // A region is now available; surface it so SurveyFeature can (re)attempt its request. Idempotent.
         regionReady = true
-        recompute()
+        // Region capabilities (OTP / fare payment) may have changed, so rebuild the gated nav items
+        // (also recomputes the rendered state). Replaces the host's onRegionResolved refreshDrawerItems().
+        refreshNavItems()
         emit(HomeEvent.RegionResolved(changed, name))
     }
 

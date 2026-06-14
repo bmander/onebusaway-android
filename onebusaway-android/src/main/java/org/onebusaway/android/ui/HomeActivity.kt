@@ -38,9 +38,9 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import com.google.firebase.analytics.FirebaseAnalytics
+import dagger.hilt.android.AndroidEntryPoint
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.donations.DonationsManager
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaStop
@@ -60,7 +60,6 @@ import org.onebusaway.android.ui.home.DefaultRegionStatusRepository
 import org.onebusaway.android.ui.home.DonationViewModel
 import org.onebusaway.android.ui.home.WeatherViewModel
 import org.onebusaway.android.ui.home.DefaultStartupPreferencesRepository
-import org.onebusaway.android.ui.home.DefaultWeatherRepository
 import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
 import org.onebusaway.android.ui.home.focusedStopFromExtras
 import org.onebusaway.android.ui.home.HelpAction
@@ -88,6 +87,7 @@ import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.ShowcaseViewUtils
 import org.onebusaway.android.util.UIUtils
 
+@AndroidEntryPoint
 class HomeActivity : AppCompatActivity() {
 
     private val viewModel: HomeViewModel by viewModels {
@@ -117,13 +117,9 @@ class HomeActivity : AppCompatActivity() {
     // The donation card feature module (Compose), shown over the map on NEARBY. Activity-scoped.
     private val donationViewModel: DonationViewModel by viewModels()
 
-    // The weather chip feature module (Compose), shown over the map on NEARBY. Activity-scoped; takes
-    // the weather repository, so it needs a factory.
-    private val weatherViewModel: WeatherViewModel by viewModels {
-        viewModelFactory {
-            initializer { WeatherViewModel(DefaultWeatherRepository(), Application.getRegionRepository()) }
-        }
-    }
+    // The weather chip feature module (Compose), shown over the map on NEARBY. Activity-scoped;
+    // Hilt injects its weather + region dependencies.
+    private val weatherViewModel: WeatherViewModel by viewModels()
 
     // The help / what's-new / legend dialogs feature module. Activity-scoped.
     private val helpViewModel: HelpViewModel by viewModels()

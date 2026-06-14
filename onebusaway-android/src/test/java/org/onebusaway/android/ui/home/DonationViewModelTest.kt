@@ -24,6 +24,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.onebusaway.android.donations.DonationsManager
 import org.onebusaway.android.testing.MainDispatcherRule
 
 /**
@@ -37,9 +38,13 @@ class DonationViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
+    // These tests cover only the dialog/effect logic, which never calls the DonationsManager, so a
+    // bare instance (its Android collaborators are never touched) is enough to satisfy the constructor.
+    private fun donationViewModel() = DonationViewModel(DonationsManager(null, null, null, 0))
+
     @Test
     fun `close requests the dismiss confirmation, cancel clears it`() = runTest {
-        val vm = DonationViewModel()
+        val vm = donationViewModel()
         assertFalse(vm.state.value.showDismissDialog)
 
         vm.requestDismiss()
@@ -51,7 +56,7 @@ class DonationViewModelTest {
 
     @Test
     fun `learn more emits the open-learn-more effect`() = runTest {
-        val vm = DonationViewModel()
+        val vm = donationViewModel()
         val effects = mutableListOf<DonationEffect>()
         val job = launch { vm.effects.collect { effects.add(it) } }
         advanceUntilIdle()

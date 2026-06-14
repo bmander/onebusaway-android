@@ -16,6 +16,8 @@
 package org.onebusaway.android.ui.home
 
 import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -23,7 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import org.onebusaway.android.app.Application
+import org.onebusaway.android.donations.DonationsManager
 
 /** The donation card's state: whether to offer it, and whether the "are you sure?" dialog is up. */
 data class DonationUiState(
@@ -44,9 +46,10 @@ sealed interface DonationEffect {
  * gate + `DismissDonation` dialog) and out of HomeActivity (the five callbacks). The nav-tab gate
  * (NEARBY only) stays in HomeScreen, like the other chrome.
  */
-class DonationViewModel : ViewModel() {
-
-    private val manager get() = Application.getDonationsManager()
+@HiltViewModel
+class DonationViewModel @Inject constructor(
+    private val manager: DonationsManager,
+) : ViewModel() {
 
     private val _state = MutableStateFlow(DonationUiState())
     val state: StateFlow<DonationUiState> = _state.asStateFlow()

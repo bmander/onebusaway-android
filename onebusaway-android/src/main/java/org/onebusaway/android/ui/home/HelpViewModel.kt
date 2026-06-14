@@ -17,6 +17,8 @@ package org.onebusaway.android.ui.home
 
 import android.content.pm.PackageManager
 import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,7 +43,8 @@ data class HelpUiState(val dialog: HelpDialog = HelpDialog.None, val showContact
  * things (reset tutorials, agencies, Twitter, contact us) are genuine Activity operations and stay in
  * HomeActivity, reached via the `onHelpAction` callback [HelpFeature] forwards.
  */
-class HelpViewModel : ViewModel() {
+@HiltViewModel
+class HelpViewModel @Inject constructor() : ViewModel() {
 
     private val _state = MutableStateFlow(HelpUiState())
     val state: StateFlow<HelpUiState> = _state.asStateFlow()

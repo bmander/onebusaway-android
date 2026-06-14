@@ -17,6 +17,8 @@ package org.onebusaway.android.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,7 +39,8 @@ data class WeatherUiState(val data: WeatherData? = null, val hidden: Boolean = f
  * `HomeEnvironment.weatherHidden` gate). The NEARBY-tab gate stays in HomeScreen, like the other chrome;
  * the chip's tap (toast the summary) is handled in [WeatherFeature].
  */
-class WeatherViewModel(
+@HiltViewModel
+class WeatherViewModel @Inject constructor(
     private val weatherRepo: WeatherRepository,
     regionRepo: RegionRepository,
 ) : ViewModel() {

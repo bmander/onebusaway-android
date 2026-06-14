@@ -81,6 +81,19 @@ class MapDecisionsTest {
         assertEquals(MapMode.Stop, resolveMapMode(MapParams.MODE_STOP, "1_100447", zoomToRoute = true))
     }
 
+    // --- mapModeToParams (inverse of resolveMapMode) ---
+
+    @Test
+    fun `route mode serializes to the route extras with its id`() {
+        assertEquals(MapParams.MODE_ROUTE to "1_100447", mapModeToParams(MapMode.Route("1_100447")))
+    }
+
+    @Test
+    fun `stop mode and null serialize to the stop extras with no id`() {
+        assertEquals(MapParams.MODE_STOP to null, mapModeToParams(MapMode.Stop))
+        assertEquals(MapParams.MODE_STOP to null, mapModeToParams(null))
+    }
+
     // --- myLocationAction ---
 
     @Test

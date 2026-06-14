@@ -48,6 +48,7 @@ import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.map.MapCameraSeed
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.mapModeToParams
 import org.onebusaway.android.map.resolveMapMode
 import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.map.mapViewModelFactory
@@ -61,7 +62,7 @@ import org.onebusaway.android.ui.home.WeatherViewModel
 import org.onebusaway.android.ui.home.DefaultStartupPreferencesRepository
 import org.onebusaway.android.ui.home.DefaultWeatherRepository
 import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
-import org.onebusaway.android.ui.home.FocusedStop
+import org.onebusaway.android.ui.home.focusedStopFromExtras
 import org.onebusaway.android.ui.home.HelpAction
 import org.onebusaway.android.ui.home.HelpViewModel
 import org.onebusaway.android.ui.home.HomeEnvironment
@@ -69,7 +70,7 @@ import org.onebusaway.android.ui.home.HomeCallbacks
 import org.onebusaway.android.ui.home.HomeEvent
 import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
-import org.onebusaway.android.ui.home.persistedNavItem
+import org.onebusaway.android.ui.home.initialNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
 import org.onebusaway.android.ui.home.analyticsLabelRes
@@ -347,14 +348,10 @@ class HomeActivity : AppCompatActivity() {
         super.onSaveInstanceState(outState)
         // Persist the map's mode + camera so a process-death restore re-enters the same mode/viewport
         // (the focused stop is persisted by HomeViewModel's SavedStateHandle). Config changes survive
-        // in the view model itself; these feed initMapMode()/resolveMapSeed() on recreation.
-        when (val mode = mapViewModel.currentMapMode) {
-            is org.onebusaway.android.map.MapMode.Route -> {
-                outState.putString(MapParams.MODE, MapParams.MODE_ROUTE)
-                outState.putString(MapParams.ROUTE_ID, mode.routeId)
-            }
-            else -> outState.putString(MapParams.MODE, MapParams.MODE_STOP)
-        }
+        // in the view model itself; these feed initMapMode()/readMapSeed() on recreation.
+        val (modeString, routeId) = mapModeToParams(mapViewModel.currentMapMode)
+        outState.putString(MapParams.MODE, modeString)
+        routeId?.let { outState.putString(MapParams.ROUTE_ID, it) }
         mapViewModel.camera.value?.let {
             outState.putDouble(MapParams.CENTER_LAT, it.center.latitude)
             outState.putDouble(MapParams.CENTER_LON, it.center.longitude)
@@ -604,23 +601,18 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupNavigationDrawer() {
         // The nav items themselves are built by the ViewModel (init + on region resolve); here we only
-        // determine and apply the initial selection.
-        // Determine the initial selection: NEARBY if launched to show a route/stop, else the last
-        // remembered tab (mirrors NavigationDrawerFragment's saved-position behavior). Read the
-        // enum-name pref, falling back to the legacy int position for installs from before P16.
+        // determine and apply the initial selection. The deep-link-vs-remembered-tab decision is the pure
+        // initialNavItem() (the enum-name pref falls back to the legacy int position for pre-P16 installs;
+        // process-death restore uses the VM's SavedStateHandle).
         val prefs = Application.getPrefs()
-        var initial = persistedNavItem(
-            prefs.getString(STATE_SELECTED_NAV_ITEM, null),
-            prefs.getInt(STATE_SELECTED_POSITION, 0)
-        )
         val bundle = intent.extras
-        if (bundle != null &&
-            (bundle.getString(MapParams.ROUTE_ID) != null ||
-                bundle.getString(MapParams.STOP_ID) != null)
-        ) {
-            initial = HomeNavItem.NEARBY
-        }
-        val item = initial
+        val deepLinksToMap = bundle != null &&
+            (bundle.getString(MapParams.ROUTE_ID) != null || bundle.getString(MapParams.STOP_ID) != null)
+        val item = initialNavItem(
+            persistedName = prefs.getString(STATE_SELECTED_NAV_ITEM, null),
+            legacyPosition = prefs.getInt(STATE_SELECTED_POSITION, 0),
+            deepLinksToMap = deepLinksToMap,
+        )
         // Defer the first content selection until after onCreate (so the Compose content has composed
         // and lazy map/survey gating reads the applied selection).
         window.decorView.post { onHomeNavItemSelected(item) }
@@ -643,27 +635,19 @@ class HomeActivity : AppCompatActivity() {
      * via SavedStateHandle) or from an Intent that deep-links into a specific stop.
      */
     private fun setupMapState() {
-        // The restored focus (SavedStateHandle) already drives the arrivals sheet via HomeScreen; we
-        // only need to flag the map to recenter + add the marker once arrivals load.
-        val restored = viewModel.uiState.value.focusedStop
-        if (restored != null) {
-            viewModel.markPendingMapFocus()
-        } else {
-            // Check the intent for a deep link into a specific stop (via makeIntent()).
-            val bundle = intent.extras
-            if (bundle != null) {
-                val stopId = bundle.getString(MapParams.STOP_ID)
-                val stopName = bundle.getString(MapParams.STOP_NAME)
-                val stopCode = bundle.getString(MapParams.STOP_CODE)
-                val lat = bundle.getDouble(MapParams.CENTER_LAT)
-                val lon = bundle.getDouble(MapParams.CENTER_LON)
-
-                if (stopId != null && lat != 0.0 && lon != 0.0) {
-                    viewModel.onStopFocused(FocusedStop(stopId, stopName, stopCode, lat, lon))
-                    viewModel.markPendingMapFocus()
-                }
-            }
-        }
+        // A restored focus (SavedStateHandle) already drives the arrivals sheet via HomeScreen; otherwise
+        // adopt a stop deep-linked through the intent (makeIntent). The VM decides which applies + marks
+        // the focus pending so the map recenters + adds the marker once arrivals load.
+        val b = intent.extras
+        viewModel.applyInitialFocus(
+            focusedStopFromExtras(
+                stopId = b?.getString(MapParams.STOP_ID),
+                stopName = b?.getString(MapParams.STOP_NAME),
+                stopCode = b?.getString(MapParams.STOP_CODE),
+                lat = b?.getDouble(MapParams.CENTER_LAT) ?: 0.0,
+                lon = b?.getDouble(MapParams.CENTER_LON) ?: 0.0,
+            )
+        )
     }
 
     companion object {

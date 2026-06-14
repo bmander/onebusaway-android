@@ -42,6 +42,16 @@ internal fun resolveMapMode(mode: String?, routeId: String?, zoomToRoute: Boolea
         MapMode.Stop
     }
 
+/**
+ * The launch-extras (MODE string + optional routeId) to persist [mode] across process death — the
+ * inverse of [resolveMapMode]. Only [MapMode.Route] carries a routeId; every other mode (including null
+ * and Directions) saves as nearby stops, since the home map only ever restores into Stop or Route.
+ */
+internal fun mapModeToParams(mode: MapMode?): Pair<String, String?> = when (mode) {
+    is MapMode.Route -> MapParams.MODE_ROUTE to mode.routeId
+    else -> MapParams.MODE_STOP to null
+}
+
 /** How often the real-time vehicle positions are refreshed while a route is shown. */
 internal val VEHICLE_REFRESH_PERIOD_MS = TimeUnit.SECONDS.toMillis(10)
 

@@ -52,6 +52,18 @@ internal fun persistedNavItem(name: String?, legacyPosition: Int): HomeNavItem =
         }
 
 /**
+ * The initial nav tab for a fresh launch: a deep link into a route/stop forces [HomeNavItem.NEARBY] (so
+ * the map shows it); otherwise the remembered tab via [persistedNavItem]. (Process-death restore uses
+ * the ViewModel's SavedStateHandle instead — this is the cross-session / deep-link path.)
+ */
+internal fun initialNavItem(
+    persistedName: String?,
+    legacyPosition: Int,
+    deepLinksToMap: Boolean,
+): HomeNavItem =
+    if (deepLinksToMap) HomeNavItem.NEARBY else persistedNavItem(persistedName, legacyPosition)
+
+/**
  * The stop the user tapped on the map, decoupled from the io/elements `ObaStop`. Carries lat/lon so
  * the host can recenter the map and launch feedback without holding the `ObaStop` object, and so the
  * focus survives process death via the ViewModel's `SavedStateHandle`.
@@ -63,6 +75,23 @@ data class FocusedStop(
     val lat: Double,
     val lon: Double,
 )
+
+/**
+ * Builds a [FocusedStop] from launch-intent extras, or null when they don't carry a usable stop — a
+ * stop id plus a real (non-zero) location. Mirrors HomeActivity.makeIntent's STOP_ID + CENTER_LAT/LON.
+ */
+internal fun focusedStopFromExtras(
+    stopId: String?,
+    stopName: String?,
+    stopCode: String?,
+    lat: Double,
+    lon: Double,
+): FocusedStop? =
+    if (stopId != null && lat != 0.0 && lon != 0.0) {
+        FocusedStop(stopId, stopName, stopCode, lat, lon)
+    } else {
+        null
+    }
 
 /**
  * The current weather forecast, decoupled from the io/elements response. The raw icon string and

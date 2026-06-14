@@ -223,6 +223,20 @@ class HomeViewModel(
     }
 
     /**
+     * Establishes the map's initial focus on create. A restored focus (SavedStateHandle) is kept as-is;
+     * otherwise the deep-linked [intentFocus] (if any) is adopted. Either way, if there's now a focus it
+     * is marked pending so the map recenters + adds the marker once arrivals load. No focus → nothing.
+     */
+    fun applyInitialFocus(intentFocus: FocusedStop?) {
+        if (focusedStop == null) {
+            intentFocus?.let { onStopFocused(it) }
+        }
+        if (focusedStop != null) {
+            markPendingMapFocus()
+        }
+    }
+
+    /**
      * Arrivals loaded for the focused stop. If a restore/deep-link focus is pending, consume the latch
      * and return the overlay-expanded flag (true iff the sheet settled expanded) so the activity can
      * call MapViewModel.focusStop with the io/elements payload it holds; null if not pending.

@@ -24,6 +24,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -207,6 +208,36 @@ class HomeViewModelTest {
         vm.onSheetSettled(ArrivalsSheetState.Hidden, 80)
         assertEquals(0, map.lastBottomPadding)
         assertEquals(ArrivalsSheetState.Hidden, vm.lastSettledSheet)
+    }
+
+    // --- initial focus (restored vs intent deep-link) ---
+
+    @Test
+    fun `applyInitialFocus adopts an intent stop and marks it pending`() = runTest {
+        val vm = viewModel()
+        val stop = FocusedStop("1", "Main St", "100", 47.6, -122.3)
+        vm.applyInitialFocus(stop)
+        assertEquals(stop, vm.uiState.value.focusedStop)
+        assertNotNull(vm.onArrivalsLoaded()) // pending was marked
+    }
+
+    @Test
+    fun `applyInitialFocus keeps a restored focus and marks it pending`() = runTest {
+        val handle = SavedStateHandle()
+        val restored = FocusedStop("42", "Pike St", "577", 47.61, -122.34)
+        viewModel(savedState = handle).onStopFocused(restored)
+        val vm = viewModel(savedState = handle) // recreation: focus restored from the handle
+        vm.applyInitialFocus(null) // intent carries no stop
+        assertEquals(restored, vm.uiState.value.focusedStop) // unchanged
+        assertNotNull(vm.onArrivalsLoaded()) // pending was marked
+    }
+
+    @Test
+    fun `applyInitialFocus with no restored or intent focus does nothing`() = runTest {
+        val vm = viewModel()
+        vm.applyInitialFocus(null)
+        assertNull(vm.uiState.value.focusedStop)
+        assertNull(vm.onArrivalsLoaded()) // not pending
     }
 
     // --- pending map focus / route mode / clear focus ---
@@ -568,6 +599,36 @@ class NavPersistenceTest {
     fun `a null name with an out-of-range position is NEARBY`() {
         assertEquals(HomeNavItem.NEARBY, persistedNavItem(null, 7))
         assertEquals(HomeNavItem.NEARBY, persistedNavItem(null, -1))
+    }
+}
+
+/** Pure tests for the launch-resolution helpers: [initialNavItem] + [focusedStopFromExtras]. */
+class LaunchResolutionTest {
+
+    @Test
+    fun `a deep link into the map forces the NEARBY tab`() {
+        // Even with a remembered non-NEARBY tab, a route/stop deep link opens NEARBY to show it.
+        assertEquals(HomeNavItem.NEARBY, initialNavItem("STARRED_ROUTES", 2, deepLinksToMap = true))
+    }
+
+    @Test
+    fun `without a deep link the remembered tab wins`() {
+        assertEquals(HomeNavItem.STARRED_ROUTES, initialNavItem("STARRED_ROUTES", 0, deepLinksToMap = false))
+        assertEquals(HomeNavItem.MY_REMINDERS, initialNavItem(null, 3, deepLinksToMap = false))
+    }
+
+    @Test
+    fun `a full set of stop extras builds a FocusedStop`() {
+        assertEquals(
+            FocusedStop("1_75403", "Pike St", "577", 47.61, -122.34),
+            focusedStopFromExtras("1_75403", "Pike St", "577", 47.61, -122.34),
+        )
+    }
+
+    @Test
+    fun `extras without an id or with a zero location yield no focus`() {
+        assertNull(focusedStopFromExtras(null, "Pike St", "577", 47.61, -122.34))
+        assertNull(focusedStopFromExtras("1_75403", "Pike St", "577", 0.0, 0.0))
     }
 }
 

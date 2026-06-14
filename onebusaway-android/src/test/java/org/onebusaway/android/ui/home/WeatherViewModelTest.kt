@@ -47,42 +47,46 @@ class WeatherViewModelTest {
     private val forecast = WeatherData(icon = "clear-day", temperatureF = 70.0, summary = "Clear")
 
     @Test
-    fun `forecast loads after the region becomes valid`() = runTest {
-        val vm = WeatherViewModel(FakeWeatherRepository(Result.success(forecast)))
-        vm.setRegion(1L)
+    fun `forecast loads when a region is set`() = runTest {
+        val regions = FakeRegionRepository()
+        val vm = WeatherViewModel(FakeWeatherRepository(Result.success(forecast)), regions)
+        regions.emit(region(1))
         advanceUntilIdle()
         assertEquals(forecast, vm.state.value.data)
     }
 
     @Test
-    fun `an invalid region clears the forecast`() = runTest {
-        val vm = WeatherViewModel(FakeWeatherRepository(Result.success(forecast)))
-        vm.setRegion(1L)
+    fun `clearing the region clears the forecast`() = runTest {
+        val regions = FakeRegionRepository(region(1))
+        val vm = WeatherViewModel(FakeWeatherRepository(Result.success(forecast)), regions)
         advanceUntilIdle()
-        vm.setRegion(null)
+        assertEquals(forecast, vm.state.value.data)
+        regions.emit(null)
+        advanceUntilIdle()
         assertNull(vm.state.value.data)
     }
 
     @Test
     fun `a fetch failure leaves the forecast null`() = runTest {
-        val vm = WeatherViewModel(FakeWeatherRepository(Result.failure(IOException("boom"))))
-        vm.setRegion(1L)
+        val regions = FakeRegionRepository(region(1))
+        val vm = WeatherViewModel(FakeWeatherRepository(Result.failure(IOException("boom"))), regions)
         advanceUntilIdle()
         assertNull(vm.state.value.data)
     }
 
     @Test
-    fun `the forecast is fetched once per region, again when the region changes`() = runTest {
+    fun `the forecast is fetched once per region id, again when the region changes`() = runTest {
+        val regions = FakeRegionRepository()
         val repo = FakeWeatherRepository(Result.success(forecast))
-        val vm = WeatherViewModel(repo)
+        val vm = WeatherViewModel(repo, regions)
 
-        vm.setRegion(1L)
+        regions.emit(region(1))
         advanceUntilIdle()
-        vm.setRegion(1L) // same region: no refetch
+        regions.emit(region(1)) // same id: no refetch
         advanceUntilIdle()
         assertEquals(listOf(1L), repo.requestedRegions)
 
-        vm.setRegion(2L) // new region: refetch
+        regions.emit(region(2)) // new id: refetch
         advanceUntilIdle()
         assertEquals(listOf(1L, 2L), repo.requestedRegions)
     }

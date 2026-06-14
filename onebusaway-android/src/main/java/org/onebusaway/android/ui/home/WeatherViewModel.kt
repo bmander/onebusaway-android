@@ -20,6 +20,8 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.onebusaway.android.ui.weather.WeatherUtils
@@ -34,18 +36,30 @@ data class WeatherUiState(val data: WeatherData? = null, val hidden: Boolean = f
  * `HomeEnvironment.weatherHidden` gate). The NEARBY-tab gate stays in HomeScreen, like the other chrome;
  * the chip's tap (toast the summary) is handled in [WeatherFeature].
  */
-class WeatherViewModel(private val weatherRepo: WeatherRepository) : ViewModel() {
+class WeatherViewModel(
+    private val weatherRepo: WeatherRepository,
+    regionRepo: RegionRepository,
+) : ViewModel() {
 
     // hidden starts false and is set by refreshHiddenPref() on resume (reading the pref here would
     // touch Application — bad for unit tests; harmless in practice since the chip also needs async data).
     private val _state = MutableStateFlow(WeatherUiState())
     val state: StateFlow<WeatherUiState> = _state.asStateFlow()
 
-    // Guard so the forecast is fetched once per region (not on every region-valid callback).
+    // Guard so the forecast is fetched once per region (not on every region emission).
     private var fetchedRegionId: Long? = null
 
-    /** Region validity changed: fetch the forecast once per region, or clear it when [regionId] is null. */
-    fun setRegion(regionId: Long?) {
+    init {
+        // Self-subscribe to the current region: fetch the forecast once per region id, clear when none.
+        // Keyed on the region id, so weather follows the *region* (not the map viewport — panning out of
+        // range no longer clears it). Replaces the host's MapFeature setRegion push.
+        viewModelScope.launch {
+            regionRepo.region.map { it?.id }.distinctUntilChanged().collect { setRegion(it) }
+        }
+    }
+
+    /** Fetch the forecast once per region, or clear it when [regionId] is null. */
+    private fun setRegion(regionId: Long?) {
         if (regionId == null) {
             fetchedRegionId = null
             _state.update { it.copy(data = null) }

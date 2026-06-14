@@ -15,9 +15,19 @@
  */
 package org.onebusaway.android.ui.home
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.onebusaway.android.io.elements.ObaRegion
+
+/** A controllable [RegionRepository] for ViewModel tests; shared across the package (see `region(id)`). */
+internal class FakeRegionRepository(initial: ObaRegion? = null) : RegionRepository {
+    private val _region = MutableStateFlow(initial)
+    override val region: StateFlow<ObaRegion?> = _region
+    fun emit(region: ObaRegion?) { _region.value = region }
+}
 
 /** Unit tests for [DefaultRegionRepository] — the observable current-region holder. */
 class RegionRepositoryTest {

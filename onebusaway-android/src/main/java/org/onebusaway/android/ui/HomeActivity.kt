@@ -119,7 +119,9 @@ class HomeActivity : AppCompatActivity() {
     // The weather chip feature module (Compose), shown over the map on NEARBY. Activity-scoped; takes
     // the weather repository, so it needs a factory.
     private val weatherViewModel: WeatherViewModel by viewModels {
-        viewModelFactory { initializer { WeatherViewModel(DefaultWeatherRepository()) } }
+        viewModelFactory {
+            initializer { WeatherViewModel(DefaultWeatherRepository(), Application.getRegionRepository()) }
+        }
     }
 
     // The help / what's-new / legend dialogs feature module. Activity-scoped.

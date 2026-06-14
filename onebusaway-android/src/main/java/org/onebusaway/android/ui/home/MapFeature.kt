@@ -81,7 +81,6 @@ import org.opentripplanner.routing.bike_rental.BikeRentalStation
 fun MapFeature(
     mapViewModel: MapViewModel,
     homeViewModel: HomeViewModel,
-    weatherViewModel: WeatherViewModel,
     mapComposed: Boolean,
     mapSeedLat: Double,
     mapSeedLon: Double,
@@ -164,7 +163,8 @@ fun MapFeature(
         }
     }
 
-    // Loading indicator + valid-region (wide alerts + weather) state, driven from the map view model.
+    // Map loading indicator, driven from the map view model. (Weather now self-subscribes to the region
+    // repository; the wide-alert region signal still rides regionValid below until that migrates too.)
     LaunchedEffect(mapViewModel) {
         mapViewModel.progress.collect { homeViewModel.onMapLoading(it) }
     }
@@ -172,7 +172,6 @@ fun MapFeature(
         mapViewModel.regionValid.collect { valid ->
             val regionId = if (valid) Application.get().currentRegion?.id else null
             homeViewModel.onRegionValid(regionId)
-            weatherViewModel.setRegion(regionId)
         }
     }
 

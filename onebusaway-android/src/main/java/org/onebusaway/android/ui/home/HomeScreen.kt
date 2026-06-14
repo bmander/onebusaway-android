@@ -259,7 +259,6 @@ fun HomeScreen(
                         MapFeature(
                             mapViewModel = mapViewModel,
                             homeViewModel = homeViewModel,
-                            weatherViewModel = weatherViewModel,
                             mapComposed = state.mapComposed,
                             mapSeedLat = mapSeedLat,
                             mapSeedLon = mapSeedLon,

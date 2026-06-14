@@ -30,6 +30,7 @@ buildscript {
         // backward-compatible with the Compose 1.7.x runtime pinned in the app module.
         classpath "org.jetbrains.kotlin:compose-compiler-gradle-plugin:$kotlin_version"
         classpath "com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:2.3.4"
+        classpath 'com.google.dagger:hilt-android-gradle-plugin:2.59.2'
         classpath 'com.google.firebase:firebase-crashlytics-gradle:3.0.6'
         classpath 'com.github.triplet.gradle:play-publisher:4.0.0'
     }

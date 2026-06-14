@@ -70,6 +70,9 @@ import static com.google.android.gms.location.LocationServices.getFusedLocationP
 import static org.onebusaway.android.util.UIUtils.setAppTheme;
 import java.nio.charset.StandardCharsets;
 
+import dagger.hilt.android.HiltAndroidApp;
+
+@HiltAndroidApp
 public class Application extends android.app.Application {
 
     public static final String APP_UID = "app_uid";

@@ -22,11 +22,9 @@ import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
+import dagger.hilt.android.AndroidEntryPoint
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.ui.regions.DefaultRegionsRepository
 import org.onebusaway.android.ui.regions.RegionsRoute
 import org.onebusaway.android.ui.regions.RegionsViewModel
 
@@ -38,13 +36,10 @@ import org.onebusaway.android.ui.regions.RegionsViewModel
  * selection (with a toast) if it was on, and returns to the home screen — matching the
  * legacy ListFragment-based picker.
  */
+@AndroidEntryPoint
 class RegionsActivity : AppCompatActivity() {
 
-    private val viewModel: RegionsViewModel by viewModels {
-        viewModelFactory {
-            initializer { RegionsViewModel(DefaultRegionsRepository(applicationContext)) }
-        }
-    }
+    private val viewModel: RegionsViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

@@ -17,7 +17,13 @@ package org.onebusaway.android.ui.regions
 
 import android.content.Context
 import com.google.firebase.analytics.FirebaseAnalytics
+import dagger.Binds
+import dagger.Module
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
 import java.io.IOException
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.R
@@ -67,7 +73,9 @@ interface RegionsRepository {
  * statics (Application, analytics, preferences) are quarantined here so [RegionsViewModel]
  * stays JVM-testable.
  */
-class DefaultRegionsRepository(private val context: Context) : RegionsRepository {
+class DefaultRegionsRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) : RegionsRepository {
 
     // Domain objects from the last successful load, so the synchronous selectRegion(id) can
     // resolve the ObaRegion that Application.setCurrentRegion() needs
@@ -123,4 +131,13 @@ class DefaultRegionsRepository(private val context: Context) : RegionsRepository
         )
         return wasAutoSelectEnabled
     }
+}
+
+/** Hilt binding for [RegionsRepository] (Campaign B feasibility spike). */
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class RegionsRepositoryModule {
+
+    @Binds
+    abstract fun bindRegionsRepository(impl: DefaultRegionsRepository): RegionsRepository
 }

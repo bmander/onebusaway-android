@@ -20,6 +20,7 @@ import org.apache.tools.ant.filters.ConcatFilter
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 apply plugin: 'com.google.devtools.ksp'
+apply plugin: 'com.google.dagger.hilt.android'
 apply plugin: 'com.github.triplet.play'
 
 repositories {
@@ -283,6 +284,9 @@ dependencies {
     implementation "androidx.room:room-runtime:2.7.0"
     ksp "androidx.room:room-compiler:2.7.0"
     implementation "androidx.room:room-ktx:2.7.0"
+    // Hilt (Campaign B feasibility spike)
+    implementation "com.google.dagger:hilt-android:2.59.2"
+    ksp "com.google.dagger:hilt-android-compiler:2.59.2"
     // GTFS Realtime bindings for parsing GTFS-realtime data
     implementation "org.mobilitydata:gtfs-realtime-bindings:0.0.8"
     implementation 'com.google.api.grpc:proto-google-common-protos:2.9.0'

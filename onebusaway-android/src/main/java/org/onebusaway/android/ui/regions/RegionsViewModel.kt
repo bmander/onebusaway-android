@@ -15,10 +15,13 @@
  */
 package org.onebusaway.android.ui.regions
 
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import org.onebusaway.android.ui.compose.ListLoadingViewModel
 
 /** ViewModel for the region picker screen. */
-class RegionsViewModel(private val repository: RegionsRepository) :
+@HiltViewModel
+class RegionsViewModel @Inject constructor(private val repository: RegionsRepository) :
     ListLoadingViewModel<RegionItem>() {
 
     init {

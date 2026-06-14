@@ -59,6 +59,28 @@ class MapDecisionsTest {
         assertEquals(primary, resolveMapSeed(primary, persisted))
     }
 
+    // --- resolveMapMode ---
+
+    @Test
+    fun `a route deep link resolves to route mode carrying the zoom flag`() {
+        assertEquals(
+            MapMode.Route(routeId = "1_100447", zoomToRoute = true),
+            resolveMapMode(MapParams.MODE_ROUTE, "1_100447", zoomToRoute = true),
+        )
+    }
+
+    @Test
+    fun `route mode without a routeId falls back to stop mode`() {
+        assertEquals(MapMode.Stop, resolveMapMode(MapParams.MODE_ROUTE, null, zoomToRoute = false))
+    }
+
+    @Test
+    fun `only the route mode string triggers route mode`() {
+        // No mode, or any non-route mode, opens nearby stops — even if a routeId is also present.
+        assertEquals(MapMode.Stop, resolveMapMode(null, null, zoomToRoute = false))
+        assertEquals(MapMode.Stop, resolveMapMode(MapParams.MODE_STOP, "1_100447", zoomToRoute = true))
+    }
+
     // --- myLocationAction ---
 
     @Test

@@ -48,6 +48,7 @@ import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.map.MapCameraSeed
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.resolveMapMode
 import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.map.mapViewModelFactory
 import org.onebusaway.android.report.ui.ReportActivity
@@ -270,21 +271,16 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    /** Sets the initial map mode from the intent: route deep link, else nearby stops. */
+    /** Sets the initial map mode from the launch sources (route deep link, else nearby stops). */
     private fun initMapMode(savedInstanceState: Bundle?) {
         val src = savedInstanceState ?: intent.extras
-        val mode = src?.getString(MapParams.MODE)
-        val routeId = src?.getString(MapParams.ROUTE_ID)
-        if (mode == MapParams.MODE_ROUTE && routeId != null) {
-            mapViewModel.setMode(
-                org.onebusaway.android.map.MapMode.Route(
-                    routeId = routeId,
-                    zoomToRoute = src.getBoolean(MapParams.ZOOM_TO_ROUTE, false),
-                )
+        mapViewModel.setMode(
+            resolveMapMode(
+                mode = src?.getString(MapParams.MODE),
+                routeId = src?.getString(MapParams.ROUTE_ID),
+                zoomToRoute = src?.getBoolean(MapParams.ZOOM_TO_ROUTE, false) ?: false,
             )
-        } else {
-            mapViewModel.setMode(org.onebusaway.android.map.MapMode.Stop)
-        }
+        )
     }
 
     /**

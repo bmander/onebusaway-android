@@ -30,6 +30,18 @@ data class MapCameraSeed(val lat: Double, val lon: Double, val zoom: Float)
 internal fun resolveMapSeed(primary: MapCameraSeed, persisted: MapCameraSeed): MapCameraSeed =
     if (primary.lat == 0.0 && primary.lon == 0.0) persisted else primary
 
+/**
+ * Resolves the initial [MapMode] from the launch sources (saved state, else the intent): a route deep
+ * link — [MapParams.MODE_ROUTE] with a non-null [routeId] — shows that route (framed when [zoomToRoute]);
+ * anything else opens nearby stops.
+ */
+internal fun resolveMapMode(mode: String?, routeId: String?, zoomToRoute: Boolean): MapMode =
+    if (mode == MapParams.MODE_ROUTE && routeId != null) {
+        MapMode.Route(routeId = routeId, zoomToRoute = zoomToRoute)
+    } else {
+        MapMode.Stop
+    }
+
 /** How often the real-time vehicle positions are refreshed while a route is shown. */
 internal val VEHICLE_REFRESH_PERIOD_MS = TimeUnit.SECONDS.toMillis(10)
 

@@ -131,6 +131,9 @@ class HomeActivity : AppCompatActivity(),
      */
     private var navSelectionApplied = false
 
+    // Guards the one-time eager location-permission prompt on first map show (see showMap()).
+    private var locationPromptRequested = false
+
     // The map is composed directly by HomeScreen via ObaMap() and driven entirely by [mapViewModel]:
     // setMode launches the reactive loaders, the Google adapter feeds the camera + styling back in, and
     // taps come through [mapCallbacks]. There is no imperative host for the home map any more (the three
@@ -614,6 +617,12 @@ class HomeActivity : AppCompatActivity(),
         // composed — list tabs draw an opaque destination over it rather than tearing it down — so this
         // is idempotent. The host's lifecycle is forwarded normally; the map composes when the gate flips.
         mapComposed = true
+        // First map show: prompt for location permission if needed (was the host's initMap eager
+        // prompt; also drives the deferred first-launch region check via the permission result). Once.
+        if (!locationPromptRequested) {
+            locationPromptRequested = true
+            mapViewModel.requestLocationPermissionIfNeeded()
+        }
         // Request the map survey on the first NEARBY selection (idempotent + region-gated in the VM).
         surveyViewModel.maybeRequestSurvey()
     }

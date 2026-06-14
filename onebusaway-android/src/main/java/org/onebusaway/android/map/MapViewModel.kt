@@ -609,6 +609,21 @@ class MapViewModel : ViewModel(), HomeMapController {
             PermissionUtils.hasGrantedAtLeastOnePermission(Application.get(), PermissionUtils.LOCATION_PERMISSIONS)
     }
 
+    /**
+     * Called once when the map first shows: enable the blue dot if we already have permission, else —
+     * unless the user already declined — raise the rationale so the first-launch flow can ask (this is
+     * the host's old initMap → requestPermissionAndInit eager prompt, which also drives the deferred
+     * first-launch region check via the permission result).
+     */
+    fun requestLocationPermissionIfNeeded() {
+        val app = Application.get()
+        if (PermissionUtils.hasGrantedAtLeastOnePermission(app, PermissionUtils.LOCATION_PERMISSIONS)) {
+            _myLocationEnabled.value = true
+        } else if (!PreferenceUtils.userDeniedLocationPermission()) {
+            _effects.tryEmit(MapEffect.ShowPermissionRationale)
+        }
+    }
+
     /** The Activity delivered a location-permission result; reflect it (blue dot on grant). */
     fun onLocationPermissionResult(granted: Boolean) {
         PreferenceUtils.setUserDeniedLocationPermissions(!granted)

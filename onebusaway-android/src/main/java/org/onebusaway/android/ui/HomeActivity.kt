@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import com.google.firebase.analytics.FirebaseAnalytics
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
@@ -54,6 +55,7 @@ import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.mapModeToParams
 import org.onebusaway.android.map.resolveMapMode
 import org.onebusaway.android.map.resolveMapSeed
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.home.ArrivalsSheetState
@@ -93,13 +95,18 @@ import org.onebusaway.android.util.UIUtils
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity() {
 
+    // Injected so the hand-built HomeViewModel collaborators (still constructed here while
+    // HomeViewModel remains the VM-on-VM case) can be handed the reactive preferences seam.
+    @Inject
+    lateinit var prefsRepository: PreferencesRepository
+
     private val viewModel: HomeViewModel by viewModels {
         viewModelFactory {
             initializer {
                 HomeViewModel(
                     createSavedStateHandle(),
                     DefaultWideAlertsRepository(),
-                    DefaultRegionStatusRepository(applicationContext),
+                    DefaultRegionStatusRepository(applicationContext, prefsRepository),
                     DefaultStartupPreferencesRepository(),
                     DefaultNavItemsRepository(),
                     Application.getRegionRepository(),

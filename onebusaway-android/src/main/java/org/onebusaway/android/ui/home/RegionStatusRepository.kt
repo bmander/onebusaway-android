@@ -23,7 +23,7 @@ import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.util.PreferenceUtils
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.util.RegionUtils
 
 /**
@@ -75,7 +75,10 @@ interface RegionStatusRepository {
  * the fused provider when Google Play Services is available and otherwise falls back to the
  * platform `LocationManager`.
  */
-class DefaultRegionStatusRepository(private val context: Context) : RegionStatusRepository {
+class DefaultRegionStatusRepository(
+    private val context: Context,
+    private val prefs: PreferencesRepository,
+) : RegionStatusRepository {
 
     override suspend fun refreshRegions(): RegionStatus = withContext(Dispatchers.IO) {
         val app = Application.get()
@@ -90,15 +93,13 @@ class DefaultRegionStatusRepository(private val context: Context) : RegionStatus
             val region = RegionUtils.getRegionFromBuildFlavor()
             RegionUtils.saveToProvider(context, listOf(region))
             app.setCurrentRegion(region)
-            PreferenceUtils.saveBoolean(
-                context.getString(R.string.preference_key_auto_select_region), false
-            )
+            prefs.setBoolean(R.string.preference_key_auto_select_region, false)
             return@withContext RegionStatus.Fixed(region)
         }
 
         // Force a server reload when we have no region, the cache has expired, or the app updated.
         val newVer = appVersionCode()
-        val oldVer = Application.getPrefs().getInt(CHECK_REGION_VER, 0)
+        val oldVer = prefs.getInt(CHECK_REGION_VER, 0)
         val force = shouldForceReload(
             hasRegion = app.currentRegion != null,
             lastUpdate = app.lastRegionUpdateDate,
@@ -106,12 +107,11 @@ class DefaultRegionStatusRepository(private val context: Context) : RegionStatus
             oldVer = oldVer,
             newVer = newVer
         )
-        PreferenceUtils.saveInt(CHECK_REGION_VER, newVer)
+        prefs.setInt(CHECK_REGION_VER, newVer)
 
         val results = RegionUtils.getRegions(context, force) ?: return@withContext RegionStatus.Failed
 
-        val autoSelect = Application.getPrefs()
-            .getBoolean(context.getString(R.string.preference_key_auto_select_region), true)
+        val autoSelect = prefs.getBoolean(R.string.preference_key_auto_select_region, true)
         // getClosestRegion uses Location.distanceTo, so only compute it when auto-selecting.
         val closest = if (autoSelect) {
             RegionUtils.getClosestRegion(results, Application.getLastKnownLocation(context), true)

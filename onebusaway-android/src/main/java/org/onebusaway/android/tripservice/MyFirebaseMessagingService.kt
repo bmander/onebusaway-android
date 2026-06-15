@@ -50,7 +50,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val message = remoteMessage.notification?.body ?: remoteMessage.data["message"] ?: "No message content"
         Log.d(TAG, "Received reminder for stopId: $stopId")
 
-        val context = Application.get().applicationContext
+        val context = applicationContext
         ReminderUtils.handleArrivalPayload(context, arrivalJson)
         showNotification(context, message, stopId)
     }

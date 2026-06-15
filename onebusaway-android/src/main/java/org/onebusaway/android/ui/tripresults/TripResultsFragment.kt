@@ -234,7 +234,7 @@ class TripResultsFragment : Fragment() {
      */
     private fun maybeStartRealtimeUpdates() {
         val activity = activity ?: return
-        val context = Application.get().applicationContext
+        val context = activity.applicationContext
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val channel = manager.getNotificationChannel(Application.CHANNEL_TRIP_PLAN_UPDATES_ID)

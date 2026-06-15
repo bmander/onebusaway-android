@@ -150,7 +150,7 @@ class TripDetailsActivity : AppCompatActivity() {
         val serviceIntent = setUpNavigationService(position) ?: return
         startNavigationService(serviceIntent)
         Toast.makeText(
-            Application.get(), getString(R.string.destination_reminder_title), Toast.LENGTH_LONG
+            this, getString(R.string.destination_reminder_title), Toast.LENGTH_LONG
         ).show()
         val currentTime = viewModel.lastResponse()?.currentTime ?: System.currentTimeMillis()
         TravelBehaviorManager.saveDestinationReminders(

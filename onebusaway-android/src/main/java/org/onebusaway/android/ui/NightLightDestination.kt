@@ -148,7 +148,9 @@ fun NightLightRoute(onBack: () -> Unit) {
  */
 @Composable
 private fun NightLightScreen(onBack: () -> Unit, onCreateShortcut: () -> Unit) {
-    val flashColors = listOf(Color.White, colorResource(R.color.theme_primary), Color.White)
+    // Remembered: NightLightScreen recomposes on every flash tick (~10x/sec) as displayColor changes.
+    val themeColor = colorResource(R.color.theme_primary)
+    val flashColors = remember(themeColor) { listOf(Color.White, themeColor, Color.White) }
     var flashing by remember { mutableStateOf(true) }
     // The single source of truth for the screen color: a flash color while on, the dark scrim while off.
     var displayColor by remember { mutableStateOf(COLOR_DARK) }

@@ -49,9 +49,10 @@ private const val SETTINGS_FRAGMENT_TAG = "settingsRoot"
  * preference fragments ([SettingsFragment] + the nested [AdvancedSettingsFragment]) inside a Compose
  * [FragmentContainerView] using the host activity's `supportFragmentManager`.
  *
- * Which fragment is shown is driven by [nestedFragmentClass] (set by [HomeActivity]'s
- * `onPreferenceStartFragment` when a `<Preference app:fragment=…>` is tapped, cleared by back) rather
- * than the FragmentManager's own back stack — this keeps back handling unambiguous in a single-Activity
+ * Which fragment is shown is driven by [nestedFragmentClass] (set via [HomeActivity.showSettingsSubScreen]
+ * when the Advanced preference is tapped — an explicit `onPreferenceClick`, not the framework's
+ * `app:fragment` path — and cleared by back) rather than the FragmentManager's own back stack — this
+ * keeps back handling unambiguous in a single-Activity
  * NavHost (a [BackHandler] enabled only on a sub-screen returns to the root; on the root, the system
  * back falls through to the NavHost, which pops the whole destination). The destination stays composed
  * across that sub-navigation, so the former Activity's `onDestroy` side effect (re-home when

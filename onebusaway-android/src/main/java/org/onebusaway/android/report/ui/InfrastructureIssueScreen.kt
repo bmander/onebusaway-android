@@ -73,11 +73,7 @@ import org.onebusaway.android.ui.report.infrastructure.ReportTarget
 import org.onebusaway.android.ui.report.open311.Open311ProblemFragment
 import org.onebusaway.android.ui.report.problem.ProblemReportFragment
 
-/** Marker extra on the host intent flagging an InfrastructureIssue launch (read by the translator). */
-const val EXTRA_INFRASTRUCTURE_ISSUE = "org.onebusaway.android.report.ui.INFRASTRUCTURE_ISSUE"
-
 /** Host-intent extras carrying the opaque trip context for the InfrastructureIssue destination. */
-const val EXTRA_SELECTED_SERVICE = ".selectedService"
 const val EXTRA_TRIP_INFO = ".tripInfo"
 const val EXTRA_AGENCY_NAME = ".agencyName"
 const val EXTRA_BLOCK_ID = ".blockId"

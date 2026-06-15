@@ -56,8 +56,6 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.fragment.app.Fragment
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.preference.Preference
-import androidx.preference.PreferenceFragmentCompat
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -164,7 +162,6 @@ import org.onebusaway.android.util.UIUtils
 
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity(),
-    PreferenceFragmentCompat.OnPreferenceStartFragmentCallback,
     ObaRegionsTask.Callback,
     ReportProblemFragmentCallback,
     SimpleArrivalsPickerFragment.Callback,
@@ -1333,22 +1330,9 @@ class HomeActivity : AppCompatActivity(),
     //
     // The settings NavHost destination ([SettingsDestination]) hosts the preference fragments
     // ([SettingsFragment] / [AdvancedSettingsFragment]) via the activity's supportFragmentManager, so
-    // those fragments find these two host callbacks (their host activity is HomeActivity).
-
-    /**
-     * Opens a nested preference screen (Settings → Advanced). Rather than a FragmentManager back-stack
-     * transaction (which races the NavHost's back handling in a single-Activity host), record which
-     * sub-screen to show; [SettingsDestination] swaps the hosted fragment and a BackHandler returns to
-     * the root. (`pref.extras` are unused by the only sub-screen, AdvancedSettingsFragment.)
-     */
-    override fun onPreferenceStartFragment(
-        caller: PreferenceFragmentCompat,
-        pref: Preference
-    ): Boolean {
-        val fragmentClass = pref.fragment ?: return false
-        settingsNestedFragment.value = fragmentClass
-        return true
-    }
+    // those fragments find the region-task host callback below (their host activity is HomeActivity).
+    // Sub-screen navigation (Settings → Advanced) goes through [showSettingsSubScreen], not the
+    // preference framework's `app:fragment` / OnPreferenceStartFragmentCallback path.
 
     /**
      * The experimental-regions / backup-restore region task callback (ported verbatim from

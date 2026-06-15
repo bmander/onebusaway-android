@@ -16,8 +16,6 @@
  */
 package org.onebusaway.android.report.ui
 
-import android.content.Context
-import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -28,30 +26,9 @@ import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
-import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.ui.compose.findActivity
-import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.report.customerservice.CustomerServiceRoute
 import org.onebusaway.android.util.UIUtils
-
-/**
- * Launcher facade for the region transit-agency contact list (Campaign C; former Activity). The
- * screen is now the [NavRoutes.CUSTOMER_SERVICE] NavHost destination ([CustomerServiceDestination]);
- * [start] forwards the optional [ReportActivity.LOCATION_STRING] (used in email reports) onto the
- * [HomeActivity] intent. Used in-app only (from the report chooser).
- */
-object CustomerServiceActivity {
-
-    /** Launches the screen, forwarding the optional location string used in email reports. */
-    @JvmStatic
-    fun start(context: Context, sourceIntent: Intent?) {
-        val intent = HomeActivity.navIntent(context, NavRoutes.CUSTOMER_SERVICE)
-        sourceIntent?.getStringExtra(ReportActivity.LOCATION_STRING)?.let {
-            intent.putExtra(ReportActivity.LOCATION_STRING, it)
-        }
-        context.startActivity(intent)
-    }
-}
 
 /**
  * The customer-service NavHost destination (former CustomerServiceActivity content). Hosts the

@@ -455,7 +455,7 @@ class HomeActivity : AppCompatActivity() {
 
     /** Opens the recent stops/routes screen (the toolbar overflow item). */
     private fun onRecentStopsRoutes() {
-        ShowcaseViewUtils.doNotShowTutorial(ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES)
+        ShowcaseViewUtils.doNotShowTutorial(this, ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES)
         startActivity(Intent(this, MyRecentStopsAndRoutesActivity::class.java))
     }
 

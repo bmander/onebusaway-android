@@ -48,6 +48,8 @@ import org.onebusaway.android.io.ObaAnalytics;
 import org.onebusaway.android.io.ObaApi;
 import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.provider.ObaContract;
+import org.onebusaway.android.location.DefaultLocationRepository;
+import org.onebusaway.android.location.LocationRepository;
 import org.onebusaway.android.region.DefaultRegionRepository;
 import org.onebusaway.android.region.RegionRepository;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
@@ -92,6 +94,8 @@ public class Application extends android.app.Application {
 
     private DefaultRegionRepository mRegionRepository;
 
+    private DefaultLocationRepository mLocationRepository;
+
     private static Application mApp;
 
     /**
@@ -123,6 +127,9 @@ public class Application extends android.app.Application {
         // Seed the observable region with the region just loaded from prefs, before any view model can
         // collect it. All later writes publish via setCurrentRegion().
         mRegionRepository = new DefaultRegionRepository(getCurrentRegion());
+        // The observable last-known location starts empty; it's published from setLastKnownLocation
+        // (listener updates) and getLastKnownLocation's lazy poll.
+        mLocationRepository = new DefaultLocationRepository(mLastKnownLocation);
         initOpen311(getCurrentRegion());
 
         reportAnalytics();
@@ -173,6 +180,11 @@ public class Application extends android.app.Application {
         return get().mRegionRepository;
     }
 
+    /** The observable last-known location (reactive companion to getLastKnownLocation). */
+    public static LocationRepository getLocationRepository() {
+        return get().mLocationRepository;
+    }
+
     private static String appLaunchCountPreferencesKey = "appLaunchCountPreferencesKey";
 
     private void incrementAppLaunchCount() {
@@ -202,6 +214,9 @@ public class Application extends android.app.Application {
             } catch (SecurityException e) {
                 Log.e(TAG, "User may have denied location permission - " + e);
             }
+            // Seed the reactive LocationRepository with the lazily-polled value (mirrors setLastKnownLocation),
+            // so consumers reading the flow see the same first-call poll result the static accessor returns.
+            publishLocation();
         }
         // Pass back last known saved location, hopefully from past location listener updates
         return mLastKnownLocation;
@@ -225,6 +240,19 @@ public class Application extends android.app.Application {
                     (float) l.getAltitude(),
                     System.currentTimeMillis());
             // Log.d(TAG, "Newest best location: " + mLastKnownLocation.toString());
+            publishLocation();
+        }
+    }
+
+    /**
+     * Publishes the current last-known location to the reactive {@link LocationRepository}. Application
+     * is the sole writer. Publishes a fresh copy because mLastKnownLocation is reused in place, and the
+     * StateFlow dedupes by reference (Location has no value equality) so it would otherwise not emit.
+     */
+    private static void publishLocation() {
+        Application app = mApp;
+        if (app != null && app.mLocationRepository != null && mLastKnownLocation != null) {
+            app.mLocationRepository.publish(new Location(mLastKnownLocation));
         }
     }
 

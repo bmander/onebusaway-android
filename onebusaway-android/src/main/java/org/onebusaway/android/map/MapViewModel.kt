@@ -67,6 +67,7 @@ import org.onebusaway.android.map.render.StopMarker
 import org.onebusaway.android.map.render.VehicleMarker
 import org.onebusaway.android.map.render.primaryRouteType
 import org.onebusaway.android.app.Application
+import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.LocationUtils
@@ -131,6 +132,7 @@ class MapViewModel @Inject constructor(
     private val routeRepository: RouteMapRepository,
     private val bikeStationsRepository: BikeStationsRepository,
     private val regionRepo: RegionRepository,
+    private val locationRepository: LocationRepository,
 ) : ViewModel(), HomeMapController {
 
     val renderState = MapRenderState()
@@ -325,7 +327,7 @@ class MapViewModel @Inject constructor(
         // Workaround for https://github.com/OneBusAway/onebusaway-application-modules/issues/59 where
         // the outOfRange element is false even if the location was out of range. We also make sure the
         // list of stops is empty, otherwise we'd screen out valid responses.
-        val myLocation = Application.getLastKnownLocation(Application.get())
+        val myLocation = locationRepository.location.value
         val region = Application.get().currentRegion
         if (myLocation != null && region != null) {
             var inRegion = true // Assume user is in region unless we detect otherwise.
@@ -642,6 +644,9 @@ class MapViewModel @Inject constructor(
      * the user's location if we have one, else the region — but don't yank a camera the user already moved.
      */
     private fun frameCurrentRegion() {
+        // Kept on getLastKnownLocation (not the repo's value): this runs at cold-start framing and must
+        // trigger the lazy provider poll so the first frame can target the user's location. The poll also
+        // seeds the LocationRepository, keeping the .value reads (here-adjacent + requestMyLocation) consistent.
         val location = Application.getLastKnownLocation(Application.get())
         val center = _camera.value?.center
         val atSeed = center == null || (center.latitude == 0.0 && center.longitude == 0.0)
@@ -695,7 +700,7 @@ class MapViewModel @Inject constructor(
      */
     fun requestMyLocation(useDefaultZoom: Boolean, animate: Boolean) {
         val app = Application.get()
-        val last = Application.getLastKnownLocation(app)
+        val last = locationRepository.location.value
         val action = myLocationAction(
             locationEnabled = LocationUtils.isLocationEnabled(app),
             neverShowLocationDialog = Application.getPrefs()

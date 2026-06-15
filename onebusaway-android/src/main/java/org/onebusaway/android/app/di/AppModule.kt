@@ -22,6 +22,7 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.donations.DonationsManager
+import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.TimeProvider
 
@@ -40,6 +41,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideRegionRepository(): RegionRepository = Application.getRegionRepository()
+
+    @Provides
+    @Singleton
+    fun provideLocationRepository(): LocationRepository = Application.getLocationRepository()
 
     @Provides
     @Singleton

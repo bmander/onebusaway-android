@@ -35,6 +35,8 @@ import org.onebusaway.android.directions.model.ItineraryDescription;
 import org.onebusaway.android.directions.tasks.TripRequest;
 import org.onebusaway.android.directions.util.OTPConstants;
 import org.onebusaway.android.directions.util.TripRequestBuilder;
+import org.onebusaway.android.ui.HomeActivity;
+import org.onebusaway.android.ui.nav.NavRoutes;
 import org.opentripplanner.api.model.Itinerary;
 import org.opentripplanner.api.model.Leg;
 import org.opentripplanner.api.model.TripPlan;
@@ -261,6 +263,10 @@ public class RealtimeService extends IntentService {
         openIntent.putExtras(params);
         openIntent.putExtra(OTPConstants.INTENT_SOURCE, OTPConstants.Source.NOTIFICATION);
         openIntent.putExtra(OTPConstants.ITINERARIES, (ArrayList<Itinerary>) itineraries);
+        // The trip-plan screen is now a HomeActivity NavHost destination; route the re-entry there.
+        // (notificationTarget resolves to HomeActivity because TripResultsFragment — which starts this
+        // service — is hosted by HomeActivity's fragment manager.)
+        openIntent.putExtra(HomeActivity.EXTRA_NAV_ROUTE, NavRoutes.TRIP_PLAN);
         openIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         int flags;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {

@@ -133,6 +133,8 @@ import org.onebusaway.android.ui.tripdetails.rememberDestinationReminderAction
 import org.onebusaway.android.ui.tripinfo.TripInfoEvent
 import org.onebusaway.android.ui.tripinfo.TripInfoRoute
 import org.onebusaway.android.ui.tripinfo.TripInfoViewModel
+import org.onebusaway.android.ui.tripplan.TripPlanDestination
+import org.onebusaway.android.ui.tripplan.TripPlanLocationPickerDestination
 import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
@@ -955,6 +957,41 @@ class HomeActivity : AppCompatActivity() {
                         NightLightRoute(onBack = { navController.popBackStack() })
                     }
                 }
+                // Trip plan destination (Campaign C): the trip-planning form + results sheet. Reached
+                // in-app from the home drawer's "Plan a trip"; re-entered from a RealtimeService trip-
+                // update notification (RealtimeService tags the open intent with the TRIP_PLAN route).
+                // The destination ports the former TripPlanActivity's Android glue. Non-exported.
+                composable(NavRoutes.TRIP_PLAN) {
+                    ObaTheme {
+                        TripPlanDestination(
+                            navController = navController,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
+                // Trip plan "pick a point on the map" sub-screen (Campaign C; former
+                // TripPlanLocationPickerActivity). Reached only from the trip-plan destination's
+                // from/to "pick on map"; hands the chosen point back via this entry's previous
+                // back-stack SavedStateHandle. The initial center arrives as decimal-string lat/lon.
+                composable(
+                    NavRoutes.TRIP_PLAN_PICK_LOCATION,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_PICK_LAT) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_PICK_LON) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                    ),
+                ) { entry ->
+                    ObaTheme {
+                        TripPlanLocationPickerDestination(
+                            navController = navController,
+                            lat = entry.arguments?.getString(NavRoutes.ARG_PICK_LAT)?.toDoubleOrNull(),
+                            lon = entry.arguments?.getString(NavRoutes.ARG_PICK_LON)?.toDoubleOrNull(),
+                        )
+                    }
+                }
             }
         }
 
@@ -1190,7 +1227,7 @@ class HomeActivity : AppCompatActivity() {
             HomeNavItem.STARRED_ROUTES,
             HomeNavItem.MY_REMINDERS -> Unit
             HomeNavItem.PLAN_TRIP ->
-                startActivity(Intent(this@HomeActivity, TripPlanActivity::class.java))
+                pendingDeepLinkRoute.value = NavRoutes.TRIP_PLAN
             HomeNavItem.PAY_FARE -> UIUtils.launchPayMyFareApp(this)
             HomeNavItem.SETTINGS ->
                 startActivity(Intent(this@HomeActivity, SettingsActivity::class.java))

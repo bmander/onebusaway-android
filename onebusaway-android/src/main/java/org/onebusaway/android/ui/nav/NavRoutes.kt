@@ -202,4 +202,33 @@ object NavRoutes {
         }.joinToString("&")
         return "feedback?$query"
     }
+
+    // --- Trip plan (Campaign C: former TripPlanActivity + TripPlanLocationPickerActivity) ---
+    // The trip-plan form + results screen. No args (re-entry from a RealtimeService notification
+    // carries its restore extras on the HomeActivity intent, read by the destination).
+    const val TRIP_PLAN = "tripPlan"
+
+    // The "pick a point on the map" sub-screen. The initial map center is passed as decimal-string
+    // lat/lon nav-args (nullable; String — not FloatType — to keep double precision). The picked point
+    // is handed back to the caller (the trip-plan destination) via the previous back-stack entry's
+    // SavedStateHandle under [RESULT_PICK_LAT]/[RESULT_PICK_LON].
+    const val ARG_PICK_LAT = "lat"
+    const val ARG_PICK_LON = "lon"
+    const val TRIP_PLAN_PICK_LOCATION =
+        "tripPlanPickLocation?$ARG_PICK_LAT={$ARG_PICK_LAT}&$ARG_PICK_LON={$ARG_PICK_LON}"
+
+    /** SavedStateHandle key the picker writes the chosen latitude (a [Double]) under. */
+    const val RESULT_PICK_LAT = "tripPlanPickLat"
+
+    /** SavedStateHandle key the picker writes the chosen longitude (a [Double]) under. */
+    const val RESULT_PICK_LON = "tripPlanPickLon"
+
+    /** Builds a navigable [TRIP_PLAN_PICK_LOCATION] route, seeding the initial map center. */
+    fun tripPlanPickLocation(lat: Double?, lon: Double?): String {
+        val query = buildList {
+            if (lat != null) add("$ARG_PICK_LAT=$lat")
+            if (lon != null) add("$ARG_PICK_LON=$lon")
+        }.joinToString("&")
+        return "tripPlanPickLocation" + if (query.isNotEmpty()) "?$query" else ""
+    }
 }

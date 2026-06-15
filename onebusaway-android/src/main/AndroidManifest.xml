@@ -143,7 +143,6 @@
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
         </activity-alias>
-        <activity android:name="org.onebusaway.android.ui.TripInfoActivity"/>
         <activity android:name=".ui.tripplan.TripPlanLocationPickerActivity"/>
         <activity android:name=".ui.MyRemindersActivity"/>
         <!-- Campaign C-c: trip details is a HomeActivity NavHost destination; the frozen name resolves

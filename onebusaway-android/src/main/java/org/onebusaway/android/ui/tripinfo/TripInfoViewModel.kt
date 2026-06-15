@@ -28,7 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.onebusaway.android.ui.TripInfoActivity
+import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
  * State holder for the trip-reminder editor: loads the merged reminder data once, tracks the form
@@ -41,20 +41,21 @@ class TripInfoViewModel @Inject constructor(
     private val repository: TripInfoRepository,
 ) : ViewModel() {
 
-    // Launch args arrive via SavedStateHandle (seeded from the hosting Activity's intent extras; the
-    // trip/stop ids are normalized from the data URI into extras by TripInfoActivity), keyed by the
-    // TripInfoActivity extras. tripUri is recomputed from tripId/stopId by TripInfoArgs.
+    // Launch args arrive via SavedStateHandle — from the NavHost TRIP_INFO destination's nav-args, or
+    // (for the standalone My-Reminders / arrivals "set reminder" launch paths) from the TripInfoActivity
+    // facade's HomeActivity intent, which HomeActivity's translator turns into the same nav-args. Keyed
+    // by the clean NavRoutes arg names. tripUri is recomputed from tripId/stopId by TripInfoArgs.
     private val args = TripInfoArgs(
-        tripId = savedState.get<String>(TripInfoActivity.TRIP_ID).orEmpty(),
-        stopId = savedState.get<String>(TripInfoActivity.STOP_ID).orEmpty(),
-        routeId = savedState.get<String>(TripInfoActivity.ROUTE_ID),
-        routeName = savedState.get<String>(TripInfoActivity.ROUTE_NAME),
-        stopName = savedState.get<String>(TripInfoActivity.STOP_NAME),
-        headsign = savedState.get<String>(TripInfoActivity.HEADSIGN),
-        departTime = savedState.get<Long>(TripInfoActivity.DEPARTURE_TIME) ?: 0,
-        stopSequence = savedState.get<Int>(TripInfoActivity.STOP_SEQUENCE) ?: 0,
-        serviceDate = savedState.get<Long>(TripInfoActivity.SERVICE_DATE) ?: 0,
-        vehicleId = savedState.get<String>(TripInfoActivity.VEHICLE_ID),
+        tripId = savedState.get<String>(NavRoutes.ARG_TRIP_ID).orEmpty(),
+        stopId = savedState.get<String>(NavRoutes.ARG_STOP_ID).orEmpty(),
+        routeId = savedState.get<String>(NavRoutes.ARG_ROUTE_ID),
+        routeName = savedState.get<String>(NavRoutes.ARG_ROUTE_NAME),
+        stopName = savedState.get<String>(NavRoutes.ARG_STOP_NAME),
+        headsign = savedState.get<String>(NavRoutes.ARG_HEADSIGN),
+        departTime = savedState.get<Long>(NavRoutes.ARG_DEPART_TIME) ?: 0,
+        stopSequence = savedState.get<Int>(NavRoutes.ARG_STOP_SEQUENCE) ?: 0,
+        serviceDate = savedState.get<Long>(NavRoutes.ARG_SERVICE_DATE) ?: 0,
+        vehicleId = savedState.get<String>(NavRoutes.ARG_VEHICLE_ID),
     )
 
     private val _state = MutableStateFlow<TripInfoUiState>(TripInfoUiState.Loading)

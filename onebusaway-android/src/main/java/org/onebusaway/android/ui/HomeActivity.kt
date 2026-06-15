@@ -17,6 +17,7 @@
  */
 package org.onebusaway.android.ui
 
+import android.Manifest
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
@@ -24,6 +25,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.accessibility.AccessibilityManager
+import android.widget.Toast
+import androidx.core.app.ActivityCompat
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -98,6 +101,9 @@ import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
 import org.onebusaway.android.ui.tripdetails.TripDetailsRoute
 import org.onebusaway.android.ui.tripdetails.TripDetailsViewModel
 import org.onebusaway.android.ui.tripdetails.rememberDestinationReminderAction
+import org.onebusaway.android.ui.tripinfo.TripInfoEvent
+import org.onebusaway.android.ui.tripinfo.TripInfoRoute
+import org.onebusaway.android.ui.tripinfo.TripInfoViewModel
 import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
@@ -386,6 +392,90 @@ class HomeActivity : AppCompatActivity() {
                         )
                     }
                 }
+                // TripInfo destination (reminder editor). Reached in-app from the home reminders
+                // overlay's edit-tap and the arrivals "set reminder" action (both via the
+                // TripInfoActivity facade → HomeActivity → translator). Non-exported; no alias.
+                composable(
+                    NavRoutes.TRIP_INFO,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_TRIP_ID) { type = NavType.StringType },
+                        navArgument(NavRoutes.ARG_STOP_ID) { type = NavType.StringType },
+                        navArgument(NavRoutes.ARG_ROUTE_ID) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_ROUTE_NAME) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_STOP_NAME) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_HEADSIGN) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_DEPART_TIME) {
+                            type = NavType.LongType; defaultValue = 0L
+                        },
+                        navArgument(NavRoutes.ARG_STOP_SEQUENCE) {
+                            type = NavType.IntType; defaultValue = 0
+                        },
+                        navArgument(NavRoutes.ARG_SERVICE_DATE) {
+                            type = NavType.LongType; defaultValue = 0L
+                        },
+                        navArgument(NavRoutes.ARG_VEHICLE_ID) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val infoTripId =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_TRIP_ID).orEmpty()
+                    val infoStopId =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_ID).orEmpty()
+                    val infoVm: TripInfoViewModel = hiltViewModel()
+                    LaunchedEffect(infoVm) {
+                        infoVm.events.collect { event ->
+                            when (event) {
+                                TripInfoEvent.Saved -> {
+                                    Toast.makeText(
+                                        this@HomeActivity, R.string.trip_info_saved, Toast.LENGTH_SHORT
+                                    ).show()
+                                    navController.popBackStack()
+                                }
+                                TripInfoEvent.SaveFailed -> Toast.makeText(
+                                    this@HomeActivity, R.string.failed_to_set_reminder, Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    }
+                    ObaTheme {
+                        TripInfoRoute(
+                            viewModel = infoVm,
+                            onBack = { navController.popBackStack() },
+                            onSave = {
+                                ActivityCompat.requestPermissions(
+                                    this@HomeActivity,
+                                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                                    PermissionUtils.NOTIFICATION_PERMISSION_REQUEST
+                                )
+                                infoVm.save()
+                            },
+                            onDelete = {
+                                confirmDeleteReminder(this@HomeActivity) {
+                                    ReminderUtils.requestDeleteAlarm(
+                                        this@HomeActivity,
+                                        ObaContract.Trips.buildUri(infoTripId, infoStopId)
+                                    )
+                                    navController.popBackStack()
+                                }
+                            },
+                            onShowRoute = {
+                                infoVm.routeId()?.let { navController.navigate(NavRoutes.routeInfo(it)) }
+                            },
+                            onShowStop = {
+                                navController.navigate(NavRoutes.arrivals(infoStopId, infoVm.stopName()))
+                            },
+                        )
+                    }
+                }
             }
         }
 
@@ -463,6 +553,22 @@ class HomeActivity : AppCompatActivity() {
             ObaContract.Routes.PATH -> intent.data?.lastPathSegment?.let { routeId ->
                 NavRoutes.routeInfo(routeId)
             }
+            // Trip reminder editor: ids in the data URI path; the create path adds the trip context
+            // as extras (edit path omits them). content://…/trips/{tripId}/{stopId}.
+            ObaContract.Trips.PATH -> if (segments.size >= 3) {
+                NavRoutes.tripInfo(
+                    tripId = segments[1],
+                    stopId = segments[2],
+                    routeId = intent.getStringExtra(NavRoutes.ARG_ROUTE_ID),
+                    routeName = intent.getStringExtra(NavRoutes.ARG_ROUTE_NAME),
+                    stopName = intent.getStringExtra(NavRoutes.ARG_STOP_NAME),
+                    headsign = intent.getStringExtra(NavRoutes.ARG_HEADSIGN),
+                    departTime = intent.getLongExtra(NavRoutes.ARG_DEPART_TIME, 0L),
+                    stopSequence = intent.getIntExtra(NavRoutes.ARG_STOP_SEQUENCE, 0),
+                    serviceDate = intent.getLongExtra(NavRoutes.ARG_SERVICE_DATE, 0L),
+                    vehicleId = intent.getStringExtra(NavRoutes.ARG_VEHICLE_ID),
+                )
+            } else null
             else -> null
         }
     }

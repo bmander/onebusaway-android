@@ -72,4 +72,47 @@ object NavRoutes {
         }.joinToString("&")
         return "tripDetails/${Uri.encode(tripId)}" + if (query.isNotEmpty()) "?$query" else ""
     }
+
+    // --- Trip info / reminder editor (TripInfo) ---
+    // The reminder editor takes the full trip context so a brand-new reminder (from the arrivals
+    // "set reminder" action) needs no DB round-trip; the edit path passes only tripId/stopId. ids in
+    // the path; the rest as optional query args (stopName/routeId reuse the keys above).
+    const val ARG_ROUTE_NAME = "routeName"
+    const val ARG_HEADSIGN = "headsign"
+    const val ARG_DEPART_TIME = "departTime"
+    const val ARG_STOP_SEQUENCE = "stopSequence"
+    const val ARG_SERVICE_DATE = "serviceDate"
+    const val ARG_VEHICLE_ID = "vehicleId"
+    const val TRIP_INFO = "tripInfo/{$ARG_TRIP_ID}/{$ARG_STOP_ID}" +
+        "?$ARG_ROUTE_ID={$ARG_ROUTE_ID}&$ARG_ROUTE_NAME={$ARG_ROUTE_NAME}&$ARG_STOP_NAME={$ARG_STOP_NAME}" +
+        "&$ARG_HEADSIGN={$ARG_HEADSIGN}&$ARG_DEPART_TIME={$ARG_DEPART_TIME}" +
+        "&$ARG_STOP_SEQUENCE={$ARG_STOP_SEQUENCE}&$ARG_SERVICE_DATE={$ARG_SERVICE_DATE}" +
+        "&$ARG_VEHICLE_ID={$ARG_VEHICLE_ID}"
+
+    /** Builds a navigable [TRIP_INFO] route; omitted/zero context args fall back to nav-arg defaults. */
+    fun tripInfo(
+        tripId: String,
+        stopId: String,
+        routeId: String? = null,
+        routeName: String? = null,
+        stopName: String? = null,
+        headsign: String? = null,
+        departTime: Long = 0L,
+        stopSequence: Int = 0,
+        serviceDate: Long = 0L,
+        vehicleId: String? = null,
+    ): String {
+        val query = buildList {
+            if (routeId != null) add("$ARG_ROUTE_ID=${Uri.encode(routeId)}")
+            if (routeName != null) add("$ARG_ROUTE_NAME=${Uri.encode(routeName)}")
+            if (stopName != null) add("$ARG_STOP_NAME=${Uri.encode(stopName)}")
+            if (headsign != null) add("$ARG_HEADSIGN=${Uri.encode(headsign)}")
+            if (departTime != 0L) add("$ARG_DEPART_TIME=$departTime")
+            if (stopSequence != 0) add("$ARG_STOP_SEQUENCE=$stopSequence")
+            if (serviceDate != 0L) add("$ARG_SERVICE_DATE=$serviceDate")
+            if (vehicleId != null) add("$ARG_VEHICLE_ID=${Uri.encode(vehicleId)}")
+        }.joinToString("&")
+        return "tripInfo/${Uri.encode(tripId)}/${Uri.encode(stopId)}" +
+            if (query.isNotEmpty()) "?$query" else ""
+    }
 }

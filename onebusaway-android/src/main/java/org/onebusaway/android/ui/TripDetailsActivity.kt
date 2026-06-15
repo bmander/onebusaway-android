@@ -34,8 +34,6 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.graphics.drawable.DrawableCompat
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.LocationRequest
@@ -44,13 +42,13 @@ import com.google.android.gms.location.LocationSettingsRequest
 import com.google.android.gms.location.LocationSettingsStatusCodes
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.analytics.FirebaseAnalytics
+import dagger.hilt.android.AndroidEntryPoint
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.ui.tripdetails.DefaultTripDetailsRepository
 import org.onebusaway.android.ui.tripdetails.TripDetailsRoute
 import org.onebusaway.android.ui.tripdetails.TripDetailsViewModel
 import org.onebusaway.android.util.DBUtil
@@ -66,25 +64,17 @@ import org.onebusaway.android.util.PreferenceUtils
  * "show trip details" action and by NavigationServiceProvider for destination reminders) and owns
  * the Android-heavy destination-reminder flow (location/permission resolution + NavigationService).
  */
+@AndroidEntryPoint
 class TripDetailsActivity : AppCompatActivity() {
 
+    // Kept for the destination-reminder/service flow below; the view model reads its own copies of
+    // the launch args from SavedStateHandle (seeded from these same intent extras).
     private val tripId: String by lazy {
         intent.getStringExtra(TRIP_ID) ?: throw IllegalStateException("TripId should not be null")
     }
     private val stopId: String? by lazy { intent.getStringExtra(STOP_ID) }
-    private val scrollMode: String? by lazy { intent.getStringExtra(SCROLL_MODE) }
-    private val initialDestinationId: String? by lazy { intent.getStringExtra(DEST_ID) }
 
-    private val viewModel: TripDetailsViewModel by viewModels {
-        viewModelFactory {
-            initializer {
-                TripDetailsViewModel(
-                    tripId, stopId, scrollMode,
-                    DefaultTripDetailsRepository(applicationContext), initialDestinationId
-                )
-            }
-        }
-    }
+    private val viewModel: TripDetailsViewModel by viewModels()
 
     private lateinit var firebaseAnalytics: FirebaseAnalytics
 

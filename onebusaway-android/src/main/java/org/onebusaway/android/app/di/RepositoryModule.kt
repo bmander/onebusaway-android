@@ -37,6 +37,8 @@ import org.onebusaway.android.ui.report.types.DefaultReportTypeRepository
 import org.onebusaway.android.ui.report.types.ReportTypeRepository
 import org.onebusaway.android.ui.searchresults.DefaultSearchResultsRepository
 import org.onebusaway.android.ui.searchresults.SearchResultsRepository
+import org.onebusaway.android.ui.tripdetails.DefaultTripDetailsRepository
+import org.onebusaway.android.ui.tripdetails.TripDetailsRepository
 import org.onebusaway.android.ui.tripresults.DefaultTripResultsRepository
 import org.onebusaway.android.ui.tripresults.TripResultsRepository
 
@@ -69,6 +71,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindTripResultsRepository(impl: DefaultTripResultsRepository): TripResultsRepository
+
+    @Binds
+    abstract fun bindTripDetailsRepository(impl: DefaultTripDetailsRepository): TripDetailsRepository
 
     @Binds
     abstract fun bindWeatherRepository(impl: DefaultWeatherRepository): WeatherRepository

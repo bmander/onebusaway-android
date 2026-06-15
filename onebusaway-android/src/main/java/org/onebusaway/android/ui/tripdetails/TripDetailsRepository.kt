@@ -16,10 +16,12 @@
 package org.onebusaway.android.ui.tripdetails
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import java.util.Calendar
 import java.util.GregorianCalendar
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -68,7 +70,9 @@ interface TripDetailsRepository {
  * All Android statics (resources, time formatting, color resolution) are quarantined here so
  * [TripDetailsViewModel] stays JVM-testable. Occupancy is deferred (as in the Compose arrivals rows).
  */
-class DefaultTripDetailsRepository(private val context: Context) : TripDetailsRepository {
+class DefaultTripDetailsRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) : TripDetailsRepository {
 
     private var lastGood: ObaTripDetailsResponse? = null
 

@@ -43,10 +43,12 @@ import com.google.android.gms.location.LocationSettingsStatusCodes
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.analytics.FirebaseAnalytics
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.tripdetails.TripDetailsRoute
@@ -54,7 +56,6 @@ import org.onebusaway.android.ui.tripdetails.TripDetailsViewModel
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PermissionUtils.NOTIFICATION_PERMISSION_REQUEST
-import org.onebusaway.android.util.PreferenceUtils
 
 /**
  * Shows a trip's stops along the vertical transit line, with the vehicle's live position.
@@ -73,6 +74,9 @@ class TripDetailsActivity : AppCompatActivity() {
         intent.getStringExtra(TRIP_ID) ?: throw IllegalStateException("TripId should not be null")
     }
     private val stopId: String? by lazy { intent.getStringExtra(STOP_ID) }
+
+    @Inject
+    lateinit var prefsRepository: PreferencesRepository
 
     private val viewModel: TripDetailsViewModel by viewModels()
 
@@ -126,13 +130,12 @@ class TripDetailsActivity : AppCompatActivity() {
             askUserToTurnLocationOn()
             return
         }
-        val prefs = Application.getPrefs()
-        if (!prefs.getBoolean(getString(R.string.preference_key_never_show_change_location_mode_dialog), false) &&
+        if (!prefsRepository.getBoolean(R.string.preference_key_never_show_change_location_mode_dialog, false) &&
             LocationUtils.getLocationMode(this) != Settings.Secure.LOCATION_MODE_HIGH_ACCURACY
         ) {
             dialogForLocationModeChanges().show()
         }
-        if (!prefs.getBoolean(getString(R.string.preference_key_never_show_destination_reminder_beta_dialog), false)) {
+        if (!prefsRepository.getBoolean(R.string.preference_key_never_show_destination_reminder_beta_dialog, false)) {
             destinationReminderBetaDialog().show()
         }
         ObaAnalytics.reportUiEvent(
@@ -202,8 +205,8 @@ class TripDetailsActivity : AppCompatActivity() {
         val view = layoutInflater.inflate(R.layout.change_locationmode_dialog, null)
         view.findViewById<CheckBox>(R.id.change_locationmode_never_ask_again)
             .setOnCheckedChangeListener { _, isChecked ->
-                PreferenceUtils.saveBoolean(
-                    getString(R.string.preference_key_never_show_change_location_mode_dialog), isChecked
+                prefsRepository.setBoolean(
+                    R.string.preference_key_never_show_change_location_mode_dialog, isChecked
                 )
             }
         @Suppress("DEPRECATION")
@@ -227,8 +230,8 @@ class TripDetailsActivity : AppCompatActivity() {
         val view = layoutInflater.inflate(R.layout.destination_reminder_beta_dialog, null)
         view.findViewById<CheckBox>(R.id.destination_reminder_beta_never_show_again)
             .setOnCheckedChangeListener { _, isChecked ->
-                PreferenceUtils.saveBoolean(
-                    getString(R.string.preference_key_never_show_destination_reminder_beta_dialog), isChecked
+                prefsRepository.setBoolean(
+                    R.string.preference_key_never_show_destination_reminder_beta_dialog, isChecked
                 )
             }
         @Suppress("DEPRECATION")

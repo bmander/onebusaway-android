@@ -35,10 +35,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.directions.realtime.RealtimeService
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.directions.util.OTPConstants
 import org.onebusaway.android.map.MapMode
 import org.onebusaway.android.map.MapViewModel
@@ -63,6 +65,9 @@ class TripResultsFragment : Fragment() {
     }
 
     private val viewModel: TripResultsViewModel by viewModels()
+
+    @Inject
+    lateinit var prefsRepository: PreferencesRepository
 
     private var listener: Listener? = null
 
@@ -236,9 +241,7 @@ class TripResultsFragment : Fragment() {
             if (channel != null && channel.importance != NotificationManager.IMPORTANCE_NONE) {
                 RealtimeService.start(activity, requireArguments())
             }
-        } else if (Application.getPrefs()
-                .getBoolean(getString(R.string.preference_key_trip_plan_notifications), true)
-        ) {
+        } else if (prefsRepository.getBoolean(R.string.preference_key_trip_plan_notifications, true)) {
             RealtimeService.start(activity, requireArguments())
         }
     }

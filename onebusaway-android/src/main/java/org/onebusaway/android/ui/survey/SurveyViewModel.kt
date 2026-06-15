@@ -15,9 +15,12 @@
  */
 package org.onebusaway.android.ui.survey
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import android.content.Context
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,9 +40,10 @@ import org.onebusaway.android.io.request.survey.model.StudyResponse
 import org.onebusaway.android.io.request.survey.model.SubmitSurveyResponse
 import org.onebusaway.android.io.request.survey.submit.ObaSubmitSurveyRequest
 import org.onebusaway.android.io.request.survey.submit.SubmitSurveyRequestListener
+import org.onebusaway.android.preferences.PreferencesRepository
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.ui.survey.utils.SurveyDbHelper
 import org.onebusaway.android.ui.survey.utils.SurveyUtils
-import org.onebusaway.android.app.Application as ObaApplication
 
 /** The bottom-sheet state for the survey's remaining (non-hero) questions. */
 data class SurveySheetState(
@@ -80,9 +84,12 @@ sealed interface SurveyEffect {
  * from `ObaStudyRequest`/`ObaSubmitSurveyRequest`/`SurveyUtils`/`SurveyDbHelper`/`SurveyPreferences`.
  * Scoped to the map (the old `isVisibleOnStops = false` path).
  */
-class SurveyViewModel(app: Application) : AndroidViewModel(app) {
-
-    private val context get() = getApplication<ObaApplication>()
+@HiltViewModel
+class SurveyViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val regionRepository: RegionRepository,
+    private val prefs: PreferencesRepository,
+) : ViewModel() {
 
     private val _state = MutableStateFlow(SurveyUiState())
     val state: StateFlow<SurveyUiState> = _state.asStateFlow()
@@ -104,9 +111,8 @@ class SurveyViewModel(app: Application) : AndroidViewModel(app) {
     fun maybeRequestSurvey() {
         if (requested) return
         // A region is required to build the study request URL; defer (without latching) until resolved.
-        if (ObaApplication.get().currentRegion == null) return
-        val studiesEnabled = ObaApplication.getPrefs()
-            .getBoolean(context.getString(R.string.preference_key_show_available_studies), true)
+        if (regionRepository.region.value == null) return
+        val studiesEnabled = prefs.getBoolean(R.string.preference_key_show_available_studies, true)
         if (!studiesEnabled || !SurveyUtils.shouldShowSurveyView(context, false)) return
         requested = true
         viewModelScope.launch {
@@ -263,7 +269,8 @@ class SurveyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun submitUrl(hero: Boolean): String {
-        val base = ObaApplication.get().currentRegion.sidecarBaseUrl
+        // A survey can only be loaded once a region is present, so region is non-null on this path.
+        val base = regionRepository.region.value?.sidecarBaseUrl.orEmpty()
         var url = base + context.getString(R.string.submit_survey_api_endpoint)
         if (!hero && updateSurveyPath != null) url += updateSurveyPath
         return url

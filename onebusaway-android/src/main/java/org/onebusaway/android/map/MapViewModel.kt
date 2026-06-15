@@ -193,7 +193,12 @@ class MapViewModel @Inject constructor(
     // (kept off the construction path so the model stays JVM-constructible, like WeatherViewModel).
     private val _bikeshareVisible = MutableStateFlow(false)
 
-    fun setBikeshareLayerVisible(visible: Boolean) {
+    fun setBikeshareLayerVisible(visible: Boolean, persist: Boolean = false) {
+        // The user-driven toggle persists the choice through the seam; the startup sync (which reads
+        // the pref) just applies it, so persistence stays opt-in.
+        if (persist) {
+            prefsRepository.setBoolean(LayerUtils.bikeshareLayerInfo.sharedPreferenceKey, visible)
+        }
         _bikeshareVisible.value = visible
     }
 

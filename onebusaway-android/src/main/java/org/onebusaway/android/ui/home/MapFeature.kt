@@ -53,7 +53,6 @@ import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.map.LayerInfo
 import org.onebusaway.android.map.MapEffect
 import org.onebusaway.android.map.MapNavigation
 import org.onebusaway.android.map.MapViewModel
@@ -281,11 +280,9 @@ fun MapFeature(
         onZoomOut = { mapViewModel.zoomOut() },
         onToggleBikeshare = {
             val active = LayerUtils.isBikeshareLayerVisible()
-            val layer: LayerInfo = LayerUtils.bikeshareLayerInfo
             // Persist the toggled state + drive the bike loader, then ping the host to re-snapshot the
             // environment (so the bikeshare-active tint updates).
-            Application.getPrefs().edit().putBoolean(layer.sharedPreferenceKey, !active).apply()
-            mapViewModel.setBikeshareLayerVisible(!active)
+            mapViewModel.setBikeshareLayerVisible(!active, persist = true)
             ObaAnalytics.reportUiEvent(
                 firebaseAnalytics,
                 Application.get().plausibleInstance,

@@ -523,8 +523,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun onWhatsNewDismissed() {
-        val showOptOut = Application.getPrefs()
-            .getBoolean(ShowcaseViewUtils.TUTORIAL_OPT_OUT_DIALOG, true)
+        val showOptOut = prefsRepository.getBoolean(ShowcaseViewUtils.TUTORIAL_OPT_OUT_DIALOG, true)
         if (showOptOut) {
             ShowcaseViewUtils.showOptOutDialog(this)
         }
@@ -601,17 +600,14 @@ class HomeActivity : AppCompatActivity() {
      * read their own prefs.)
      */
     private fun pushEnvironment() {
-        val prefs = Application.getPrefs()
         viewModel.onEnvironmentRefreshed(
             HomeEnvironment(
                 bikeshareEnabled = Application.isBikeshareEnabled(),
                 bikeshareActive = LayerUtils.isBikeshareLayerVisible(),
-                zoomControlsPref = prefs.getBoolean(
-                    getString(R.string.preference_key_show_zoom_controls), false
-                ),
-                leftHandMode = prefs.getBoolean(
-                    getString(R.string.preference_key_left_hand_mode), false
-                ),
+                zoomControlsPref =
+                    prefsRepository.getBoolean(R.string.preference_key_show_zoom_controls, false),
+                leftHandMode =
+                    prefsRepository.getBoolean(R.string.preference_key_left_hand_mode, false),
             )
         )
     }
@@ -621,13 +617,12 @@ class HomeActivity : AppCompatActivity() {
         // determine and apply the initial selection. The deep-link-vs-remembered-tab decision is the pure
         // initialNavItem() (the enum-name pref falls back to the legacy int position for pre-P16 installs;
         // process-death restore uses the VM's SavedStateHandle).
-        val prefs = Application.getPrefs()
         val bundle = intent.extras
         val deepLinksToMap = bundle != null &&
             (bundle.getString(MapParams.ROUTE_ID) != null || bundle.getString(MapParams.STOP_ID) != null)
         val item = initialNavItem(
-            persistedName = prefs.getString(STATE_SELECTED_NAV_ITEM, null),
-            legacyPosition = prefs.getInt(STATE_SELECTED_POSITION, 0),
+            persistedName = prefsRepository.getString(STATE_SELECTED_NAV_ITEM, null),
+            legacyPosition = prefsRepository.getInt(STATE_SELECTED_POSITION, 0),
             deepLinksToMap = deepLinksToMap,
         )
         // Defer the first content selection until after onCreate (so the Compose content has composed

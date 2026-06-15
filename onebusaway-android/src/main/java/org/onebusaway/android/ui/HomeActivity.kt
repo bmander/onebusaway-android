@@ -116,25 +116,16 @@ import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
 import org.onebusaway.android.ui.home.analyticsLabelRes
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
-import org.onebusaway.android.ui.mylists.MyTab
+import org.onebusaway.android.ui.mylists.MyRecentDestination
+import org.onebusaway.android.ui.mylists.MyRoutesDestination
+import org.onebusaway.android.ui.mylists.MyStopsDestination
 import org.onebusaway.android.ui.mylists.MyTabs
-import org.onebusaway.android.ui.mylists.MyTabsScreen
-import org.onebusaway.android.ui.mylists.RecentRoutesRepository
-import org.onebusaway.android.ui.mylists.RecentStopsRepository
 import org.onebusaway.android.ui.mylists.ReminderListDestination
 import org.onebusaway.android.ui.mylists.RemindersRepository
-import org.onebusaway.android.ui.mylists.RouteListDestination
-import org.onebusaway.android.ui.mylists.RouteSearchDestination
 import org.onebusaway.android.ui.mylists.StarredRoutesRepository
 import org.onebusaway.android.ui.mylists.StarredStopsRepository
-import org.onebusaway.android.ui.mylists.StopListDestination
-import org.onebusaway.android.ui.mylists.StopSearchDestination
-import org.onebusaway.android.ui.mylists.TabAction
 import org.onebusaway.android.ui.mylists.rememberListVm
-import org.onebusaway.android.ui.mylists.rememberSearchVm
 import org.onebusaway.android.ui.nav.NavRoutes
-import org.onebusaway.android.ui.search.DefaultRouteSearchRepository
-import org.onebusaway.android.ui.search.DefaultStopSearchRepository
 import org.onebusaway.android.ui.regions.RegionsRoute
 import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
 import org.onebusaway.android.ui.searchresults.SearchResultsRoute
@@ -828,236 +819,39 @@ class HomeActivity : AppCompatActivity(),
                         )
                     }
                 }
-                // "My Stops" destination (Campaign C): Recent / Starred / Search stop tabs. Reached via
-                // a static app shortcut (Starred / Recent stops) or an old pinned tab:// shortcut (the
-                // translator maps the tag to this route). The per-tab list/search VMs are scoped to this
-                // back-stack entry (rememberListVm/rememberSearchVm). The legacy CREATE_SHORTCUT picker
-                // mode is dropped — these always take the in-app (non-shortcut) path.
-                composable(
-                    NavRoutes.MY_STOPS,
-                    arguments = listOf(
-                        navArgument(NavRoutes.ARG_TAB) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                    ),
-                ) { backStackEntry ->
-                    val initialTag = backStackEntry.arguments?.getString(NavRoutes.ARG_TAB)
-                    val recent = rememberListVm("stops.recent") {
-                        RecentStopsRepository(applicationContext)
-                    }
-                    val starred = rememberListVm("stops.starred") {
-                        StarredStopsRepository(applicationContext)
-                    }
-                    val search = rememberSearchVm("stops.search") {
-                        DefaultStopSearchRepository(applicationContext)::search
-                    }
-                    val lastTabKey = "MyStopsActivity.LastTab"
+                // The three "My*" tabbed list destinations (Campaign C). Reached from static app
+                // shortcuts + old pinned tab:// shortcuts (the translator maps the tag to the route) and,
+                // for Recent, the toolbar overflow. Tab wiring lives in MyListScreens.kt; the per-tab VMs
+                // are scoped to the back-stack entry. The legacy CREATE_SHORTCUT picker mode is dropped.
+                val tabArg = listOf(
+                    navArgument(NavRoutes.ARG_TAB) {
+                        type = NavType.StringType; nullable = true; defaultValue = null
+                    },
+                )
+                composable(NavRoutes.MY_STOPS, arguments = tabArg) { entry ->
                     ObaTheme {
-                        MyTabsScreen(
-                            titleRes = R.string.my_recent_stops,
-                            initialTag = initialTag,
-                            persistedTag = prefsRepository.getString(lastTabKey, null),
-                            onPersistTag = { prefsRepository.setString(lastTabKey, it) },
+                        MyStopsDestination(
+                            initialTag = entry.arguments?.getString(NavRoutes.ARG_TAB),
+                            prefsRepository = prefsRepository,
                             onBack = { navController.popBackStack() },
-                            tabs = listOf(
-                                MyTab(
-                                    tag = MyTabs.RECENT_STOPS,
-                                    titleRes = R.string.my_recent_title,
-                                    iconRes = R.drawable.ic_tab_recent_unselected,
-                                    clear = TabAction(R.string.my_option_clear_recent_stops) {
-                                        confirmClear(
-                                            R.string.my_option_clear_recent_stops_title,
-                                            R.string.my_option_clear_recent_stops_confirm
-                                        ) { recent.clearAll() }
-                                    }
-                                ) {
-                                    StopListDestination(
-                                        recent,
-                                        emptyText = R.string.my_no_recent_stops,
-                                        onClick = { openStop(it, shortcutMode = false) },
-                                        actions = {
-                                            stopActions(
-                                                it, R.string.my_context_remove_recent,
-                                                shortcutMode = false
-                                            ) { recent.remove(it.id) }
-                                        }
-                                    )
-                                },
-                                MyTab(
-                                    tag = MyTabs.STARRED_STOPS,
-                                    titleRes = R.string.my_starred_title,
-                                    iconRes = R.drawable.ic_tab_starred_unselected,
-                                    onSort = {
-                                        chooseSortOrder(
-                                            PreferenceUtils.getStopSortOrderFromPreferences(),
-                                            R.array.sort_stops
-                                        ) { starred.setSort(it) }
-                                    },
-                                    clear = TabAction(R.string.my_option_clear_starred_stops) {
-                                        confirmClear(
-                                            R.string.my_option_clear_starred_stops_title,
-                                            R.string.my_option_clear_starred_stops_confirm
-                                        ) { starred.clearAll() }
-                                    }
-                                ) {
-                                    StopListDestination(
-                                        starred,
-                                        emptyText = R.string.my_no_starred_stops,
-                                        onClick = { openStop(it, shortcutMode = false) },
-                                        actions = {
-                                            stopActions(
-                                                it, R.string.my_context_remove_star,
-                                                shortcutMode = false
-                                            ) { starred.remove(it.id) }
-                                        }
-                                    )
-                                },
-                                MyTab(
-                                    tag = MyTabs.SEARCH,
-                                    titleRes = R.string.my_search_title,
-                                    iconRes = R.drawable.ic_tab_search_unselected
-                                ) {
-                                    StopSearchDestination(search, shortcutMode = false)
-                                }
-                            )
                         )
                     }
                 }
-                // "My Routes" destination (Campaign C): Recent / Search route tabs. Reached via a static
-                // app shortcut (Recent routes) or an old pinned tab:// shortcut. Entry-scoped VMs; no
-                // CREATE_SHORTCUT picker mode.
-                composable(
-                    NavRoutes.MY_ROUTES,
-                    arguments = listOf(
-                        navArgument(NavRoutes.ARG_TAB) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                    ),
-                ) { backStackEntry ->
-                    val initialTag = backStackEntry.arguments?.getString(NavRoutes.ARG_TAB)
-                    val recent = rememberListVm("routes.recent") {
-                        RecentRoutesRepository(applicationContext)
-                    }
-                    val search = rememberSearchVm("routes.search") {
-                        DefaultRouteSearchRepository(applicationContext)::search
-                    }
-                    val lastTabKey = "MyRoutesActivity.LastTab"
+                composable(NavRoutes.MY_ROUTES, arguments = tabArg) { entry ->
                     ObaTheme {
-                        MyTabsScreen(
-                            titleRes = R.string.my_recent_routes,
-                            initialTag = initialTag,
-                            persistedTag = prefsRepository.getString(lastTabKey, null),
-                            onPersistTag = { prefsRepository.setString(lastTabKey, it) },
+                        MyRoutesDestination(
+                            initialTag = entry.arguments?.getString(NavRoutes.ARG_TAB),
+                            prefsRepository = prefsRepository,
                             onBack = { navController.popBackStack() },
-                            tabs = listOf(
-                                MyTab(
-                                    tag = MyTabs.RECENT_ROUTES,
-                                    titleRes = R.string.my_recent_title,
-                                    iconRes = R.drawable.ic_tab_recent_unselected,
-                                    clear = TabAction(R.string.my_option_clear_recent_routes) {
-                                        confirmClear(
-                                            R.string.my_option_clear_recent_routes_title,
-                                            R.string.my_option_clear_recent_routes_confirm
-                                        ) { recent.clearAll() }
-                                    }
-                                ) {
-                                    RouteListDestination(
-                                        recent,
-                                        emptyText = R.string.my_no_recent_routes,
-                                        onClick = { openRoute(it, shortcutMode = false) },
-                                        actions = {
-                                            routeActions(
-                                                it, R.string.my_context_remove_recent,
-                                                shortcutMode = false
-                                            ) { recent.remove(it.id) }
-                                        }
-                                    )
-                                },
-                                MyTab(
-                                    tag = MyTabs.SEARCH,
-                                    titleRes = R.string.my_search_title,
-                                    iconRes = R.drawable.ic_tab_search_unselected
-                                ) {
-                                    RouteSearchDestination(search, shortcutMode = false)
-                                }
-                            )
                         )
                     }
                 }
-                // "Recent" destination (Campaign C): Recent Stops / Recent Routes tabs — the toolbar
-                // overflow item (onRecentStopsRoutes). Reached in-app and via the static "Recent" app
-                // shortcut. Entry-scoped VMs; the legacy self-shortcut CREATE_SHORTCUT branch is dropped.
-                composable(
-                    NavRoutes.MY_RECENT,
-                    arguments = listOf(
-                        navArgument(NavRoutes.ARG_TAB) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                    ),
-                ) { backStackEntry ->
-                    val initialTag = backStackEntry.arguments?.getString(NavRoutes.ARG_TAB)
-                    val recentStops = rememberListVm("recents.stops") {
-                        RecentStopsRepository(applicationContext)
-                    }
-                    val recentRoutes = rememberListVm("recents.routes") {
-                        RecentRoutesRepository(applicationContext)
-                    }
-                    val lastTabKey = "RecentRoutesStopsActivity.LastTab"
+                composable(NavRoutes.MY_RECENT, arguments = tabArg) { entry ->
                     ObaTheme {
-                        MyTabsScreen(
-                            titleRes = R.string.my_recent_title,
-                            initialTag = initialTag,
-                            persistedTag = prefsRepository.getString(lastTabKey, null),
-                            onPersistTag = { prefsRepository.setString(lastTabKey, it) },
+                        MyRecentDestination(
+                            initialTag = entry.arguments?.getString(NavRoutes.ARG_TAB),
+                            prefsRepository = prefsRepository,
                             onBack = { navController.popBackStack() },
-                            tabs = listOf(
-                                MyTab(
-                                    tag = MyTabs.RECENT_STOPS,
-                                    titleRes = R.string.my_recent_stops,
-                                    iconRes = R.drawable.ic_menu_stop,
-                                    clear = TabAction(R.string.my_option_clear_recent_stops) {
-                                        confirmClear(
-                                            R.string.my_option_clear_recent_stops_title,
-                                            R.string.my_option_clear_recent_stops_confirm
-                                        ) { recentStops.clearAll() }
-                                    }
-                                ) {
-                                    StopListDestination(
-                                        recentStops,
-                                        emptyText = R.string.my_no_recent_stops,
-                                        onClick = { openStop(it, shortcutMode = false) },
-                                        actions = {
-                                            stopActions(
-                                                it, R.string.my_context_remove_recent,
-                                                shortcutMode = false
-                                            ) { recentStops.remove(it.id) }
-                                        }
-                                    )
-                                },
-                                MyTab(
-                                    tag = MyTabs.RECENT_ROUTES,
-                                    titleRes = R.string.my_recent_routes,
-                                    iconRes = R.drawable.ic_bus,
-                                    clear = TabAction(R.string.my_option_clear_recent_routes) {
-                                        confirmClear(
-                                            R.string.my_option_clear_recent_routes_title,
-                                            R.string.my_option_clear_recent_routes_confirm
-                                        ) { recentRoutes.clearAll() }
-                                    }
-                                ) {
-                                    RouteListDestination(
-                                        recentRoutes,
-                                        emptyText = R.string.my_no_recent_routes,
-                                        onClick = { openRoute(it, shortcutMode = false) },
-                                        actions = {
-                                            routeActions(
-                                                it, R.string.my_context_remove_recent,
-                                                shortcutMode = false
-                                            ) { recentRoutes.remove(it.id) }
-                                        }
-                                    )
-                                }
-                            )
                         )
                     }
                 }

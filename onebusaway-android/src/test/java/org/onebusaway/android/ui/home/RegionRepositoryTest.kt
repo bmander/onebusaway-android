@@ -23,12 +23,17 @@ import org.junit.Test
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.region.DefaultRegionRepository
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.region.RegionState
 
 /** A controllable [RegionRepository] for ViewModel tests; shared across the package (see `region(id)`). */
 internal class FakeRegionRepository(initial: ObaRegion? = null) : RegionRepository {
     private val _region = MutableStateFlow(initial)
     override val region: StateFlow<ObaRegion?> = _region
-    fun emit(region: ObaRegion?) { _region.value = region }
+    private val _state = MutableStateFlow<RegionState>(RegionState.Active(initial))
+    override val state: StateFlow<RegionState> = _state
+    fun emit(region: ObaRegion?) { _region.value = region; _state.value = RegionState.Active(region) }
+    /** Drives the richer [state] flow directly (Resolving / NeedsManualChoice / Failed). */
+    fun emitState(state: RegionState) { _state.value = state }
 }
 
 /** Unit tests for [DefaultRegionRepository] — the observable current-region holder. */
@@ -52,5 +57,15 @@ class RegionRepositoryTest {
         assertEquals(region(2), repo.region.value)
         repo.publish(null)
         assertNull(repo.region.value)
+    }
+
+    @Test
+    fun `state mirrors the region as Active, including the seed and back to null`() {
+        val repo = DefaultRegionRepository(region(1))
+        assertEquals(RegionState.Active(region(1)), repo.state.value)
+        repo.publish(region(2))
+        assertEquals(RegionState.Active(region(2)), repo.state.value)
+        repo.publish(null)
+        assertEquals(RegionState.Active(null), repo.state.value)
     }
 }

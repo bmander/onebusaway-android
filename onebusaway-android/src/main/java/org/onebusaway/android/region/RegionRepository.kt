@@ -36,6 +36,34 @@ interface RegionRepository {
 
     /** The current region, or null when none is set (e.g. a custom API URL is configured). */
     val region: StateFlow<ObaRegion?>
+
+    /**
+     * The richer resolution state (Campaign A) — what the UI can render directly: a refresh in flight,
+     * an active region, a manual choice required, or a failure. [region] mirrors this flow's
+     * [RegionState.Active] region. Today this only ever holds [RegionState.Active] (the holder is fed
+     * by `Application.setCurrentRegion`); the [RegionState.Resolving]/[RegionState.NeedsManualChoice]/
+     * [RegionState.Failed] cases come online when region resolution moves into the repository.
+     */
+    val state: StateFlow<RegionState>
+}
+
+/**
+ * The reactive region resolution state, superseding the bare nullable [RegionRepository.region].
+ * Mirrors (and will absorb) the legacy resolution outcomes in `RegionStatusRepository`.
+ */
+sealed interface RegionState {
+
+    /** A region resolution is in flight and no result is available yet. */
+    object Resolving : RegionState
+
+    /** A region is set. [region] is null only when a custom API URL is configured (no region needed). */
+    data class Active(val region: ObaRegion?) : RegionState
+
+    /** No region could be auto-selected; the user must pick one from [regions] (usable, name-sorted). */
+    data class NeedsManualChoice(val regions: List<ObaRegion>) : RegionState
+
+    /** Region info could not be loaded from any source (catastrophic failure). */
+    object Failed : RegionState
 }
 
 /**
@@ -49,13 +77,18 @@ class DefaultRegionRepository(initial: ObaRegion?) : RegionRepository {
 
     override val region: StateFlow<ObaRegion?> = _region.asStateFlow()
 
+    private val _state = MutableStateFlow<RegionState>(RegionState.Active(initial))
+
+    override val state: StateFlow<RegionState> = _state.asStateFlow()
+
     /**
      * Publishes the new current region (or null). **Only `Application.setCurrentRegion` should call
      * this** — it is the one place all region writes converge. `ObaRegion` equality is id-based, so a
      * republish of the same region is deduplicated by the [MutableStateFlow] and by collectors that key
-     * on the id.
+     * on the id. Keeps [state] in lockstep as [RegionState.Active].
      */
     fun publish(region: ObaRegion?) {
         _region.value = region
+        _state.value = RegionState.Active(region)
     }
 }

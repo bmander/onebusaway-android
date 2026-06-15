@@ -15,8 +15,9 @@
  */
 package org.onebusaway.android.ui;
 
-import org.onebusaway.android.app.Application;
+import org.onebusaway.android.app.di.RegionEntryPoint;
 import org.onebusaway.android.io.ObaApi;
+import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.io.request.ObaRouteRequest;
 import org.onebusaway.android.io.request.ObaRouteResponse;
 import org.onebusaway.android.provider.ObaContract;
@@ -62,9 +63,10 @@ public final class QueryUtils {
         if (routeValues == null) {
             routeValues = new ContentValues();
         }
-        if (Application.get().getCurrentRegion() != null) {
+        ObaRegion currentRegion = RegionEntryPoint.get(context).getRegion().getValue();
+        if (currentRegion != null) {
             routeValues.put(ObaContract.Routes.REGION_ID,
-                    Application.get().getCurrentRegion().getId());
+                    currentRegion.getId());
         }
 
         String routeId = routeUri.getLastPathSegment();
@@ -142,9 +144,11 @@ public final class QueryUtils {
                 values.put(ObaContract.Routes.SHORTNAME, shortName);
                 values.put(ObaContract.Routes.LONGNAME, longName);
                 values.put(ObaContract.Routes.URL, url);
-                if (Application.get().getCurrentRegion() != null) {
+                ObaRegion currentRegion =
+                        RegionEntryPoint.get(mContext).getRegion().getValue();
+                if (currentRegion != null) {
                     values.put(ObaContract.Routes.REGION_ID,
-                            Application.get().getCurrentRegion().getId());
+                            currentRegion.getId());
                 }
                 ObaContract.Routes.insertOrUpdate(mContext, routeInfo.getId(), values,
                         true);

@@ -53,7 +53,7 @@ fun WeatherFeature(viewModel: WeatherViewModel, onNearby: Boolean, modifier: Mod
     if (onNearby && !state.hidden && data != null) {
         WeatherCard(
             iconRes = WeatherUtils.getWeatherIconRes(data.icon),
-            tempText = WeatherUtils.formatTemperature(data.temperatureF),
+            tempText = WeatherUtils.formatTemperature(context, data.temperatureF),
             fitIcon = WeatherUtils.isFitIcon(data.icon),
             onClick = {
                 data.summary?.let { Toast.makeText(context, it.trim(), Toast.LENGTH_SHORT).show() }

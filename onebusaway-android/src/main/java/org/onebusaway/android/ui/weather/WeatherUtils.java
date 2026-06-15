@@ -1,13 +1,13 @@
 package org.onebusaway.android.ui.weather;
 
-import android.content.SharedPreferences;
+import android.content.Context;
 
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import org.onebusaway.android.R;
-import org.onebusaway.android.app.Application;
+import org.onebusaway.android.app.di.PreferencesEntryPoint;
 
 import java.util.Locale;
 
@@ -31,33 +31,24 @@ public class WeatherUtils {
     }
 
     public static void setWeatherTemp(TextView weatherTempTxtView, double temp) {
-        weatherTempTxtView.setText(formatTemperature(temp));
+        weatherTempTxtView.setText(formatTemperature(weatherTempTxtView.getContext(), temp));
     }
 
     /** Formats a Fahrenheit forecast temperature into the user's preferred unit, e.g. "29° F". */
-    public static String formatTemperature(double temp) {
-        Application app = Application.get();
-        SharedPreferences sharedPreferences = Application.getPrefs();
-
-        String automatic = app.getString(R.string.preferences_preferred_units_option_automatic);
-        String preferredTempUnit = sharedPreferences.getString(app.getString(R.string.preference_key_preferred_temperature_units), automatic);
+    public static String formatTemperature(Context context, double temp) {
+        String automatic = context.getString(R.string.preferences_preferred_units_option_automatic);
+        String preferredTempUnit = PreferencesEntryPoint.get(context).getString(R.string.preference_key_preferred_temperature_units, automatic);
 
         String defaultTempUnit = getDefaultUserTemp();
         boolean isCelsius = defaultTempUnit.equals("C");
 
         int convertedTemp = (preferredTempUnit.equals(automatic))
                 ? (int) (isCelsius ? convertToCelsius(temp) : temp)
-                : (preferredTempUnit.equals(app.getString(R.string.celsius)) ? (int) convertToCelsius(temp) : (int) temp);
+                : (preferredTempUnit.equals(context.getString(R.string.celsius)) ? (int) convertToCelsius(temp) : (int) temp);
 
-        String unit = (preferredTempUnit.equals(automatic)) ? defaultTempUnit : (preferredTempUnit.equals(app.getString(R.string.celsius)) ? "C" : "F");
+        String unit = (preferredTempUnit.equals(automatic)) ? defaultTempUnit : (preferredTempUnit.equals(context.getString(R.string.celsius)) ? "C" : "F");
 
         return convertedTemp + "° " + unit;
-    }
-
-    public static boolean isWeatherViewHiddenPref() {
-        Application app = Application.get();
-        boolean isWeatherViewEnabled = Application.getPrefs().getBoolean(app.getString(R.string.preference_key_display_weather_view), true);
-        return (!isWeatherViewEnabled);
     }
 
     public static void toggleWeatherViewVisibility(boolean shouldShow, View weatherView) {

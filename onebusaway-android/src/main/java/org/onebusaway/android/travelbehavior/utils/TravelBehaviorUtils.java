@@ -83,18 +83,19 @@ public class TravelBehaviorUtils {
         return m;
     }
 
-    public static boolean isTravelBehaviorActiveInRegion() {
-        ObaRegion currentRegion = Application.get().getCurrentRegion();
+    public static boolean isTravelBehaviorActiveInRegion(ObaRegion currentRegion) {
         return currentRegion != null && currentRegion.isTravelBehaviorDataCollectionEnabled();
     }
 
-    public static boolean allowEnrollMoreParticipantsInStudy() {
-        ObaRegion currentRegion = Application.get().getCurrentRegion();
+    public static boolean allowEnrollMoreParticipantsInStudy(ObaRegion currentRegion) {
         return currentRegion != null && currentRegion.isEnrollParticipantsInStudy();
     }
 
     public static boolean isUserParticipatingInStudy() {
-        return isTravelBehaviorActiveInRegion() &&
+        // This entry point must keep a no-arg signature for its live external caller
+        // (FirebaseDataPusher.kt). It reads the current region here and threads it into
+        // the now-pure isTravelBehaviorActiveInRegion(ObaRegion) helper.
+        return isTravelBehaviorActiveInRegion(Application.get().getCurrentRegion()) &&
                 !PreferenceUtils.getBoolean(TravelBehaviorConstants.USER_OPT_OUT,
                 false) && PreferenceUtils.getBoolean(TravelBehaviorConstants.USER_OPT_IN,
                 false);

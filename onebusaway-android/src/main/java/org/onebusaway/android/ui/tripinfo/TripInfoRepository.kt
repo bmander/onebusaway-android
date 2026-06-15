@@ -188,7 +188,7 @@ class DefaultTripInfoRepository @Inject constructor(
                 DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_NO_NOON or DateUtils.FORMAT_NO_MIDNIGHT
             )
         ),
-        reminderOptions = ReminderUtils.getReminderTimes(departTime).toList()
+        reminderOptions = ReminderUtils.getReminderTimes(context, departTime).toList()
     )
 
     override suspend fun save(

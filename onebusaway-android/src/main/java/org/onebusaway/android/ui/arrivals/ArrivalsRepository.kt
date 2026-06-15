@@ -33,6 +33,7 @@ import org.onebusaway.android.provider.loadStopUserInfo
 import org.onebusaway.android.ui.ArrivalInfo
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.BuildFlavorUtils
+import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.UIUtils
 
 /** A loaded snapshot of a stop's arrivals plus the header, actions, alerts, and filter data. */
@@ -110,6 +111,11 @@ class DefaultArrivalsRepository @Inject constructor(
 
     private var lastGoodMinutesAfter: Int = MINUTES_AFTER_DEFAULT
 
+    // Whether the viewed stop has been recorded in the Stops table this session. Recording (a) creates
+    // the row so the favorite toggle's UPDATE actually persists, and (b) marks it used so it appears in
+    // Recent stops. markAsUsed bumps USE_COUNT, so this is done once — not on every 60s poll/refresh.
+    private var stopRecorded = false
+
     override suspend fun getArrivals(
         stopId: String,
         minutesAfter: Int,
@@ -132,6 +138,14 @@ class DefaultArrivalsRepository @Inject constructor(
             response.code == ObaApi.OBA_OK -> {
                 lastGood = response
                 lastGoodMinutesAfter = minutes
+                // Record the stop once per session so favoriting persists (markAsFavorite is an
+                // UPDATE — it needs the row to exist) and the stop shows in Recent stops.
+                if (!stopRecorded) {
+                    response.stop?.let {
+                        DBUtil.addToDB(it)
+                        stopRecorded = true
+                    }
+                }
                 Result.success(toData(stopId, response, minutes, filter, isStale = false, now))
             }
             // Refresh failed but we have prior data — keep showing it (legacy stale fallback)

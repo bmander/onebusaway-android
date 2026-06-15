@@ -17,11 +17,7 @@
 package org.onebusaway.android.ui
 
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Bundle
-import androidx.activity.compose.setContent
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -53,42 +49,36 @@ import androidx.compose.ui.unit.dp
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
- * Displays version, license, and contributor information. A thin Compose host; the prose lives in
+ * Launches the about screen (version, license, and contributor information).
+ *
+ * Campaign C: the about screen is a NavHost destination hosted by [HomeActivity]; this is no longer
+ * an Activity but a launcher facade. `start` builds an explicit [HomeActivity] intent carrying the
+ * [NavRoutes.ABOUT] route, which HomeActivity's translator navigates to. The screen prose lives in
  * per-locale string resources, the contributor/translator/credit names in string-arrays, and URLs
- * in the prose render as tappable links.
+ * in the prose render as tappable links. (Non-exported, launched only in-app, so no alias needed.)
  */
-class AboutActivity : AppCompatActivity() {
+object AboutActivity {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            ObaTheme {
-                AboutScreen(versionText = buildVersionText(), onBack = { finish() })
-            }
-        }
-    }
-
-    private fun buildVersionText(): String = try {
-        val info = packageManager.getPackageInfo(packageName, 0)
-        @Suppress("DEPRECATION")
-        "Version: ${info.versionName} (${info.versionCode})"
-    } catch (e: PackageManager.NameNotFoundException) {
-        ""
-    }
-
-    companion object {
-
-        @JvmStatic
-        fun start(context: Context) {
-            context.startActivity(Intent(context, AboutActivity::class.java))
-        }
+    @JvmStatic
+    fun start(context: Context) {
+        context.startActivity(HomeActivity.navIntent(context, NavRoutes.ABOUT))
     }
 }
 
+/** The displayed "Version: name (code)" line, or empty if the package info can't be read. */
+internal fun buildVersionText(context: Context): String = try {
+    val info = context.packageManager.getPackageInfo(context.packageName, 0)
+    @Suppress("DEPRECATION")
+    "Version: ${info.versionName} (${info.versionCode})"
+} catch (e: PackageManager.NameNotFoundException) {
+    ""
+}
+
 @Composable
-private fun AboutScreen(versionText: String, onBack: () -> Unit) {
+internal fun AboutScreen(versionText: String, onBack: () -> Unit) {
     Scaffold(
         topBar = { ObaTopAppBar(stringResource(R.string.title_activity_about), onBack) }
     ) { padding ->

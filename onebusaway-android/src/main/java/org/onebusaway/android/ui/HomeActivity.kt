@@ -73,6 +73,7 @@ import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
+import org.onebusaway.android.ui.agencies.AgenciesRoute
 import org.onebusaway.android.ui.arrivals.ArrivalsIntents
 import org.onebusaway.android.ui.arrivals.ArrivalsRoute
 import org.onebusaway.android.ui.arrivals.ArrivalsUiState
@@ -97,6 +98,7 @@ import org.onebusaway.android.ui.mylists.RemindersRepository
 import org.onebusaway.android.ui.mylists.StarredRoutesRepository
 import org.onebusaway.android.ui.mylists.StarredStopsRepository
 import org.onebusaway.android.ui.nav.NavRoutes
+import org.onebusaway.android.ui.regions.RegionsRoute
 import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
 import org.onebusaway.android.ui.tripdetails.TripDetailsRoute
 import org.onebusaway.android.ui.tripdetails.TripDetailsViewModel
@@ -476,6 +478,68 @@ class HomeActivity : AppCompatActivity() {
                         )
                     }
                 }
+                // Agencies destination (Campaign C): the transit agencies in the current region.
+                // Reached in-app from the help menu (HelpAction.AGENCIES → AgenciesActivity facade →
+                // HomeActivity → translator). State lives in the Hilt AgenciesViewModel. Non-exported.
+                composable(NavRoutes.AGENCIES) {
+                    ObaTheme {
+                        AgenciesRoute(
+                            viewModel = hiltViewModel(),
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
+                // Regions destination (Campaign C): the manual OBA region (server) picker. Reached
+                // in-app from Settings (RegionsActivity facade → HomeActivity → translator). Selecting
+                // a region is terminal; on selection (which may disable auto-select, surfaced via the
+                // toast) we pop back, matching the legacy "set region, return home" behavior.
+                composable(NavRoutes.REGIONS) {
+                    ObaTheme {
+                        RegionsRoute(
+                            viewModel = hiltViewModel(),
+                            onBack = { navController.popBackStack() },
+                            onRegionSelected = { autoSelectDisabled ->
+                                if (autoSelectDisabled) {
+                                    Toast.makeText(
+                                        this@HomeActivity,
+                                        R.string.region_disabled_auto_selection,
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                navController.popBackStack()
+                            },
+                        )
+                    }
+                }
+                // About destination (Campaign C): version / license / contributor info. Reached in-app
+                // from Settings (AboutActivity facade → HomeActivity → translator). No VM; the version
+                // line is computed from the package info via buildVersionText. Non-exported.
+                composable(NavRoutes.ABOUT) {
+                    ObaTheme {
+                        AboutScreen(
+                            versionText = buildVersionText(LocalContext.current),
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
+                // Donation "learn more" destination (Campaign C): the why-donate explainer. Reached
+                // in-app from the home donation card (DonationLearnMoreActivity facade → HomeActivity →
+                // translator). The donate button reproduces the former Activity's behavior: dismiss any
+                // pending donation requests, open the donations page, then pop back. Non-exported.
+                composable(NavRoutes.DONATION_LEARN_MORE) {
+                    ObaTheme {
+                        DonationLearnMoreScreen(
+                            onBack = { navController.popBackStack() },
+                            onDonate = {
+                                Application.getDonationsManager().dismissDonationRequests()
+                                startActivity(
+                                    Application.getDonationsManager().buildOpenDonationsPageIntent()
+                                )
+                                navController.popBackStack()
+                            },
+                        )
+                    }
+                }
             }
         }
 
@@ -532,6 +596,8 @@ class HomeActivity : AppCompatActivity() {
      */
     private fun routeForIntent(intent: Intent?): String? {
         if (intent == null) return null
+        // In-app / cross-screen launches carry their destination route verbatim (see [navIntent]).
+        intent.getStringExtra(EXTRA_NAV_ROUTE)?.let { return it }
         intent.getStringExtra("arrival_and_departure")?.let { arrivalJson ->
             ReminderUtils.handleArrivalPayload(applicationContext, arrivalJson)
             return ReminderUtils.getStopIdFromPayload(arrivalJson)?.let { NavRoutes.arrivals(it, null) }
@@ -967,6 +1033,17 @@ class HomeActivity : AppCompatActivity() {
 
     companion object {
         const val TWITTER_URL = "http://mobile.twitter.com/onebusaway"
+
+        // Generic in-app entry point: a launcher facade builds an explicit HomeActivity intent
+        // carrying the NavHost route to open (see [navIntent]); the translator (routeForIntent)
+        // navigates there. Lets former screen Activities become thin facade objects with no
+        // per-screen intent contract. (External contracts — shortcuts/FCM — use the data-URI branches.)
+        const val EXTRA_NAV_ROUTE = "org.onebusaway.android.ui.HomeActivity.NAV_ROUTE"
+
+        /** An intent that opens HomeActivity and navigates its NavHost to [route]. */
+        @JvmStatic
+        fun navIntent(context: Context, route: String): Intent =
+            Intent(context, HomeActivity::class.java).putExtra(EXTRA_NAV_ROUTE, route)
 
         // The seed-camera default zoom (matches the former ObaMapHost.CAMERA_DEFAULT_ZOOM).
         private const val MAP_DEFAULT_ZOOM = 16f

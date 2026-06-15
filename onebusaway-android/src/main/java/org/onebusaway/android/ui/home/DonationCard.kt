@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.ui.home
 
-import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -76,7 +75,7 @@ fun DonationFeature(viewModel: DonationViewModel, onNearby: Boolean, cardModifie
             viewModel.effects.collect { effect ->
                 when (effect) {
                     DonationEffect.OpenLearnMore ->
-                        context.startActivity(Intent(context, DonationLearnMoreActivity::class.java))
+                        DonationLearnMoreActivity.start(context)
                     DonationEffect.OpenDonatePage ->
                         context.startActivity(Application.getDonationsManager().buildOpenDonationsPageIntent())
                 }

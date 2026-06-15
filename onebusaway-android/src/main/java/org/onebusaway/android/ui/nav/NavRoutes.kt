@@ -33,6 +33,19 @@ object NavRoutes {
     /** The map-centric home screen — the NavHost start destination. */
     const val HOME = "home"
 
+    // --- Argless content screens (former thin host Activities) ---
+    /** Transit agencies supported in the current region. */
+    const val AGENCIES = "agencies"
+
+    /** Manual OBA region (server) picker. */
+    const val REGIONS = "regions"
+
+    /** Version / license / contributor info. */
+    const val ABOUT = "about"
+
+    /** "Why donate" explainer with a button out to the donations page. */
+    const val DONATION_LEARN_MORE = "donationLearnMore"
+
     // --- Route info (C-a) ---
     // Clean nav-arg name (not the dotted intent-extra key): external contracts (the route data URI)
     // are translated to this route at the entry boundary; the destination VM reads this key from

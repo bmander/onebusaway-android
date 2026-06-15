@@ -16,58 +16,20 @@
 package org.onebusaway.android.ui
 
 import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.widget.Toast
-import androidx.activity.compose.setContent
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
-import dagger.hilt.android.AndroidEntryPoint
-import org.onebusaway.android.R
-import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.ui.regions.RegionsRoute
-import org.onebusaway.android.ui.regions.RegionsViewModel
+import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
- * Lets the user manually pick the OBA region (server deployment) to use.
+ * Launches the region picker (the OBA region / server deployment to use).
  *
- * Compose + MVVM screen: the Activity is a thin host for [RegionsRoute]; all state lives in
- * [RegionsViewModel]. Selecting a region sets it app-wide, disables automatic region
- * selection (with a toast) if it was on, and returns to the home screen — matching the
- * legacy ListFragment-based picker.
+ * Campaign C: the picker is a NavHost destination hosted by [HomeActivity]; this is no longer an
+ * Activity but a launcher facade. `start` builds an explicit [HomeActivity] intent carrying the
+ * [NavRoutes.REGIONS] route, which HomeActivity's translator navigates to. (Non-exported, launched
+ * only in-app, so no activity-alias is needed.)
  */
-@AndroidEntryPoint
-class RegionsActivity : AppCompatActivity() {
+object RegionsActivity {
 
-    private val viewModel: RegionsViewModel by viewModels()
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            ObaTheme {
-                RegionsRoute(
-                    viewModel = viewModel,
-                    onBack = { onBackPressedDispatcher.onBackPressed() },
-                    onRegionSelected = { autoSelectDisabled ->
-                        if (autoSelectDisabled) {
-                            Toast.makeText(
-                                this,
-                                R.string.region_disabled_auto_selection,
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        NavHelp.goHome(this, false)
-                    }
-                )
-            }
-        }
-    }
-
-    companion object {
-
-        @JvmStatic
-        fun start(context: Context) {
-            context.startActivity(Intent(context, RegionsActivity::class.java))
-        }
+    @JvmStatic
+    fun start(context: Context) {
+        context.startActivity(HomeActivity.navIntent(context, NavRoutes.REGIONS))
     }
 }

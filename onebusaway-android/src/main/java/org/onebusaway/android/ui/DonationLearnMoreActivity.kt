@@ -15,9 +15,7 @@
  */
 package org.onebusaway.android.ui
 
-import android.os.Bundle
-import androidx.activity.compose.setContent
-import androidx.appcompat.app.AppCompatActivity
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,35 +41,30 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
- * Explains why donations matter, with a button out to the donations page. A thin Compose host;
- * launched from the home screen's donation banner.
+ * Launches the donation "learn more" screen (why donations matter, with a button out to the
+ * donations page).
+ *
+ * Campaign C: the explainer is a NavHost destination hosted by [HomeActivity]; this is no longer an
+ * Activity but a launcher facade. `start` builds an explicit [HomeActivity] intent carrying the
+ * [NavRoutes.DONATION_LEARN_MORE] route, which HomeActivity's translator navigates to. The donate
+ * button's behavior (dismiss pending requests + open the donations page) lives in the destination.
+ * (Non-exported, launched only in-app, so no activity-alias is needed.)
  */
-class DonationLearnMoreActivity : AppCompatActivity() {
+object DonationLearnMoreActivity {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            ObaTheme {
-                DonationLearnMoreScreen(
-                    onBack = { finish() },
-                    onDonate = {
-                        Application.getDonationsManager().dismissDonationRequests()
-                        startActivity(Application.getDonationsManager().buildOpenDonationsPageIntent())
-                        finish()
-                    }
-                )
-            }
-        }
+    @JvmStatic
+    fun start(context: Context) {
+        context.startActivity(HomeActivity.navIntent(context, NavRoutes.DONATION_LEARN_MORE))
     }
 }
 
 @Composable
-private fun DonationLearnMoreScreen(onBack: () -> Unit, onDonate: () -> Unit) {
+internal fun DonationLearnMoreScreen(onBack: () -> Unit, onDonate: () -> Unit) {
     Scaffold(
         topBar = {
             ObaTopAppBar(stringResource(R.string.title_activity_donation_learn_more), onBack)

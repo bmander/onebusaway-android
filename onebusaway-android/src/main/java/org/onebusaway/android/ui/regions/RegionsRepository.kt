@@ -27,7 +27,7 @@ import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.util.PreferenceUtils
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.util.RegionUtils
 
 /**
@@ -70,7 +70,8 @@ interface RegionsRepository {
  * stays JVM-testable.
  */
 class DefaultRegionsRepository @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val prefs: PreferencesRepository,
 ) : RegionsRepository {
 
     // Domain objects from the last successful load, so the synchronous selectRegion(id) can
@@ -112,10 +113,9 @@ class DefaultRegionsRepository @Inject constructor(
 
         // If we're currently auto-selecting regions, disable this so it doesn't override
         // the manual setting
-        val autoSelectKey = context.getString(R.string.preference_key_auto_select_region)
-        val wasAutoSelectEnabled = Application.getPrefs().getBoolean(autoSelectKey, true)
+        val wasAutoSelectEnabled = prefs.getBoolean(R.string.preference_key_auto_select_region, true)
         if (wasAutoSelectEnabled) {
-            PreferenceUtils.saveBoolean(autoSelectKey, false)
+            prefs.setBoolean(R.string.preference_key_auto_select_region, false)
         }
 
         ObaAnalytics.reportUiEvent(

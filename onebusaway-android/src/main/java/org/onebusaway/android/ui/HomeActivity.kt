@@ -74,6 +74,7 @@ import org.onebusaway.android.ui.arrivals.ArrivalsIntents
 import org.onebusaway.android.ui.arrivals.ArrivalsRoute
 import org.onebusaway.android.ui.arrivals.ArrivalsUiState
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
+import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.DonationViewModel
 import org.onebusaway.android.ui.home.WeatherViewModel
@@ -262,19 +263,21 @@ class HomeActivity : AppCompatActivity() {
                 ) { backStackEntry ->
                     val routeId =
                         backStackEntry.arguments?.getString(NavRoutes.ARG_ROUTE_ID).orEmpty()
-                    RouteInfoRoute(
-                        viewModel = hiltViewModel(),
-                        onBack = { navController.popBackStack() },
-                        onShowRouteOnMap = { HomeActivity.start(this@HomeActivity, routeId) },
-                        onStopClick = { stop ->
-                            navController.navigate(NavRoutes.arrivals(stop.id, stop.name))
-                        },
-                        onStopShowOnMap = { stop ->
-                            HomeActivity.start(
-                                this@HomeActivity, stop.id, stop.latitude, stop.longitude
-                            )
-                        },
-                    )
+                    ObaTheme {
+                        RouteInfoRoute(
+                            viewModel = hiltViewModel(),
+                            onBack = { navController.popBackStack() },
+                            onShowRouteOnMap = { HomeActivity.start(this@HomeActivity, routeId) },
+                            onStopClick = { stop ->
+                                navController.navigate(NavRoutes.arrivals(stop.id, stop.name))
+                            },
+                            onStopShowOnMap = { stop ->
+                                HomeActivity.start(
+                                    this@HomeActivity, stop.id, stop.latitude, stop.longitude
+                                )
+                            },
+                        )
+                    }
                 }
                 // Arrivals destination (Campaign C-b): real-time arrivals for a stop. Reached in-app
                 // from RouteInfo's stop tap and the home overlays' stop taps; ArrivalsListActivity
@@ -331,13 +334,15 @@ class HomeActivity : AppCompatActivity() {
                             },
                         )
                     }
-                    ArrivalsRoute(
-                        viewModel = arrivalsVm,
-                        initialTitle = stopName,
-                        handler = handler,
-                        onBack = { navController.popBackStack() },
-                        snackbarHostState = snackbarHostState,
-                    )
+                    ObaTheme {
+                        ArrivalsRoute(
+                            viewModel = arrivalsVm,
+                            initialTitle = stopName,
+                            handler = handler,
+                            onBack = { navController.popBackStack() },
+                            snackbarHostState = snackbarHostState,
+                        )
+                    }
                 }
                 // TripDetails destination (Campaign C-d): a trip's stops + live vehicle position.
                 // Reached in-app from the arrivals destination's "show trip"; TripDetailsActivity still
@@ -364,20 +369,22 @@ class HomeActivity : AppCompatActivity() {
                         backStackEntry.arguments?.getString(NavRoutes.ARG_TRIP_ID).orEmpty()
                     val tripStopId = backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_ID)
                     val tripVm: TripDetailsViewModel = hiltViewModel()
-                    TripDetailsRoute(
-                        viewModel = tripVm,
-                        onBack = { navController.popBackStack() },
-                        onShowOnMap = { routeId -> HomeActivity.start(this@HomeActivity, routeId) },
-                        onStopClick = { sid, name, _ ->
-                            navController.navigate(NavRoutes.arrivals(sid, name))
-                        },
-                        onSetDestinationReminder = rememberDestinationReminderAction(
+                    ObaTheme {
+                        TripDetailsRoute(
                             viewModel = tripVm,
-                            prefsRepository = prefsRepository,
-                            tripId = tripId,
-                            stopId = tripStopId,
-                        ),
-                    )
+                            onBack = { navController.popBackStack() },
+                            onShowOnMap = { routeId -> HomeActivity.start(this@HomeActivity, routeId) },
+                            onStopClick = { sid, name, _ ->
+                                navController.navigate(NavRoutes.arrivals(sid, name))
+                            },
+                            onSetDestinationReminder = rememberDestinationReminderAction(
+                                viewModel = tripVm,
+                                prefsRepository = prefsRepository,
+                                tripId = tripId,
+                                stopId = tripStopId,
+                            ),
+                        )
+                    }
                 }
             }
         }

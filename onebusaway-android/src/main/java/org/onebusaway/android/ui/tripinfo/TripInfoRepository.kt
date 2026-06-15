@@ -20,6 +20,8 @@ import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.text.format.DateUtils
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -93,7 +95,9 @@ interface TripInfoRepository {
     suspend fun save(args: TripInfoArgs, data: TripInfoData, reminderMinutes: Int, tripName: String): Boolean
 }
 
-class DefaultTripInfoRepository(private val context: Context) : TripInfoRepository {
+class DefaultTripInfoRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) : TripInfoRepository {
 
     override suspend fun load(args: TripInfoArgs): TripInfoData = withContext(Dispatchers.IO) {
         // If the launcher passed a route name, refresh it in the Routes table (legacy behavior).

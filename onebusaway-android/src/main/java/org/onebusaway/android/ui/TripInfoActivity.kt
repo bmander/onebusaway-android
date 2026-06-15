@@ -26,14 +26,12 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.ui.tripinfo.DefaultTripInfoRepository
 import org.onebusaway.android.ui.tripinfo.TripInfoArgs
 import org.onebusaway.android.ui.tripinfo.TripInfoEvent
 import org.onebusaway.android.ui.tripinfo.TripInfoRoute
@@ -49,6 +47,7 @@ import org.onebusaway.android.util.ReminderUtils
  * [ObaContract.Trips] data URI (both launch paths), and the arrivals "set reminder" action passes
  * the trip context as extras so a brand-new reminder needs no DB round-trip.
  */
+@AndroidEntryPoint
 class TripInfoActivity : AppCompatActivity() {
 
     private val args: TripInfoArgs by lazy {
@@ -67,14 +66,15 @@ class TripInfoActivity : AppCompatActivity() {
         )
     }
 
-    private val viewModel: TripInfoViewModel by viewModels {
-        viewModelFactory {
-            initializer { TripInfoViewModel(args, DefaultTripInfoRepository(applicationContext)) }
-        }
-    }
+    private val viewModel: TripInfoViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Normalize the trip/stop ids from the data URI into extras so the view model can read the full
+        // TripInfoArgs from SavedStateHandle (seeded from extras, not the data URI). Must run before the
+        // view model is first accessed below.
+        intent.putExtra(TRIP_ID, args.tripId)
+        intent.putExtra(STOP_ID, args.stopId)
         lifecycleScope.launch {
             viewModel.events.collect { event ->
                 when (event) {
@@ -124,14 +124,18 @@ class TripInfoActivity : AppCompatActivity() {
 
     companion object {
 
-        private const val ROUTE_ID = ".RouteId"
-        private const val ROUTE_NAME = ".RouteName"
-        private const val STOP_NAME = ".StopName"
-        private const val HEADSIGN = ".Headsign"
-        private const val DEPARTURE_TIME = ".Depart"
-        private const val STOP_SEQUENCE = ".StopSequence"
-        private const val SERVICE_DATE = ".ServiceDate"
-        private const val VEHICLE_ID = ".VehicleID"
+        // SavedStateHandle keys for the view model. TRIP_ID/STOP_ID are normalized from the data URI
+        // in onCreate; the rest ride as intent extras from the "create reminder" launch path.
+        const val TRIP_ID = ".TripId"
+        const val STOP_ID = ".StopId"
+        const val ROUTE_ID = ".RouteId"
+        const val ROUTE_NAME = ".RouteName"
+        const val STOP_NAME = ".StopName"
+        const val HEADSIGN = ".Headsign"
+        const val DEPARTURE_TIME = ".Depart"
+        const val STOP_SEQUENCE = ".StopSequence"
+        const val SERVICE_DATE = ".ServiceDate"
+        const val VEHICLE_ID = ".VehicleID"
 
         /** Opens an existing reminder for editing — the data is read from the Trips table. */
         fun start(context: Context, tripId: String, stopId: String) {

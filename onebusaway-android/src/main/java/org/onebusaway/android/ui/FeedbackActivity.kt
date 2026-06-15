@@ -52,19 +52,20 @@ import androidx.compose.ui.unit.dp
 import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
 import com.google.firebase.analytics.FirebaseAnalytics
+import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 import org.apache.commons.io.FileUtils
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.nav.NavigationService
 import org.onebusaway.android.nav.NavigationService.LOG_DIRECTORY
 import org.onebusaway.android.nav.NavigationUploadWorker
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.util.PreferenceUtils
 
 /**
  * Collects thumbs-up/down feedback (plus optional comments) after a destination-reminder trip,
@@ -72,7 +73,11 @@ import org.onebusaway.android.util.PreferenceUtils
  * either gets the feedback appended and is queued for upload, or is deleted and the feedback goes
  * to analytics only — matching the user's "share logs" choice.
  */
+@AndroidEntryPoint
 class FeedbackActivity : AppCompatActivity() {
+
+    @Inject
+    lateinit var prefsRepository: PreferencesRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,8 +89,8 @@ class FeedbackActivity : AppCompatActivity() {
                     initialSendLogs = shareLogsPref(),
                     onBack = { finish() },
                     onSendLogsChanged = { share ->
-                        PreferenceUtils.saveBoolean(
-                            getString(R.string.preferences_key_user_share_destination_logs), share
+                        prefsRepository.setBoolean(
+                            R.string.preferences_key_user_share_destination_logs, share
                         )
                     },
                     onSend = { liked, text ->
@@ -97,11 +102,11 @@ class FeedbackActivity : AppCompatActivity() {
         }
     }
 
-    private fun shareLogsPref(): Boolean = Application.getPrefs()
-        .getBoolean(getString(R.string.preferences_key_user_share_destination_logs), true)
+    private fun shareLogsPref(): Boolean =
+        prefsRepository.getBoolean(R.string.preferences_key_user_share_destination_logs, true)
 
     private fun submitFeedback(liked: Boolean, feedback: String) {
-        PreferenceUtils.saveBoolean(NavigationService.FIRST_FEEDBACK, false)
+        prefsRepository.setBoolean(NavigationService.FIRST_FEEDBACK, false)
         if (shareLogsPref()) {
             moveLog(liked, feedback)
         } else {

@@ -43,7 +43,16 @@ fun createArrivalActionHandler(
     onShowRouteOnMap: (routeId: String) -> Unit,
     // How to show the alert hide/undo snackbar — supplied by the host so the dialog isn't tied to a
     // specific View (the standalone activity anchors to its root; Compose hosts use a SnackbarHost).
-    showUndoSnackbar: (messageRes: Int, actionRes: Int?, onAction: (() -> Unit)?) -> Unit
+    showUndoSnackbar: (messageRes: Int, actionRes: Int?, onAction: (() -> Unit)?) -> Unit,
+    // How to open trip details — defaults to launching TripDetailsActivity (standalone/sheet hosts);
+    // the in-NavHost arrivals destination overrides it to navigate to the trip-details destination.
+    onShowTrip: (tripId: String, stopId: String) -> Unit = { tripId, stopId ->
+        TripDetailsActivity.Builder(activity, tripId)
+            .setStopId(stopId)
+            .setScrollMode(TripDetailsActivity.SCROLL_MODE_STOP)
+            .setUpMode(NavHelp.UP_MODE_BACK)
+            .start()
+    }
 ): ArrivalActionHandler = object : ArrivalActionHandler {
 
     override fun onRouteFavorite(actions: ArrivalActions) {
@@ -65,11 +74,7 @@ fun createArrivalActionHandler(
 
     override fun onShowTripStatus(arrival: ArrivalInfo) {
         DBUtil.addRouteToDB(activity, arrival)
-        TripDetailsActivity.Builder(activity, arrival.info.tripId)
-            .setStopId(arrival.info.stopId)
-            .setScrollMode(TripDetailsActivity.SCROLL_MODE_STOP)
-            .setUpMode(NavHelp.UP_MODE_BACK)
-            .start()
+        onShowTrip(arrival.info.tripId, arrival.info.stopId)
     }
 
     override fun onSetReminder(arrival: ArrivalInfo) {

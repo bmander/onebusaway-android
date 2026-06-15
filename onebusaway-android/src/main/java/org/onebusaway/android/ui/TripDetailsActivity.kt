@@ -26,6 +26,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.tripdetails.TripDetailsRoute
 import org.onebusaway.android.ui.tripdetails.TripDetailsViewModel
 import org.onebusaway.android.ui.tripdetails.rememberDestinationReminderAction
@@ -42,9 +43,10 @@ import org.onebusaway.android.ui.tripdetails.rememberDestinationReminderAction
 class TripDetailsActivity : AppCompatActivity() {
 
     private val tripId: String by lazy {
-        intent.getStringExtra(TRIP_ID) ?: throw IllegalStateException("TripId should not be null")
+        intent.getStringExtra(NavRoutes.ARG_TRIP_ID)
+            ?: throw IllegalStateException("TripId should not be null")
     }
-    private val stopId: String? by lazy { intent.getStringExtra(STOP_ID) }
+    private val stopId: String? by lazy { intent.getStringExtra(NavRoutes.ARG_STOP_ID) }
 
     @Inject
     lateinit var prefsRepository: PreferencesRepository
@@ -81,13 +83,16 @@ class TripDetailsActivity : AppCompatActivity() {
     class Builder(private val context: Context, tripId: String) {
 
         private val intent = Intent(context, TripDetailsActivity::class.java)
-            .putExtra(TRIP_ID, tripId)
+            .putExtra(NavRoutes.ARG_TRIP_ID, tripId)
 
-        fun setStopId(stopId: String?): Builder = apply { intent.putExtra(STOP_ID, stopId) }
+        fun setStopId(stopId: String?): Builder =
+            apply { intent.putExtra(NavRoutes.ARG_STOP_ID, stopId) }
 
-        fun setScrollMode(mode: String?): Builder = apply { intent.putExtra(SCROLL_MODE, mode) }
+        fun setScrollMode(mode: String?): Builder =
+            apply { intent.putExtra(NavRoutes.ARG_SCROLL_MODE, mode) }
 
-        fun setDestinationId(stopId: String?): Builder = apply { intent.putExtra(DEST_ID, stopId) }
+        fun setDestinationId(stopId: String?): Builder =
+            apply { intent.putExtra(NavRoutes.ARG_DEST_ID, stopId) }
 
         fun setUpMode(mode: String?): Builder = apply { intent.putExtra(NavHelp.UP_MODE, mode) }
 
@@ -100,12 +105,10 @@ class TripDetailsActivity : AppCompatActivity() {
 
     companion object {
 
-        const val TRIP_ID = ".TripId"
-        const val STOP_ID = ".StopId"
-        const val SCROLL_MODE = ".ScrollMode"
+        // Launch-arg keys live in NavRoutes (clean nav-arg names, shared with the destination). These
+        // are the scroll-mode *values* (not keys) read by TripDetailsRepository + the launch callers.
         const val SCROLL_MODE_VEHICLE = "vehicle"
         const val SCROLL_MODE_STOP = "stop"
-        const val DEST_ID = ".DestinationId"
 
         /** Broadcast action the [org.onebusaway.android.nav.NavigationService] sends when destroyed. */
         const val ACTION_SERVICE_DESTROYED = "NavigationServiceDestroyed"

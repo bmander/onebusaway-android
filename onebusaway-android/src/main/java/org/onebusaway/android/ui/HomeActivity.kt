@@ -90,6 +90,9 @@ import org.onebusaway.android.ui.mylists.StarredRoutesRepository
 import org.onebusaway.android.ui.mylists.StarredStopsRepository
 import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
+import org.onebusaway.android.ui.tripdetails.TripDetailsRoute
+import org.onebusaway.android.ui.tripdetails.TripDetailsViewModel
+import org.onebusaway.android.ui.tripdetails.rememberDestinationReminderAction
 import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
@@ -293,6 +296,11 @@ class HomeActivity : AppCompatActivity() {
                                     if (result == SnackbarResult.ActionPerformed) onAction?.invoke()
                                 }
                             },
+                            onShowTrip = { tripId, sid ->
+                                navController.navigate(
+                                    NavRoutes.tripDetails(tripId, sid, TripDetailsActivity.SCROLL_MODE_STOP)
+                                )
+                            },
                         )
                     }
                     ArrivalsRoute(
@@ -301,6 +309,46 @@ class HomeActivity : AppCompatActivity() {
                         handler = handler,
                         onBack = { navController.popBackStack() },
                         snackbarHostState = snackbarHostState,
+                    )
+                }
+                // TripDetails destination (Campaign C-d): a trip's stops + live vehicle position.
+                // Reached in-app from the arrivals destination's "show trip"; TripDetailsActivity still
+                // hosts the same TripDetailsRoute for standalone/map/NavigationService launches
+                // (collapsed to an activity-alias in C-c). The destination-reminder flow is the shared
+                // rememberDestinationReminderAction controller; the VM reads its args from the nav-args.
+                composable(
+                    NavRoutes.TRIP_DETAILS,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_TRIP_ID) { type = NavType.StringType },
+                        navArgument(NavRoutes.ARG_STOP_ID) {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_SCROLL_MODE) {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val tripId =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_TRIP_ID).orEmpty()
+                    val tripStopId = backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_ID)
+                    val tripVm: TripDetailsViewModel = hiltViewModel()
+                    TripDetailsRoute(
+                        viewModel = tripVm,
+                        onBack = { navController.popBackStack() },
+                        onShowOnMap = { routeId -> HomeActivity.start(this@HomeActivity, routeId) },
+                        onStopClick = { sid, name, _ ->
+                            navController.navigate(NavRoutes.arrivals(sid, name))
+                        },
+                        onSetDestinationReminder = rememberDestinationReminderAction(
+                            viewModel = tripVm,
+                            prefsRepository = prefsRepository,
+                            tripId = tripId,
+                            stopId = tripStopId,
+                        ),
                     )
                 }
             }

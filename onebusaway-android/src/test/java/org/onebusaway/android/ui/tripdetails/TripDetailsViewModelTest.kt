@@ -27,7 +27,7 @@ import org.junit.Test
 import org.onebusaway.android.R
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.testing.MainDispatcherRule
-import org.onebusaway.android.ui.TripDetailsActivity
+import org.onebusaway.android.ui.nav.NavRoutes
 
 private class FakeTripDetailsRepository(
     var result: Result<TripDetailsData>
@@ -56,7 +56,7 @@ class TripDetailsViewModelTest {
 
     // The VM reads its launch args from SavedStateHandle (seeded from intent extras in production).
     private fun handle(tripId: String = "t") =
-        SavedStateHandle(mapOf(TripDetailsActivity.TRIP_ID to tripId))
+        SavedStateHandle(mapOf(NavRoutes.ARG_TRIP_ID to tripId))
 
     private fun data(routeId: String = "1_8") = TripDetailsData(
         header = TripHeader(

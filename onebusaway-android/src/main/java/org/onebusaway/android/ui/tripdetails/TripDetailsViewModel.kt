@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.onebusaway.android.ui.TripDetailsActivity
+import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
  * ViewModel for the trip details screen. The 60-second polling loop lives in the screen (driven by
@@ -37,17 +37,17 @@ class TripDetailsViewModel @Inject constructor(
     private val repository: TripDetailsRepository,
 ) : ViewModel() {
 
-    // Launch args arrive via SavedStateHandle (seeded from the hosting Activity's intent extras),
-    // keyed by the same TripDetailsActivity extras the Builder writes — no hand-written factory.
-    private val tripId: String = savedState.get<String>(TripDetailsActivity.TRIP_ID)
+    // Launch args arrive via SavedStateHandle — from the NavHost destination's nav-args, or from the
+    // standalone TripDetailsActivity's Builder, both keyed by the same clean NavRoutes arg names.
+    private val tripId: String = savedState.get<String>(NavRoutes.ARG_TRIP_ID)
         ?: throw IllegalStateException("TripId should not be null")
-    private val stopId: String? = savedState.get<String>(TripDetailsActivity.STOP_ID)
-    private val scrollMode: String? = savedState.get<String>(TripDetailsActivity.SCROLL_MODE)
+    private val stopId: String? = savedState.get<String>(NavRoutes.ARG_STOP_ID)
+    private val scrollMode: String? = savedState.get<String>(NavRoutes.ARG_SCROLL_MODE)
 
     private val _state = MutableStateFlow<TripDetailsUiState>(TripDetailsUiState.Loading)
     val state: StateFlow<TripDetailsUiState> = _state.asStateFlow()
 
-    private var destinationId: String? = savedState.get<String>(TripDetailsActivity.DEST_ID)
+    private var destinationId: String? = savedState.get<String>(NavRoutes.ARG_DEST_ID)
 
     /** Wall-clock time of the last completed load, read by the screen's polling loop. */
     var lastResponseTimeMs: Long = 0L

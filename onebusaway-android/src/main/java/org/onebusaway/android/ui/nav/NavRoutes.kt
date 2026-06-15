@@ -55,4 +55,21 @@ object NavRoutes {
     fun arrivals(stopId: String, stopName: String? = null): String =
         "arrivals/${Uri.encode(stopId)}" +
             if (stopName != null) "?$ARG_STOP_NAME=${Uri.encode(stopName)}" else ""
+
+    // --- Trip details (C-d) ---
+    // Clean nav-arg keys read by TripDetailsViewModel from SavedStateHandle (TripDetailsActivity's
+    // Builder writes the same keys for the standalone path). stopId reuses ARG_STOP_ID above.
+    const val ARG_TRIP_ID = "tripId"
+    const val ARG_SCROLL_MODE = "scrollMode"
+    const val ARG_DEST_ID = "destinationId"
+    const val TRIP_DETAILS = "tripDetails/{$ARG_TRIP_ID}?$ARG_STOP_ID={$ARG_STOP_ID}&$ARG_SCROLL_MODE={$ARG_SCROLL_MODE}"
+
+    /** Builds a navigable [TRIP_DETAILS] route (ids can contain `/`, `_`; encode them). */
+    fun tripDetails(tripId: String, stopId: String? = null, scrollMode: String? = null): String {
+        val query = buildList {
+            if (stopId != null) add("$ARG_STOP_ID=${Uri.encode(stopId)}")
+            if (scrollMode != null) add("$ARG_SCROLL_MODE=${Uri.encode(scrollMode)}")
+        }.joinToString("&")
+        return "tripDetails/${Uri.encode(tripId)}" + if (query.isNotEmpty()) "?$query" else ""
+    }
 }

@@ -27,18 +27,54 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
- * Injected access to user preferences — the reactive replacement for scattered static
+ * Injected access to user preferences — the replacement for scattered static
  * `Application.getPrefs()` / `PreferenceUtils` reads (roadmap §1.2, alongside RegionRepository /
- * LocationRepository). Keys are passed as string resource ids so callers (view models) stay
- * Context-free and JVM-testable; the implementation resolves them.
+ * LocationRepository).
  *
- * This is the reactive seam: a consumer that today polls a pref on resume collects [observeBoolean]
- * instead. Synchronous accessors are added here as one-shot consumers migrate off `PreferenceUtils`.
+ * Two ways in:
+ * - [observeBoolean] is the *reactive* seam — a consumer that today polls a pref on resume collects
+ *   it instead.
+ * - The synchronous `getX` / `setX` accessors are the one-shot replacement for `PreferenceUtils`.
+ *
+ * Every accessor comes in two key forms. The `@StringRes` overload lets a caller name a pref by its
+ * resource id and stay Context-free / JVM-testable (the implementation resolves it); the `String`
+ * overload handles keys that are const or runtime strings rather than resources (e.g. the
+ * region-version slots, a map layer's preference key).
  */
 interface PreferencesRepository {
 
     /** Emits the current value of the boolean pref [keyRes] and re-emits on every change. */
     fun observeBoolean(@StringRes keyRes: Int, default: Boolean): Flow<Boolean>
+
+    fun getBoolean(@StringRes keyRes: Int, default: Boolean): Boolean
+    fun getBoolean(key: String, default: Boolean): Boolean
+
+    fun getString(@StringRes keyRes: Int, default: String?): String?
+    fun getString(key: String, default: String?): String?
+
+    fun getInt(@StringRes keyRes: Int, default: Int): Int
+    fun getInt(key: String, default: Int): Int
+
+    fun getLong(@StringRes keyRes: Int, default: Long): Long
+    fun getLong(key: String, default: Long): Long
+
+    fun getFloat(@StringRes keyRes: Int, default: Float): Float
+    fun getFloat(key: String, default: Float): Float
+
+    fun setBoolean(@StringRes keyRes: Int, value: Boolean)
+    fun setBoolean(key: String, value: Boolean)
+
+    fun setString(@StringRes keyRes: Int, value: String?)
+    fun setString(key: String, value: String?)
+
+    fun setInt(@StringRes keyRes: Int, value: Int)
+    fun setInt(key: String, value: Int)
+
+    fun setLong(@StringRes keyRes: Int, value: Long)
+    fun setLong(key: String, value: Long)
+
+    fun setFloat(@StringRes keyRes: Int, value: Float)
+    fun setFloat(key: String, value: Float)
 }
 
 /** Default implementation over the injected [SharedPreferences]. */
@@ -56,4 +92,37 @@ class DefaultPreferencesRepository @Inject constructor(
         prefs.registerOnSharedPreferenceChangeListener(listener)
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }.conflate().distinctUntilChanged()
+
+    // The @StringRes overloads resolve the key and delegate to the String overloads, which are the
+    // single point of contact with SharedPreferences.
+
+    override fun getBoolean(keyRes: Int, default: Boolean) = getBoolean(context.getString(keyRes), default)
+    override fun getBoolean(key: String, default: Boolean) = prefs.getBoolean(key, default)
+
+    override fun getString(keyRes: Int, default: String?) = getString(context.getString(keyRes), default)
+    override fun getString(key: String, default: String?): String? = prefs.getString(key, default)
+
+    override fun getInt(keyRes: Int, default: Int) = getInt(context.getString(keyRes), default)
+    override fun getInt(key: String, default: Int) = prefs.getInt(key, default)
+
+    override fun getLong(keyRes: Int, default: Long) = getLong(context.getString(keyRes), default)
+    override fun getLong(key: String, default: Long) = prefs.getLong(key, default)
+
+    override fun getFloat(keyRes: Int, default: Float) = getFloat(context.getString(keyRes), default)
+    override fun getFloat(key: String, default: Float) = prefs.getFloat(key, default)
+
+    override fun setBoolean(keyRes: Int, value: Boolean) = setBoolean(context.getString(keyRes), value)
+    override fun setBoolean(key: String, value: Boolean) = prefs.edit().putBoolean(key, value).apply()
+
+    override fun setString(keyRes: Int, value: String?) = setString(context.getString(keyRes), value)
+    override fun setString(key: String, value: String?) = prefs.edit().putString(key, value).apply()
+
+    override fun setInt(keyRes: Int, value: Int) = setInt(context.getString(keyRes), value)
+    override fun setInt(key: String, value: Int) = prefs.edit().putInt(key, value).apply()
+
+    override fun setLong(keyRes: Int, value: Long) = setLong(context.getString(keyRes), value)
+    override fun setLong(key: String, value: Long) = prefs.edit().putLong(key, value).apply()
+
+    override fun setFloat(keyRes: Int, value: Float) = setFloat(context.getString(keyRes), value)
+    override fun setFloat(key: String, value: Float) = prefs.edit().putFloat(key, value).apply()
 }

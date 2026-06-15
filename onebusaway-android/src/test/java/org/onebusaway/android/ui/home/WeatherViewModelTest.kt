@@ -36,8 +36,40 @@ private class FakeWeatherRepository(var result: Result<WeatherData>) : WeatherRe
     }
 }
 
+/**
+ * In-memory [PreferencesRepository] for JVM tests. Synchronous accessors read/write a backing map
+ * keyed by the resource id (or string) so they round-trip; [observeBoolean] reports the constructor
+ * [enabled] flag (the only reactive value WeatherViewModel cares about).
+ */
 private class FakePreferencesRepository(private val enabled: Boolean = true) : PreferencesRepository {
+    private val values = mutableMapOf<Any, Any?>()
+
     override fun observeBoolean(keyRes: Int, default: Boolean): Flow<Boolean> = flowOf(enabled)
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> read(key: Any, default: T): T = (values[key] as T?) ?: default
+
+    override fun getBoolean(keyRes: Int, default: Boolean) = read(keyRes, default)
+    override fun getBoolean(key: String, default: Boolean) = read(key, default)
+    override fun getString(keyRes: Int, default: String?) = read(keyRes, default)
+    override fun getString(key: String, default: String?) = read(key, default)
+    override fun getInt(keyRes: Int, default: Int) = read(keyRes, default)
+    override fun getInt(key: String, default: Int) = read(key, default)
+    override fun getLong(keyRes: Int, default: Long) = read(keyRes, default)
+    override fun getLong(key: String, default: Long) = read(key, default)
+    override fun getFloat(keyRes: Int, default: Float) = read(keyRes, default)
+    override fun getFloat(key: String, default: Float) = read(key, default)
+
+    override fun setBoolean(keyRes: Int, value: Boolean) { values[keyRes] = value }
+    override fun setBoolean(key: String, value: Boolean) { values[key] = value }
+    override fun setString(keyRes: Int, value: String?) { values[keyRes] = value }
+    override fun setString(key: String, value: String?) { values[key] = value }
+    override fun setInt(keyRes: Int, value: Int) { values[keyRes] = value }
+    override fun setInt(key: String, value: Int) { values[key] = value }
+    override fun setLong(keyRes: Int, value: Long) { values[keyRes] = value }
+    override fun setLong(key: String, value: Long) { values[key] = value }
+    override fun setFloat(keyRes: Int, value: Float) { values[keyRes] = value }
+    override fun setFloat(key: String, value: Float) { values[key] = value }
 }
 
 /**

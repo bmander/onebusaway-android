@@ -42,6 +42,7 @@ import com.google.firebase.analytics.FirebaseAnalytics
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.Calendar
 import java.util.TimeZone
+import javax.inject.Inject
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
@@ -52,6 +53,7 @@ import org.onebusaway.android.directions.util.TripRequestBuilder
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.map.MapParams
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.tripplan.AdvancedSettings
 import org.onebusaway.android.ui.tripplan.PlaceItem
@@ -74,6 +76,9 @@ import org.opentripplanner.api.model.Itinerary
 class TripPlanActivity : AppCompatActivity() {
 
     private val viewModel: TripPlanViewModel by viewModels()
+
+    @Inject
+    lateinit var regionRepository: RegionRepository
 
     private lateinit var firebaseAnalytics: FirebaseAnalytics
 
@@ -328,7 +333,7 @@ class TripPlanActivity : AppCompatActivity() {
     }
 
     private fun reportProblem() {
-        val email = Application.get().currentRegion?.otpContactEmail
+        val email = regionRepository.region.value?.otpContactEmail
         if (email.isNullOrEmpty()) {
             Toast.makeText(this, getString(R.string.tripplanner_no_contact), Toast.LENGTH_SHORT).show()
             return

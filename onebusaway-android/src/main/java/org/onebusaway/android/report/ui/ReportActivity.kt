@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.google.firebase.analytics.FirebaseAnalytics
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
@@ -33,6 +34,7 @@ import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.map.MapParams
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.report.constants.ReportConstants
 import org.onebusaway.android.report.ui.dialog.RegionValidateDialog
 import org.onebusaway.android.ui.SettingsActivity
@@ -59,6 +61,9 @@ class ReportActivity : BaseReportActivity() {
     private lateinit var firebaseAnalytics: FirebaseAnalytics
 
     private val viewModel: ReportTypeListViewModel by viewModels()
+
+    @Inject
+    lateinit var regionRepository: RegionRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -138,7 +143,7 @@ class ReportActivity : BaseReportActivity() {
 
     /** Don't re-validate a region the user already confirmed (skipped for the single-region brand). */
     private fun showValidateRegionDialog(): Boolean {
-        val currentRegion: ObaRegion = Application.get().currentRegion ?: return false
+        val currentRegion: ObaRegion = regionRepository.region.value ?: return false
         val validatedRegionId = PreferenceUtils.getLong(ReportConstants.PREF_VALIDATED_REGION_ID, -1)
         val needsValidation = validatedRegionId == -1L || currentRegion.id != validatedRegionId
         if (!needsValidation) return false

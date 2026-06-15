@@ -16,60 +16,31 @@
  */
 package org.onebusaway.android.ui
 
-import android.Manifest
-import android.app.Activity
-import android.app.Dialog
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
-import android.content.IntentSender
-import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
-import android.widget.CheckBox
-import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import androidx.core.graphics.drawable.DrawableCompat
-import com.google.android.gms.common.api.ApiException
-import com.google.android.gms.common.api.ResolvableApiException
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.LocationSettingsRequest
-import com.google.android.gms.location.LocationSettingsStatusCodes
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.firebase.analytics.FirebaseAnalytics
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
-import org.onebusaway.android.io.ObaAnalytics
-import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.preferences.PreferencesRepository
-import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.tripdetails.TripDetailsRoute
 import org.onebusaway.android.ui.tripdetails.TripDetailsViewModel
-import org.onebusaway.android.util.DBUtil
-import org.onebusaway.android.util.LocationUtils
-import org.onebusaway.android.util.PermissionUtils.NOTIFICATION_PERMISSION_REQUEST
+import org.onebusaway.android.ui.tripdetails.rememberDestinationReminderAction
 
 /**
  * Shows a trip's stops along the vertical transit line, with the vehicle's live position.
  *
  * Compose + MVVM screen: the Activity is a thin host for [TripDetailsRoute]; trip state lives in
- * [TripDetailsViewModel]. The Activity keeps the [Builder] launch API (used by the arrivals
- * "show trip details" action and by NavigationServiceProvider for destination reminders) and owns
- * the Android-heavy destination-reminder flow (location/permission resolution + NavigationService).
+ * [TripDetailsViewModel] and the destination-reminder flow in [rememberDestinationReminderAction]
+ * (shared with the trip-details NavHost destination). The Activity keeps the [Builder] launch API
+ * (used by the arrivals "show trip details" action, the map vehicle tap, and NavigationServiceProvider).
  */
 @AndroidEntryPoint
 class TripDetailsActivity : AppCompatActivity() {
 
-    // Kept for the destination-reminder/service flow below; the view model reads its own copies of
-    // the launch args from SavedStateHandle (seeded from these same intent extras).
     private val tripId: String by lazy {
         intent.getStringExtra(TRIP_ID) ?: throw IllegalStateException("TripId should not be null")
     }
@@ -80,16 +51,8 @@ class TripDetailsActivity : AppCompatActivity() {
 
     private val viewModel: TripDetailsViewModel by viewModels()
 
-    private lateinit var firebaseAnalytics: FirebaseAnalytics
-
-    /** The service intent saved when we have to wait for the user to enable location settings. */
-    private var pendingServiceIntent: Intent? = null
-
-    private var tripEndReceiver: BroadcastReceiver? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        firebaseAnalytics = FirebaseAnalytics.getInstance(this)
         setContent {
             ObaTheme {
                 TripDetailsRoute(
@@ -103,198 +66,15 @@ class TripDetailsActivity : AppCompatActivity() {
                             .setStopDirection(direction)
                             .start()
                     },
-                    onSetDestinationReminder = { index -> confirmDestinationReminder(index) }
+                    onSetDestinationReminder = rememberDestinationReminderAction(
+                        viewModel = viewModel,
+                        prefsRepository = prefsRepository,
+                        tripId = tripId,
+                        stopId = stopId,
+                    )
                 )
             }
         }
-    }
-
-    // -- Destination reminder flow (ported faithfully from the legacy TripDetailsListFragment) --
-
-    private fun confirmDestinationReminder(position: Int) {
-        MaterialAlertDialogBuilder(this)
-            .setMessage(R.string.destination_reminder_dialog_msg)
-            .setTitle(R.string.destination_reminder_dialog_title)
-            .setPositiveButton(R.string.destination_reminder_confirm) { dialog, _ ->
-                onDestinationReminderConfirmed(position)
-                dialog.dismiss()
-            }
-            .setNegativeButton(R.string.destination_reminder_cancel) { _, _ -> }
-            .show()
-    }
-
-    private fun onDestinationReminderConfirmed(position: Int) {
-        if (!LocationUtils.isLocationEnabled(this)) {
-            // We still build the pending service intent so onActivityResult can start it.
-            if (setUpNavigationService(position) == null) return
-            askUserToTurnLocationOn()
-            return
-        }
-        if (!prefsRepository.getBoolean(R.string.preference_key_never_show_change_location_mode_dialog, false) &&
-            LocationUtils.getLocationMode(this) != Settings.Secure.LOCATION_MODE_HIGH_ACCURACY
-        ) {
-            dialogForLocationModeChanges().show()
-        }
-        if (!prefsRepository.getBoolean(R.string.preference_key_never_show_destination_reminder_beta_dialog, false)) {
-            destinationReminderBetaDialog().show()
-        }
-        ObaAnalytics.reportUiEvent(
-            firebaseAnalytics, Application.get().plausibleInstance,
-            PlausibleAnalytics.REPORT_DESTINATION_REMINDER_EVENT_URL,
-            getString(R.string.analytics_label_destination_reminder),
-            getString(R.string.analytics_label_destination_reminder_variant_started)
-        )
-        ActivityCompat.requestPermissions(
-            this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_PERMISSION_REQUEST
-        )
-        val serviceIntent = setUpNavigationService(position) ?: return
-        startNavigationService(serviceIntent)
-        Toast.makeText(
-            this, getString(R.string.destination_reminder_title), Toast.LENGTH_LONG
-        ).show()
-        val currentTime = viewModel.lastResponse()?.currentTime ?: System.currentTimeMillis()
-        TravelBehaviorManager.saveDestinationReminders(
-            stopId, pendingServiceIntent?.getStringExtra(org.onebusaway.android.nav.NavigationService.DESTINATION_ID),
-            tripId, viewModel.routeId(), currentTime
-        )
-    }
-
-    /** Builds the NavigationService intent for the destination at [position]; flags the stop. */
-    private fun setUpNavigationService(position: Int): Intent? {
-        val response = viewModel.lastResponse() ?: return null
-        val stopTimes = response.schedule?.stopTimes ?: return null
-        if (position < 1 || position >= stopTimes.size) return null
-        val destStop = response.refs.getStop(stopTimes[position].stopId)
-        val lastStop = response.refs.getStop(stopTimes[position - 1].stopId)
-        DBUtil.addToDB(lastStop)
-        DBUtil.addToDB(destStop)
-        val serviceIntent = Intent(this, org.onebusaway.android.nav.NavigationService::class.java).apply {
-            putExtra(org.onebusaway.android.nav.NavigationService.DESTINATION_ID, destStop.id)
-            putExtra(org.onebusaway.android.nav.NavigationService.BEFORE_STOP_ID, lastStop.id)
-            putExtra(org.onebusaway.android.nav.NavigationService.TRIP_ID, tripId)
-        }
-        viewModel.setDestinationId(destStop.id)
-        pendingServiceIntent = serviceIntent
-        return serviceIntent
-    }
-
-    private fun askUserToTurnLocationOn() {
-        @Suppress("DEPRECATION")
-        val locationRequest = LocationRequest.create().apply {
-            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-        }
-        val request = LocationSettingsRequest.Builder().addLocationRequest(locationRequest).build()
-        LocationServices.getSettingsClient(this).checkLocationSettings(request)
-            .addOnCompleteListener { task ->
-                try {
-                    task.getResult(ApiException::class.java)
-                } catch (e: ApiException) {
-                    if (e.statusCode == LocationSettingsStatusCodes.RESOLUTION_REQUIRED) {
-                        try {
-                            (e as ResolvableApiException)
-                                .startResolutionForResult(this, REQUEST_ENABLE_LOCATION)
-                        } catch (ignored: IntentSender.SendIntentException) {
-                        } catch (ignored: ClassCastException) {
-                        }
-                    }
-                }
-            }
-    }
-
-    private fun dialogForLocationModeChanges(): Dialog {
-        val view = layoutInflater.inflate(R.layout.change_locationmode_dialog, null)
-        view.findViewById<CheckBox>(R.id.change_locationmode_never_ask_again)
-            .setOnCheckedChangeListener { _, isChecked ->
-                prefsRepository.setBoolean(
-                    R.string.preference_key_never_show_change_location_mode_dialog, isChecked
-                )
-            }
-        @Suppress("DEPRECATION")
-        val icon = resources.getDrawable(android.R.drawable.ic_dialog_map).also {
-            @Suppress("DEPRECATION")
-            DrawableCompat.setTint(it, resources.getColor(R.color.theme_primary))
-        }
-        return MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.main_changelocationmode_title)
-            .setIcon(icon)
-            .setCancelable(false)
-            .setView(view)
-            .setPositiveButton(R.string.rt_yes) { _, _ ->
-                startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-            }
-            .setNegativeButton(R.string.rt_no) { _, _ -> }
-            .create()
-    }
-
-    private fun destinationReminderBetaDialog(): Dialog {
-        val view = layoutInflater.inflate(R.layout.destination_reminder_beta_dialog, null)
-        view.findViewById<CheckBox>(R.id.destination_reminder_beta_never_show_again)
-            .setOnCheckedChangeListener { _, isChecked ->
-                prefsRepository.setBoolean(
-                    R.string.preference_key_never_show_destination_reminder_beta_dialog, isChecked
-                )
-            }
-        @Suppress("DEPRECATION")
-        val icon = resources.getDrawable(android.R.drawable.ic_dialog_alert).also {
-            @Suppress("DEPRECATION")
-            DrawableCompat.setTint(it, resources.getColor(R.color.theme_primary))
-        }
-        return MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.destination_reminder_beta_title)
-            .setIcon(icon)
-            .setCancelable(false)
-            .setView(view)
-            .setPositiveButton(R.string.ok) { _, _ -> }
-            .create()
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (requestCode == REQUEST_ENABLE_LOCATION) {
-            if (resultCode == Activity.RESULT_OK) {
-                pendingServiceIntent?.let { startNavigationService(it) }
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            super.onActivityResult(requestCode, resultCode, data)
-        }
-    }
-
-    private fun startNavigationService(serviceIntent: Intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            applicationContext.startForegroundService(serviceIntent)
-        } else {
-            applicationContext.startService(serviceIntent)
-        }
-        registerTripEndReceiver()
-    }
-
-    /** Clears the destination flag when the NavigationService is destroyed (trip cancelled/ended). */
-    private fun registerTripEndReceiver() {
-        if (tripEndReceiver != null) return
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == ACTION_SERVICE_DESTROYED) {
-                    viewModel.setDestinationId(null)
-                    runCatching { unregisterReceiver(this) }
-                    tripEndReceiver = null
-                }
-            }
-        }
-        tripEndReceiver = receiver
-        val filter = IntentFilter(ACTION_SERVICE_DESTROYED)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(receiver, filter)
-        }
-    }
-
-    override fun onDestroy() {
-        tripEndReceiver?.let { runCatching { unregisterReceiver(it) } }
-        tripEndReceiver = null
-        super.onDestroy()
     }
 
     /** Fluent launcher for the trip details screen. */
@@ -326,8 +106,9 @@ class TripDetailsActivity : AppCompatActivity() {
         const val SCROLL_MODE_VEHICLE = "vehicle"
         const val SCROLL_MODE_STOP = "stop"
         const val DEST_ID = ".DestinationId"
+
+        /** Broadcast action the [org.onebusaway.android.nav.NavigationService] sends when destroyed. */
         const val ACTION_SERVICE_DESTROYED = "NavigationServiceDestroyed"
-        const val REQUEST_ENABLE_LOCATION = 1
 
         @JvmStatic
         fun start(context: Context, tripId: String) {

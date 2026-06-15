@@ -100,6 +100,8 @@ import org.onebusaway.android.ui.mylists.StarredStopsRepository
 import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.regions.RegionsRoute
 import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
+import org.onebusaway.android.ui.searchresults.SearchResultsRoute
+import org.onebusaway.android.ui.searchresults.SearchResultsViewModel
 import org.onebusaway.android.ui.tripdetails.TripDetailsRoute
 import org.onebusaway.android.ui.tripdetails.TripDetailsViewModel
 import org.onebusaway.android.ui.tripdetails.rememberDestinationReminderAction
@@ -111,6 +113,7 @@ import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
 import org.onebusaway.android.ui.survey.SurveyViewModel
 import org.onebusaway.android.ui.survey.activities.SurveyWebViewScreen
+import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
@@ -599,6 +602,53 @@ class HomeActivity : AppCompatActivity() {
                         )
                     }
                 }
+                // Search results (system ACTION_SEARCH + the home top-bar search field). The query is a
+                // nav-arg; result taps route to the in-NavHost destinations (route info / arrivals) or
+                // the map. Re-search when the query arg changes (a fresh search reuses this entry).
+                composable(
+                    NavRoutes.SEARCH,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_QUERY) {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val query = backStackEntry.arguments?.getString(NavRoutes.ARG_QUERY).orEmpty()
+                    val searchVm: SearchResultsViewModel = hiltViewModel()
+                    LaunchedEffect(query) {
+                        ObaAnalytics.reportSearchEvent(
+                            Application.get().plausibleInstance, firebaseAnalytics, query
+                        )
+                        searchVm.search(query)
+                    }
+                    ObaTheme {
+                        SearchResultsRoute(
+                            viewModel = searchVm,
+                            onBack = { navController.popBackStack() },
+                            onRouteListStops = { route ->
+                                DBUtil.addRouteToDB(
+                                    this@HomeActivity, route.id, route.shortName, route.longName, route.url
+                                )
+                                navController.navigate(NavRoutes.routeInfo(route.id))
+                            },
+                            onRouteShowOnMap = { route ->
+                                DBUtil.addRouteToDB(
+                                    this@HomeActivity, route.id, route.shortName, route.longName, route.url
+                                )
+                                HomeActivity.start(this@HomeActivity, route.id)
+                            },
+                            onStopArrivals = { stop ->
+                                navController.navigate(NavRoutes.arrivals(stop.id))
+                            },
+                            onStopShowOnMap = { stop ->
+                                HomeActivity.start(
+                                    this@HomeActivity, stop.id, stop.latitude, stop.longitude
+                                )
+                            },
+                        )
+                    }
+                }
             }
         }
 
@@ -657,6 +707,10 @@ class HomeActivity : AppCompatActivity() {
         if (intent == null) return null
         // In-app / cross-screen launches carry their destination route verbatim (see [navIntent]).
         intent.getStringExtra(EXTRA_NAV_ROUTE)?.let { return it }
+        // System search (HomeActivity is the default_searchable target): open the search destination.
+        if (intent.action == Intent.ACTION_SEARCH) {
+            return NavRoutes.search(intent.getStringExtra(SearchManager.QUERY).orEmpty())
+        }
         intent.getStringExtra("arrival_and_departure")?.let { arrivalJson ->
             ReminderUtils.handleArrivalPayload(applicationContext, arrivalJson)
             return ReminderUtils.getStopIdFromPayload(arrivalJson)?.let { NavRoutes.arrivals(it, null) }
@@ -870,15 +924,12 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
-     * Runs the global search for [query] (from [HomeTopBar]'s search field) by firing the legacy
-     * `ACTION_SEARCH` flow — `SearchActivity` (the app's `default_searchable`) shows the results.
+     * Runs the global search for [query] (from [HomeTopBar]'s search field) by navigating to the
+     * search destination (staged through [pendingDeepLinkRoute] since the navController lives in the
+     * NavHost composition, not here).
      */
     private fun onSearch(query: String) {
-        startActivity(
-            Intent(this, SearchActivity::class.java)
-                .setAction(Intent.ACTION_SEARCH)
-                .putExtra(SearchManager.QUERY, query)
-        )
+        pendingDeepLinkRoute.value = NavRoutes.search(query)
     }
 
     /** Opens the recent stops/routes screen (the toolbar overflow item). */

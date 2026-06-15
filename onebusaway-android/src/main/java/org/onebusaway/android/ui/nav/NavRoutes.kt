@@ -46,6 +46,13 @@ object NavRoutes {
     /** "Why donate" explainer with a button out to the donations page. */
     const val DONATION_LEARN_MORE = "donationLearnMore"
 
+    // --- Search results (system ACTION_SEARCH target + the home top-bar search field) ---
+    const val ARG_QUERY = "query"
+    const val SEARCH = "search?$ARG_QUERY={$ARG_QUERY}"
+
+    /** Builds a navigable [SEARCH] route for [query]. */
+    fun search(query: String): String = "search?$ARG_QUERY=${Uri.encode(query)}"
+
     // --- Survey web view (Campaign C) ---
     // The external-survey WebView host. The survey URL is the only nav-arg (the former
     // SurveyWebViewActivity also accepted optional stop_id / route_ids / embedded_data extras, but the

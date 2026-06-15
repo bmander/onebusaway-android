@@ -63,21 +63,10 @@
 
         <meta-data
             android:name="android.app.default_searchable"
-            android:value="org.onebusaway.android.ui.SearchActivity" />
+            android:value="org.onebusaway.android.ui.HomeActivity" />
 
-        <activity
-            android:name="org.onebusaway.android.ui.SearchActivity"
-            android:launchMode="singleTop"
-            android:exported="true"
-            android:configChanges="orientation|keyboardHidden|screenSize">
-            <intent-filter>
-                <action android:name="android.intent.action.SEARCH" />
-            </intent-filter>
-            <meta-data
-                android:name="android.app.searchable"
-                android:resource="@xml/searchable"/>
-        </activity>
-
+        <!-- Single-activity Campaign C: HomeActivity is the launcher AND the system-search target
+             (ACTION_SEARCH); its translator routes the query to the search NavHost destination. -->
         <activity
             android:name="org.onebusaway.android.ui.HomeActivity"
             android:launchMode="singleTop"
@@ -87,6 +76,12 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEARCH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.searchable"
+                android:resource="@xml/searchable"/>
         </activity>
         <!-- Campaign C-c: arrivals is a HomeActivity NavHost destination. These frozen component names
              (old pinned launcher shortcuts) keep resolving via aliases → HomeActivity, which reads the

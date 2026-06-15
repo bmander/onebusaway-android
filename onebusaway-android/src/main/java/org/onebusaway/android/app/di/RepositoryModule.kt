@@ -27,6 +27,8 @@ import org.onebusaway.android.map.bike.BikeStationsRepository
 import org.onebusaway.android.map.bike.DefaultBikeStationsRepository
 import org.onebusaway.android.ui.agencies.AgenciesRepository
 import org.onebusaway.android.ui.agencies.DefaultAgenciesRepository
+import org.onebusaway.android.ui.arrivals.ArrivalsRepository
+import org.onebusaway.android.ui.arrivals.DefaultArrivalsRepository
 import org.onebusaway.android.ui.home.DefaultNavItemsRepository
 import org.onebusaway.android.ui.home.DefaultRegionStatusRepository
 import org.onebusaway.android.ui.home.DefaultStartupPreferencesRepository
@@ -141,4 +143,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindRegionStatusRepository(impl: DefaultRegionStatusRepository): RegionStatusRepository
+
+    // Arrivals: unscoped on purpose — DefaultArrivalsRepository is stateful (lastGood) and 1:1 with its
+    // (assisted) ArrivalsViewModel, so each VM gets its own. Do NOT make this @Singleton.
+    @Binds
+    abstract fun bindArrivalsRepository(impl: DefaultArrivalsRepository): ArrivalsRepository
 }

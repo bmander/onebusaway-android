@@ -53,6 +53,7 @@ import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.map.RouteHeader
 import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.survey.SurveyViewModel
 
@@ -114,6 +115,10 @@ fun HomeScreen(
     weatherViewModel: WeatherViewModel,
     helpViewModel: HelpViewModel,
     listVms: HomeListViewModels,
+    // Builds the per-focused-stop ArrivalsViewModel for the bottom-sheet host (assisted-injected;
+    // the sheet's stop id is runtime-dynamic, so it can't be a plain hiltViewModel). Injected into
+    // HomeActivity and threaded down.
+    arrivalsViewModelFactory: ArrivalsViewModel.Factory,
     // All the screen's tap/UI lambdas, bundled (see [HomeCallbacks]); brought into scope below via
     // `with` so the body references them unqualified.
     callbacks: HomeCallbacks,
@@ -240,6 +245,7 @@ fun HomeScreen(
                         ArrivalsSheetHost(
                             focusedStop = state.focusedStop,
                             collapsed = sheetState.currentValue != SheetValue.Expanded,
+                            arrivalsViewModelFactory = arrivalsViewModelFactory,
                             onArrivalsLoaded = onArrivalsLoaded,
                             onShowRouteOnMap = onShowRouteOnMap,
                             onToggleSheet = onToggleSheet,

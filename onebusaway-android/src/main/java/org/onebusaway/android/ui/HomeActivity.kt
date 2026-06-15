@@ -58,6 +58,7 @@ import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
+import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.DonationViewModel
 import org.onebusaway.android.ui.home.WeatherViewModel
@@ -96,6 +97,11 @@ class HomeActivity : AppCompatActivity() {
     // remembered nav item). HomeViewModel is now a plain @HiltViewModel — no hand-built factory.
     @Inject
     lateinit var prefsRepository: PreferencesRepository
+
+    // Builds the per-stop ArrivalsViewModel for the home bottom-sheet host (and, in C-b.3, the
+    // arrivals NavHost destination). Assisted because the sheet's stop id is runtime-dynamic.
+    @Inject
+    lateinit var arrivalsViewModelFactory: ArrivalsViewModel.Factory
 
     private val viewModel: HomeViewModel by viewModels()
 
@@ -192,6 +198,7 @@ class HomeActivity : AppCompatActivity() {
                         weatherViewModel = weatherViewModel,
                         helpViewModel = helpViewModel,
                         listVms = listVms,
+                        arrivalsViewModelFactory = arrivalsViewModelFactory,
                         callbacks = homeCallbacks,
                         onShowRouteInfo = { routeId ->
                             navController.navigate(NavRoutes.routeInfo(routeId))

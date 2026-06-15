@@ -114,14 +114,14 @@ class ArrivalsViewModelTest {
 
     @Test
     fun `initial state is Loading`() = runTest {
-        val viewModel = ArrivalsViewModel("1_100", FakeArrivalsRepository(Result.success(data())))
+        val viewModel = ArrivalsViewModel("1_100", false, FakeArrivalsRepository(Result.success(data())))
 
         assertEquals(ArrivalsUiState.Loading, viewModel.state.value)
     }
 
     @Test
     fun `refresh emits Content on success`() = runTest {
-        val viewModel = ArrivalsViewModel("1_100", FakeArrivalsRepository(Result.success(data())))
+        val viewModel = ArrivalsViewModel("1_100", false, FakeArrivalsRepository(Result.success(data())))
 
         viewModel.refresh()
 
@@ -134,6 +134,7 @@ class ArrivalsViewModelTest {
     fun `refresh emits Error when there is no content and the load fails`() = runTest {
         val viewModel = ArrivalsViewModel(
             "1_100",
+            false,
             FakeArrivalsRepository(Result.failure(IOException("No network")))
         )
 
@@ -145,7 +146,7 @@ class ArrivalsViewModelTest {
     @Test
     fun `a failed poll keeps existing content instead of showing Error`() = runTest {
         val repository = FakeArrivalsRepository(Result.success(data()))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
         viewModel.refresh()
         assertTrue(viewModel.state.value is ArrivalsUiState.Content)
 
@@ -159,6 +160,7 @@ class ArrivalsViewModelTest {
     fun `the stale flag flows through to the Content state`() = runTest {
         val viewModel = ArrivalsViewModel(
             "1_100",
+            false,
             FakeArrivalsRepository(Result.success(data(isStale = true)))
         )
 
@@ -170,7 +172,7 @@ class ArrivalsViewModelTest {
     @Test
     fun `load more widens the time window on the next request`() = runTest {
         val repository = FakeArrivalsRepository(Result.success(data(minutesAfter = 65)))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
         viewModel.refresh()
 
         viewModel.loadMore()
@@ -183,7 +185,7 @@ class ArrivalsViewModelTest {
     @Test
     fun `toggle favorite optimistically updates the header and persists`() = runTest {
         val repository = FakeArrivalsRepository(Result.success(data(favorite = false)))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
         viewModel.refresh()
 
         viewModel.toggleFavorite()
@@ -196,7 +198,7 @@ class ArrivalsViewModelTest {
     @Test
     fun `the route filter is seeded from the provider on the first load`() = runTest {
         val repository = FakeArrivalsRepository(Result.success(data()), persistedFilter = setOf("1_5"))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
 
         viewModel.refresh() // first load: null lets the repo read the persisted filter
         viewModel.refresh() // second load: uses the seeded filter
@@ -207,7 +209,7 @@ class ArrivalsViewModelTest {
     @Test
     fun `setRouteFilter persists the filter and reloads with it`() = runTest {
         val repository = FakeArrivalsRepository(Result.success(data()))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
         viewModel.refresh()
 
         viewModel.setRouteFilter(setOf("1_10"))
@@ -220,7 +222,7 @@ class ArrivalsViewModelTest {
     @Test
     fun `showOnlyRoute narrows to that route, then clears when repeated`() = runTest {
         val repository = FakeArrivalsRepository(Result.success(data()))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
         viewModel.refresh()
 
         viewModel.showOnlyRoute("1_5")
@@ -239,7 +241,7 @@ class ArrivalsViewModelTest {
             alerts = listOf(AlertItem("a1", "Reduced service", AlertSeverity.WARNING))
         )
         val repository = FakeArrivalsRepository(Result.success(withAlerts))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
         viewModel.refresh()
 
         viewModel.hideAllAlerts()

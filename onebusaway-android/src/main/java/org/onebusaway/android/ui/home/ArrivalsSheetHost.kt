@@ -33,7 +33,6 @@ import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.ui.arrivals.ArrivalsPanel
 import org.onebusaway.android.ui.arrivals.ArrivalsUiState
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
-import org.onebusaway.android.ui.arrivals.DefaultArrivalsRepository
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.compose.rememberClearedViewModelStoreOwner
 import org.onebusaway.android.ui.createArrivalActionHandler
@@ -54,6 +53,7 @@ import org.onebusaway.android.ui.createArrivalActionHandler
 internal fun ArrivalsSheetHost(
     focusedStop: FocusedStop?,
     collapsed: Boolean,
+    arrivalsViewModelFactory: ArrivalsViewModel.Factory,
     onArrivalsLoaded: (ObaArrivalInfoResponse) -> Unit,
     onShowRouteOnMap: (String) -> Unit,
     onToggleSheet: () -> Unit,
@@ -68,7 +68,7 @@ internal fun ArrivalsSheetHost(
             val viewModel: ArrivalsViewModel = viewModel(
                 factory = viewModelFactory {
                     initializer {
-                        ArrivalsViewModel(stop.id, DefaultArrivalsRepository(context.applicationContext))
+                        arrivalsViewModelFactory.create(stop.id, ignorePersistedFilter = false)
                     }
                 }
             )

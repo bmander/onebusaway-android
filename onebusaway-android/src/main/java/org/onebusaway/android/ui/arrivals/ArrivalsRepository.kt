@@ -18,7 +18,9 @@ package org.onebusaway.android.ui.arrivals
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.ObaApi
@@ -95,8 +97,14 @@ interface ArrivalsRepository {
  * model plus the per-arrival actions, service alerts, and route-filter options on the IO thread
  * (their constructors read ContentProviders). All Android statics are quarantined here so
  * [ArrivalsViewModel] stays JVM-testable.
+ *
+ * Note: this repo is **stateful** ([lastGood]/[situation]/[lastResponse]) and 1:1 with its
+ * [ArrivalsViewModel], so its `@Binds` is intentionally **unscoped** (a fresh instance per VM) — do
+ * NOT make it `@Singleton`, which would share `lastGood` across stops and corrupt per-stop state.
  */
-class DefaultArrivalsRepository(private val context: Context) : ArrivalsRepository {
+class DefaultArrivalsRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) : ArrivalsRepository {
 
     private var lastGood: ObaArrivalInfoResponse? = null
 

@@ -25,11 +25,12 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import org.onebusaway.android.io.elements.ObaArrivalInfo
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
-import org.onebusaway.android.ui.arrivals.DefaultArrivalsRepository
 import org.onebusaway.android.ui.compose.composeFragmentView
 
 /**
@@ -37,12 +38,16 @@ import org.onebusaway.android.ui.compose.composeFragmentView
  * the report flow's container and reports the chosen arrival (plus its agency id and block id,
  * resolved from the response refs) back to [InfrastructureIssueActivity] via [Callback].
  */
+@AndroidEntryPoint
 class SimpleArrivalsPickerFragment : Fragment() {
 
     /** Same contract as the legacy fragment: agencyId/blockId resolved from the response refs. */
     interface Callback {
         fun onArrivalItemClicked(arrival: ObaArrivalInfo, agencyId: String?, blockId: String?)
     }
+
+    @Inject
+    lateinit var arrivalsViewModelFactory: ArrivalsViewModel.Factory
 
     private var callback: Callback? = null
 
@@ -51,11 +56,7 @@ class SimpleArrivalsPickerFragment : Fragment() {
     private val viewModel: ArrivalsViewModel by viewModels {
         viewModelFactory {
             initializer {
-                ArrivalsViewModel(
-                    stopId,
-                    DefaultArrivalsRepository(requireContext().applicationContext),
-                    ignorePersistedFilter = true
-                )
+                arrivalsViewModelFactory.create(stopId, ignorePersistedFilter = true)
             }
         }
     }

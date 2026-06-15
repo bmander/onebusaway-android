@@ -17,6 +17,9 @@ package org.onebusaway.android.ui.arrivals
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import org.onebusaway.android.io.elements.ObaSituation
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -35,17 +38,30 @@ internal fun collapseRouteFilter(selected: Set<String>, totalRoutes: Int): Set<S
     if (selected.size >= totalRoutes) emptySet() else selected
 
 /**
- * ViewModel for the standalone arrivals screen. The 60-second polling loop lives in the screen
- * (driven by the activity lifecycle); this exposes [refresh] for it to call plus the user
- * actions. The current time window ([minutesAfter]) grows with "load more"; the route filter is
- * seeded from the provider on the first load and then held in memory.
+ * ViewModel for the arrivals screen. The 60-second polling loop lives in the screen (driven by the
+ * host lifecycle); this exposes [refresh] for it to call plus the user actions. The current time
+ * window ([minutesAfter]) grows with "load more"; the route filter is seeded from the provider on
+ * the first load and then held in memory.
+ *
+ * Assisted-injected: [repository] comes from Dagger, while [stopId]/[ignorePersistedFilter] are
+ * runtime args supplied by each host via [Factory] — the NavHost destination passes the nav-arg
+ * stop id, the home sheet passes the focused stop's (dynamic) id, and the report picker passes its
+ * stop with `ignorePersistedFilter = true`. Plain `@AssistedInject` (not `@HiltViewModel`) so the
+ * [Factory] can be `@Inject`ed into each host and used inside `viewModelFactory {}` — Hilt forbids
+ * injecting a `@HiltViewModel`'s assisted factory, and the home sheet's per-stop cleared
+ * `ViewModelStoreOwner` isn't Hilt-aware, so `hiltViewModel()` can't serve it either.
  */
-class ArrivalsViewModel(
-    private val stopId: String,
-    private val repository: ArrivalsRepository,
+class ArrivalsViewModel @AssistedInject constructor(
+    @Assisted private val stopId: String,
     /** When true, always show all routes (the report-flow picker), ignoring the saved filter. */
-    ignorePersistedFilter: Boolean = false
+    @Assisted ignorePersistedFilter: Boolean,
+    private val repository: ArrivalsRepository,
 ) : ViewModel() {
+
+    @AssistedFactory
+    interface Factory {
+        fun create(stopId: String, ignorePersistedFilter: Boolean): ArrivalsViewModel
+    }
 
     private val _state = MutableStateFlow<ArrivalsUiState>(ArrivalsUiState.Loading)
     val state: StateFlow<ArrivalsUiState> = _state.asStateFlow()

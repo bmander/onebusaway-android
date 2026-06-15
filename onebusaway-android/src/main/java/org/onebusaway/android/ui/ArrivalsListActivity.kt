@@ -25,6 +25,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaStop
@@ -33,7 +35,6 @@ import org.onebusaway.android.ui.arrivals.ArrivalsIntents
 import org.onebusaway.android.ui.arrivals.ArrivalsRoute
 import org.onebusaway.android.ui.arrivals.ArrivalsUiState
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
-import org.onebusaway.android.ui.arrivals.DefaultArrivalsRepository
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.util.ShowcaseViewUtils
 import org.onebusaway.android.util.UIUtils
@@ -47,14 +48,18 @@ import java.util.HashMap
  * launcher-shortcut path). This is the standalone path; HomeActivity's map slide-panel hosts the
  * same Compose arrivals via ArrivalsPanelFragment.
  */
+@AndroidEntryPoint
 class ArrivalsListActivity : AppCompatActivity() {
+
+    @Inject
+    lateinit var arrivalsViewModelFactory: ArrivalsViewModel.Factory
 
     private val stopId: String by lazy { intent.data?.lastPathSegment.orEmpty() }
 
     private val viewModel: ArrivalsViewModel by viewModels {
         viewModelFactory {
             initializer {
-                ArrivalsViewModel(stopId, DefaultArrivalsRepository(applicationContext))
+                arrivalsViewModelFactory.create(stopId, ignorePersistedFilter = false)
             }
         }
     }

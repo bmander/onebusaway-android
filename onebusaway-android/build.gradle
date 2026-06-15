@@ -307,6 +307,11 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
     implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
+    // Navigation-Compose backbone (Campaign C). Pinned to the 2.8.x line — navigation 2.9.0 raised
+    // minSdk from 21 to 23 (the androidx-wide 2025 migration), matching the lifecycle 2.8.x ceiling
+    // above. hilt-navigation-compose bridges hiltViewModel() to @HiltViewModel + SavedStateHandle nav-args.
+    implementation 'androidx.navigation:navigation-compose:2.8.5'
+    implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
     // Make the (previously transitive) coroutines dependency explicit; matches lifecycle 2.8.x
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
     // JVM unit tests (src/test)

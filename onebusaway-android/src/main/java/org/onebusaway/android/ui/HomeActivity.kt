@@ -35,6 +35,9 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -75,6 +78,7 @@ import org.onebusaway.android.ui.home.analyticsLabelRes
 import org.onebusaway.android.ui.mylists.RemindersRepository
 import org.onebusaway.android.ui.mylists.StarredRoutesRepository
 import org.onebusaway.android.ui.mylists.StarredStopsRepository
+import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
@@ -175,25 +179,33 @@ class HomeActivity : AppCompatActivity() {
         )
 
         setContent {
-            val state by viewModel.uiState.collectAsStateWithLifecycle()
-            val routeHeader by mapViewModel.routeHeader.collectAsStateWithLifecycle()
-            HomeScreen(
-                state = state,
-                events = viewModel.events,
-                homeViewModel = viewModel,
-                mapViewModel = mapViewModel,
-                mapSeedLat = mapSeed.lat,
-                mapSeedLon = mapSeed.lon,
-                mapSeedZoom = mapSeed.zoom,
-                mapSavedInstanceState = savedInstanceState,
-                routeHeader = routeHeader,
-                surveyViewModel = surveyViewModel,
-                donationViewModel = donationViewModel,
-                weatherViewModel = weatherViewModel,
-                helpViewModel = helpViewModel,
-                listVms = listVms,
-                callbacks = homeCallbacks,
-            )
+            // Campaign C0: the single-Activity Navigation-Compose backbone. Home is the only
+            // destination for now; C1+ append the screens currently launched as separate activities.
+            // (HomeScreen applies ObaTheme internally.)
+            val navController = rememberNavController()
+            NavHost(navController = navController, startDestination = NavRoutes.HOME) {
+                composable(NavRoutes.HOME) {
+                    val state by viewModel.uiState.collectAsStateWithLifecycle()
+                    val routeHeader by mapViewModel.routeHeader.collectAsStateWithLifecycle()
+                    HomeScreen(
+                        state = state,
+                        events = viewModel.events,
+                        homeViewModel = viewModel,
+                        mapViewModel = mapViewModel,
+                        mapSeedLat = mapSeed.lat,
+                        mapSeedLon = mapSeed.lon,
+                        mapSeedZoom = mapSeed.zoom,
+                        mapSavedInstanceState = savedInstanceState,
+                        routeHeader = routeHeader,
+                        surveyViewModel = surveyViewModel,
+                        donationViewModel = donationViewModel,
+                        weatherViewModel = weatherViewModel,
+                        helpViewModel = helpViewModel,
+                        listVms = listVms,
+                        callbacks = homeCallbacks,
+                    )
+                }
+            }
         }
 
         setupNavigationDrawer()

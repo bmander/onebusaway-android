@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.util.PreferenceUtils
+import org.onebusaway.android.preferences.PreferencesRepository
 
 /** Which help dialog is showing. Split out of the shared HomeDialog when help became a feature module. */
 sealed interface HelpDialog {
@@ -44,7 +44,9 @@ data class HelpUiState(val dialog: HelpDialog = HelpDialog.None, val showContact
  * HomeActivity, reached via the `onHelpAction` callback [HelpFeature] forwards.
  */
 @HiltViewModel
-class HelpViewModel @Inject constructor() : ViewModel() {
+class HelpViewModel @Inject constructor(
+    private val prefs: PreferencesRepository,
+) : ViewModel() {
 
     private val _state = MutableStateFlow(HelpUiState())
     val state: StateFlow<HelpUiState> = _state.asStateFlow()
@@ -65,7 +67,6 @@ class HelpViewModel @Inject constructor() : ViewModel() {
      */
     @Suppress("DEPRECATION")
     fun maybeAutoShowWhatsNew(): Boolean {
-        val settings = Application.getPrefs()
         val appInfo = try {
             Application.get().packageManager
                 .getPackageInfo(Application.get().packageName, PackageManager.GET_META_DATA)
@@ -73,9 +74,9 @@ class HelpViewModel @Inject constructor() : ViewModel() {
             return false
         }
         val newVer = appInfo.versionCode
-        if (settings.getInt(WHATS_NEW_VER, 0) < newVer) {
+        if (prefs.getInt(WHATS_NEW_VER, 0) < newVer) {
             showWhatsNew()
-            PreferenceUtils.saveInt(WHATS_NEW_VER, newVer)
+            prefs.setInt(WHATS_NEW_VER, newVer)
             return true
         }
         return false

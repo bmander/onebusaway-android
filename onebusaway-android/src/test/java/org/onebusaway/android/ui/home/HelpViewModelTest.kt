@@ -18,17 +18,18 @@ package org.onebusaway.android.ui.home
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
+import org.onebusaway.android.testing.FakePreferencesRepository
 
 /**
  * Unit tests for [HelpViewModel]'s dialog-state transitions (migrated from HomeViewModelTest when help
- * became its own feature module). `maybeAutoShowWhatsNew` is Application-backed, so it's verified by
- * equivalence rather than here.
+ * became its own feature module). `maybeAutoShowWhatsNew` still reads package info from Application, so
+ * it's verified by equivalence rather than here.
  */
 class HelpViewModelTest {
 
     @Test
     fun `showing the menu sets the dialog and the contact-us flag`() {
-        val vm = HelpViewModel()
+        val vm = HelpViewModel(FakePreferencesRepository())
         vm.showMenu(showContactUs = false)
         assertEquals(HelpDialog.Menu, vm.state.value.dialog)
         assertFalse(vm.state.value.showContactUs)
@@ -36,7 +37,7 @@ class HelpViewModelTest {
 
     @Test
     fun `legend and what's-new transition the dialog, dismiss clears it`() {
-        val vm = HelpViewModel()
+        val vm = HelpViewModel(FakePreferencesRepository())
         vm.showLegend()
         assertEquals(HelpDialog.Legend, vm.state.value.dialog)
         vm.showWhatsNew()

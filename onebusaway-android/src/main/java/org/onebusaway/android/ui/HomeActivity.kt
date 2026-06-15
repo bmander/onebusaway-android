@@ -27,11 +27,20 @@ import android.view.accessibility.AccessibilityManager
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -58,6 +67,8 @@ import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
+import org.onebusaway.android.ui.arrivals.ArrivalsRoute
+import org.onebusaway.android.ui.arrivals.ArrivalsUiState
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.DonationViewModel
@@ -203,6 +214,9 @@ class HomeActivity : AppCompatActivity() {
                         onShowRouteInfo = { routeId ->
                             navController.navigate(NavRoutes.routeInfo(routeId))
                         },
+                        onShowArrivals = { stopId, stopName ->
+                            navController.navigate(NavRoutes.arrivals(stopId, stopName))
+                        },
                     )
                 }
                 // RouteInfo destination (Campaign C-a): a route's stops grouped by direction. Reached
@@ -222,17 +236,71 @@ class HomeActivity : AppCompatActivity() {
                         onBack = { navController.popBackStack() },
                         onShowRouteOnMap = { HomeActivity.start(this@HomeActivity, routeId) },
                         onStopClick = { stop ->
-                            ArrivalsListActivity.Builder(this@HomeActivity, stop.id)
-                                .setStopName(stop.name)
-                                .setStopDirection(stop.direction)
-                                .setUpMode(NavHelp.UP_MODE_BACK)
-                                .start()
+                            navController.navigate(NavRoutes.arrivals(stop.id, stop.name))
                         },
                         onStopShowOnMap = { stop ->
                             HomeActivity.start(
                                 this@HomeActivity, stop.id, stop.latitude, stop.longitude
                             )
                         },
+                    )
+                }
+                // Arrivals destination (Campaign C-b): real-time arrivals for a stop. Reached in-app
+                // from RouteInfo's stop tap and the home overlays' stop taps; ArrivalsListActivity
+                // still hosts the same ArrivalsRoute for the standalone/FCM/external paths (collapsed
+                // to an activity-alias in C-c). The VM is built from the assisted factory with the
+                // nav-arg stop id (process-death safe — it's re-read from the back-stack arg).
+                composable(
+                    NavRoutes.ARRIVALS,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_STOP_ID) { type = NavType.StringType },
+                        navArgument(NavRoutes.ARG_STOP_NAME) {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val stopId =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_ID).orEmpty()
+                    val stopName =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_NAME).orEmpty()
+                    val arrivalsVm: ArrivalsViewModel = viewModel(
+                        factory = viewModelFactory {
+                            initializer {
+                                arrivalsViewModelFactory.create(stopId, ignorePersistedFilter = false)
+                            }
+                        }
+                    )
+                    val snackbarHostState = remember { SnackbarHostState() }
+                    val scope = rememberCoroutineScope()
+                    val context = LocalContext.current
+                    val handler = remember(arrivalsVm) {
+                        createArrivalActionHandler(
+                            activity = this@HomeActivity,
+                            viewModel = arrivalsVm,
+                            currentContent = { arrivalsVm.state.value as? ArrivalsUiState.Content },
+                            onShowRouteOnMap = { routeId ->
+                                HomeActivity.start(this@HomeActivity, routeId)
+                            },
+                            showUndoSnackbar = { messageRes, actionRes, onAction ->
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = context.getString(messageRes),
+                                        actionLabel = actionRes?.let { context.getString(it) },
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) onAction?.invoke()
+                                }
+                            },
+                        )
+                    }
+                    ArrivalsRoute(
+                        viewModel = arrivalsVm,
+                        initialTitle = stopName,
+                        handler = handler,
+                        onBack = { navController.popBackStack() },
+                        snackbarHostState = snackbarHostState,
                     )
                 }
             }

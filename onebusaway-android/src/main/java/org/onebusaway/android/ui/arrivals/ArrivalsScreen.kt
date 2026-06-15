@@ -42,6 +42,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -143,7 +145,10 @@ fun ArrivalsRoute(
     viewModel: ArrivalsViewModel,
     initialTitle: String,
     handler: ArrivalActionHandler,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    // Provided by the NavHost destination so its alert-hide undo Snackbar has a Compose host (the
+    // standalone activity anchors its own Snackbar to a View instead, leaving this null).
+    snackbarHostState: SnackbarHostState? = null
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     ArrivalsPolling(viewModel)
@@ -161,7 +166,8 @@ fun ArrivalsRoute(
         onSetArrivalStyle = viewModel::setArrivalStyle,
         onShowAllRoutes = viewModel::showAllRoutes,
         onHideAllAlerts = viewModel::hideAllAlerts,
-        onShowHiddenAlerts = viewModel::showHiddenAlerts
+        onShowHiddenAlerts = viewModel::showHiddenAlerts,
+        snackbarHostState = snackbarHostState
     )
 }
 
@@ -180,12 +186,14 @@ fun ArrivalsScreen(
     onSetArrivalStyle: (Int) -> Unit,
     onShowAllRoutes: () -> Unit,
     onHideAllAlerts: () -> Unit,
-    onShowHiddenAlerts: () -> Unit
+    onShowHiddenAlerts: () -> Unit,
+    snackbarHostState: SnackbarHostState? = null
 ) {
     val content = state as? ArrivalsUiState.Content
     var showFilterDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     Scaffold(
+        snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
         topBar = {
             TopAppBar(
                 title = { Text(content?.header?.name?.takeIf { it.isNotEmpty() } ?: initialTitle) },

@@ -48,12 +48,15 @@ class HomeListViewModels(
 )
 
 @Composable
-internal fun StarredStopsDestination(viewModel: MyListViewModel<StopListItem>) {
+internal fun StarredStopsDestination(
+    viewModel: MyListViewModel<StopListItem>,
+    onShowArrivals: (stopId: String, stopName: String?) -> Unit,
+) {
     val host = LocalContext.current.findActivity()
     StopListDestination(
         viewModel,
         emptyText = R.string.my_no_starred_stops,
-        onClick = { host.openStop(it, shortcutMode = false) },
+        onClick = { onShowArrivals(it.id, it.name) },
         actions = {
             host.stopActions(it, R.string.my_context_remove_star, shortcutMode = false) {
                 viewModel.remove(it.id)
@@ -81,12 +84,13 @@ internal fun StarredRoutesDestination(viewModel: MyListViewModel<RouteListItem>)
 internal fun RemindersDestination(
     viewModel: MyListViewModel<ReminderItem>,
     onShowRoute: (routeId: String) -> Unit,
+    onShowStop: (stopId: String) -> Unit,
 ) {
     val host = LocalContext.current.findActivity()
     ReminderListDestination(
         viewModel,
         emptyText = R.string.trip_list_notrips,
         onClick = { host.editReminder(it) },
-        actions = { host.reminderActions(it, onShowRoute = onShowRoute) }
+        actions = { host.reminderActions(it, onShowRoute = onShowRoute, onShowStop = onShowStop) }
     )
 }

@@ -123,10 +123,12 @@ fun HomeScreen(
     // All the screen's tap/UI lambdas, bundled (see [HomeCallbacks]); brought into scope below via
     // `with` so the body references them unqualified.
     callbacks: HomeCallbacks,
-    // In-NavHost navigation out of a home list overlay (Campaign C). Currently just the reminders
-    // overlay's "show route" action → the RouteInfo destination; built with the navController (which
-    // lives in the NavHost, not in HomeCallbacks). More as further leaves become destinations.
+    // In-NavHost navigation out of a home list overlay (Campaign C); built with the navController
+    // (which lives in the NavHost, not in HomeCallbacks). `onShowRouteInfo` → the RouteInfo
+    // destination (reminders "show route"); `onShowArrivals` → the Arrivals destination (a starred-
+    // stop tap and a reminder's "show stop").
     onShowRouteInfo: (routeId: String) -> Unit,
+    onShowArrivals: (stopId: String, stopName: String?) -> Unit,
 ) {
     with(callbacks) {
     ObaTheme {
@@ -331,10 +333,19 @@ fun HomeScreen(
                         // A selected list tab draws its destination over the map (an opaque, full-size
                         // Surface), covering the map chrome; NEARBY shows the map through.
                         when (state.selectedItem) {
-                            HomeNavItem.STARRED_STOPS -> StarredStopsDestination(listVms.starredStops)
+                            HomeNavItem.STARRED_STOPS ->
+                                StarredStopsDestination(
+                                    listVms.starredStops,
+                                    onShowArrivals = onShowArrivals
+                                )
                             HomeNavItem.STARRED_ROUTES -> StarredRoutesDestination(listVms.starredRoutes)
                             HomeNavItem.MY_REMINDERS ->
-                                RemindersDestination(listVms.reminders, onShowRoute = onShowRouteInfo)
+                                RemindersDestination(
+                                    listVms.reminders,
+                                    onShowRoute = onShowRouteInfo,
+                                    // A reminder carries only a stop id (no cached name).
+                                    onShowStop = { stopId -> onShowArrivals(stopId, null) }
+                                )
                             else -> {}
                         }
                     }

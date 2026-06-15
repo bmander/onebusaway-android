@@ -118,12 +118,14 @@ internal fun AppCompatActivity.editReminder(reminder: ReminderItem) {
 /**
  * A reminder row's long-press actions: edit / delete (cancels the alarm) / show stop / show route.
  *
- * [onShowRoute] defaults to launching [RouteInfoActivity] (the standalone My-Reminders host has no
- * NavHost), but the home overlay overrides it to navigate to the in-app RouteInfo destination.
+ * [onShowRoute]/[onShowStop] default to launching [RouteInfoActivity]/[ArrivalsListActivity] (the
+ * standalone My-Reminders host has no NavHost), but the home overlay overrides them to navigate to
+ * the in-app RouteInfo / Arrivals destinations.
  */
 internal fun AppCompatActivity.reminderActions(
     reminder: ReminderItem,
     onShowRoute: (routeId: String) -> Unit = { RouteInfoActivity.start(this, it) },
+    onShowStop: (stopId: String) -> Unit = { ArrivalsListActivity.start(this, it) },
 ): List<RowAction> = listOf(
     RowAction(getString(R.string.trip_list_context_edit)) { editReminder(reminder) },
     RowAction(getString(R.string.trip_list_context_delete)) {
@@ -134,7 +136,7 @@ internal fun AppCompatActivity.reminderActions(
         }
     },
     RowAction(getString(R.string.trip_list_context_showstop)) {
-        ArrivalsListActivity.start(this, reminder.stopId)
+        onShowStop(reminder.stopId)
     },
     RowAction(getString(R.string.trip_list_context_showroute)) {
         onShowRoute(reminder.routeId)

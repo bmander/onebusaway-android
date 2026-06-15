@@ -227,9 +227,10 @@ class ProblemReportFragment : Fragment(), MenuProvider {
         ) {
             val fragment = ProblemReportFragment().apply { arguments = args }
             try {
+                // No addToBackStack: the infrastructure-issue NavHost destination owns back handling
+                // (a BackHandler + the VM target), removing the form reactively when the target clears.
                 activity.supportFragmentManager.beginTransaction()
                     .replace(containerViewId, fragment, tag)
-                    .addToBackStack(null)
                     .commit()
             } catch (e: IllegalStateException) {
                 Log.e(tag, "Cannot show ProblemReportFragment after onSaveInstanceState", e)

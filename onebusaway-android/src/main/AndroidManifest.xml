@@ -232,9 +232,11 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity-alias>
-        <activity android:name="org.onebusaway.android.report.ui.ReportActivity"/>
-        <activity android:name="org.onebusaway.android.report.ui.CustomerServiceActivity"/>
-        <activity android:name="org.onebusaway.android.report.ui.InfrastructureIssueActivity"/>
+        <!-- Campaign C: the report flow (ReportActivity / CustomerServiceActivity /
+             InfrastructureIssueActivity) is now HomeActivity NavHost destinations (REPORT /
+             CUSTOMER_SERVICE / INFRASTRUCTURE_ISSUE). The former classes are launcher facade objects
+             that build HomeActivity nav intents; no <activity> entries are needed (all were
+             non-exported with no intent-filters / aliases). -->
 
         <!-- Campaign C: the "Recent" screen is a HomeActivity NavHost destination (MY_RECENT). This
              frozen name resolves via an alias → HomeActivity. A legacy self-shortcut pinned with no

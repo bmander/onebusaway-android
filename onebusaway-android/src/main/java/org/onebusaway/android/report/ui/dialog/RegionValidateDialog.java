@@ -20,7 +20,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.report.constants.ReportConstants;
-import org.onebusaway.android.report.ui.ReportActivity;
+import org.onebusaway.android.ui.HomeActivity;
+import org.onebusaway.android.ui.SettingsActivity;
+import org.onebusaway.android.ui.nav.NavRoutes;
 import org.onebusaway.android.util.PreferenceUtils;
 
 import android.app.Dialog;
@@ -51,16 +53,30 @@ public class RegionValidateDialog extends BaseReportDialogFragment {
                     public void onClick(DialogInterface dialog, int which) {
                         long regionId = Application.get().getCurrentRegion().getId();
                         PreferenceUtils.saveLong(ReportConstants.PREF_VALIDATED_REGION_ID, regionId);
-                        ((ReportActivity) getActivity()).createIssueTypeListFragment();
+                        // The report chooser destination observes this and swaps in the type list.
+                        ((HomeActivity) getActivity()).getReportRegionValidated().setValue(true);
                     }
                 })
                 .setNegativeButton(R.string.rt_no, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
-                        closeSuperActivity();
-                        ((ReportActivity) getActivity()).createPreferencesActivity();
+                        // Open settings to pick a different region (was createPreferencesActivity).
+                        getActivity().startActivity(
+                                HomeActivity.navIntent(getActivity(), NavRoutes.SETTINGS)
+                                        .putExtra(SettingsActivity.SHOW_CHECK_REGION_DIALOG, true));
+                        // Leaving the report flow returns to the home/map (was closeSuperActivity).
+                        getActivity().getOnBackPressedDispatcher().onBackPressed();
                     }
                 }).create();
         dialog.setCanceledOnTouchOutside(false);
         return dialog;
+    }
+
+    /**
+     * Back from the dialog leaves the report flow (returns to home), rather than finishing the host
+     * activity (the base default) — the host is now the single-Activity HomeActivity.
+     */
+    @Override
+    public void closeSuperActivity() {
+        getActivity().getOnBackPressedDispatcher().onBackPressed();
     }
 }

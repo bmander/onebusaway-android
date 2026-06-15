@@ -29,6 +29,17 @@ data class IssueLocation(
     val stop: ObaStop? = null
 )
 
+/**
+ * A snapshot of the issue's location/address/stop for the host to wrap in its Open311 context type
+ * (so the ViewModel doesn't import the Open311 layer's Open311IssueContext).
+ */
+data class IssueContextSnapshot(
+    val latitude: Double,
+    val longitude: Double,
+    val address: String?,
+    val stop: ObaStop?
+)
+
 /** Which report form the current selection routes to; the host performs the transaction. */
 sealed interface ReportTarget {
     data object None : ReportTarget

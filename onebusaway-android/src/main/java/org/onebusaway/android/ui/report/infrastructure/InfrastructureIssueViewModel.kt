@@ -237,6 +237,21 @@ class InfrastructureIssueViewModel(
     /** Trip context for the host when launching the trip / Open311-trip forms. */
     fun tripContext(): Triple<ObaArrivalInfo?, String?, String?> = Triple(arrivalInfo, agencyName, blockId)
 
+    /**
+     * The current issue location/address/stop, for the hosted Open311 form (was the host activity's
+     * currentIssueContext()). Returns the raw triple of coordinate, optional address, and focused stop
+     * so the host can wrap it in its Open311 context type without this VM importing it.
+     */
+    fun issueContext(): IssueContextSnapshot {
+        val state = _uiState.value
+        return IssueContextSnapshot(
+            latitude = state.location.latitude,
+            longitude = state.location.longitude,
+            address = state.address.takeIf { it.isNotEmpty() },
+            stop = state.location.stop
+        )
+    }
+
     // --- Helpers --------------------------------------------------------------------------------
 
     private fun open311TargetOrNone(arrival: ObaArrivalInfo?): ReportTarget =

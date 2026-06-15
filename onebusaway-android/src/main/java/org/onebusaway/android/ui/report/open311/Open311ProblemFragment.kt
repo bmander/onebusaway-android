@@ -54,7 +54,7 @@ import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaArrivalInfo
-import org.onebusaway.android.report.ui.InfrastructureIssueActivity
+import org.onebusaway.android.report.ui.InfrastructureIssueHost
 import org.onebusaway.android.report.ui.ReportProblemFragmentCallback
 import org.onebusaway.android.ui.compose.composeFragmentView
 import org.onebusaway.android.util.UIUtils
@@ -127,8 +127,8 @@ class Open311ProblemFragment : Fragment(), MenuProvider {
     }
 
     private fun onSubmitState(state: Open311SubmitState) {
-        val activity = activity as? InfrastructureIssueActivity
-        activity?.showProgress(state == Open311SubmitState.Submitting)
+        val host = activity as? InfrastructureIssueHost
+        host?.showProgress(state == Open311SubmitState.Submitting)
         when (state) {
             Open311SubmitState.Sent -> {
                 callback?.onReportSent()
@@ -231,10 +231,10 @@ class Open311ProblemFragment : Fragment(), MenuProvider {
     private fun createViewModel(): Open311ProblemViewModel {
         val open311 = checkNotNull(open311) { "Open311 must be set before showing the fragment" }
         val service = checkNotNull(service) { "Service must be set before showing the fragment" }
-        val activity = requireActivity() as InfrastructureIssueActivity
+        val host = requireActivity() as InfrastructureIssueHost
 
         // Snapshot the location/address/stop once; this screen is modal per chosen category.
-        val issueContext = activity.currentIssueContext()
+        val issueContext = host.currentIssueContext()
         val tripContext = arrivalInfo?.let { Open311TripContext(it, agencyName, blockId) }
 
         val repository = DefaultOpen311Repository(
@@ -270,9 +270,10 @@ class Open311ProblemFragment : Fragment(), MenuProvider {
                 this.blockId = blockId
             }
             try {
+                // No addToBackStack: the infrastructure-issue NavHost destination owns back handling
+                // (a BackHandler + the VM target), removing the form reactively when the target clears.
                 activity.supportFragmentManager.beginTransaction()
                     .replace(containerViewId, fragment, TAG)
-                    .addToBackStack(null)
                     .commit()
             } catch (e: IllegalStateException) {
                 Log.e(TAG, "Cannot show Open311ProblemFragment after onSaveInstanceState", e)

@@ -30,4 +30,8 @@
          settings NavHost destination (see SettingsScreen.SettingsFragmentHost). Was defined by the
          now-deleted activity_settings.xml. -->
     <item name="settings_container" type="id" />
+    <!-- Stable container id for the report form fragments (stop/trip problem, Open311, arrival
+         picker) hosted inside the Compose infrastructure-issue NavHost destination (see
+         InfrastructureIssueScreen). Was defined by the now-deleted infrastructure_issue.xml. -->
+    <item name="ri_report_stop_problem" type="id" />
 </resources>

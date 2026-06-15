@@ -49,6 +49,28 @@ object NavRoutes {
     /** App settings (the preference fragments + the nested advanced screen). */
     const val SETTINGS = "settings"
 
+    // --- Report / problem-reporting flow (Campaign C: former ReportActivity /
+    // CustomerServiceActivity / InfrastructureIssueActivity). The chooser ([REPORT]) and the
+    // customer-service list take no args; the stop/location context for the whole flow rides on the
+    // host activity intent extras (MapParams.*, LOCATION_STRING), read by the destinations. ---
+    /** The "Send feedback" report-type chooser (former ReportActivity). */
+    const val REPORT = "report"
+
+    /** Region transit-agency contact list (former CustomerServiceActivity). */
+    const val CUSTOMER_SERVICE = "customerService"
+
+    // The infrastructure-issue (stop/trip problem) hybrid map+form screen. The only nav-arg is the
+    // selected-service keyword ("stop"/"trip", from the chooser); the stop/location context and the
+    // opaque ObaArrivalInfo (TRIP_INFO) / AGENCY_NAME / BLOCK_ID ride on the host intent extras (read
+    // by the destination's hand-built VM factory, exactly as the former Activity did).
+    const val ARG_SELECTED_SERVICE = "selectedService"
+    const val INFRASTRUCTURE_ISSUE = "infrastructureIssue?$ARG_SELECTED_SERVICE={$ARG_SELECTED_SERVICE}"
+
+    /** Builds a navigable [INFRASTRUCTURE_ISSUE] route, optionally carrying the [selectedService]. */
+    fun infrastructureIssue(selectedService: String? = null): String =
+        "infrastructureIssue" +
+            if (selectedService != null) "?$ARG_SELECTED_SERVICE=${Uri.encode(selectedService)}" else ""
+
     // --- Search results (system ACTION_SEARCH target + the home top-bar search field) ---
     const val ARG_QUERY = "query"
     const val SEARCH = "search?$ARG_QUERY={$ARG_QUERY}"

@@ -92,9 +92,10 @@ class SimpleArrivalsPickerFragment : Fragment() {
                 this.callback = callback
             }
             try {
+                // No addToBackStack: the infrastructure-issue NavHost destination owns back handling
+                // (a BackHandler + the VM target), removing the picker reactively when the target clears.
                 activity.supportFragmentManager.beginTransaction()
                     .replace(containerViewId, fragment, TAG)
-                    .addToBackStack(null)
                     .commit()
             } catch (e: IllegalStateException) {
                 Log.e(TAG, "Cannot show picker after onSaveInstanceState has been called")

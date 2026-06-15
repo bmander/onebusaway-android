@@ -64,6 +64,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -84,8 +85,17 @@ import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.ObaRegionsTask
+import org.onebusaway.android.io.elements.ObaArrivalInfo
+import org.onebusaway.android.report.ui.InfrastructureIssueDestination
+import org.onebusaway.android.report.ui.InfrastructureIssueHost
 import org.onebusaway.android.report.ui.ReportActivity
+import org.onebusaway.android.report.ui.ReportDestination
+import org.onebusaway.android.report.ui.ReportProblemFragmentCallback
+import org.onebusaway.android.report.ui.SimpleArrivalsPickerFragment
+import org.onebusaway.android.report.ui.CustomerServiceDestination
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
+import org.onebusaway.android.ui.report.infrastructure.InfrastructureIssueViewModel
+import org.onebusaway.android.ui.report.open311.Open311IssueContext
 import org.onebusaway.android.ui.agencies.AgenciesRoute
 import org.onebusaway.android.ui.arrivals.ArrivalsIntents
 import org.onebusaway.android.ui.arrivals.ArrivalsRoute
@@ -155,7 +165,10 @@ import org.onebusaway.android.util.UIUtils
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity(),
     PreferenceFragmentCompat.OnPreferenceStartFragmentCallback,
-    ObaRegionsTask.Callback {
+    ObaRegionsTask.Callback,
+    ReportProblemFragmentCallback,
+    SimpleArrivalsPickerFragment.Callback,
+    InfrastructureIssueHost {
 
     // HomeActivity's own preference reads (what's-new opt-out, zoom/left-hand chrome flags, the
     // remembered nav item). HomeViewModel is now a plain @HiltViewModel — no hand-built factory.
@@ -228,6 +241,72 @@ class HomeActivity : AppCompatActivity(),
     /** Called by [SettingsFragment] to open a preference sub-screen (e.g. Advanced) in-place. */
     fun showSettingsSubScreen(fragmentClassName: String) {
         settingsNestedFragment.value = fragmentClassName
+    }
+
+    // Set true by [RegionValidateDialog] (hosted on this activity's FragmentManager from the report
+    // chooser) when the user confirms their region; the report chooser destination observes it to swap
+    // the validate dialog for the type list. Was the former ReportActivity.createIssueTypeListFragment.
+    val reportRegionValidated = MutableStateFlow(false)
+
+    // --- Infrastructure-issue report host glue (former InfrastructureIssueActivity) ------------------
+    //
+    // The infrastructure-issue NavHost destination ([InfrastructureIssueDestination]) hosts the report
+    // form fragments (ProblemReportFragment / Open311ProblemFragment / SimpleArrivalsPickerFragment)
+    // via this activity's supportFragmentManager, so those fragments reach the host callbacks through
+    // their host activity (now HomeActivity). The destination publishes its back-stack-scoped
+    // InfrastructureIssueViewModel here (set on enter / cleared on dispose); the fragment callbacks
+    // below delegate to it. Null whenever the destination isn't on screen.
+    var infrastructureIssueViewModel: InfrastructureIssueViewModel? = null
+
+    // The infrastructure-issue destination's pop action (popBackStack), set on enter / cleared on
+    // dispose, invoked by [finishInfrastructureIssue] after a successful submission.
+    var popInfrastructureIssue: (() -> Unit)? = null
+
+    // Drives the report screen's progress overlay (was BaseReportActivity's action-bar spinner): the
+    // VM's loadingServices and the Open311 form's showProgress both write here; the destination renders.
+    private val _reportProgressVisible = MutableStateFlow(false)
+    val reportProgressVisible: StateFlow<Boolean> = _reportProgressVisible
+
+    /** Shows/hides the report progress overlay (driven by the VM's loadingServices). */
+    fun showReportProgress(visible: Boolean) {
+        _reportProgressVisible.value = visible
+    }
+
+    /** Clears the report progress overlay (on leaving the destination). */
+    fun hideReportProgress() {
+        _reportProgressVisible.value = false
+    }
+
+    // [ReportProblemFragmentCallback] — a hosted stop/trip/Open311 form submitted successfully.
+    override fun onReportSent() {
+        infrastructureIssueViewModel?.onReportSent()
+    }
+
+    // [SimpleArrivalsPickerFragment.Callback] — the user picked an arrival in the picker; remove the
+    // picker and route the selection to the trip / Open311-trip form (was the Activity's override).
+    override fun onArrivalItemClicked(arrival: ObaArrivalInfo, agencyId: String?, blockId: String?) {
+        supportFragmentManager.findFragmentByTag(SimpleArrivalsPickerFragment.TAG)?.let {
+            supportFragmentManager.beginTransaction().remove(it).commit()
+        }
+        infrastructureIssueViewModel?.onArrivalSelected(arrival)
+    }
+
+    // [InfrastructureIssueHost] — the Open311 form reads the current issue context + drives progress;
+    // a successful submission's success dialog leaves the screen. All forward to the published VM.
+    override fun currentIssueContext(): Open311IssueContext {
+        val snapshot = infrastructureIssueViewModel?.issueContext()
+        return Open311IssueContext(
+            latitude = snapshot?.latitude ?: 0.0,
+            longitude = snapshot?.longitude ?: 0.0,
+            address = snapshot?.address,
+            obaStop = snapshot?.stop
+        )
+    }
+
+    override fun showProgress(visible: Boolean) = showReportProgress(visible)
+
+    override fun finishInfrastructureIssue() {
+        popInfrastructureIssue?.invoke()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -611,6 +690,39 @@ class HomeActivity : AppCompatActivity(),
                             navController = navController,
                             nestedFragmentClass = settingsNestedFragment,
                             onClearNested = { settingsNestedFragment.value = null },
+                        )
+                    }
+                }
+                // Report flow (Campaign C; former ReportActivity / CustomerServiceActivity /
+                // InfrastructureIssueActivity). The chooser ([REPORT]) shows the region-validate dialog
+                // (if needed) then the type list; a tapped type navigates in-NavHost to customer service
+                // or the infrastructure-issue screen, so back returns to the chooser (today's behavior).
+                // The stop/location context rides on this activity's intent (from the launch facade) and
+                // is read by the issue destination. Non-exported; no aliases.
+                composable(NavRoutes.REPORT) {
+                    ObaTheme {
+                        ReportDestination(navController = navController)
+                    }
+                }
+                composable(NavRoutes.CUSTOMER_SERVICE) {
+                    ObaTheme {
+                        CustomerServiceDestination(navController = navController)
+                    }
+                }
+                composable(
+                    NavRoutes.INFRASTRUCTURE_ISSUE,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_SELECTED_SERVICE) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val selectedService =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_SELECTED_SERVICE)
+                    ObaTheme {
+                        InfrastructureIssueDestination(
+                            navController = navController,
+                            selectedService = selectedService,
                         )
                     }
                 }

@@ -17,7 +17,7 @@ package org.onebusaway.android.report.ui.dialog;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
-import org.onebusaway.android.report.ui.InfrastructureIssueActivity;
+import org.onebusaway.android.report.ui.InfrastructureIssueHost;
 
 import android.app.Dialog;
 import android.content.DialogInterface;
@@ -53,6 +53,6 @@ public class ReportSuccessDialog extends BaseReportDialogFragment {
 
     @Override
     public void closeSuperActivity() {
-        ((InfrastructureIssueActivity) getActivity()).finishActivityWithResult();
+        ((InfrastructureIssueHost) getActivity()).finishInfrastructureIssue();
     }
 }

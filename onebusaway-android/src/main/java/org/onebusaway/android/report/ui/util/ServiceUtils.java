@@ -16,7 +16,6 @@
 package org.onebusaway.android.report.ui.util;
 
 import org.onebusaway.android.R;
-import org.onebusaway.android.app.Application;
 import org.onebusaway.android.report.constants.ReportConstants;
 
 import android.content.Context;
@@ -129,18 +128,6 @@ public class ServiceUtils {
      * and service name), and tries to determine if the this is a transit stop service (i.e., stop
      * problem)
      *
-     * @param text text to search for transit stop service match
-     * @return true if the text is "transit stop-related"
-     */
-    public static boolean isTransitStopServiceByText(String text) {
-        return isTransitStopServiceByText(Application.get(), text);
-    }
-
-    /**
-     * This method looks at the given text and predefined transit keywords (e.g., groups, keywords,
-     * and service name), and tries to determine if the this is a transit stop service (i.e., stop
-     * problem)
-     *
      * @param context context used to load the transit keyword resources
      * @param text    text to search for transit stop service match
      * @return true if the text is "transit stop-related"
@@ -154,18 +141,6 @@ public class ServiceUtils {
             }
         }
         return false;
-    }
-
-    /**
-     * This method looks at the given text and predefined transit keywords (e.g., groups, keywords,
-     * and service name), and tries to determine if the this is a transit trip service (i.e., trip
-     * problem)
-     *
-     * @param text text to search for transit trip service match
-     * @return true if the text is "transit trip-related"
-     */
-    public static boolean isTransitTripServiceByText(String text) {
-        return isTransitTripServiceByText(Application.get(), text);
     }
 
     /**
@@ -223,16 +198,6 @@ public class ServiceUtils {
     public static boolean isTransitOpen311ServiceByType(String type) {
         return ReportConstants.DYNAMIC_TRANSIT_SERVICE_TRIP.equals(type)
                 || ReportConstants.DYNAMIC_TRANSIT_SERVICE_STOP.equals(type);
-    }
-
-    /**
-     * This method determines if the given dynamic open311 field is for stop id.
-     *
-     * @param desc field description
-     * @return true if the field description matches at least two keywords
-     */
-    public static boolean isStopIdField(String desc) {
-        return isStopIdField(Application.get(), desc);
     }
 
     /**

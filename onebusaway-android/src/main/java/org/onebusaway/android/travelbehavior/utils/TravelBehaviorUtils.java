@@ -19,7 +19,6 @@ import com.google.android.gms.location.ActivityTransition;
 import com.google.android.gms.location.DetectedActivity;
 
 import org.onebusaway.android.BuildConfig;
-import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.travelbehavior.constants.TravelBehaviorConstants;
 import org.onebusaway.android.travelbehavior.model.TravelBehaviorInfo;
@@ -91,11 +90,8 @@ public class TravelBehaviorUtils {
         return currentRegion != null && currentRegion.isEnrollParticipantsInStudy();
     }
 
-    public static boolean isUserParticipatingInStudy() {
-        // This entry point must keep a no-arg signature for its live external caller
-        // (FirebaseDataPusher.kt). It reads the current region here and threads it into
-        // the now-pure isTravelBehaviorActiveInRegion(ObaRegion) helper.
-        return isTravelBehaviorActiveInRegion(Application.get().getCurrentRegion()) &&
+    public static boolean isUserParticipatingInStudy(ObaRegion currentRegion) {
+        return isTravelBehaviorActiveInRegion(currentRegion) &&
                 !PreferenceUtils.getBoolean(TravelBehaviorConstants.USER_OPT_OUT,
                 false) && PreferenceUtils.getBoolean(TravelBehaviorConstants.USER_OPT_IN,
                 false);

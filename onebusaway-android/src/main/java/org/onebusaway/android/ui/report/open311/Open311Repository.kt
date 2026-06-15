@@ -103,7 +103,7 @@ class DefaultOpen311Repository(
             serviceDescription = service.description,
             isTransitService = ServiceUtils.isTransitServiceByType(service.type),
             stopCode = issue.obaStop?.stopCode,
-            isStopIdField = ServiceUtils::isStopIdField
+            isStopIdField = { ServiceUtils.isStopIdField(context, it) }
         )
         Result.success(
             Open311FormState(

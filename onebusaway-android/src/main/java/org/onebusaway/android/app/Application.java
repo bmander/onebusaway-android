@@ -539,21 +539,21 @@ public class Application extends android.app.Application {
                 case BuildFlavorUtils.ARRIVAL_INFO_STYLE_A:
                     // Use OBA classic style for default
                     PreferenceUtils.saveString(arrivalInfoStylePrefKey, BuildFlavorUtils
-                            .getPreferenceOptionForArrivalInfoBuildFlavorStyle(
+                            .getPreferenceOptionForArrivalInfoBuildFlavorStyle(this,
                                     BuildFlavorUtils.ARRIVAL_INFO_STYLE_A));
                     Log.d(TAG, "Using arrival info style A (OBA Classic) as default preference");
                     break;
                 case BuildFlavorUtils.ARRIVAL_INFO_STYLE_B:
                     // Use a card-styled footer for default
                     PreferenceUtils.saveString(arrivalInfoStylePrefKey, BuildFlavorUtils
-                            .getPreferenceOptionForArrivalInfoBuildFlavorStyle(
+                            .getPreferenceOptionForArrivalInfoBuildFlavorStyle(this,
                                     BuildFlavorUtils.ARRIVAL_INFO_STYLE_B));
                     Log.d(TAG, "Using arrival info style B (Cards) as default preference");
                     break;
                 default:
                     // Use a card-styled footer for default
                     PreferenceUtils.saveString(arrivalInfoStylePrefKey, BuildFlavorUtils
-                            .getPreferenceOptionForArrivalInfoBuildFlavorStyle(
+                            .getPreferenceOptionForArrivalInfoBuildFlavorStyle(this,
                                     BuildFlavorUtils.ARRIVAL_INFO_STYLE_B));
                     Log.d(TAG, "Using arrival info style B (Cards) as default preference");
                     break;

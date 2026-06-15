@@ -144,7 +144,7 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
         isStale: Boolean,
         now: Long
     ): ArrivalsData {
-        val style = BuildFlavorUtils.getArrivalInfoStyleFromPreferences()
+        val style = BuildFlavorUtils.getArrivalInfoStyleFromPreferences(context)
         // Style B includes the arrival/departure word in the status label; Style A does not
         val includeArrivalDepartureLabel = style == BuildFlavorUtils.ARRIVAL_INFO_STYLE_B
         val arrivals = ArrivalInfoUtils.convertObaArrivalInfo(
@@ -257,7 +257,7 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
 
     override suspend fun setArrivalStyle(style: Int) {
         withContext(Dispatchers.IO) {
-            BuildFlavorUtils.setArrivalInfoStyle(style)
+            BuildFlavorUtils.setArrivalInfoStyle(context, style)
         }
     }
 

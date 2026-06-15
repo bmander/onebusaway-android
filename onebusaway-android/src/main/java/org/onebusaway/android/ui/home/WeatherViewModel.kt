@@ -26,8 +26,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.onebusaway.android.R
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
-import org.onebusaway.android.ui.weather.WeatherUtils
 
 /** The weather chip's state: the forecast (null until fetched) + the hide-weather preference. */
 data class WeatherUiState(val data: WeatherData? = null, val hidden: Boolean = false)
@@ -43,10 +44,9 @@ data class WeatherUiState(val data: WeatherData? = null, val hidden: Boolean = f
 class WeatherViewModel @Inject constructor(
     private val weatherRepo: WeatherRepository,
     regionRepo: RegionRepository,
+    preferencesRepository: PreferencesRepository,
 ) : ViewModel() {
 
-    // hidden starts false and is set by refreshHiddenPref() on resume (reading the pref here would
-    // touch Application — bad for unit tests; harmless in practice since the chip also needs async data).
     private val _state = MutableStateFlow(WeatherUiState())
     val state: StateFlow<WeatherUiState> = _state.asStateFlow()
 
@@ -59,6 +59,13 @@ class WeatherViewModel @Inject constructor(
         // range no longer clears it). Replaces the host's MapFeature setRegion push.
         viewModelScope.launch {
             regionRepo.region.map { it?.id }.distinctUntilChanged().collect { setRegion(it) }
+        }
+        // Observe the hide-weather preference reactively (replaces the on-resume refreshHiddenPref poll).
+        // The pref stores "weather enabled" (default true), so hidden = !enabled.
+        viewModelScope.launch {
+            preferencesRepository
+                .observeBoolean(R.string.preference_key_display_weather_view, true)
+                .collect { enabled -> _state.update { it.copy(hidden = !enabled) } }
         }
     }
 
@@ -79,7 +86,4 @@ class WeatherViewModel @Inject constructor(
             }
         }
     }
-
-    /** Re-read the hide-weather preference (it can change in Settings). Call on resume. */
-    fun refreshHiddenPref() = _state.update { it.copy(hidden = WeatherUtils.isWeatherViewHiddenPref()) }
 }

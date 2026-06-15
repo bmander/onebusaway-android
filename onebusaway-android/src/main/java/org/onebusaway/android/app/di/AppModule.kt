@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.app.di
 
+import android.content.SharedPreferences
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -45,6 +46,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideLocationRepository(): LocationRepository = Application.getLocationRepository()
+
+    @Provides
+    @Singleton
+    fun provideSharedPreferences(): SharedPreferences = Application.getPrefs()
 
     @Provides
     @Singleton

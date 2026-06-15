@@ -17,12 +17,15 @@ package org.onebusaway.android.ui.home
 
 import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.testing.MainDispatcherRule
 
 private class FakeWeatherRepository(var result: Result<WeatherData>) : WeatherRepository {
@@ -31,6 +34,10 @@ private class FakeWeatherRepository(var result: Result<WeatherData>) : WeatherRe
         requestedRegions.add(regionId)
         return result
     }
+}
+
+private class FakePreferencesRepository(private val enabled: Boolean = true) : PreferencesRepository {
+    override fun observeBoolean(keyRes: Int, default: Boolean): Flow<Boolean> = flowOf(enabled)
 }
 
 /**
@@ -49,7 +56,7 @@ class WeatherViewModelTest {
     @Test
     fun `forecast loads when a region is set`() = runTest {
         val regions = FakeRegionRepository()
-        val vm = WeatherViewModel(FakeWeatherRepository(Result.success(forecast)), regions)
+        val vm = WeatherViewModel(FakeWeatherRepository(Result.success(forecast)), regions, FakePreferencesRepository())
         regions.emit(region(1))
         advanceUntilIdle()
         assertEquals(forecast, vm.state.value.data)
@@ -58,7 +65,7 @@ class WeatherViewModelTest {
     @Test
     fun `clearing the region clears the forecast`() = runTest {
         val regions = FakeRegionRepository(region(1))
-        val vm = WeatherViewModel(FakeWeatherRepository(Result.success(forecast)), regions)
+        val vm = WeatherViewModel(FakeWeatherRepository(Result.success(forecast)), regions, FakePreferencesRepository())
         advanceUntilIdle()
         assertEquals(forecast, vm.state.value.data)
         regions.emit(null)
@@ -69,7 +76,7 @@ class WeatherViewModelTest {
     @Test
     fun `a fetch failure leaves the forecast null`() = runTest {
         val regions = FakeRegionRepository(region(1))
-        val vm = WeatherViewModel(FakeWeatherRepository(Result.failure(IOException("boom"))), regions)
+        val vm = WeatherViewModel(FakeWeatherRepository(Result.failure(IOException("boom"))), regions, FakePreferencesRepository())
         advanceUntilIdle()
         assertNull(vm.state.value.data)
     }
@@ -78,7 +85,7 @@ class WeatherViewModelTest {
     fun `the forecast is fetched once per region id, again when the region changes`() = runTest {
         val regions = FakeRegionRepository()
         val repo = FakeWeatherRepository(Result.success(forecast))
-        val vm = WeatherViewModel(repo, regions)
+        val vm = WeatherViewModel(repo, regions, FakePreferencesRepository())
 
         regions.emit(region(1))
         advanceUntilIdle()

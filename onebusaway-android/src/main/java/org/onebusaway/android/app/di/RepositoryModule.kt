@@ -47,6 +47,8 @@ import org.onebusaway.android.ui.tripplan.AdvancedSettingsRepository
 import org.onebusaway.android.ui.tripplan.DefaultAdvancedSettingsRepository
 import org.onebusaway.android.ui.tripplan.DefaultGeocodeRepository
 import org.onebusaway.android.ui.tripplan.DefaultTripPlanRepository
+import org.onebusaway.android.preferences.DefaultPreferencesRepository
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.ui.tripplan.GeocodeRepository
 import org.onebusaway.android.ui.tripplan.TripPlanRepository
 import org.onebusaway.android.ui.tripresults.DefaultTripResultsRepository
@@ -101,6 +103,9 @@ abstract class RepositoryModule {
     abstract fun bindAdvancedSettingsRepository(
         impl: DefaultAdvancedSettingsRepository
     ): AdvancedSettingsRepository
+
+    @Binds
+    abstract fun bindPreferencesRepository(impl: DefaultPreferencesRepository): PreferencesRepository
 
     @Binds
     abstract fun bindWeatherRepository(impl: DefaultWeatherRepository): WeatherRepository

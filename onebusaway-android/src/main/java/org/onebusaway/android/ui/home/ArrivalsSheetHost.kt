@@ -58,6 +58,7 @@ internal fun ArrivalsSheetHost(
     onShowRouteOnMap: (String) -> Unit,
     onToggleSheet: () -> Unit,
     onPreferredHeight: (previewCount: Int, filtering: Boolean) -> Unit,
+    showUndoSnackbar: (messageRes: Int, actionRes: Int?, onAction: (() -> Unit)?) -> Unit,
 ) {
     val stop = focusedStop ?: return
     key(stop.id) {
@@ -81,6 +82,7 @@ internal fun ArrivalsSheetHost(
                     viewModel = viewModel,
                     currentContent = { viewModel.state.value as? ArrivalsUiState.Content },
                     onShowRouteOnMap = onShowRouteOnMap,
+                    showUndoSnackbar = showUndoSnackbar,
                 )
             }
             val listState = remember { LazyListState() }

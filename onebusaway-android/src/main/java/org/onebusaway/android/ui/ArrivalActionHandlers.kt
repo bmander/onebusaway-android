@@ -40,7 +40,10 @@ fun createArrivalActionHandler(
     activity: AppCompatActivity,
     viewModel: ArrivalsViewModel,
     currentContent: () -> ArrivalsUiState.Content?,
-    onShowRouteOnMap: (routeId: String) -> Unit
+    onShowRouteOnMap: (routeId: String) -> Unit,
+    // How to show the alert hide/undo snackbar — supplied by the host so the dialog isn't tied to a
+    // specific View (the standalone activity anchors to its root; Compose hosts use a SnackbarHost).
+    showUndoSnackbar: (messageRes: Int, actionRes: Int?, onAction: (() -> Unit)?) -> Unit
 ): ArrivalActionHandler = object : ArrivalActionHandler {
 
     override fun onRouteFavorite(actions: ArrivalActions) {
@@ -113,7 +116,8 @@ fun createArrivalActionHandler(
             activity = activity,
             situation = situation,
             onDismiss = { isAlertHidden -> if (isAlertHidden) viewModel.manualRefresh() },
-            onUndo = { viewModel.manualRefresh() }
+            onUndo = { viewModel.manualRefresh() },
+            showUndoSnackbar = showUndoSnackbar
         )
     }
 

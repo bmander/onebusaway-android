@@ -28,7 +28,6 @@ import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.snackbar.Snackbar
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaSituation
 import org.onebusaway.android.provider.ObaContract
@@ -41,12 +40,16 @@ import org.onebusaway.android.util.PreferenceUtils
  *
  * @param onDismiss called when the dialog closes; true when the alert was hidden by the user
  * @param onUndo called when the user taps the Undo snackbar after hiding the alert
+ * @param showUndoSnackbar shows a snackbar (optionally with an undo action). The host supplies this so
+ *   the dialog doesn't reach for a specific View — the standalone activity anchors it to its arrivals
+ *   root, while the Compose hosts (home sheet, NavHost destination) drive a Compose `SnackbarHost`.
  */
 fun showSituationDialog(
     activity: AppCompatActivity,
     situation: ObaSituation,
     onDismiss: (isAlertHidden: Boolean) -> Unit,
-    onUndo: () -> Unit
+    onUndo: () -> Unit,
+    showUndoSnackbar: (messageRes: Int, actionRes: Int?, onAction: (() -> Unit)?) -> Unit
 ) {
     val situationId = situation.id
 
@@ -56,13 +59,13 @@ fun showSituationDialog(
         .setPositiveButton(R.string.hide) { d, _ ->
             // Update the database to indicate that this alert has been hidden
             ObaContract.ServiceAlerts.insertOrUpdate(situationId, ContentValues(), false, true)
-            Snackbar.make(
-                activity.findViewById(R.id.fragment_arrivals_list),
-                R.string.alert_hidden_snackbar_text, Snackbar.LENGTH_SHORT
-            ).setAction(R.string.alert_hidden_snackbar_action) {
+            showUndoSnackbar(
+                R.string.alert_hidden_snackbar_text,
+                R.string.alert_hidden_snackbar_action
+            ) {
                 ObaContract.ServiceAlerts.insertOrUpdate(situationId, ContentValues(), false, false)
                 onUndo()
-            }.show()
+            }
             d.dismiss()
             onDismiss(true)
         }
@@ -70,10 +73,7 @@ fun showSituationDialog(
             // Hide existing alerts in the database, and the preference hides new ones
             ObaContract.ServiceAlerts.hideAllAlerts()
             PreferenceUtils.saveBoolean(activity.getString(R.string.preference_key_hide_alerts), true)
-            Snackbar.make(
-                activity.findViewById(R.id.fragment_arrivals_list),
-                R.string.all_alert_hidden_snackbar_text, Snackbar.LENGTH_SHORT
-            ).show()
+            showUndoSnackbar(R.string.all_alert_hidden_snackbar_text, null, null)
             d.dismiss()
             onDismiss(true)
         }

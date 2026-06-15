@@ -30,6 +30,7 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberStandardBottomSheetState
@@ -250,6 +251,16 @@ fun HomeScreen(
                             onShowRouteOnMap = onShowRouteOnMap,
                             onToggleSheet = onToggleSheet,
                             onPreferredHeight = onPreferredHeight,
+                            showUndoSnackbar = { messageRes, actionRes, onAction ->
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = context.getString(messageRes),
+                                        actionLabel = actionRes?.let { context.getString(it) },
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) onAction?.invoke()
+                                }
+                            },
                         )
                     }
                 ) {

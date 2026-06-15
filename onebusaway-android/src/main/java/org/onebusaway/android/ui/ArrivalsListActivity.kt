@@ -25,6 +25,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import org.onebusaway.android.R
@@ -74,7 +75,16 @@ class ArrivalsListActivity : AppCompatActivity() {
             activity = this,
             viewModel = viewModel,
             currentContent = { viewModel.state.value as? ArrivalsUiState.Content },
-            onShowRouteOnMap = { routeId -> HomeActivity.start(this, routeId) }
+            onShowRouteOnMap = { routeId -> HomeActivity.start(this, routeId) },
+            showUndoSnackbar = { messageRes, actionRes, onAction ->
+                val snackbar = Snackbar.make(
+                    findViewById(R.id.fragment_arrivals_list), messageRes, Snackbar.LENGTH_SHORT
+                )
+                if (actionRes != null && onAction != null) {
+                    snackbar.setAction(actionRes) { onAction() }
+                }
+                snackbar.show()
+            }
         )
         findViewById<ComposeView>(R.id.compose_view).setContent {
             ObaTheme {

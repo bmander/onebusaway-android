@@ -35,6 +35,8 @@ import org.onebusaway.android.ui.report.customerservice.CustomerServiceRepositor
 import org.onebusaway.android.ui.report.customerservice.DefaultCustomerServiceRepository
 import org.onebusaway.android.ui.report.types.DefaultReportTypeRepository
 import org.onebusaway.android.ui.report.types.ReportTypeRepository
+import org.onebusaway.android.ui.routeinfo.DefaultRouteInfoRepository
+import org.onebusaway.android.ui.routeinfo.RouteInfoRepository
 import org.onebusaway.android.ui.searchresults.DefaultSearchResultsRepository
 import org.onebusaway.android.ui.searchresults.SearchResultsRepository
 import org.onebusaway.android.ui.tripdetails.DefaultTripDetailsRepository
@@ -74,6 +76,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindTripDetailsRepository(impl: DefaultTripDetailsRepository): TripDetailsRepository
+
+    @Binds
+    abstract fun bindRouteInfoRepository(impl: DefaultRouteInfoRepository): RouteInfoRepository
 
     @Binds
     abstract fun bindWeatherRepository(impl: DefaultWeatherRepository): WeatherRepository

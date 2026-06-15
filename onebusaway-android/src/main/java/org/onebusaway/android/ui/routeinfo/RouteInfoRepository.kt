@@ -17,7 +17,9 @@ package org.onebusaway.android.ui.routeinfo
 
 import android.content.ContentValues
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -45,7 +47,9 @@ interface RouteInfoRepository {
  * provider on success. All Android statics are quarantined here so [RouteInfoViewModel] stays
  * JVM-testable.
  */
-class DefaultRouteInfoRepository(private val context: Context) : RouteInfoRepository {
+class DefaultRouteInfoRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) : RouteInfoRepository {
 
     override suspend fun loadRouteInfo(routeId: String): Result<RouteInfo> =
         withContext(Dispatchers.IO) {

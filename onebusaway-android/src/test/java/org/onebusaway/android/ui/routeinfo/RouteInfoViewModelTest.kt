@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.ui.routeinfo
 
+import androidx.lifecycle.SavedStateHandle
 import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -23,6 +24,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.testing.MainDispatcherRule
+import org.onebusaway.android.ui.RouteInfoActivity
 
 private class FakeRouteInfoRepository(
     var result: Result<RouteInfo>
@@ -42,6 +44,10 @@ class RouteInfoViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
+    // The VM reads its route id from SavedStateHandle (the host normalizes the data URI into it).
+    private fun handle(routeId: String = "1_8") =
+        SavedStateHandle(mapOf(RouteInfoActivity.EXTRA_ROUTE_ID to routeId))
+
     private val route = RouteInfo(
         id = "1_8",
         shortName = "8",
@@ -55,7 +61,7 @@ class RouteInfoViewModelTest {
 
     @Test
     fun `initial state is Loading before the load completes`() = runTest {
-        val viewModel = RouteInfoViewModel("1_8", FakeRouteInfoRepository(Result.success(route)))
+        val viewModel = RouteInfoViewModel(handle(), FakeRouteInfoRepository(Result.success(route)))
 
         assertEquals(RouteInfoUiState.Loading, viewModel.state.value)
     }
@@ -63,7 +69,7 @@ class RouteInfoViewModelTest {
     @Test
     fun `load emits Success with the route and passes the route id through`() = runTest {
         val repository = FakeRouteInfoRepository(Result.success(route))
-        val viewModel = RouteInfoViewModel("1_8", repository)
+        val viewModel = RouteInfoViewModel(handle(), repository)
 
         advanceUntilIdle()
 
@@ -74,7 +80,7 @@ class RouteInfoViewModelTest {
     @Test
     fun `load emits Error carrying the failure message`() = runTest {
         val viewModel = RouteInfoViewModel(
-            "1_8",
+            handle(),
             FakeRouteInfoRepository(Result.failure(IOException("No network")))
         )
 
@@ -86,7 +92,7 @@ class RouteInfoViewModelTest {
     @Test
     fun `retry after a failure goes through Loading and recovers`() = runTest {
         val repository = FakeRouteInfoRepository(Result.failure(IOException("No network")))
-        val viewModel = RouteInfoViewModel("1_8", repository)
+        val viewModel = RouteInfoViewModel(handle(), repository)
         advanceUntilIdle()
         assertEquals(RouteInfoUiState.Error("No network"), viewModel.state.value)
 

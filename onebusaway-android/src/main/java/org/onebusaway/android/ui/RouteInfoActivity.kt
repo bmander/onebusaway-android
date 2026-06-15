@@ -22,11 +22,9 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
+import dagger.hilt.android.AndroidEntryPoint
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.ui.routeinfo.DefaultRouteInfoRepository
 import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
 import org.onebusaway.android.ui.routeinfo.RouteInfoViewModel
 
@@ -37,20 +35,19 @@ import org.onebusaway.android.ui.routeinfo.RouteInfoViewModel
  * [RouteInfoViewModel]. The route id arrives via the intent data URI (see [makeIntent]), which
  * the launcher-shortcut path and the legacy package redirect both rely on.
  */
+@AndroidEntryPoint
 class RouteInfoActivity : AppCompatActivity() {
 
     private val routeId: String by lazy { intent.data?.lastPathSegment.orEmpty() }
 
-    private val viewModel: RouteInfoViewModel by viewModels {
-        viewModelFactory {
-            initializer {
-                RouteInfoViewModel(routeId, DefaultRouteInfoRepository(applicationContext))
-            }
-        }
-    }
+    private val viewModel: RouteInfoViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Normalize the route id from the data URI into an extra so the view model can read it from
+        // SavedStateHandle (which is seeded from intent extras, not the data URI). Must run before the
+        // view model is first accessed in setContent.
+        intent.putExtra(EXTRA_ROUTE_ID, routeId)
         setContent {
             ObaTheme {
                 RouteInfoRoute(
@@ -73,6 +70,9 @@ class RouteInfoActivity : AppCompatActivity() {
     }
 
     companion object {
+
+        /** SavedStateHandle key the host normalizes the data-URI route id into, read by the view model. */
+        const val EXTRA_ROUTE_ID = ".RouteId"
 
         @JvmStatic
         fun start(context: Context, routeId: String) {

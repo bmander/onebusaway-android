@@ -603,7 +603,7 @@ class HomeActivity : AppCompatActivity() {
         viewModel.onEnvironmentRefreshed(
             HomeEnvironment(
                 bikeshareEnabled = Application.isBikeshareEnabled(),
-                bikeshareActive = LayerUtils.isBikeshareLayerVisible(),
+                bikeshareActive = LayerUtils.isBikeshareLayerVisible(this),
                 zoomControlsPref =
                     prefsRepository.getBoolean(R.string.preference_key_show_zoom_controls, false),
                 leftHandMode =

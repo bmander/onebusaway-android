@@ -202,7 +202,7 @@ class MapViewModel @Inject constructor(
         // The user-driven toggle persists the choice through the seam; the startup sync (which reads
         // the pref) just applies it, so persistence stays opt-in.
         if (persist) {
-            prefsRepository.setBoolean(LayerUtils.bikeshareLayerInfo.sharedPreferenceKey, visible)
+            prefsRepository.setBoolean(R.string.preference_key_layer_bikeshare_visible, visible)
         }
         _bikeshareVisible.value = visible
     }
@@ -754,7 +754,7 @@ class MapViewModel @Inject constructor(
 
     /** Refresh prefs-backed state and restart the vehicle poll if in route mode (the host's onResume). */
     fun onResume() {
-        setBikeshareLayerVisible(LayerUtils.isBikeshareLayerVisible())
+        setBikeshareLayerVisible(LayerUtils.isBikeshareLayerVisible(context))
         refreshMyLocationEnabled()
         if (isRouteMode && vehicleJob?.isActive != true) {
             startVehiclePolling(nextVehicleDelay(lastVehicleLoadNanos, UIUtils.getCurrentTimeForComparison()))

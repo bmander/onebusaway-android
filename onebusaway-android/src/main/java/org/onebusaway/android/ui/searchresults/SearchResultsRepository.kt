@@ -89,7 +89,7 @@ class DefaultSearchResultsRepository @Inject constructor(@ApplicationContext pri
         ) {
             return response
         }
-        val defaultCenter = LocationUtils.getDefaultSearchCenter() ?: return response
+        val defaultCenter = LocationUtils.getDefaultSearchCenter(context) ?: return response
         return ObaRoutesForLocationRequest.Builder(context, defaultCenter)
             .setRadius(LocationUtils.DEFAULT_SEARCH_RADIUS)
             .setQuery(query)

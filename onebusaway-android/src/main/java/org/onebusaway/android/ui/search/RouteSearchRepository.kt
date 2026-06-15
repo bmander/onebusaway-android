@@ -61,7 +61,7 @@ class DefaultRouteSearchRepository(private val context: Context) : RouteSearchRe
             if (response == null || response.code != ObaApi.OBA_OK
                 || response.routesForLocation.isEmpty()
             ) {
-                val defaultCenter = LocationUtils.getDefaultSearchCenter()
+                val defaultCenter = LocationUtils.getDefaultSearchCenter(context)
                 if (defaultCenter != null) {
                     response = ObaRoutesForLocationRequest.Builder(context, defaultCenter)
                         .setRadius(LocationUtils.DEFAULT_SEARCH_RADIUS)

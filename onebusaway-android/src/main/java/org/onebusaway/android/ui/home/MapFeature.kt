@@ -279,7 +279,7 @@ fun MapFeature(
         onZoomIn = { mapViewModel.zoomIn() },
         onZoomOut = { mapViewModel.zoomOut() },
         onToggleBikeshare = {
-            val active = LayerUtils.isBikeshareLayerVisible()
+            val active = LayerUtils.isBikeshareLayerVisible(context)
             // Persist the toggled state + drive the bike loader, then ping the host to re-snapshot the
             // environment (so the bikeshare-active tint updates).
             mapViewModel.setBikeshareLayerVisible(!active, persist = true)

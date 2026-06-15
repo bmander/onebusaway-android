@@ -76,8 +76,9 @@ public class BackupUtils {
      *      Android 11 we can't access this directory and need to rely on the system UI picker.
      */
     static private void doRestore(Context activityContext, Uri uri) {
-        final Context context = Application.get().getApplicationContext();
+        final Context context = activityContext.getApplicationContext();
         ObaAnalytics.reportUiEvent(FirebaseAnalytics.getInstance(activityContext),
+                // TODO(D4): plausible is region-mutable; inject a Provider
                 Application.get().getPlausibleInstance(),
                 PlausibleAnalytics.REPORT_BACKUP_EVENT_URL,
                 context.getString(R.string.analytics_label_button_press_restore_preference),
@@ -108,8 +109,9 @@ public class BackupUtils {
      * @param activityContext context of the calling activity (used to check permissions)
      */
     public static void save(Context activityContext,Uri uri) {
-        Context context = Application.get().getApplicationContext();
+        Context context = activityContext.getApplicationContext();
         ObaAnalytics.reportUiEvent(FirebaseAnalytics.getInstance(activityContext),
+                // TODO(D4): plausible is region-mutable; inject a Provider
                 Application.get().getPlausibleInstance(),
                 PlausibleAnalytics.REPORT_BACKUP_EVENT_URL,
                 context.getString(R.string.analytics_label_button_press_save_preference),

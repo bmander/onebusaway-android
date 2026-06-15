@@ -53,6 +53,31 @@ object NavRoutes {
     /** Builds a navigable [SEARCH] route for [query]. */
     fun search(query: String): String = "search?$ARG_QUERY=${Uri.encode(query)}"
 
+    // --- "My*" list screens (Campaign C: former MyStops/MyRoutes/MyRecentStopsAndRoutes/MyReminders
+    // Activities). Each tabbed screen takes an optional starting-tab nav-arg (the MyTabs tag); it's
+    // also the target of static app shortcuts (res/xml/shortcuts.xml) and the translator's tab://
+    // branch (old pinned launcher shortcuts). Reminders is a single list, so it takes no tab arg.
+    const val ARG_TAB = "tab"
+    const val MY_STOPS = "myStops?$ARG_TAB={$ARG_TAB}"
+    const val MY_ROUTES = "myRoutes?$ARG_TAB={$ARG_TAB}"
+    const val MY_RECENT = "myRecent?$ARG_TAB={$ARG_TAB}"
+    const val MY_REMINDERS = "myReminders"
+
+    /** Builds a navigable [MY_STOPS] route, optionally pre-selecting the [tab] (a MyTabs tag). */
+    fun myStops(tab: String? = null): String =
+        "myStops" + if (tab != null) "?$ARG_TAB=${Uri.encode(tab)}" else ""
+
+    /** Builds a navigable [MY_ROUTES] route, optionally pre-selecting the [tab] (a MyTabs tag). */
+    fun myRoutes(tab: String? = null): String =
+        "myRoutes" + if (tab != null) "?$ARG_TAB=${Uri.encode(tab)}" else ""
+
+    /** Builds a navigable [MY_RECENT] route, optionally pre-selecting the [tab] (a MyTabs tag). */
+    fun myRecent(tab: String? = null): String =
+        "myRecent" + if (tab != null) "?$ARG_TAB=${Uri.encode(tab)}" else ""
+
+    /** Builds a navigable [MY_REMINDERS] route. */
+    fun myReminders(): String = "myReminders"
+
     // --- Survey web view (Campaign C) ---
     // The external-survey WebView host. The survey URL is the only nav-arg (the former
     // SurveyWebViewActivity also accepted optional stop_id / route_ids / embedded_data extras, but the

@@ -46,6 +46,17 @@ object NavRoutes {
     /** "Why donate" explainer with a button out to the donations page. */
     const val DONATION_LEARN_MORE = "donationLearnMore"
 
+    // --- Survey web view (Campaign C) ---
+    // The external-survey WebView host. The survey URL is the only nav-arg (the former
+    // SurveyWebViewActivity also accepted optional stop_id / route_ids / embedded_data extras, but the
+    // sole caller — the home survey overlay — passed only the URL, and the loaded request used the raw
+    // URL, so only the URL is carried).
+    const val ARG_URL = "url"
+    const val SURVEY_WEB_VIEW = "surveyWebView?$ARG_URL={$ARG_URL}"
+
+    /** Builds a navigable [SURVEY_WEB_VIEW] route, encoding the survey URL (it carries query params). */
+    fun surveyWebView(url: String): String = "surveyWebView?$ARG_URL=${Uri.encode(url)}"
+
     // --- Route info (C-a) ---
     // Clean nav-arg name (not the dotted intent-extra key): external contracts (the route data URI)
     // are translated to this route at the entry boundary; the destination VM reads this key from
@@ -127,5 +138,33 @@ object NavRoutes {
         }.joinToString("&")
         return "tripInfo/${Uri.encode(tripId)}/${Uri.encode(stopId)}" +
             if (query.isNotEmpty()) "?$query" else ""
+    }
+
+    // --- Feedback (Campaign C) ---
+    // The post-trip destination-reminder feedback screen. Reached only from the post-trip notification's
+    // Yes/No actions (see NavigationService). RESPONSE is an Int (FEEDBACK_YES / FEEDBACK_NO); the rest
+    // mirror the former intent extras (logFile is read on send; tripId/notificationId are carried to
+    // preserve the contract). Declared last so it can reuse ARG_TRIP_ID above.
+    const val ARG_FEEDBACK_RESPONSE = "feedbackResponse"
+    const val ARG_LOG_FILE = "logFile"
+    const val ARG_NOTIFICATION_ID = "notificationId"
+    const val FEEDBACK = "feedback?$ARG_FEEDBACK_RESPONSE={$ARG_FEEDBACK_RESPONSE}" +
+        "&$ARG_LOG_FILE={$ARG_LOG_FILE}&$ARG_TRIP_ID={$ARG_TRIP_ID}" +
+        "&$ARG_NOTIFICATION_ID={$ARG_NOTIFICATION_ID}"
+
+    /** Builds a navigable [FEEDBACK] route; null id args fall back to the nav-arg defaults. */
+    fun feedback(
+        response: Int,
+        logFile: String? = null,
+        tripId: String? = null,
+        notificationId: Int = 0,
+    ): String {
+        val query = buildList {
+            add("$ARG_FEEDBACK_RESPONSE=$response")
+            if (logFile != null) add("$ARG_LOG_FILE=${Uri.encode(logFile)}")
+            if (tripId != null) add("$ARG_TRIP_ID=${Uri.encode(tripId)}")
+            if (notificationId != 0) add("$ARG_NOTIFICATION_ID=$notificationId")
+        }.joinToString("&")
+        return "feedback?$query"
     }
 }

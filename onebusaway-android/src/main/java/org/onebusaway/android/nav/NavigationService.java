@@ -334,12 +334,12 @@ public class NavigationService extends Service implements LocationHelper.Listene
 
         if ((mFirstFeedback) || (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)) {
 
-            Intent fdIntent = new Intent(app.getApplicationContext(), FeedbackActivity.class);
+            // Campaign C: feedback is now a HomeActivity NavHost destination; makeIntent builds the
+            // explicit HomeActivity intent carrying the feedback route (with these args as nav-args).
+            Intent fdIntent = FeedbackActivity.makeIntent(app.getApplicationContext(),
+                    FeedbackActivity.FEEDBACK_NO, mLogFile.getAbsolutePath(), mTripId,
+                    mNavProvider.NOTIFICATION_ID + 1);
             fdIntent.setAction(FeedbackReceiver.ACTION_REPLY);
-            fdIntent.putExtra(FeedbackActivity.RESPONSE, FeedbackActivity.FEEDBACK_NO);
-            fdIntent.putExtra(FeedbackActivity.NOTIFICATION_ID, mNavProvider.NOTIFICATION_ID + 1);
-            fdIntent.putExtra(FeedbackActivity.TRIP_ID, mTripId);
-            fdIntent.putExtra(FeedbackActivity.LOG_FILE, mLogFile.getAbsolutePath());
 
             int flags;
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
@@ -352,12 +352,10 @@ public class NavigationService extends Service implements LocationHelper.Listene
             PendingIntent fdPendingIntentNo = getActivity(app.getApplicationContext()
                     , 1, fdIntent, flags);
 
-            fdIntent = new Intent(app.getApplicationContext(), FeedbackActivity.class);
+            fdIntent = FeedbackActivity.makeIntent(app.getApplicationContext(),
+                    FeedbackActivity.FEEDBACK_YES, mLogFile.getAbsolutePath(), mTripId,
+                    mNavProvider.NOTIFICATION_ID + 1);
             fdIntent.setAction(FeedbackReceiver.ACTION_REPLY);
-            fdIntent.putExtra(FeedbackActivity.RESPONSE, FeedbackActivity.FEEDBACK_YES);
-            fdIntent.putExtra(FeedbackActivity.NOTIFICATION_ID, mNavProvider.NOTIFICATION_ID + 1);
-            fdIntent.putExtra(FeedbackActivity.TRIP_ID, mTripId);
-            fdIntent.putExtra(FeedbackActivity.LOG_FILE, mLogFile.getAbsolutePath());
 
             //Pending intent used to handle feedback when user taps on 'Yes'
             PendingIntent fdPendingIntentYes = getActivity(app.getApplicationContext()

@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.ui.home
 
-import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -95,14 +94,8 @@ fun SurveyFeature(
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             viewModel.effects.collect { effect ->
                 when (effect) {
-                    is SurveyEffect.OpenExternalSurvey -> context.startActivity(
-                        Intent(context, SurveyWebViewActivity::class.java).apply {
-                            putExtra("url", effect.url)
-                            if (!effect.embeddedData.isNullOrEmpty()) {
-                                putStringArrayListExtra("embedded_data", effect.embeddedData)
-                            }
-                        }
-                    )
+                    is SurveyEffect.OpenExternalSurvey ->
+                        SurveyWebViewActivity.start(context, effect.url)
                     is SurveyEffect.ShowToast ->
                         Toast.makeText(context, effect.resId, Toast.LENGTH_SHORT).show()
                 }

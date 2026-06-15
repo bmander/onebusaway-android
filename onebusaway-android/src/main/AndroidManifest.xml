@@ -66,10 +66,6 @@
             android:value="org.onebusaway.android.ui.SearchActivity" />
 
         <activity
-            android:name=".ui.survey.activities.SurveyWebViewActivity"
-            android:exported="false" />
-
-        <activity
             android:name="org.onebusaway.android.ui.SearchActivity"
             android:launchMode="singleTop"
             android:exported="true"
@@ -276,15 +272,6 @@
         <activity
             android:name="org.onebusaway.android.ui.TripPlanActivity"
             android:label="@string/title_activity_trip_plan"
-            android:parentActivityName="org.onebusaway.android.ui.HomeActivity">
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value="org.onebusaway.android.ui.HomeActivity"/>
-        </activity>
-        <activity
-            android:name="org.onebusaway.android.ui.FeedbackActivity"
-            android:label="@string/feedback_notify_title"
-            android:noHistory="true"
             android:parentActivityName="org.onebusaway.android.ui.HomeActivity">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"

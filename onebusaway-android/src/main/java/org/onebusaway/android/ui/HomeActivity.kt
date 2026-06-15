@@ -110,6 +110,7 @@ import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
 import org.onebusaway.android.ui.survey.SurveyViewModel
+import org.onebusaway.android.ui.survey.activities.SurveyWebViewScreen
 import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
@@ -535,6 +536,64 @@ class HomeActivity : AppCompatActivity() {
                                 startActivity(
                                     Application.getDonationsManager().buildOpenDonationsPageIntent()
                                 )
+                                navController.popBackStack()
+                            },
+                        )
+                    }
+                }
+                // Survey web view destination (Campaign C): the external-survey WebView. Reached in-app
+                // from the home survey overlay (SurveyWebViewActivity facade → HomeActivity → translator).
+                // The survey URL is the nav-arg. Non-exported; no alias.
+                composable(
+                    NavRoutes.SURVEY_WEB_VIEW,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_URL) { type = NavType.StringType },
+                    ),
+                ) { backStackEntry ->
+                    val url = backStackEntry.arguments?.getString(NavRoutes.ARG_URL).orEmpty()
+                    ObaTheme {
+                        SurveyWebViewScreen(
+                            url = url,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
+                // Feedback destination (Campaign C): the post-trip destination-reminder feedback screen.
+                // Reached only from the post-trip notification's Yes/No actions (NavigationService →
+                // FeedbackActivity facade → HomeActivity → translator). On send it runs the submit/log
+                // glue (FeedbackSubmitter) then pops back. Non-exported; no alias.
+                composable(
+                    NavRoutes.FEEDBACK,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_FEEDBACK_RESPONSE) {
+                            type = NavType.IntType; defaultValue = 0
+                        },
+                        navArgument(NavRoutes.ARG_LOG_FILE) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_TRIP_ID) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_NOTIFICATION_ID) {
+                            type = NavType.IntType; defaultValue = 0
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val response =
+                        backStackEntry.arguments?.getInt(NavRoutes.ARG_FEEDBACK_RESPONSE) ?: 0
+                    val logFile = backStackEntry.arguments?.getString(NavRoutes.ARG_LOG_FILE)
+                    val context = LocalContext.current
+                    val submitter = remember(logFile) {
+                        FeedbackSubmitter(context.applicationContext, prefsRepository, logFile)
+                    }
+                    ObaTheme {
+                        FeedbackScreen(
+                            initialLiked = response == FeedbackActivity.FEEDBACK_YES,
+                            initialSendLogs = submitter.shareLogsPref(),
+                            onBack = { navController.popBackStack() },
+                            onSendLogsChanged = submitter::setShareLogs,
+                            onSend = { liked, text ->
+                                submitter.submit(liked, text)
                                 navController.popBackStack()
                             },
                         )

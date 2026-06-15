@@ -15,11 +15,10 @@
  */
 package org.onebusaway.android.ui
 
-import android.os.Bundle
+import android.content.Context
+import android.content.Intent
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.compose.setContent
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -52,11 +51,9 @@ import androidx.compose.ui.unit.dp
 import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
 import com.google.firebase.analytics.FirebaseAnalytics
-import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
-import javax.inject.Inject
 import org.apache.commons.io.FileUtils
 import org.onebusaway.android.R
 import org.onebusaway.android.io.ObaAnalytics
@@ -66,86 +63,111 @@ import org.onebusaway.android.nav.NavigationUploadWorker
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
- * Collects thumbs-up/down feedback (plus optional comments) after a destination-reminder trip,
- * launched from the post-trip notification's Yes/No actions. On send, the trip's navigation log
- * either gets the feedback appended and is queued for upload, or is deleted and the feedback goes
- * to analytics only — matching the user's "share logs" choice.
+ * Launches the post-trip destination-reminder feedback screen.
+ *
+ * Campaign C: feedback is a NavHost destination hosted by [HomeActivity] (see [NavRoutes.FEEDBACK] and
+ * the [FeedbackScreen] / [FeedbackSubmitter] below); this is no longer an Activity but a launcher
+ * facade. It keeps the companion extra-key + response constants so [NavigationService] keeps compiling
+ * unchanged, and exposes a [makeIntent] that builds an explicit [HomeActivity] intent carrying the
+ * feedback route (which HomeActivity's translator navigates to). Non-exported; reached only from the
+ * post-trip notification's Yes/No PendingIntents.
  */
-@AndroidEntryPoint
-class FeedbackActivity : AppCompatActivity() {
+object FeedbackActivity {
 
-    @Inject
-    lateinit var prefsRepository: PreferencesRepository
+    const val TAG = "FeedbackActivity"
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        val initialLiked = intent?.getIntExtra(RESPONSE, 0) == FEEDBACK_YES
-        setContent {
-            ObaTheme {
-                FeedbackScreen(
-                    initialLiked = initialLiked,
-                    initialSendLogs = shareLogsPref(),
-                    onBack = { finish() },
-                    onSendLogsChanged = { share ->
-                        prefsRepository.setBoolean(
-                            R.string.preferences_key_user_share_destination_logs, share
-                        )
-                    },
-                    onSend = { liked, text ->
-                        submitFeedback(liked, text)
-                        finish()
-                    }
-                )
-            }
-        }
+    const val TRIP_ID = ".TRIP_ID"
+    const val NOTIFICATION_ID = ".NOTIFICATION_ID"
+    const val RESPONSE = ".RESPONSE"
+    const val LOG_FILE = ".LOG_FILE"
+
+    const val FEEDBACK_NO = 1
+    const val FEEDBACK_YES = 2
+
+    /**
+     * Builds the explicit [HomeActivity] intent that opens the feedback destination. Mirrors the former
+     * `new Intent(context, FeedbackActivity.class)` + extras; here the extras become the feedback route's
+     * nav-args. RESPONSE is required; the rest are optional.
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun makeIntent(
+        context: Context,
+        response: Int,
+        logFile: String? = null,
+        tripId: String? = null,
+        notificationId: Int = 0,
+    ): Intent = HomeActivity.navIntent(
+        context,
+        NavRoutes.feedback(response, logFile, tripId, notificationId)
+    )
+}
+
+/**
+ * The submit/log glue formerly hosted by the FeedbackActivity. Re-hosted here so the feedback NavHost
+ * destination can run it on send: either append the feedback to the trip log and queue it for upload,
+ * or delete the log and report the feedback to analytics only — matching the user's "share logs" choice.
+ * Built with the application [Context], the [prefs] repository, and the trip's [logFile] (the
+ * destination's nav-arg).
+ */
+class FeedbackSubmitter(
+    private val context: Context,
+    private val prefs: PreferencesRepository,
+    private val logFile: String?,
+) {
+
+    fun shareLogsPref(): Boolean =
+        prefs.getBoolean(R.string.preferences_key_user_share_destination_logs, true)
+
+    fun setShareLogs(share: Boolean) {
+        prefs.setBoolean(R.string.preferences_key_user_share_destination_logs, share)
     }
 
-    private fun shareLogsPref(): Boolean =
-        prefsRepository.getBoolean(R.string.preferences_key_user_share_destination_logs, true)
-
-    private fun submitFeedback(liked: Boolean, feedback: String) {
-        prefsRepository.setBoolean(NavigationService.FIRST_FEEDBACK, false)
+    fun submit(liked: Boolean, feedback: String) {
+        prefs.setBoolean(NavigationService.FIRST_FEEDBACK, false)
         if (shareLogsPref()) {
             moveLog(liked, feedback)
         } else {
             deleteLog()
             logFeedback(liked, feedback)
         }
-        Toast.makeText(this, getString(R.string.feedback_notify_confirmation), Toast.LENGTH_SHORT)
-            .show()
+        Toast.makeText(
+            context, context.getString(R.string.feedback_notify_confirmation), Toast.LENGTH_SHORT
+        ).show()
     }
 
     /** Appends the feedback to the trip log and moves it to the upload folder for its response. */
     private fun moveLog(liked: Boolean, feedback: String) {
-        val logFilePath = intent?.getStringExtra(LOG_FILE) ?: return
-        val response = getString(
+        val logFilePath = logFile ?: return
+        val response = context.getString(
             if (liked) R.string.analytics_label_destination_reminder_yes
             else R.string.analytics_label_destination_reminder_no
         )
         try {
-            val logFile = File(logFilePath)
-            FileUtils.write(logFile, System.lineSeparator() + feedback, true)
+            val file = File(logFilePath)
+            FileUtils.write(file, System.lineSeparator() + feedback, true)
             val destFolder = File(
-                applicationContext.filesDir.absolutePath
+                context.filesDir.absolutePath
                         + File.separator + LOG_DIRECTORY + File.separator + response
             )
             try {
-                FileUtils.moveFileToDirectory(logFile, destFolder, true)
+                FileUtils.moveFileToDirectory(file, destFolder, true)
             } catch (e: Exception) {
-                Log.e(TAG, "File move failed")
+                Log.e(FeedbackActivity.TAG, "File move failed")
             }
             setupLogUploadTask()
         } catch (e: IOException) {
-            Log.e(TAG, "File write failed: $e")
+            Log.e(FeedbackActivity.TAG, "File write failed: $e")
         }
     }
 
     private fun deleteLog() {
-        val logFilePath = intent?.getStringExtra(LOG_FILE) ?: return
+        val logFilePath = logFile ?: return
         val deleted = File(logFilePath).delete()
-        Log.d(TAG, "Log deleted $deleted")
+        Log.d(FeedbackActivity.TAG, "Log deleted $deleted")
     }
 
     private fun setupLogUploadTask() {
@@ -157,26 +179,13 @@ class FeedbackActivity : AppCompatActivity() {
 
     private fun logFeedback(liked: Boolean, feedbackText: String) {
         ObaAnalytics.reportDestinationReminderFeedback(
-            FirebaseAnalytics.getInstance(this), liked, feedbackText.ifEmpty { null }, null
+            FirebaseAnalytics.getInstance(context), liked, feedbackText.ifEmpty { null }, null
         )
-    }
-
-    companion object {
-
-        const val TAG = "FeedbackActivity"
-
-        const val TRIP_ID = ".TRIP_ID"
-        const val NOTIFICATION_ID = ".NOTIFICATION_ID"
-        const val RESPONSE = ".RESPONSE"
-        const val LOG_FILE = ".LOG_FILE"
-
-        const val FEEDBACK_NO = 1
-        const val FEEDBACK_YES = 2
     }
 }
 
 @Composable
-private fun FeedbackScreen(
+internal fun FeedbackScreen(
     initialLiked: Boolean,
     initialSendLogs: Boolean,
     onBack: () -> Unit,

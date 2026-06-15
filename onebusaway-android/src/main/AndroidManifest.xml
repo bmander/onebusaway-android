@@ -90,6 +90,7 @@
 
         <activity
             android:name="org.onebusaway.android.ui.HomeActivity"
+            android:launchMode="singleTop"
             android:exported="true"
             android:configChanges="orientation|keyboardHidden|screenSize">
             <intent-filter>
@@ -97,31 +98,33 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <activity
+        <!-- Campaign C-c: arrivals is a HomeActivity NavHost destination. These frozen component names
+             (old pinned launcher shortcuts) keep resolving via aliases → HomeActivity, which reads the
+             stop data URI and navigates. Aliases inherit launchMode/configChanges from HomeActivity. -->
+        <activity-alias
             android:name="org.onebusaway.android.ui.ArrivalsListActivity"
-            android:launchMode="singleTop"
-            android:exported="true"
-            android:configChanges="orientation|keyboardHidden|screenSize">
+            android:targetActivity="org.onebusaway.android.ui.HomeActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
-        </activity>
-        <activity
+        </activity-alias>
+        <activity-alias
             android:name="com.joulespersecond.seattlebusbot.ArrivalsListActivity"
-            android:launchMode="singleTop"
-            android:exported="true"
-            android:configChanges="orientation|keyboardHidden|screenSize">
+            android:targetActivity="org.onebusaway.android.ui.HomeActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
-        </activity>
-        <activity android:name="org.onebusaway.android.ui.StopInfoActivity"
-            android:exported="true"
-            android:configChanges="orientation|keyboardHidden|screenSize">
+        </activity-alias>
+        <activity-alias
+            android:name="org.onebusaway.android.ui.StopInfoActivity"
+            android:targetActivity="org.onebusaway.android.ui.HomeActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
-        </activity>
+        </activity-alias>
         <activity android:name="org.onebusaway.android.ui.RouteInfoActivity"
             android:exported="true"
             android:configChanges="orientation|keyboardHidden|screenSize">

@@ -30,6 +30,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -47,6 +48,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -65,8 +67,10 @@ import org.onebusaway.android.map.mapModeToParams
 import org.onebusaway.android.map.resolveMapMode
 import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.preferences.PreferencesRepository
+import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
+import org.onebusaway.android.ui.arrivals.ArrivalsIntents
 import org.onebusaway.android.ui.arrivals.ArrivalsRoute
 import org.onebusaway.android.ui.arrivals.ArrivalsUiState
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
@@ -151,6 +155,12 @@ class HomeActivity : AppCompatActivity() {
 
     private lateinit var firebaseAnalytics: FirebaseAnalytics
 
+    // A NavHost route to navigate to once the NavHost has composed, set from an incoming external
+    // intent (FCM, a pinned shortcut / legacy class name resolved via an activity-alias, an in-app
+    // launch from non-NavHost code). The navController is created inside setContent, so onCreate /
+    // onNewIntent can't navigate directly — they stage the route here and a LaunchedEffect consumes it.
+    private val pendingDeepLinkRoute = MutableStateFlow<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -188,11 +198,29 @@ class HomeActivity : AppCompatActivity() {
             onRouteHeaderHeight = ::onRouteHeaderHeight,
         )
 
+        // Stage any external "open this screen" intent (set before setContent so the NavHost's
+        // LaunchedEffect observes it once composed). MapParams.* focus / route-mode launches return
+        // null here and stay on the map path below. Only on a fresh launch (not a config change).
+        if (savedInstanceState == null) {
+            pendingDeepLinkRoute.value = routeForIntent(intent)
+        }
+
         setContent {
-            // Campaign C0: the single-Activity Navigation-Compose backbone. Home is the only
-            // destination for now; C1+ append the screens currently launched as separate activities.
-            // (HomeScreen applies ObaTheme internally.)
+            // Campaign C0: the single-Activity Navigation-Compose backbone. HomeActivity hosts every
+            // screen as a NavHost destination; external intents (FCM, pinned shortcuts, legacy class
+            // names via activity-aliases) land here and are routed by [routeForIntent].
             val navController = rememberNavController()
+            // Consume a staged deep-link route once the NavHost is ready (and on each onNewIntent).
+            val pending by pendingDeepLinkRoute.collectAsStateWithLifecycle()
+            LaunchedEffect(pending) {
+                pending?.let { route ->
+                    navController.navigate(route) {
+                        popUpTo(NavRoutes.HOME) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                    pendingDeepLinkRoute.value = null
+                }
+            }
             NavHost(navController = navController, startDestination = NavRoutes.HOME) {
                 composable(NavRoutes.HOME) {
                     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -383,12 +411,41 @@ class HomeActivity : AppCompatActivity() {
             }
         }
 
-        // Handle deep link from background FCM notification tap (only on fresh launch, not config change)
-        if (savedInstanceState == null) {
-            handleFcmNotificationIntent(intent)
-        }
-
         observeRegionResolved()
+    }
+
+    /**
+     * A warm re-launch (singleTop) carrying an external screen intent — FCM CLEAR_TOP, the
+     * NavigationService reminder PendingIntent, a pinned shortcut. Stage its route; the NavHost's
+     * LaunchedEffect navigates. (Cold launches are handled in onCreate.)
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingDeepLinkRoute.value = routeForIntent(intent)
+    }
+
+    /**
+     * Translates an incoming external intent into the NavHost route it should open, or null to leave
+     * the home/map path untouched. Handles the FCM `arrival_and_departure` payload (delete the
+     * reminder, then open arrivals) and the explicit-component screen intents that carry a
+     * `content://<authority>/<path>/{id}` data URI (read by path segment, since the authority is
+     * flavor-specific). MapParams.* focus / route-mode launches have no data URI and return null —
+     * they stay map behavior (initMapMode / setupMapState).
+     */
+    private fun routeForIntent(intent: Intent?): String? {
+        if (intent == null) return null
+        intent.getStringExtra("arrival_and_departure")?.let { arrivalJson ->
+            ReminderUtils.handleArrivalPayload(applicationContext, arrivalJson)
+            return ReminderUtils.getStopIdFromPayload(arrivalJson)?.let { NavRoutes.arrivals(it, null) }
+        }
+        val segments = intent.data?.pathSegments ?: return null
+        return when (segments.firstOrNull()) {
+            ObaContract.Stops.PATH -> intent.data?.lastPathSegment?.let { stopId ->
+                NavRoutes.arrivals(stopId, intent.getStringExtra(ArrivalsIntents.STOP_NAME))
+            }
+            else -> null
+        }
     }
 
     /**
@@ -460,24 +517,6 @@ class HomeActivity : AppCompatActivity() {
             zoom = restored.getFloat(MapParams.ZOOM, primary.zoom),
         )
         return resolveMapSeed(primary, persisted)
-    }
-
-    /**
-     * If this activity was launched by tapping an FCM notification (background delivery),
-     * the data payload is in the intent extras. Extract stop_id and deep-link to ArrivalsListActivity.
-     */
-    private fun handleFcmNotificationIntent(intent: Intent?) {
-        if (intent == null || intent.extras == null) {
-            return
-        }
-        val arrivalJson = intent.getStringExtra("arrival_and_departure")
-        val stopId = ReminderUtils.getStopIdFromPayload(arrivalJson)
-        if (stopId != null) {
-            ReminderUtils.handleArrivalPayload(applicationContext, arrivalJson)
-            val arrivalsIntent = ArrivalsListActivity.Builder(this, stopId).intent
-            arrivalsIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            startActivity(arrivalsIntent)
-        }
     }
 
     override fun onStart() {

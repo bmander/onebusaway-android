@@ -19,96 +19,24 @@ package org.onebusaway.android.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Bundle
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.ui.platform.ComposeView
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.google.android.material.snackbar.Snackbar
-import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
-import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.ui.arrivals.ArrivalsIntents
-import org.onebusaway.android.ui.arrivals.ArrivalsRoute
-import org.onebusaway.android.ui.arrivals.ArrivalsUiState
-import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
-import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.util.ShowcaseViewUtils
 import org.onebusaway.android.util.UIUtils
 import java.util.HashMap
 
 /**
- * Shows the real-time arrivals and departures for a stop.
+ * Launches the real-time arrivals screen for a stop.
  *
- * Compose + MVVM host: state and 60s polling live in [ArrivalsViewModel] / [ArrivalsRoute].
- * The stop id arrives via the intent data URI (preserved for the many launch sites and the
- * launcher-shortcut path). This is the standalone path; HomeActivity's map slide-panel hosts the
- * same Compose arrivals via ArrivalsPanelFragment.
+ * Campaign C-c: arrivals is a NavHost destination hosted by [HomeActivity]; this is no longer an
+ * Activity but a launcher facade that builds an explicit [HomeActivity] intent carrying the stop's
+ * `content://…/stops/{id}` data URI (+ optional name/direction extras). HomeActivity's intent
+ * translator reads the data URI and navigates to the arrivals destination. The frozen class name
+ * `org.onebusaway.android.ui.ArrivalsListActivity` keeps resolving (for old pinned launcher
+ * shortcuts) via an `<activity-alias>` → HomeActivity in the manifest.
  */
-@AndroidEntryPoint
-class ArrivalsListActivity : AppCompatActivity() {
-
-    @Inject
-    lateinit var arrivalsViewModelFactory: ArrivalsViewModel.Factory
-
-    private val stopId: String by lazy { intent.data?.lastPathSegment.orEmpty() }
-
-    private val viewModel: ArrivalsViewModel by viewModels {
-        viewModelFactory {
-            initializer {
-                arrivalsViewModelFactory.create(stopId, ignorePersistedFilter = false)
-            }
-        }
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        // Hosted in an XML wrapper (not the setContent extension) so the root has the
-        // R.id.fragment_arrivals_list that the shared SituationDialogFragment anchors to.
-        setContentView(R.layout.activity_arrivals_compose)
-        val initialTitle = intent.getStringExtra(ArrivalsIntents.STOP_NAME).orEmpty()
-        val handler = createArrivalActionHandler(
-            activity = this,
-            viewModel = viewModel,
-            currentContent = { viewModel.state.value as? ArrivalsUiState.Content },
-            onShowRouteOnMap = { routeId -> HomeActivity.start(this, routeId) },
-            showUndoSnackbar = { messageRes, actionRes, onAction ->
-                val snackbar = Snackbar.make(
-                    findViewById(R.id.fragment_arrivals_list), messageRes, Snackbar.LENGTH_SHORT
-                )
-                if (actionRes != null && onAction != null) {
-                    snackbar.setAction(actionRes) { onAction() }
-                }
-                snackbar.show()
-            }
-        )
-        findViewById<ComposeView>(R.id.compose_view).setContent {
-            ObaTheme {
-                ArrivalsRoute(
-                    viewModel = viewModel,
-                    initialTitle = initialTitle,
-                    handler = handler,
-                    onBack = { NavHelp.goUp(this) }
-                )
-            }
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        // A new stop arrived (singleTop); rebuild with a fresh ViewModel bound to it
-        setIntent(intent)
-        recreate()
-    }
-
-    override fun onPause() {
-        ShowcaseViewUtils.hideShowcaseView()
-        super.onPause()
-    }
+object ArrivalsListActivity {
 
     class Builder {
 
@@ -119,7 +47,7 @@ class ArrivalsListActivity : AppCompatActivity() {
 
         constructor(context: Context, stopId: String) {
             this.context = context
-            intent = Intent(context, ArrivalsListActivity::class.java)
+            intent = Intent(context, HomeActivity::class.java)
             intent.data = Uri.withAppendedPath(ObaContract.Stops.CONTENT_URI, stopId)
         }
 
@@ -129,7 +57,7 @@ class ArrivalsListActivity : AppCompatActivity() {
          */
         constructor(context: Context, stop: ObaStop, routes: HashMap<String, ObaRoute>) {
             this.context = context
-            intent = Intent(context, ArrivalsListActivity::class.java)
+            intent = Intent(context, HomeActivity::class.java)
             intent.data = Uri.withAppendedPath(ObaContract.Stops.CONTENT_URI, stop.id)
             setStopName(stop.name)
             setStopDirection(stop.direction)
@@ -161,16 +89,13 @@ class ArrivalsListActivity : AppCompatActivity() {
         }
     }
 
-    companion object {
+    @JvmStatic
+    fun start(context: Context, stopId: String) {
+        Builder(context, stopId).start()
+    }
 
-        @JvmStatic
-        fun start(context: Context, stopId: String) {
-            Builder(context, stopId).start()
-        }
-
-        @JvmStatic
-        fun start(context: Context, stop: ObaStop, routes: HashMap<String, ObaRoute>) {
-            Builder(context, stop, routes).start()
-        }
+    @JvmStatic
+    fun start(context: Context, stop: ObaStop, routes: HashMap<String, ObaRoute>) {
+        Builder(context, stop, routes).start()
     }
 }

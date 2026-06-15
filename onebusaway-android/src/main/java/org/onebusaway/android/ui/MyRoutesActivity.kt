@@ -83,8 +83,16 @@ class MyRoutesActivity : AppCompatActivity() {
                             RouteListDestination(
                                 recent,
                                 emptyText = R.string.my_no_recent_routes,
-                                removeLabel = R.string.my_context_remove_recent,
-                                shortcutMode = shortcutMode
+                                onClick = {
+                                    this@MyRoutesActivity.openRoute(it, shortcutMode)
+                                },
+                                actions = {
+                                    this@MyRoutesActivity.routeActions(
+                                        it,
+                                        R.string.my_context_remove_recent,
+                                        shortcutMode
+                                    ) { recent.remove(it.id) }
+                                }
                             )
                         },
                         MyTab(

@@ -23,45 +23,33 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.ui.compose.findActivity
-import org.onebusaway.android.ui.editReminder
-import org.onebusaway.android.ui.openRoute
 import org.onebusaway.android.ui.openRouteSearchResult
-import org.onebusaway.android.ui.openStop
 import org.onebusaway.android.ui.openStopSearchResult
-import org.onebusaway.android.ui.reminderActions
-import org.onebusaway.android.ui.routeActions
 import org.onebusaway.android.ui.search.RouteSearchContent
 import org.onebusaway.android.ui.search.RouteSearchResult
 import org.onebusaway.android.ui.search.SearchViewModel
 import org.onebusaway.android.ui.search.StopSearchContent
 import org.onebusaway.android.ui.search.StopSearchResult
-import org.onebusaway.android.ui.stopActions
 import org.onebusaway.android.util.UIUtils
 
 /**
  * The shared list/search "destinations": body composables hosted by both the Compose [MyTabsScreen]
- * (the `My*` tab activities) and the Compose home overlays ([org.onebusaway.android.ui.home]). Each
- * mirrors the `onCreateView` of the fragment it replaced — [MyListContent] + a row + the
- * `AppCompatActivity` nav/action helpers ([openStop]/[stopActions]/…) — with the host resolved via
- * [findActivity] and an explicit [shortcutMode] (the `My*` launcher-shortcut picker returns a
- * shortcut intent instead of opening the destination).
+ * (the `My*` tab activities) and the Compose home overlays ([org.onebusaway.android.ui.home]). The
+ * three list destinations are stateless — callers supply the per-row `onClick` and `actions` (each
+ * caller wires them to the `AppCompatActivity` nav/action helpers with its own strings and
+ * `shortcutMode`). The two search destinations still resolve the host via [findActivity] for now.
  */
 
 @Composable
 fun StopListDestination(
     viewModel: MyListViewModel<StopListItem>,
     @StringRes emptyText: Int,
-    @StringRes removeLabel: Int,
-    shortcutMode: Boolean,
+    onClick: (StopListItem) -> Unit,
+    actions: (StopListItem) -> List<RowAction>,
 ) {
-    val host = LocalContext.current.findActivity()
     val state by viewModel.state.collectAsStateWithLifecycle()
     MyListContent(state, emptyText = stringResource(emptyText), itemKey = { it.id }) { stop ->
-        StopRow(
-            stop,
-            onClick = { host.openStop(stop, shortcutMode) },
-            actions = host.stopActions(stop, removeLabel, shortcutMode) { viewModel.remove(stop.id) }
-        )
+        StopRow(stop, onClick = { onClick(stop) }, actions = actions(stop))
     }
 }
 
@@ -69,17 +57,12 @@ fun StopListDestination(
 fun RouteListDestination(
     viewModel: MyListViewModel<RouteListItem>,
     @StringRes emptyText: Int,
-    @StringRes removeLabel: Int,
-    shortcutMode: Boolean,
+    onClick: (RouteListItem) -> Unit,
+    actions: (RouteListItem) -> List<RowAction>,
 ) {
-    val host = LocalContext.current.findActivity()
     val state by viewModel.state.collectAsStateWithLifecycle()
     MyListContent(state, emptyText = stringResource(emptyText), itemKey = { it.id }) { route ->
-        RouteRow(
-            route,
-            onClick = { host.openRoute(route, shortcutMode) },
-            actions = host.routeActions(route, removeLabel, shortcutMode) { viewModel.remove(route.id) }
-        )
+        RouteRow(route, onClick = { onClick(route) }, actions = actions(route))
     }
 }
 
@@ -87,19 +70,16 @@ fun RouteListDestination(
 fun ReminderListDestination(
     viewModel: MyListViewModel<ReminderItem>,
     @StringRes emptyText: Int,
+    onClick: (ReminderItem) -> Unit,
+    actions: (ReminderItem) -> List<RowAction>,
 ) {
-    val host = LocalContext.current.findActivity()
     val state by viewModel.state.collectAsStateWithLifecycle()
     MyListContent(
         state,
         emptyText = stringResource(emptyText),
         itemKey = { "${it.tripId}:${it.stopId}" }
     ) { reminder ->
-        ReminderRow(
-            reminder,
-            onClick = { host.editReminder(reminder) },
-            actions = host.reminderActions(reminder)
-        )
+        ReminderRow(reminder, onClick = { onClick(reminder) }, actions = actions(reminder))
     }
 }
 

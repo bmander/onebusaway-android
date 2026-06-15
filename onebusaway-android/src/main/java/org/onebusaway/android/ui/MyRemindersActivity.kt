@@ -70,7 +70,12 @@ class MyRemindersActivity : AppCompatActivity() {
                     }
                 ) { padding ->
                     Box(Modifier.fillMaxSize().padding(padding)) {
-                        ReminderListDestination(reminders, emptyText = R.string.trip_list_notrips)
+                        ReminderListDestination(
+                            reminders,
+                            emptyText = R.string.trip_list_notrips,
+                            onClick = { this@MyRemindersActivity.editReminder(it) },
+                            actions = { this@MyRemindersActivity.reminderActions(it) }
+                        )
                     }
                 }
             }

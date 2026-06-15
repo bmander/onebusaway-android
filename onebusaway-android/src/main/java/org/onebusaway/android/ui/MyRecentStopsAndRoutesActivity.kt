@@ -94,8 +94,19 @@ class MyRecentStopsAndRoutesActivity : AppCompatActivity() {
                             StopListDestination(
                                 recentStops,
                                 emptyText = R.string.my_no_recent_stops,
-                                removeLabel = R.string.my_context_remove_recent,
-                                shortcutMode = false
+                                onClick = {
+                                    this@MyRecentStopsAndRoutesActivity.openStop(
+                                        it,
+                                        shortcutMode = false
+                                    )
+                                },
+                                actions = {
+                                    this@MyRecentStopsAndRoutesActivity.stopActions(
+                                        it,
+                                        R.string.my_context_remove_recent,
+                                        shortcutMode = false
+                                    ) { recentStops.remove(it.id) }
+                                }
                             )
                         },
                         MyTab(
@@ -112,8 +123,19 @@ class MyRecentStopsAndRoutesActivity : AppCompatActivity() {
                             RouteListDestination(
                                 recentRoutes,
                                 emptyText = R.string.my_no_recent_routes,
-                                removeLabel = R.string.my_context_remove_recent,
-                                shortcutMode = false
+                                onClick = {
+                                    this@MyRecentStopsAndRoutesActivity.openRoute(
+                                        it,
+                                        shortcutMode = false
+                                    )
+                                },
+                                actions = {
+                                    this@MyRecentStopsAndRoutesActivity.routeActions(
+                                        it,
+                                        R.string.my_context_remove_recent,
+                                        shortcutMode = false
+                                    ) { recentRoutes.remove(it.id) }
+                                }
                             )
                         }
                     )

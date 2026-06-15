@@ -87,8 +87,16 @@ class MyStopsActivity : AppCompatActivity() {
                             StopListDestination(
                                 recent,
                                 emptyText = R.string.my_no_recent_stops,
-                                removeLabel = R.string.my_context_remove_recent,
-                                shortcutMode = shortcutMode
+                                onClick = {
+                                    this@MyStopsActivity.openStop(it, shortcutMode)
+                                },
+                                actions = {
+                                    this@MyStopsActivity.stopActions(
+                                        it,
+                                        R.string.my_context_remove_recent,
+                                        shortcutMode
+                                    ) { recent.remove(it.id) }
+                                }
                             )
                         },
                         MyTab(
@@ -111,8 +119,16 @@ class MyStopsActivity : AppCompatActivity() {
                             StopListDestination(
                                 starred,
                                 emptyText = R.string.my_no_starred_stops,
-                                removeLabel = R.string.my_context_remove_star,
-                                shortcutMode = shortcutMode
+                                onClick = {
+                                    this@MyStopsActivity.openStop(it, shortcutMode)
+                                },
+                                actions = {
+                                    this@MyStopsActivity.stopActions(
+                                        it,
+                                        R.string.my_context_remove_star,
+                                        shortcutMode
+                                    ) { starred.remove(it.id) }
+                                }
                             )
                         },
                         MyTab(

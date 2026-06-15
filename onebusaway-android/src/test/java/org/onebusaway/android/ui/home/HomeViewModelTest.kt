@@ -18,6 +18,12 @@ package org.onebusaway.android.ui.home
 import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -30,7 +36,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.map.HomeMapController
+import org.onebusaway.android.map.MapCommand
+import org.onebusaway.android.map.MapInteractionBus
 import org.onebusaway.android.testing.MainDispatcherRule
 
 private class FakeWideAlertsRepository(private val alerts: List<WideAlert>) : WideAlertsRepository {
@@ -65,16 +72,22 @@ private class FakeNavItemsRepository(
     override fun availability(): NavItemAvailability = availability
 }
 
-/** Records the map operations HomeViewModel drives, so they can be asserted without a real (Android) VM. */
-private class FakeHomeMapController : HomeMapController {
+/** Records the map interactions HomeViewModel sends through the bus, so they can be asserted directly. */
+private class FakeMapInteractionBus : MapInteractionBus {
     var lastBottomPadding: Int = -1
-    val recenters = mutableListOf<Pair<Double, Double>>()
-    val routesShown = mutableListOf<String>()
-    var clearFocusCount = 0
-    override fun setBottomPadding(px: Int) { lastBottomPadding = px }
-    override fun recenterOnFocusedStop(lat: Double, lon: Double) { recenters.add(lat to lon) }
-    override fun showRoute(routeId: String) { routesShown.add(routeId) }
-    override fun clearFocus() { clearFocusCount++ }
+    val sent = mutableListOf<MapCommand>()
+
+    val recenters get() = sent.filterIsInstance<MapCommand.RecenterOnFocusedStop>().map { it.lat to it.lon }
+    val routesShown get() = sent.filterIsInstance<MapCommand.ShowRoute>().map { it.routeId }
+    val clearFocusCount get() = sent.count { it is MapCommand.ClearFocus }
+
+    private val _bottomPadding = MutableStateFlow(0)
+    override val bottomPadding: StateFlow<Int> = _bottomPadding.asStateFlow()
+    private val _commands = MutableSharedFlow<MapCommand>(extraBufferCapacity = 8)
+    override val commands: SharedFlow<MapCommand> = _commands.asSharedFlow()
+
+    override fun setBottomPadding(px: Int) { lastBottomPadding = px; _bottomPadding.value = px }
+    override fun send(command: MapCommand) { sent.add(command) }
 }
 
 /**
@@ -95,9 +108,9 @@ class HomeViewModelTest {
         navItemsRepo: FakeNavItemsRepository = FakeNavItemsRepository(),
         regions: FakeRegionRepository = FakeRegionRepository(),
         savedState: SavedStateHandle = SavedStateHandle(),
-        map: HomeMapController = FakeHomeMapController(),
+        bus: MapInteractionBus = FakeMapInteractionBus(),
     ) = HomeViewModel(
-        savedState, FakeWideAlertsRepository(alerts), regionRepo, startupRepo, navItemsRepo, regions, map
+        savedState, FakeWideAlertsRepository(alerts), regionRepo, startupRepo, navItemsRepo, regions, bus
     )
 
     // --- map loading + peek inputs ---
@@ -174,39 +187,39 @@ class HomeViewModelTest {
 
     @Test
     fun `expanding over a focused stop sets padding and recenters`() = runTest {
-        val map = FakeHomeMapController()
-        val vm = viewModel(map = map)
+        val bus = FakeMapInteractionBus()
+        val vm = viewModel(bus = bus)
         vm.onStopFocused(FocusedStop("1", "Main St", "100", 47.6, -122.3))
 
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
         vm.onSheetSettled(ArrivalsSheetState.Expanded, 120)
 
-        assertEquals(120, map.lastBottomPadding)
-        assertEquals(listOf(47.6 to -122.3), map.recenters)
+        assertEquals(120, bus.lastBottomPadding)
+        assertEquals(listOf(47.6 to -122.3), bus.recenters)
     }
 
     @Test
     fun `expanding with no focused stop only sets padding`() = runTest {
-        val map = FakeHomeMapController()
-        val vm = viewModel(map = map)
+        val bus = FakeMapInteractionBus()
+        val vm = viewModel(bus = bus)
 
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
         vm.onSheetSettled(ArrivalsSheetState.Expanded, 120)
 
-        assertEquals(120, map.lastBottomPadding)
-        assertTrue(map.recenters.isEmpty())
+        assertEquals(120, bus.lastBottomPadding)
+        assertTrue(bus.recenters.isEmpty())
     }
 
     @Test
     fun `collapsing and hiding set the map padding`() = runTest {
-        val map = FakeHomeMapController()
-        val vm = viewModel(map = map)
+        val bus = FakeMapInteractionBus()
+        val vm = viewModel(bus = bus)
 
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 80)
-        assertEquals(80, map.lastBottomPadding)
+        assertEquals(80, bus.lastBottomPadding)
         vm.onSheetSettled(ArrivalsSheetState.Hidden, 80)
-        assertEquals(0, map.lastBottomPadding)
+        assertEquals(0, bus.lastBottomPadding)
         assertEquals(ArrivalsSheetState.Hidden, vm.lastSettledSheet)
     }
 
@@ -270,8 +283,8 @@ class HomeViewModelTest {
 
     @Test
     fun `show route on map collapses the sheet and shows the route`() = runTest {
-        val map = FakeHomeMapController()
-        val vm = viewModel(map = map)
+        val bus = FakeMapInteractionBus()
+        val vm = viewModel(bus = bus)
         val events = mutableListOf<HomeEvent>()
         val eventJob = launch { vm.events.collect { events.add(it) } }
         advanceUntilIdle()
@@ -280,20 +293,20 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf<HomeEvent>(HomeEvent.CollapseSheet), events)
-        assertEquals(listOf("42"), map.routesShown)
+        assertEquals(listOf("42"), bus.routesShown)
         eventJob.cancel()
     }
 
     @Test
     fun `clear map focus clears the focused stop and the map focus`() = runTest {
-        val map = FakeHomeMapController()
-        val vm = viewModel(map = map)
+        val bus = FakeMapInteractionBus()
+        val vm = viewModel(bus = bus)
         vm.onStopFocused(FocusedStop("1", "Main St", "100", 47.6, -122.3))
 
         vm.requestClearMapFocus()
 
         assertNull(vm.uiState.value.focusedStop)
-        assertEquals(1, map.clearFocusCount)
+        assertEquals(1, bus.clearFocusCount)
     }
 
     // --- focus + SavedStateHandle ---

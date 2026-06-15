@@ -98,21 +98,6 @@ data class RouteHeader(
 )
 
 /**
- * The narrow slice of [MapViewModel] the home view model drives (sheet padding, recenter, route mode,
- * clear focus, region re-zoom). HomeViewModel depends on this interface — not the Android-coupled
- * concrete view model — so it stays unit-testable with a fake, like its repositories.
- */
-interface HomeMapController {
-    fun setBottomPadding(px: Int)
-
-    fun recenterOnFocusedStop(lat: Double, lon: Double)
-
-    fun showRoute(routeId: String)
-
-    fun clearFocus()
-}
-
-/**
  * The map's view model and single source of truth. It owns the flavor-neutral [MapRenderState]
  * (overlays + padding + the camera-command write path), shapes the raw `io/elements` responses into
  * render markers, **and** orchestrates loading: [setMode] launches the reactive loaders that replaced
@@ -139,8 +124,9 @@ class MapViewModel @Inject constructor(
     private val regionRepo: RegionRepository,
     private val locationRepository: LocationRepository,
     private val prefsRepository: PreferencesRepository,
+    private val mapInteractionBus: MapInteractionBus,
     @ApplicationContext private val context: Context,
-) : ViewModel(), HomeMapController {
+) : ViewModel() {
 
     val renderState = MapRenderState()
 
@@ -158,6 +144,23 @@ class MapViewModel @Inject constructor(
                 val id = region?.id
                 if (region != null && id != lastRegionId) rezoomForRegion()
                 lastRegionId = id
+            }
+        }
+
+        // Apply Home's outbound map interactions via the shared bus (replaces the old HomeMapController
+        // VM-on-VM call path). In a host with no Home (e.g. trip-results directions), the bus is idle, so
+        // these collectors are no-ops beyond the initial padding=0.
+        viewModelScope.launch {
+            mapInteractionBus.bottomPadding.collect { setBottomPadding(it) }
+        }
+        viewModelScope.launch {
+            mapInteractionBus.commands.collect { command ->
+                when (command) {
+                    is MapCommand.RecenterOnFocusedStop ->
+                        recenterOnFocusedStop(command.lat, command.lon)
+                    is MapCommand.ShowRoute -> showRoute(command.routeId)
+                    MapCommand.ClearFocus -> clearFocus()
+                }
             }
         }
     }
@@ -558,7 +561,7 @@ class MapViewModel @Inject constructor(
     // imperative mapView.setPadding(...) relay through HomeActivity.
     fun setTopPadding(px: Int) = renderState.setTopPadding(px)
 
-    override fun setBottomPadding(px: Int) = renderState.setBottomPadding(px)
+    fun setBottomPadding(px: Int) = renderState.setBottomPadding(px)
 
     private fun dispatchCamera(command: CameraCommand) = renderState.dispatchCamera(command)
 
@@ -598,7 +601,7 @@ class MapViewModel @Inject constructor(
     }
 
     /** Clear the render focus (back-press from a peeking sheet; the old MapCommand.ClearFocus). */
-    override fun clearFocus() {
+    fun clearFocus() {
         setFocusStop(null, null)
     }
 
@@ -608,7 +611,7 @@ class MapViewModel @Inject constructor(
     }
 
     /** Recenter on the focused stop after the arrivals sheet expands over it (old MapCommand.Recenter). */
-    override fun recenterOnFocusedStop(lat: Double, lon: Double) {
+    fun recenterOnFocusedStop(lat: Double, lon: Double) {
         dispatchCamera(
             CameraCommand.Recenter(lat, lon, animate = true, applyRouteBias = isRouteMode)
         )
@@ -622,7 +625,7 @@ class MapViewModel @Inject constructor(
     // ----- "Show route on map" / leave route mode (replaces ShowRoute / ExitRouteMode commands) -----
 
     /** Enter route mode for [routeId], framing the nearest vehicle (the "show route on map" action). */
-    override fun showRoute(routeId: String) {
+    fun showRoute(routeId: String) {
         setMode(MapMode.Route(routeId, zoomToRoute = false, zoomIncludeClosestVehicle = true))
     }
 

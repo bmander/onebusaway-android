@@ -18,8 +18,11 @@ package org.onebusaway.android.ui.home
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.map.HomeMapController
+import org.onebusaway.android.map.MapCommand
+import org.onebusaway.android.map.MapInteractionBus
 import org.onebusaway.android.region.RegionRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -42,7 +45,8 @@ import kotlinx.coroutines.launch
  * `onSaveInstanceState`). The arrivals sheet, drawer-open command, and fragment management remain
  * imperative in the activity until the map + arrivals fragments are dissolved (P10b/P11).
  */
-class HomeViewModel(
+@HiltViewModel
+class HomeViewModel @Inject constructor(
     private val savedState: SavedStateHandle,
     private val wideAlertsRepo: WideAlertsRepository,
     // The resolve *action* (refresh / manual-pick); writes through Application.setCurrentRegion.
@@ -54,9 +58,9 @@ class HomeViewModel(
     // The observable current region (state); the VM self-subscribes for alerts / regionReady / nav items
     // instead of being hand-fed by the host's region-resolution fan-out.
     private val regionRepo: RegionRepository,
-    // The narrow slice of the map view model this VM drives (sheet padding, recenter, route mode, clear
-    // focus, region re-zoom) — an interface so this VM stays unit-testable with a fake.
-    private val map: HomeMapController,
+    // The shared Home->Map command bus (sheet padding, recenter, route mode, clear focus). Replaces the
+    // old HomeMapController VM-on-VM reference, so this is a plain @HiltViewModel; faked in tests.
+    private val bus: MapInteractionBus,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -220,11 +224,11 @@ class HomeViewModel(
         }
         when (state) {
             ArrivalsSheetState.Expanded -> {
-                map.setBottomPadding(peekPx)
-                focusedStop?.let { map.recenterOnFocusedStop(it.lat, it.lon) }
+                bus.setBottomPadding(peekPx)
+                focusedStop?.let { bus.send(MapCommand.RecenterOnFocusedStop(it.lat, it.lon)) }
             }
-            ArrivalsSheetState.Collapsed -> map.setBottomPadding(peekPx)
-            ArrivalsSheetState.Hidden -> map.setBottomPadding(0)
+            ArrivalsSheetState.Collapsed -> bus.setBottomPadding(peekPx)
+            ArrivalsSheetState.Hidden -> bus.setBottomPadding(0)
         }
     }
 
@@ -270,19 +274,19 @@ class HomeViewModel(
     /** "Show vehicles on map" — collapse the sheet (screen), then switch the map to route mode. */
     fun requestShowRouteOnMap(routeId: String) {
         emit(HomeEvent.CollapseSheet)
-        map.showRoute(routeId)
+        bus.send(MapCommand.ShowRoute(routeId))
     }
 
     /**
      * Back-press from a peeking sheet — clear the focus. The VM owns the focused stop, so clearing it
-     * here hides the sheet (recompute); map.clearFocus() clears the map's render focus. (The old path
+     * here hides the sheet (recompute); the bus's ClearFocus clears the map's render focus. (The old path
      * only told the map, relying on a focus-listener round-trip the host's setFocusStop(null) doesn't
      * make — so the sheet never hid; clearing the VM state directly is both correct and the
      * declarative source of truth.)
      */
     fun requestClearMapFocus() {
         onStopFocused(null)
-        map.clearFocus()
+        bus.send(MapCommand.ClearFocus)
     }
 
     private fun emit(event: HomeEvent) {

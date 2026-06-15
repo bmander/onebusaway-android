@@ -30,11 +30,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -59,12 +56,8 @@ import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.home.ArrivalsSheetState
-import org.onebusaway.android.ui.home.DefaultNavItemsRepository
-import org.onebusaway.android.ui.home.DefaultRegionStatusRepository
 import org.onebusaway.android.ui.home.DonationViewModel
 import org.onebusaway.android.ui.home.WeatherViewModel
-import org.onebusaway.android.ui.home.DefaultStartupPreferencesRepository
-import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
 import org.onebusaway.android.ui.home.focusedStopFromExtras
 import org.onebusaway.android.ui.home.HelpAction
 import org.onebusaway.android.ui.home.HelpViewModel
@@ -95,26 +88,12 @@ import org.onebusaway.android.util.UIUtils
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity() {
 
-    // Injected so the hand-built HomeViewModel collaborators (still constructed here while
-    // HomeViewModel remains the VM-on-VM case) can be handed the reactive preferences seam.
+    // HomeActivity's own preference reads (what's-new opt-out, zoom/left-hand chrome flags, the
+    // remembered nav item). HomeViewModel is now a plain @HiltViewModel — no hand-built factory.
     @Inject
     lateinit var prefsRepository: PreferencesRepository
 
-    private val viewModel: HomeViewModel by viewModels {
-        viewModelFactory {
-            initializer {
-                HomeViewModel(
-                    createSavedStateHandle(),
-                    DefaultWideAlertsRepository(),
-                    DefaultRegionStatusRepository(applicationContext, prefsRepository),
-                    DefaultStartupPreferencesRepository(),
-                    DefaultNavItemsRepository(),
-                    Application.getRegionRepository(),
-                    mapViewModel,
-                )
-            }
-        }
-    }
+    private val viewModel: HomeViewModel by viewModels()
 
     // The map view model — the single source of truth for the map. MapFeature (in HomeScreen) renders it
     // and self-wires the callbacks/collectors/effects/lifecycle; the activity only obtains it here (Hilt-

@@ -18,75 +18,33 @@ package org.onebusaway.android.ui
 
 import android.content.Context
 import android.content.Intent
-import android.os.Bundle
-import androidx.activity.compose.setContent
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
-import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
-import org.onebusaway.android.preferences.PreferencesRepository
-import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.nav.NavRoutes
-import org.onebusaway.android.ui.tripdetails.TripDetailsRoute
-import org.onebusaway.android.ui.tripdetails.TripDetailsViewModel
-import org.onebusaway.android.ui.tripdetails.rememberDestinationReminderAction
 
 /**
- * Shows a trip's stops along the vertical transit line, with the vehicle's live position.
+ * Launches the trip-details screen (a trip's stops + live vehicle position).
  *
- * Compose + MVVM screen: the Activity is a thin host for [TripDetailsRoute]; trip state lives in
- * [TripDetailsViewModel] and the destination-reminder flow in [rememberDestinationReminderAction]
- * (shared with the trip-details NavHost destination). The Activity keeps the [Builder] launch API
- * (used by the arrivals "show trip details" action, the map vehicle tap, and NavigationServiceProvider).
+ * Campaign C-c: trip details is a NavHost destination hosted by [HomeActivity] (with the shared
+ * destination-reminder controller); this is no longer an Activity but a launcher facade that builds
+ * an explicit [HomeActivity] intent carrying the trip args as extras (trip details has no data-URI
+ * contract). HomeActivity's translator reads [NavRoutes.ARG_TRIP_ID] and navigates. An
+ * `<activity-alias>` for the frozen `org.onebusaway.android.ui.TripDetailsActivity` name keeps any
+ * in-flight NavigationService ongoing-notification PendingIntent resolving to HomeActivity.
  */
-@AndroidEntryPoint
-class TripDetailsActivity : AppCompatActivity() {
+object TripDetailsActivity {
 
-    private val tripId: String by lazy {
-        intent.getStringExtra(NavRoutes.ARG_TRIP_ID)
-            ?: throw IllegalStateException("TripId should not be null")
-    }
-    private val stopId: String? by lazy { intent.getStringExtra(NavRoutes.ARG_STOP_ID) }
-
-    @Inject
-    lateinit var prefsRepository: PreferencesRepository
-
-    private val viewModel: TripDetailsViewModel by viewModels()
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            ObaTheme {
-                TripDetailsRoute(
-                    viewModel = viewModel,
-                    onBack = { NavHelp.goUp(this) },
-                    onShowOnMap = { routeId -> HomeActivity.start(this, routeId) },
-                    onStopClick = { sid, name, direction ->
-                        ArrivalsListActivity.Builder(this, sid)
-                            .setUpMode(NavHelp.UP_MODE_BACK)
-                            .setStopName(name)
-                            .setStopDirection(direction)
-                            .start()
-                    },
-                    onSetDestinationReminder = rememberDestinationReminderAction(
-                        viewModel = viewModel,
-                        prefsRepository = prefsRepository,
-                        tripId = tripId,
-                        stopId = stopId,
-                    )
-                )
-            }
-        }
-    }
+    // Scroll-mode *values* (read by TripDetailsRepository + the launch callers) and the broadcast
+    // action the NavigationService sends when destroyed (observed by the reminder controller).
+    const val SCROLL_MODE_VEHICLE = "vehicle"
+    const val SCROLL_MODE_STOP = "stop"
+    const val ACTION_SERVICE_DESTROYED = "NavigationServiceDestroyed"
 
     /** Fluent launcher for the trip details screen. */
     class Builder(private val context: Context, tripId: String) {
 
-        private val intent = Intent(context, TripDetailsActivity::class.java)
+        private val intent = Intent(context, HomeActivity::class.java)
             .putExtra(NavRoutes.ARG_TRIP_ID, tripId)
 
-        fun setStopId(stopId: String?): Builder =
-            apply { intent.putExtra(NavRoutes.ARG_STOP_ID, stopId) }
+        fun setStopId(stopId: String?): Builder = apply { intent.putExtra(NavRoutes.ARG_STOP_ID, stopId) }
 
         fun setScrollMode(mode: String?): Builder =
             apply { intent.putExtra(NavRoutes.ARG_SCROLL_MODE, mode) }
@@ -103,29 +61,18 @@ class TripDetailsActivity : AppCompatActivity() {
         }
     }
 
-    companion object {
+    @JvmStatic
+    fun start(context: Context, tripId: String) {
+        Builder(context, tripId).start()
+    }
 
-        // Launch-arg keys live in NavRoutes (clean nav-arg names, shared with the destination). These
-        // are the scroll-mode *values* (not keys) read by TripDetailsRepository + the launch callers.
-        const val SCROLL_MODE_VEHICLE = "vehicle"
-        const val SCROLL_MODE_STOP = "stop"
+    @JvmStatic
+    fun start(context: Context, tripId: String, mode: String) {
+        Builder(context, tripId).setScrollMode(mode).start()
+    }
 
-        /** Broadcast action the [org.onebusaway.android.nav.NavigationService] sends when destroyed. */
-        const val ACTION_SERVICE_DESTROYED = "NavigationServiceDestroyed"
-
-        @JvmStatic
-        fun start(context: Context, tripId: String) {
-            Builder(context, tripId).start()
-        }
-
-        @JvmStatic
-        fun start(context: Context, tripId: String, mode: String) {
-            Builder(context, tripId).setScrollMode(mode).start()
-        }
-
-        @JvmStatic
-        fun start(context: Context, tripId: String, stopId: String, mode: String) {
-            Builder(context, tripId).setStopId(stopId).setScrollMode(mode).start()
-        }
+    @JvmStatic
+    fun start(context: Context, tripId: String, stopId: String, mode: String) {
+        Builder(context, tripId).setStopId(stopId).setScrollMode(mode).start()
     }
 }

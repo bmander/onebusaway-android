@@ -439,10 +439,22 @@ class HomeActivity : AppCompatActivity() {
             ReminderUtils.handleArrivalPayload(applicationContext, arrivalJson)
             return ReminderUtils.getStopIdFromPayload(arrivalJson)?.let { NavRoutes.arrivals(it, null) }
         }
+        // Trip details carries its args as extras (no data URI) — e.g. the arrivals "show trip" / map
+        // vehicle tap / NavigationService reminder notification.
+        intent.getStringExtra(NavRoutes.ARG_TRIP_ID)?.let { tripId ->
+            return NavRoutes.tripDetails(
+                tripId,
+                intent.getStringExtra(NavRoutes.ARG_STOP_ID),
+                intent.getStringExtra(NavRoutes.ARG_SCROLL_MODE),
+            )
+        }
         val segments = intent.data?.pathSegments ?: return null
         return when (segments.firstOrNull()) {
             ObaContract.Stops.PATH -> intent.data?.lastPathSegment?.let { stopId ->
                 NavRoutes.arrivals(stopId, intent.getStringExtra(ArrivalsIntents.STOP_NAME))
+            }
+            ObaContract.Routes.PATH -> intent.data?.lastPathSegment?.let { routeId ->
+                NavRoutes.routeInfo(routeId)
             }
             else -> null
         }

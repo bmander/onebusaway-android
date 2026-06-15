@@ -125,30 +125,37 @@
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
         </activity-alias>
-        <activity android:name="org.onebusaway.android.ui.RouteInfoActivity"
-            android:exported="true"
-            android:configChanges="orientation|keyboardHidden|screenSize">
+        <!-- Campaign C-c: route info is a HomeActivity NavHost destination; frozen route-shortcut
+             component names resolve via aliases → HomeActivity (reads the route data URI, navigates). -->
+        <activity-alias
+            android:name="org.onebusaway.android.ui.RouteInfoActivity"
+            android:targetActivity="org.onebusaway.android.ui.HomeActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
-        </activity>
-        <activity android:name="com.joulespersecond.seattlebusbot.RouteInfoActivity"
-            android:exported="true"
-            android:configChanges="orientation|keyboardHidden|screenSize">
+        </activity-alias>
+        <activity-alias
+            android:name="com.joulespersecond.seattlebusbot.RouteInfoActivity"
+            android:targetActivity="org.onebusaway.android.ui.HomeActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
-        </activity>
+        </activity-alias>
         <activity android:name="org.onebusaway.android.ui.TripInfoActivity"/>
         <activity android:name=".ui.tripplan.TripPlanLocationPickerActivity"/>
         <activity android:name=".ui.MyRemindersActivity"/>
-        <activity android:name="org.onebusaway.android.ui.TripDetailsActivity"
-            android:exported="true"
-            android:configChanges="orientation|keyboardHidden|screenSize">
+        <!-- Campaign C-c: trip details is a HomeActivity NavHost destination; the frozen name resolves
+             via an alias → HomeActivity (cheap insurance for an in-flight NavigationService PendingIntent). -->
+        <activity-alias
+            android:name="org.onebusaway.android.ui.TripDetailsActivity"
+            android:targetActivity="org.onebusaway.android.ui.HomeActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
-        </activity>
+        </activity-alias>
 
         <activity
             android:name="org.onebusaway.android.ui.MyStopsActivity"

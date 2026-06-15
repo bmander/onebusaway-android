@@ -18,69 +18,28 @@ package org.onebusaway.android.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Bundle
-import androidx.activity.compose.setContent
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
-import dagger.hilt.android.AndroidEntryPoint
 import org.onebusaway.android.provider.ObaContract
-import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.ui.nav.NavRoutes
-import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
-import org.onebusaway.android.ui.routeinfo.RouteInfoViewModel
 
 /**
- * Shows a route's metadata and its stops grouped by direction.
+ * Launches the route-info screen (a route's stops grouped by direction).
  *
- * Compose + MVVM screen: the Activity is a thin host for [RouteInfoRoute]; all state lives in
- * [RouteInfoViewModel]. The route id arrives via the intent data URI (see [makeIntent]), which
- * the launcher-shortcut path and the legacy package redirect both rely on.
+ * Campaign C-c: route info is a NavHost destination hosted by [HomeActivity]; this is no longer an
+ * Activity but a launcher facade that builds an explicit [HomeActivity] intent carrying the route's
+ * `content://…/routes/{id}` data URI. HomeActivity's intent translator reads it and navigates to the
+ * route-info destination. The frozen class names `org.onebusaway.android.ui.RouteInfoActivity` and
+ * `com.joulespersecond.seattlebusbot.RouteInfoActivity` keep resolving (old pinned route shortcuts)
+ * via `<activity-alias>` → HomeActivity in the manifest.
  */
-@AndroidEntryPoint
-class RouteInfoActivity : AppCompatActivity() {
+object RouteInfoActivity {
 
-    private val routeId: String by lazy { intent.data?.lastPathSegment.orEmpty() }
-
-    private val viewModel: RouteInfoViewModel by viewModels()
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        // Normalize the route id from the data URI into the nav-arg extra the view model reads from
-        // SavedStateHandle (seeded from intent extras, not the data URI). Must run before the view
-        // model is first accessed in setContent. The same key backs the NavHost destination's nav-arg.
-        intent.putExtra(NavRoutes.ARG_ROUTE_ID, routeId)
-        setContent {
-            ObaTheme {
-                RouteInfoRoute(
-                    viewModel = viewModel,
-                    onBack = { NavHelp.goHome(this, false) },
-                    onShowRouteOnMap = { HomeActivity.start(this, routeId) },
-                    onStopClick = { stop ->
-                        ArrivalsListActivity.Builder(this, stop.id)
-                            .setStopName(stop.name)
-                            .setStopDirection(stop.direction)
-                            .setUpMode(NavHelp.UP_MODE_BACK)
-                            .start()
-                    },
-                    onStopShowOnMap = { stop ->
-                        HomeActivity.start(this, stop.id, stop.latitude, stop.longitude)
-                    }
-                )
-            }
-        }
+    @JvmStatic
+    fun start(context: Context, routeId: String) {
+        context.startActivity(makeIntent(context, routeId))
     }
 
-    companion object {
-
-        @JvmStatic
-        fun start(context: Context, routeId: String) {
-            context.startActivity(makeIntent(context, routeId))
+    @JvmStatic
+    fun makeIntent(context: Context, routeId: String): Intent =
+        Intent(context, HomeActivity::class.java).apply {
+            data = Uri.withAppendedPath(ObaContract.Routes.CONTENT_URI, routeId)
         }
-
-        @JvmStatic
-        fun makeIntent(context: Context, routeId: String): Intent =
-            Intent(context, RouteInfoActivity::class.java).apply {
-                data = Uri.withAppendedPath(ObaContract.Routes.CONTENT_URI, routeId)
-            }
-    }
 }

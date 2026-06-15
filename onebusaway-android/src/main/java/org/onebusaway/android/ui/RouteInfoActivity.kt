@@ -25,6 +25,7 @@ import androidx.appcompat.app.AppCompatActivity
 import dagger.hilt.android.AndroidEntryPoint
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
 import org.onebusaway.android.ui.routeinfo.RouteInfoViewModel
 
@@ -44,10 +45,10 @@ class RouteInfoActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Normalize the route id from the data URI into an extra so the view model can read it from
-        // SavedStateHandle (which is seeded from intent extras, not the data URI). Must run before the
-        // view model is first accessed in setContent.
-        intent.putExtra(EXTRA_ROUTE_ID, routeId)
+        // Normalize the route id from the data URI into the nav-arg extra the view model reads from
+        // SavedStateHandle (seeded from intent extras, not the data URI). Must run before the view
+        // model is first accessed in setContent. The same key backs the NavHost destination's nav-arg.
+        intent.putExtra(NavRoutes.ARG_ROUTE_ID, routeId)
         setContent {
             ObaTheme {
                 RouteInfoRoute(
@@ -70,9 +71,6 @@ class RouteInfoActivity : AppCompatActivity() {
     }
 
     companion object {
-
-        /** SavedStateHandle key the host normalizes the data-URI route id into, read by the view model. */
-        const val EXTRA_ROUTE_ID = ".RouteId"
 
         @JvmStatic
         fun start(context: Context, routeId: String) {

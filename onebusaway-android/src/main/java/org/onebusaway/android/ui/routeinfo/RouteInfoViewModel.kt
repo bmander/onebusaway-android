@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.onebusaway.android.ui.RouteInfoActivity
+import org.onebusaway.android.ui.nav.NavRoutes
 
 /** ViewModel for the route info screen. */
 @HiltViewModel
@@ -33,10 +33,11 @@ class RouteInfoViewModel @Inject constructor(
     private val repository: RouteInfoRepository,
 ) : ViewModel() {
 
-    // The route id arrives via SavedStateHandle (the host normalizes the intent data URI into this
-    // extra), keyed by RouteInfoActivity.EXTRA_ROUTE_ID.
+    // The route id arrives via SavedStateHandle, keyed by NavRoutes.ARG_ROUTE_ID — populated either by
+    // the NavHost destination's nav-arg, or by RouteInfoActivity normalizing its data URI into that
+    // extra (the standalone/legacy host).
     private val routeId: String =
-        savedState.get<String>(RouteInfoActivity.EXTRA_ROUTE_ID).orEmpty()
+        savedState.get<String>(NavRoutes.ARG_ROUTE_ID).orEmpty()
 
     private val _state = MutableStateFlow<RouteInfoUiState>(RouteInfoUiState.Loading)
     val state: StateFlow<RouteInfoUiState> = _state.asStateFlow()

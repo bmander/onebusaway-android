@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.ui.nav
 
+import android.net.Uri
+
 /**
  * Central registry of Navigation-Compose route ids and nav-arg keys (Campaign C). The single
  * NavHost backbone lives in [org.onebusaway.android.ui.HomeActivity]; each screen converted from an
@@ -30,4 +32,14 @@ object NavRoutes {
 
     /** The map-centric home screen — the NavHost start destination. */
     const val HOME = "home"
+
+    // --- Route info (C-a) ---
+    // Clean nav-arg name (not the dotted intent-extra key): external contracts (the route data URI)
+    // are translated to this route at the entry boundary; the destination VM reads this key from
+    // SavedStateHandle. See RouteInfoViewModel.
+    const val ARG_ROUTE_ID = "routeId"
+    const val ROUTE_INFO = "routeInfo/{$ARG_ROUTE_ID}"
+
+    /** Builds a navigable [ROUTE_INFO] route, encoding the id (route ids can contain `/`, spaces). */
+    fun routeInfo(routeId: String): String = "routeInfo/${Uri.encode(routeId)}"
 }

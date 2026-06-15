@@ -15,12 +15,14 @@
  */
 package org.onebusaway.android.map
 
+import android.content.Context
 import android.graphics.Color
 import android.location.Location
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -122,10 +124,12 @@ interface HomeMapController {
  * Scoped to the hosting Activity/Fragment (obtained via `by viewModels()`), so all map screens in a
  * host share one model, and the rendered state survives a configuration change.
  *
- * Its data collaborators are constructor-injected — Hilt provides the repositories (`@ApplicationContext`)
- * and the [RegionRepository] singleton in production; tests construct it directly with fakes — the
- * standard pattern here, alongside HomeViewModel / WeatherViewModel. (It still reaches a few
- * `Application.get()` statics — location/prefs — directly; those are the remaining boundary.)
+ * Its data collaborators are constructor-injected — Hilt provides the repositories, the
+ * [RegionRepository]/[LocationRepository] singletons, and the `@ApplicationContext` in production;
+ * tests construct it directly with fakes — the standard pattern here, alongside HomeViewModel /
+ * WeatherViewModel. The current region is read from [RegionRepository]; the cold-start framing poll
+ * still calls `Application.getLastKnownLocation(context)` (the lazy provider poll that also seeds
+ * [LocationRepository]) — that static is the LocationRepository source, retired in D4.
  */
 @HiltViewModel
 class MapViewModel @Inject constructor(
@@ -135,6 +139,7 @@ class MapViewModel @Inject constructor(
     private val regionRepo: RegionRepository,
     private val locationRepository: LocationRepository,
     private val prefsRepository: PreferencesRepository,
+    @ApplicationContext private val context: Context,
 ) : ViewModel(), HomeMapController {
 
     val renderState = MapRenderState()
@@ -335,7 +340,7 @@ class MapViewModel @Inject constructor(
         // the outOfRange element is false even if the location was out of range. We also make sure the
         // list of stops is empty, otherwise we'd screen out valid responses.
         val myLocation = locationRepository.location.value
-        val region = Application.get().currentRegion
+        val region = regionRepo.region.value
         if (myLocation != null && region != null) {
             var inRegion = true // Assume user is in region unless we detect otherwise.
             try {
@@ -654,7 +659,7 @@ class MapViewModel @Inject constructor(
         // Kept on getLastKnownLocation (not the repo's value): this runs at cold-start framing and must
         // trigger the lazy provider poll so the first frame can target the user's location. The poll also
         // seeds the LocationRepository, keeping the .value reads (here-adjacent + requestMyLocation) consistent.
-        val location = Application.getLastKnownLocation(Application.get())
+        val location = Application.getLastKnownLocation(context)
         val center = _camera.value?.center
         val atSeed = center == null || (center.latitude == 0.0 && center.longitude == 0.0)
         when (regionRezoom(changed = true, hasLocation = location != null, cameraAtSeed = atSeed)) {
@@ -674,7 +679,7 @@ class MapViewModel @Inject constructor(
     /** Re-reads the location permission and reflects it in [myLocationEnabled] (call on resume/grant). */
     fun refreshMyLocationEnabled() {
         _myLocationEnabled.value =
-            PermissionUtils.hasGrantedAtLeastOnePermission(Application.get(), PermissionUtils.LOCATION_PERMISSIONS)
+            PermissionUtils.hasGrantedAtLeastOnePermission(context, PermissionUtils.LOCATION_PERMISSIONS)
     }
 
     /**
@@ -684,8 +689,7 @@ class MapViewModel @Inject constructor(
      * first-launch region check via the permission result).
      */
     fun requestLocationPermissionIfNeeded() {
-        val app = Application.get()
-        if (PermissionUtils.hasGrantedAtLeastOnePermission(app, PermissionUtils.LOCATION_PERMISSIONS)) {
+        if (PermissionUtils.hasGrantedAtLeastOnePermission(context, PermissionUtils.LOCATION_PERMISSIONS)) {
             _myLocationEnabled.value = true
         } else if (!PreferenceUtils.userDeniedLocationPermission()) {
             _effects.tryEmit(MapEffect.ShowPermissionRationale)
@@ -706,7 +710,7 @@ class MapViewModel @Inject constructor(
      * GoogleMapHost.setMyLocation; the dialogs + the permission launcher are Activity effects.
      */
     fun requestMyLocation(useDefaultZoom: Boolean, animate: Boolean) {
-        val app = Application.get()
+        val app = context
         val last = locationRepository.location.value
         val action = myLocationAction(
             locationEnabled = LocationUtils.isLocationEnabled(app),

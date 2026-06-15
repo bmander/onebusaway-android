@@ -137,11 +137,14 @@
             android:title="@string/preferences_restore_title" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/preferences_category_advanced">
+        <!-- Campaign C: handled by an explicit click listener (SettingsFragment.onPreferenceClick →
+             HomeActivity.showSettingsSubScreen) rather than app:fragment, so the settings NavHost
+             destination — not PreferenceFragmentCompat's own back-stack fallback — drives the
+             sub-screen navigation and back handling. -->
         <Preference
             android:key="pref_advanced"
             android:summary="@string/preferences_screen_advanced_summary"
-            android:title="@string/preferences_category_advanced"
-            app:fragment="org.onebusaway.android.ui.SettingsActivity$AdvancedSettingsFragment" />
+            android:title="@string/preferences_category_advanced" />
     </PreferenceCategory>
     <PreferenceCategory
         android:key="@string/preferences_category_about"

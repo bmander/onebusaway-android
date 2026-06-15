@@ -79,6 +79,19 @@
             <intent-filter>
                 <action android:name="android.intent.action.SEARCH" />
             </intent-filter>
+            <!-- Campaign C: the `onebusaway://add-region` deep link (former SettingsActivity VIEW
+                 filter). HomeActivity's translator (routeForIntent) reads the oba-url/otp-url query
+                 params, applies the custom API URL(s), and stays on the home/map path. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="add-region"
+                    android:scheme="onebusaway" />
+            </intent-filter>
             <meta-data
                 android:name="android.app.searchable"
                 android:resource="@xml/searchable"/>
@@ -219,25 +232,6 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity-alias>
-        <activity
-            android:name="org.onebusaway.android.ui.SettingsActivity"
-            android:parentActivityName="org.onebusaway.android.ui.HomeActivity"
-            android:exported="true"
-            android:theme="@style/Theme.OneBusAway.NoActionBar">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="add-region"
-                    android:scheme="onebusaway" />
-            </intent-filter>
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value="org.onebusaway.android.ui.HomeActivity"/>
-        </activity>
         <activity android:name="org.onebusaway.android.report.ui.ReportActivity"/>
         <activity android:name="org.onebusaway.android.report.ui.CustomerServiceActivity"/>
         <activity android:name="org.onebusaway.android.report.ui.InfrastructureIssueActivity"/>

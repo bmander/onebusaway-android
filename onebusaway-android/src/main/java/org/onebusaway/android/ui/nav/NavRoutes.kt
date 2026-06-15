@@ -46,6 +46,9 @@ object NavRoutes {
     /** "Why donate" explainer with a button out to the donations page. */
     const val DONATION_LEARN_MORE = "donationLearnMore"
 
+    /** App settings (the preference fragments + the nested advanced screen). */
+    const val SETTINGS = "settings"
+
     // --- Search results (system ACTION_SEARCH target + the home top-bar search field) ---
     const val ARG_QUERY = "query"
     const val SEARCH = "search?$ARG_QUERY={$ARG_QUERY}"

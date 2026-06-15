@@ -26,4 +26,8 @@
     <!-- Stable container id for the trip-plan results Fragment hosted inside the Compose
          BottomSheetScaffold (see TripPlanScreen.ResultsFragmentHost). -->
     <item name="trip_results_container" type="id" />
+    <!-- Stable container id for the settings preference fragments hosted inside the Compose
+         settings NavHost destination (see SettingsScreen.SettingsFragmentHost). Was defined by the
+         now-deleted activity_settings.xml. -->
+    <item name="settings_container" type="id" />
 </resources>

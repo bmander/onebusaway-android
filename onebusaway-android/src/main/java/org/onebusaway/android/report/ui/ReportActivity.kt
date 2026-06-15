@@ -37,8 +37,10 @@ import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.report.constants.ReportConstants
 import org.onebusaway.android.report.ui.dialog.RegionValidateDialog
+import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.ui.SettingsActivity
 import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.report.types.ReportAction
 import org.onebusaway.android.ui.report.types.ReportTypeListRoute
 import org.onebusaway.android.ui.report.types.ReportTypeListViewModel
@@ -159,7 +161,7 @@ class ReportActivity : BaseReportActivity() {
     /** Called by [RegionValidateDialog] when the user picks a different region. */
     fun createPreferencesActivity() {
         startActivity(
-            Intent(this, SettingsActivity::class.java)
+            HomeActivity.navIntent(this, NavRoutes.SETTINGS)
                 .putExtra(SettingsActivity.SHOW_CHECK_REGION_DIALOG, true)
         )
     }

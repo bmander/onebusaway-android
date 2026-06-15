@@ -16,7 +16,6 @@
 
 package org.onebusaway.android.util;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -41,9 +40,6 @@ import java.util.List;
 import java.util.Objects;
 
 import androidx.appcompat.app.AlertDialog;
-
-import static org.onebusaway.android.ui.SettingsActivity.REQUEST_CODE_RESTORE_BACKUP;
-import static org.onebusaway.android.ui.SettingsActivity.REQUEST_CODE_SAVE_BACKUP;
 
 public class BackupUtils {
     private static final String TAG = "BackupUtils";
@@ -124,12 +120,11 @@ public class BackupUtils {
     }
 
     /**
-     * Launches an intent to create a backup file with the specified file name.
-     * The user will be prompted to choose a location to save the backup file.
-     *
-     * @param activity The activity that triggers the file creation process.
+     * Builds the intent that prompts the user to choose a location to save a backup file (with the
+     * default file name). Launched via an {@code ActivityResultLauncher}; the picked save URI is
+     * passed back to {@link #save(Context, Uri)}.
      */
-    public static void createBackupFile(Activity activity) {
+    public static Intent buildCreateBackupFileIntent() {
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
 
@@ -141,16 +136,14 @@ public class BackupUtils {
             Uri initialUri = Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents");
             intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri);
         }
-        activity.startActivityForResult(intent, REQUEST_CODE_SAVE_BACKUP);
+        return intent;
     }
 
     /**
-     * Launches an intent to allow the user to select a backup file for restoration.
-     * Only binary files (with the .bin extension) can be selected.
-     *
-     * @param activity The activity that triggers the file selection process.
+     * Builds the intent that lets the user select a backup file to restore. Launched via an
+     * {@code ActivityResultLauncher}; the picked URI is passed back to {@link #restore(Context, Uri)}.
      */
-    public static void selectBackupFile(Activity activity) {
+    public static Intent buildSelectBackupFileIntent() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         // Restricts file type to binary files
@@ -161,7 +154,7 @@ public class BackupUtils {
             Uri initialUri = Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents");
             intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri);
         }
-        activity.startActivityForResult(intent, REQUEST_CODE_RESTORE_BACKUP);
+        return intent;
     }
 
 

@@ -54,7 +54,10 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.fragment.app.Fragment
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.preference.Preference
+import androidx.preference.PreferenceFragmentCompat
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -80,6 +83,7 @@ import org.onebusaway.android.map.resolveMapMode
 import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
+import org.onebusaway.android.region.ObaRegionsTask
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.agencies.AgenciesRoute
@@ -149,7 +153,9 @@ import org.onebusaway.android.util.ShowcaseViewUtils
 import org.onebusaway.android.util.UIUtils
 
 @AndroidEntryPoint
-class HomeActivity : AppCompatActivity() {
+class HomeActivity : AppCompatActivity(),
+    PreferenceFragmentCompat.OnPreferenceStartFragmentCallback,
+    ObaRegionsTask.Callback {
 
     // HomeActivity's own preference reads (what's-new opt-out, zoom/left-hand chrome flags, the
     // remembered nav item). HomeViewModel is now a plain @HiltViewModel — no hand-built factory.
@@ -200,6 +206,29 @@ class HomeActivity : AppCompatActivity() {
     // launch from non-NavHost code). The navController is created inside setContent, so onCreate /
     // onNewIntent can't navigate directly — they stage the route here and a LaunchedEffect consumes it.
     private val pendingDeepLinkRoute = MutableStateFlow<String?>(null)
+
+    // Re-homed from the former SettingsActivity: the AdvancedSettingsFragment sets this (via
+    // setOtpCustomAPIUrlChanged) when the user edits the custom OTP API URL; the settings destination's
+    // onDispose reads it to decide whether to re-home (NavHelp.goHome). Kept on the host activity so the
+    // fragment can reach it through its host (now HomeActivity instead of SettingsActivity).
+    var otpCustomAPIUrlChanged: Boolean = false
+        private set
+
+    /** Called by [AdvancedSettingsFragment] (its host activity) when the custom OTP API URL changes. */
+    fun setOtpCustomAPIUrlChanged(changed: Boolean) {
+        otpCustomAPIUrlChanged = changed
+    }
+
+    // The preference sub-screen ([AdvancedSettingsFragment]) the settings destination should show, by
+    // class name, or null for the root. Set by [showSettingsSubScreen] (a preference-click in
+    // SettingsFragment), cleared by back. Drives SettingsDestination instead of the FragmentManager
+    // back stack, so back handling stays unambiguous under the single-Activity NavHost.
+    private val settingsNestedFragment = MutableStateFlow<String?>(null)
+
+    /** Called by [SettingsFragment] to open a preference sub-screen (e.g. Advanced) in-place. */
+    fun showSettingsSubScreen(fragmentClassName: String) {
+        settingsNestedFragment.value = fragmentClassName
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -568,6 +597,20 @@ class HomeActivity : AppCompatActivity() {
                                 )
                                 navController.popBackStack()
                             },
+                        )
+                    }
+                }
+                // Settings destination (Campaign C; former SettingsActivity): the preference fragments
+                // ([SettingsFragment] + nested [AdvancedSettingsFragment]) hosted in a Compose
+                // FragmentContainerView. Reached in-app from the home drawer's Settings item and from the
+                // report flow (region-validate dialog, with the SHOW_CHECK_REGION_DIALOG extra on the
+                // HomeActivity intent). HomeActivity implements the preference host callbacks.
+                composable(NavRoutes.SETTINGS) {
+                    ObaTheme {
+                        SettingsDestination(
+                            navController = navController,
+                            nestedFragmentClass = settingsNestedFragment,
+                            onClearNested = { settingsNestedFragment.value = null },
                         )
                     }
                 }
@@ -1050,6 +1093,14 @@ class HomeActivity : AppCompatActivity() {
         if (intent == null) return null
         // In-app / cross-screen launches carry their destination route verbatim (see [navIntent]).
         intent.getStringExtra(EXTRA_NAV_ROUTE)?.let { return it }
+        // The exported `onebusaway://add-region?oba-url=…&otp-url=…` deep link (former SettingsActivity
+        // VIEW filter). Apply the custom API URL(s), clear the current region, and stay on the home/map
+        // path (the legacy handler immediately went Home), so return null after processing.
+        val data = intent.data
+        if (data?.scheme == "onebusaway" && data.host == "add-region") {
+            applyAddRegionDeepLink(data)
+            return null
+        }
         // System search (HomeActivity is the default_searchable target): open the search destination.
         if (intent.action == Intent.ACTION_SEARCH) {
             return NavRoutes.search(intent.getStringExtra(SearchManager.QUERY).orEmpty())
@@ -1111,6 +1162,25 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
+     * Applies the `onebusaway://add-region` deep link (ported from SettingsActivity.onAddCustomRegion):
+     * set the custom OBA / OTP API URLs from the query params (validating each), clearing the current
+     * region when a valid OBA URL is supplied. The legacy handler then went Home + finished; here the
+     * caller ([routeForIntent]) returns null so we simply stay on the home/map path.
+     */
+    private fun applyAddRegionDeepLink(deepLink: Uri) {
+        val obaCustomUrl = deepLink.getQueryParameter("oba-url")
+        val otpCustomUrl = deepLink.getQueryParameter("otp-url")
+
+        if (obaCustomUrl != null && SettingsSupport.validateUrl(obaCustomUrl)) {
+            Application.get().setCustomApiUrl(obaCustomUrl)
+            Application.get().setCurrentRegion(null)
+        }
+        if (otpCustomUrl != null && SettingsSupport.validateUrl(otpCustomUrl)) {
+            Application.get().setCustomOtpApiUrl(otpCustomUrl)
+        }
+    }
+
+    /**
      * Subscribes to the one [HomeEvent] the activity (as opposed to [HomeScreen]) cares about:
      * [HomeEvent.RegionResolved]. The sheet/drawer commands on the same flow are consumed by HomeScreen,
      * so this filters to just the region event rather than a `when` with an empty `else`.
@@ -1144,6 +1214,52 @@ class HomeActivity : AppCompatActivity() {
                 firebaseAnalytics,
                 event.regionName
             )
+        }
+    }
+
+    // --- Settings preference-screen host glue (re-homed from the former SettingsActivity) ------------
+    //
+    // The settings NavHost destination ([SettingsDestination]) hosts the preference fragments
+    // ([SettingsFragment] / [AdvancedSettingsFragment]) via the activity's supportFragmentManager, so
+    // those fragments find these two host callbacks (their host activity is HomeActivity).
+
+    /**
+     * Opens a nested preference screen (Settings → Advanced). Rather than a FragmentManager back-stack
+     * transaction (which races the NavHost's back handling in a single-Activity host), record which
+     * sub-screen to show; [SettingsDestination] swaps the hosted fragment and a BackHandler returns to
+     * the root. (`pref.extras` are unused by the only sub-screen, AdvancedSettingsFragment.)
+     */
+    override fun onPreferenceStartFragment(
+        caller: PreferenceFragmentCompat,
+        pref: Preference
+    ): Boolean {
+        val fragmentClass = pref.fragment ?: return false
+        settingsNestedFragment.value = fragmentClass
+        return true
+    }
+
+    /**
+     * The experimental-regions / backup-restore region task callback (ported verbatim from
+     * SettingsActivity.onRegionTaskFinished): on a region change, reset the OTP API version, toast the
+     * newly found region (when auto-selecting), and re-home.
+     */
+    override fun onRegionTaskFinished(currentRegionChanged: Boolean) {
+        if (currentRegionChanged) {
+            Application.get().setUseOldOtpApiUrlVersion(false)
+            if (Application.getPrefs()
+                    .getBoolean(getString(R.string.preference_key_auto_select_region), true)
+                && Application.get().currentRegion != null
+            ) {
+                Toast.makeText(
+                    this,
+                    getString(
+                        R.string.region_region_found,
+                        Application.get().currentRegion.name
+                    ),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            NavHelp.goHome(this, false)
         }
     }
 
@@ -1230,7 +1346,7 @@ class HomeActivity : AppCompatActivity() {
                 pendingDeepLinkRoute.value = NavRoutes.TRIP_PLAN
             HomeNavItem.PAY_FARE -> UIUtils.launchPayMyFareApp(this)
             HomeNavItem.SETTINGS ->
-                startActivity(Intent(this@HomeActivity, SettingsActivity::class.java))
+                pendingDeepLinkRoute.value = NavRoutes.SETTINGS
             // Hide "Contact Us" when a custom API URL is set (no contact email to use).
             HomeNavItem.HELP -> helpViewModel.showMenu(TextUtils.isEmpty(Application.get().customApiUrl))
             HomeNavItem.SEND_FEEDBACK -> goToSendFeedBack()

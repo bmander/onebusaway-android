@@ -16,6 +16,8 @@
 package org.onebusaway.android.ui.tripplan
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.app.Application
@@ -33,7 +35,9 @@ interface GeocodeRepository {
  * [LocationUtils.processPeliasGeocoding] on the IO thread and projects [CustomAddress] onto the
  * JVM-pure [PlaceItem] so the ViewModel stays testable.
  */
-class DefaultGeocodeRepository(private val context: Context) : GeocodeRepository {
+class DefaultGeocodeRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) : GeocodeRepository {
 
     override suspend fun suggest(query: String): Result<List<PlaceItem>> =
         withContext(Dispatchers.IO) {

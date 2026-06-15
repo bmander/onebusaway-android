@@ -23,6 +23,7 @@ import javax.inject.Singleton
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.donations.DonationsManager
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.util.TimeProvider
 
 /**
  * Provides the process-wide singletons that today live on [Application] (the de-facto DI container), so
@@ -43,4 +44,9 @@ object AppModule {
     @Provides
     @Singleton
     fun provideDonationsManager(): DonationsManager = Application.getDonationsManager()
+
+    /** Wall-clock source — the single `System.currentTimeMillis()` boundary for injected consumers. */
+    @Provides
+    @Singleton
+    fun provideTimeProvider(): TimeProvider = TimeProvider { System.currentTimeMillis() }
 }

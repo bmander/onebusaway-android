@@ -34,8 +34,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.timepicker.MaterialTimePicker
@@ -56,8 +54,6 @@ import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.tripplan.AdvancedSettings
-import org.onebusaway.android.ui.tripplan.DefaultGeocodeRepository
-import org.onebusaway.android.ui.tripplan.DefaultTripPlanRepository
 import org.onebusaway.android.ui.tripplan.PlaceItem
 import org.onebusaway.android.ui.tripplan.PlanResult
 import org.onebusaway.android.ui.tripplan.TripPlanLocationPickerActivity
@@ -77,18 +73,7 @@ import org.opentripplanner.api.model.Itinerary
 @AndroidEntryPoint
 class TripPlanActivity : AppCompatActivity() {
 
-    private val viewModel: TripPlanViewModel by viewModels {
-        viewModelFactory {
-            initializer {
-                TripPlanViewModel(
-                    DefaultGeocodeRepository(applicationContext),
-                    DefaultTripPlanRepository(applicationContext),
-                    initialDateTimeMillis = System.currentTimeMillis(),
-                    initialSettings = loadAdvancedSettings()
-                )
-            }
-        }
-    }
+    private val viewModel: TripPlanViewModel by viewModels()
 
     private lateinit var firebaseAnalytics: FirebaseAnalytics
 
@@ -258,19 +243,6 @@ class TripPlanActivity : AppCompatActivity() {
     }
 
     // -- Advanced options dialog (ported from the legacy form) -----------------------------------
-
-    private fun loadAdvancedSettings(): AdvancedSettings {
-        val modeId = PreferenceUtils.getInt(getString(R.string.preference_key_trip_plan_travel_by), 0)
-        val maxWalk = PreferenceUtils.getDouble(getString(R.string.preference_key_trip_plan_maximum_walking_distance), 0.0)
-        val optimize = PreferenceUtils.getBoolean(getString(R.string.preference_key_trip_plan_minimize_transfers), false)
-        val wheelchair = PreferenceUtils.getBoolean(getString(R.string.preference_key_trip_plan_avoid_stairs), false)
-        return AdvancedSettings(
-            modeId = modeId,
-            maxWalkMeters = maxWalk.takeIf { it != 0.0 && it != Double.MAX_VALUE },
-            optimizeTransfers = optimize,
-            wheelchair = wheelchair
-        )
-    }
 
     private fun showAdvancedSettings() {
         val current = viewModel.formState.value

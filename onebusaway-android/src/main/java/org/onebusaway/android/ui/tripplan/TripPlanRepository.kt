@@ -17,12 +17,14 @@ package org.onebusaway.android.ui.tripplan
 
 import android.content.Context
 import android.os.Bundle
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
 import java.util.Calendar
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.R
@@ -48,7 +50,9 @@ interface TripPlanRepository {
  * IO thread — including the old-URL-structure fallback. OTP error codes are mapped to user-facing
  * messages (ported from TripPlanActivity.getErrorMessage) and surfaced as [Result.failure].
  */
-class DefaultTripPlanRepository(private val context: Context) : TripPlanRepository {
+class DefaultTripPlanRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) : TripPlanRepository {
 
     override suspend fun plan(params: TripPlanParams): Result<List<Itinerary>> =
         withContext(Dispatchers.IO) {

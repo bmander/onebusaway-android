@@ -16,6 +16,7 @@
 package org.onebusaway.android.ui.home
 
 import android.text.TextUtils
+import javax.inject.Inject
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.util.ReminderUtils
 
@@ -41,7 +42,7 @@ interface NavItemsRepository {
  * out of HomeActivity.refreshDrawerItems). Trip-planning needs a region OTP url (or a custom one); fare
  * payment needs the region's payment app id; reminders follow the preference.
  */
-class DefaultNavItemsRepository : NavItemsRepository {
+class DefaultNavItemsRepository @Inject constructor() : NavItemsRepository {
 
     override fun availability(): NavItemAvailability {
         val region = Application.get().currentRegion

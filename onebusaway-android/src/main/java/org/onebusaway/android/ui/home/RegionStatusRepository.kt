@@ -17,6 +17,8 @@ package org.onebusaway.android.ui.home
 
 import android.content.Context
 import android.content.pm.PackageManager
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.BuildConfig
@@ -75,8 +77,8 @@ interface RegionStatusRepository {
  * the fused provider when Google Play Services is available and otherwise falls back to the
  * platform `LocationManager`.
  */
-class DefaultRegionStatusRepository(
-    private val context: Context,
+class DefaultRegionStatusRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val prefs: PreferencesRepository,
 ) : RegionStatusRepository {
 

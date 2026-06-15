@@ -27,8 +27,16 @@ import org.onebusaway.android.map.bike.BikeStationsRepository
 import org.onebusaway.android.map.bike.DefaultBikeStationsRepository
 import org.onebusaway.android.ui.agencies.AgenciesRepository
 import org.onebusaway.android.ui.agencies.DefaultAgenciesRepository
+import org.onebusaway.android.ui.home.DefaultNavItemsRepository
+import org.onebusaway.android.ui.home.DefaultRegionStatusRepository
+import org.onebusaway.android.ui.home.DefaultStartupPreferencesRepository
 import org.onebusaway.android.ui.home.DefaultWeatherRepository
+import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
+import org.onebusaway.android.ui.home.NavItemsRepository
+import org.onebusaway.android.ui.home.RegionStatusRepository
+import org.onebusaway.android.ui.home.StartupPreferencesRepository
 import org.onebusaway.android.ui.home.WeatherRepository
+import org.onebusaway.android.ui.home.WideAlertsRepository
 import org.onebusaway.android.ui.regions.DefaultRegionsRepository
 import org.onebusaway.android.ui.regions.RegionsRepository
 import org.onebusaway.android.ui.report.customerservice.CustomerServiceRepository
@@ -118,4 +126,19 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindBikeStationsRepository(impl: DefaultBikeStationsRepository): BikeStationsRepository
+
+    // HomeViewModel's collaborators (so it can become a plain @HiltViewModel — D6).
+    @Binds
+    abstract fun bindWideAlertsRepository(impl: DefaultWideAlertsRepository): WideAlertsRepository
+
+    @Binds
+    abstract fun bindNavItemsRepository(impl: DefaultNavItemsRepository): NavItemsRepository
+
+    @Binds
+    abstract fun bindStartupPreferencesRepository(
+        impl: DefaultStartupPreferencesRepository
+    ): StartupPreferencesRepository
+
+    @Binds
+    abstract fun bindRegionStatusRepository(impl: DefaultRegionStatusRepository): RegionStatusRepository
 }

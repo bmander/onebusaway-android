@@ -21,7 +21,10 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.pm.ShortcutManagerCompat
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import org.onebusaway.android.R
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.mylists.MyTab
 import org.onebusaway.android.ui.mylists.MyTabs
@@ -41,7 +44,11 @@ import org.onebusaway.android.util.UIUtils
  * `CREATE_SHORTCUT` request pins a shortcut to *this activity itself* (not a stop/route picker) and
  * finishes immediately.
  */
+@AndroidEntryPoint
 class MyRecentStopsAndRoutesActivity : AppCompatActivity() {
+
+    @Inject
+    lateinit var prefsRepository: PreferencesRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,12 +68,16 @@ class MyRecentStopsAndRoutesActivity : AppCompatActivity() {
         val recentStops = hostListVm("recents.stops") { RecentStopsRepository(applicationContext) }
         val recentRoutes = hostListVm("recents.routes") { RecentRoutesRepository(applicationContext) }
 
+        val lastTabKey = "RecentRoutesStopsActivity.LastTab"
+        val persistedTab = prefsRepository.getString(lastTabKey, null)
+
         setContent {
             ObaTheme {
                 MyTabsScreen(
                     titleRes = R.string.my_recent_title,
                     initialTag = intent.data?.let { MyTabs.defaultTabFromUri(it) },
-                    lastTabPrefKey = "RecentRoutesStopsActivity.LastTab",
+                    persistedTag = persistedTab,
+                    onPersistTag = { prefsRepository.setString(lastTabKey, it) },
                     onBack = { NavHelp.goHome(this, false) },
                     tabs = listOf(
                         MyTab(

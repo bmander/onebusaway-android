@@ -45,9 +45,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
-import org.onebusaway.android.util.PreferenceUtils
 
 /** A labelled overflow action (the per-tab "Clear" item) for [MyTab]. */
 data class TabAction(@StringRes val labelRes: Int, val onClick: () -> Unit)
@@ -71,23 +69,25 @@ data class MyTab(
  * (`TabLayout` + `ViewPager2` + `FragmentStateAdapter`): an [ObaTopAppBar] whose Sort/Clear actions
  * track the visible page, over a [TabRow] + swipeable [HorizontalPager] of [tabs].
  *
- * The starting page is the deep-link [initialTag], else the last-viewed tab persisted under
- * [lastTabPrefKey], else the first tab (the legacy `restoreDefaultTab` precedence). Rotation keeps
- * the live page via [rememberPagerState]. The last tab is persisted on exit, but only when this
- * launch wasn't a deep-link (mirrors the old `onDestroy` + `mDefaultTab == null` guard).
+ * The starting page is the deep-link [initialTag], else the last-viewed tab [persistedTag], else the
+ * first tab (the legacy `restoreDefaultTab` precedence). Rotation keeps the live page via
+ * [rememberPagerState]. On exit the current tag is reported to [onPersistTag], but only when this
+ * launch wasn't a deep-link (mirrors the old `onDestroy` + `mDefaultTab == null` guard). The pref
+ * I/O is hoisted to the caller (which injects the seam) so this stays a pure composable.
  */
 @Composable
 fun MyTabsScreen(
     @StringRes titleRes: Int,
     tabs: List<MyTab>,
     initialTag: String?,
-    lastTabPrefKey: String,
+    persistedTag: String?,
+    onPersistTag: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val initialPage = remember {
         initialTag?.let { tabs.indexOfTag(it) }
-            ?: Application.getPrefs().getString(lastTabPrefKey, null)?.let { tabs.indexOfTag(it) }
+            ?: persistedTag?.let { tabs.indexOfTag(it) }
             ?: 0
     }
     val pagerState = rememberPagerState(initialPage = initialPage) { tabs.size }
@@ -95,7 +95,7 @@ fun MyTabsScreen(
     DisposableEffect(Unit) {
         onDispose {
             if (initialTag == null) {
-                PreferenceUtils.saveString(lastTabPrefKey, tabs[pagerState.currentPage].tag)
+                onPersistTag(tabs[pagerState.currentPage].tag)
             }
         }
     }

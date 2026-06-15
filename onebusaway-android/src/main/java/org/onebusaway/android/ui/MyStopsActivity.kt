@@ -19,7 +19,10 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import org.onebusaway.android.R
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.mylists.MyTab
 import org.onebusaway.android.ui.mylists.MyTabs
@@ -41,7 +44,11 @@ import org.onebusaway.android.util.PreferenceUtils
  * Doubles as a launcher `CREATE_SHORTCUT` picker (in that mode a row tap returns a shortcut intent)
  * and a `tab://` deep-link target (the `MyStarred`/`MyRecentStops` shortcut shells link here).
  */
+@AndroidEntryPoint
 class MyStopsActivity : AppCompatActivity() {
+
+    @Inject
+    lateinit var prefsRepository: PreferencesRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,12 +61,16 @@ class MyStopsActivity : AppCompatActivity() {
             DefaultStopSearchRepository(applicationContext)::search
         }
 
+        val lastTabKey = "MyStopsActivity.LastTab"
+        val persistedTab = prefsRepository.getString(lastTabKey, null)
+
         setContent {
             ObaTheme {
                 MyTabsScreen(
                     titleRes = R.string.my_recent_stops,
                     initialTag = initialTag,
-                    lastTabPrefKey = "MyStopsActivity.LastTab",
+                    persistedTag = persistedTab,
+                    onPersistTag = { prefsRepository.setString(lastTabKey, it) },
                     onBack = { NavHelp.goHome(this, false) },
                     tabs = listOf(
                         MyTab(

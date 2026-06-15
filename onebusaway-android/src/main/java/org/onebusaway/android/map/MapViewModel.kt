@@ -68,6 +68,7 @@ import org.onebusaway.android.map.render.VehicleMarker
 import org.onebusaway.android.map.render.primaryRouteType
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.location.LocationRepository
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.LocationUtils
@@ -133,6 +134,7 @@ class MapViewModel @Inject constructor(
     private val bikeStationsRepository: BikeStationsRepository,
     private val regionRepo: RegionRepository,
     private val locationRepository: LocationRepository,
+    private val prefsRepository: PreferencesRepository,
 ) : ViewModel(), HomeMapController {
 
     val renderState = MapRenderState()
@@ -703,8 +705,8 @@ class MapViewModel @Inject constructor(
         val last = locationRepository.location.value
         val action = myLocationAction(
             locationEnabled = LocationUtils.isLocationEnabled(app),
-            neverShowLocationDialog = Application.getPrefs()
-                .getBoolean(app.getString(R.string.preference_key_never_show_location_dialog), false),
+            neverShowLocationDialog =
+                prefsRepository.getBoolean(R.string.preference_key_never_show_location_dialog, false),
             hasLastKnownLocation = last != null,
             hasPermission = PermissionUtils.hasGrantedAtLeastOnePermission(
                 app, PermissionUtils.LOCATION_PERMISSIONS

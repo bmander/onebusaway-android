@@ -71,6 +71,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.onebusaway.android.R
+import org.onebusaway.android.ui.NightLightActivity
 import org.onebusaway.android.ui.ArrivalInfo
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.UIUtils
@@ -343,6 +344,7 @@ internal fun OverflowMenu(
     onHideAlerts: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     Box {
         IconButton(onClick = { expanded = true }) {
             Icon(
@@ -356,6 +358,9 @@ internal fun OverflowMenu(
             MenuRow(R.string.stop_info_option_show_details) { expanded = false; onStopDetails() }
             MenuRow(R.string.stop_info_option_report_problem) { expanded = false; onReportStopProblem() }
             MenuRow(R.string.stop_info_option_hide_alerts) { expanded = false; onHideAlerts() }
+            MenuRow(R.string.stop_info_option_night_light) {
+                expanded = false; NightLightActivity.start(context)
+            }
         }
     }
 }

@@ -78,6 +78,9 @@ object NavRoutes {
     /** Builds a navigable [MY_REMINDERS] route. */
     fun myReminders(): String = "myReminders"
 
+    /** The night-light flashing screen (former NightLightActivity); no args. */
+    const val NIGHT_LIGHT = "nightLight"
+
     // --- Survey web view (Campaign C) ---
     // The external-survey WebView host. The survey URL is the only nav-arg (the former
     // SurveyWebViewActivity also accepted optional stop_id / route_ids / embedded_data extras, but the

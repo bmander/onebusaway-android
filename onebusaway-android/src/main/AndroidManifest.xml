@@ -257,22 +257,18 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity-alias>
-        <activity
+        <!-- Campaign C: night light is a HomeActivity NavHost destination. The frozen component name
+             (old pinned launcher shortcuts) resolves via this alias → HomeActivity, which routes to
+             the night-light destination by component name (the intent carries no data URI). -->
+        <activity-alias
             android:name="org.onebusaway.android.ui.NightLightActivity"
             android:label="@string/stop_info_option_night_light"
-            android:parentActivityName="org.onebusaway.android.ui.HomeActivity"
-            android:screenOrientation="portrait"
-            android:exported="true"
-            android:configChanges="orientation|keyboardHidden|screenSize">
+            android:targetActivity="org.onebusaway.android.ui.HomeActivity"
+            android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.CREATE_SHORTCUT"/>
-                <category android:name="android.intent.category.DEFAULT"/>
+                <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
-            <!-- Parent activity meta-data to support 4.0 and lower -->
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value="org.onebusaway.android.ui.HomeActivity"/>
-        </activity>
+        </activity-alias>
         <activity
             android:name="org.onebusaway.android.ui.TripPlanActivity"
             android:label="@string/title_activity_trip_plan"

@@ -946,6 +946,15 @@ class HomeActivity : AppCompatActivity() {
                         }
                     }
                 }
+                // Night light (Campaign C): the flashing screen riders show to flag drivers. Reached
+                // from the arrivals overflow and old pinned launcher shortcuts (frozen NightLightActivity
+                // name → alias → HomeActivity, routed by component name). Window/brightness/orientation
+                // concerns live in NightLightRoute for as long as it's on the back stack.
+                composable(NavRoutes.NIGHT_LIGHT) {
+                    ObaTheme {
+                        NightLightRoute(onBack = { navController.popBackStack() })
+                    }
+                }
             }
         }
 
@@ -1020,6 +1029,12 @@ class HomeActivity : AppCompatActivity() {
                 intent.getStringExtra(NavRoutes.ARG_STOP_ID),
                 intent.getStringExtra(NavRoutes.ARG_SCROLL_MODE),
             )
+        }
+        // Old pinned night-light launcher shortcuts target the frozen NightLightActivity component
+        // (now an alias → HomeActivity) with no data URI; the alias name is preserved in the launched
+        // intent's component, so route by class name. (New pins use the NAV_ROUTE extra above.)
+        if (intent.component?.className?.endsWith("NightLightActivity") == true) {
+            return NavRoutes.NIGHT_LIGHT
         }
         // Old pinned launcher shortcuts (the deleted My* shells/aliases) carry a `tab://<tag>` data URI.
         // Map the tag to the matching My* list route so they keep opening the right screen.

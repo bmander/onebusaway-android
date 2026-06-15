@@ -117,6 +117,10 @@ fun HomeScreen(
     // All the screen's tap/UI lambdas, bundled (see [HomeCallbacks]); brought into scope below via
     // `with` so the body references them unqualified.
     callbacks: HomeCallbacks,
+    // In-NavHost navigation out of a home list overlay (Campaign C). Currently just the reminders
+    // overlay's "show route" action → the RouteInfo destination; built with the navController (which
+    // lives in the NavHost, not in HomeCallbacks). More as further leaves become destinations.
+    onShowRouteInfo: (routeId: String) -> Unit,
 ) {
     with(callbacks) {
     ObaTheme {
@@ -312,7 +316,8 @@ fun HomeScreen(
                         when (state.selectedItem) {
                             HomeNavItem.STARRED_STOPS -> StarredStopsDestination(listVms.starredStops)
                             HomeNavItem.STARRED_ROUTES -> StarredRoutesDestination(listVms.starredRoutes)
-                            HomeNavItem.MY_REMINDERS -> RemindersDestination(listVms.reminders)
+                            HomeNavItem.MY_REMINDERS ->
+                                RemindersDestination(listVms.reminders, onShowRoute = onShowRouteInfo)
                             else -> {}
                         }
                     }

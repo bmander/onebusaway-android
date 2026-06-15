@@ -78,12 +78,15 @@ internal fun StarredRoutesDestination(viewModel: MyListViewModel<RouteListItem>)
 }
 
 @Composable
-internal fun RemindersDestination(viewModel: MyListViewModel<ReminderItem>) {
+internal fun RemindersDestination(
+    viewModel: MyListViewModel<ReminderItem>,
+    onShowRoute: (routeId: String) -> Unit,
+) {
     val host = LocalContext.current.findActivity()
     ReminderListDestination(
         viewModel,
         emptyText = R.string.trip_list_notrips,
         onClick = { host.editReminder(it) },
-        actions = { host.reminderActions(it) }
+        actions = { host.reminderActions(it, onShowRoute = onShowRoute) }
     )
 }

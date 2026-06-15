@@ -32,9 +32,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -74,6 +77,7 @@ import org.onebusaway.android.ui.mylists.RemindersRepository
 import org.onebusaway.android.ui.mylists.StarredRoutesRepository
 import org.onebusaway.android.ui.mylists.StarredStopsRepository
 import org.onebusaway.android.ui.nav.NavRoutes
+import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
 import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
@@ -189,6 +193,39 @@ class HomeActivity : AppCompatActivity() {
                         helpViewModel = helpViewModel,
                         listVms = listVms,
                         callbacks = homeCallbacks,
+                        onShowRouteInfo = { routeId ->
+                            navController.navigate(NavRoutes.routeInfo(routeId))
+                        },
+                    )
+                }
+                // RouteInfo destination (Campaign C-a): a route's stops grouped by direction. Reached
+                // in-app from the home reminders overlay's "show route"; RouteInfoActivity still hosts
+                // the same RouteInfoRoute for the standalone/external launch paths (collapsed to an
+                // activity-alias in C-c). The VM reads routeId from SavedStateHandle (the nav-arg).
+                composable(
+                    NavRoutes.ROUTE_INFO,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_ROUTE_ID) { type = NavType.StringType }
+                    ),
+                ) { backStackEntry ->
+                    val routeId =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_ROUTE_ID).orEmpty()
+                    RouteInfoRoute(
+                        viewModel = hiltViewModel(),
+                        onBack = { navController.popBackStack() },
+                        onShowRouteOnMap = { HomeActivity.start(this@HomeActivity, routeId) },
+                        onStopClick = { stop ->
+                            ArrivalsListActivity.Builder(this@HomeActivity, stop.id)
+                                .setStopName(stop.name)
+                                .setStopDirection(stop.direction)
+                                .setUpMode(NavHelp.UP_MODE_BACK)
+                                .start()
+                        },
+                        onStopShowOnMap = { stop ->
+                            HomeActivity.start(
+                                this@HomeActivity, stop.id, stop.latitude, stop.longitude
+                            )
+                        },
                     )
                 }
             }

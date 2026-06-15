@@ -24,7 +24,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaRouteRequest
@@ -32,6 +31,7 @@ import org.onebusaway.android.io.request.ObaRouteResponse
 import org.onebusaway.android.io.request.ObaStopsForRouteRequest
 import org.onebusaway.android.io.request.ObaStopsForRouteResponse
 import org.onebusaway.android.provider.ObaContract
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.UIUtils
 import org.onebusaway.android.util.routeDisplayNames
 
@@ -48,7 +48,8 @@ interface RouteInfoRepository {
  * JVM-testable.
  */
 class DefaultRouteInfoRepository @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val regionRepository: RegionRepository,
 ) : RouteInfoRepository {
 
     override suspend fun loadRouteInfo(routeId: String): Result<RouteInfo> =
@@ -87,7 +88,7 @@ class DefaultRouteInfoRepository @Inject constructor(
         values.put(ObaContract.Routes.SHORTNAME, route.shortName)
         values.put(ObaContract.Routes.LONGNAME, route.longName)
         values.put(ObaContract.Routes.URL, route.url)
-        Application.get().currentRegion?.let {
+        regionRepository.region.value?.let {
             values.put(ObaContract.Routes.REGION_ID, it.id)
         }
         ObaContract.Routes.insertOrUpdate(context, route.id, values, true)

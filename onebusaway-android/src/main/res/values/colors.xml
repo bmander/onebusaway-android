@@ -89,7 +89,6 @@
     <color name="alert_icon_warning">#fbfb00</color>
     <color name="alert_icon_info">@color/header_text_color</color>
 
-    <color name="tutorial_navigation">#e0dcdc</color>
 
     <!-- Trip details colors -->
     <color name="trip_details_passed">@color/body_text_disabled</color>

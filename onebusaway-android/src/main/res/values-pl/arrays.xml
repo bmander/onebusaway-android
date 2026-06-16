@@ -183,11 +183,6 @@
         <item>@drawable/ic_app_feedback</item>
     </array>
 
-    <string-array name="report_stop_issue_tutorial_desc">
-        <item>Kliknij na przystanku, wobec którego chcesz wysłać raport.</item>
-        <item>Następnie wybierz rodzaj raportu.</item>
-        <item>Wyślij zgłoszenie związane z przystankiem.</item>
-    </string-array>
 
     <string-array name="report_stop_transit_category_keywords">
         <item>komunikacja</item>

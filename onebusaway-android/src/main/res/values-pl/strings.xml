@@ -780,9 +780,7 @@
     <string name="rt_no">NIE</string>
 
     <!-- Tutorial Fragment -->
-    <string name="pager_button_prev">Poprzedni</string>
     <string name="pager_button_next">Następny</string>
-    <string name="pager_button_done">Skońćz</string>
 
     <!-- Trip Details -->
     <string name="trip_details_vehicle">Pojazd: %1$s</string>

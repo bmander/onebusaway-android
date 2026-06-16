@@ -183,11 +183,6 @@
         <item>@drawable/ic_app_feedback</item>
     </array>
 
-    <string-array name="report_stop_issue_tutorial_desc">
-        <item>Clic en la parada del bus, que quieres reportar.</item>
-        <item>Entonces selecciona un problema a reportar en la sección de opciones.</item>
-        <item>Envía tu parada de bus relacionada al problema.</item>
-    </string-array>
 
     <string-array name="report_stop_transit_category_keywords">
         <item>tránsito</item>

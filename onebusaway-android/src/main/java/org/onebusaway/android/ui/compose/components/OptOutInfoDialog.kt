@@ -66,7 +66,7 @@ fun OptOutInfoDialog(
                 Text(remember(body, linkColor) { linkifyUrls(body, linkColor) })
                 if (optOutLabel != null && onOptOut != null) {
                     var optedOut by remember { mutableStateOf(false) }
-                    CheckboxRow(
+                    SwitchRow(
                         label = optOutLabel,
                         checked = optedOut,
                         onCheckedChange = { optedOut = it; onOptOut(it) },

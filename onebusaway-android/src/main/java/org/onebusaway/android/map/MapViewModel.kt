@@ -660,8 +660,7 @@ class MapViewModel @Inject constructor(
      */
     private fun frameCurrentRegion() {
         // lastKnownLocation() (not the repo's .value): this runs at cold-start framing and must trigger
-        // the lazy provider poll so the first frame can target the user's location. The poll seeds the
-        // repository, keeping the .value reads (here-adjacent + requestMyLocation) consistent.
+        // the lazy provider poll so the first frame can target the user's location.
         val location = locationRepository.lastKnownLocation()
         val center = _camera.value?.center
         val atSeed = center == null || (center.latitude == 0.0 && center.longitude == 0.0)
@@ -714,7 +713,11 @@ class MapViewModel @Inject constructor(
      */
     fun requestMyLocation(useDefaultZoom: Boolean, animate: Boolean) {
         val app = context
-        val last = locationRepository.location.value
+        // lastKnownLocation() (not the repo's .value): the FAB must trigger the lazy provider poll, like
+        // the legacy Application.getLastKnownLocation. Reading .value would show the "waiting" toast
+        // whenever nothing has seeded the flow yet (e.g. the cold-start poll ran before permission was
+        // granted, or the region never changed so frameCurrentRegion never polled).
+        val last = locationRepository.lastKnownLocation()
         val action = myLocationAction(
             locationEnabled = LocationUtils.isLocationEnabled(app),
             neverShowLocationDialog =

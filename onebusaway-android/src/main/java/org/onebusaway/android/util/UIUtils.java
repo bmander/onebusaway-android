@@ -602,7 +602,7 @@ public final class UIUtils {
     public static void sendEmail(Context context, String email, String location,
             String tripPlanUrl, boolean tripPlanFail) {
         String obaRegionName = RegionUtils.getObaRegionName();
-        boolean autoRegion = Application.getPrefs()
+        boolean autoRegion = PreferenceUtils
                 .getBoolean(context.getString(R.string.preference_key_auto_select_region), true);
         String regionSelectionMethod;
         if (autoRegion) {
@@ -1781,7 +1781,7 @@ public final class UIUtils {
 
         if (!TextUtils.isEmpty(region.getPaymentWarningTitle()) || !TextUtils.isEmpty(region.getPaymentWarningBody())) {
             // Region has a warning for using the payment app
-            if (!Application.getPrefs().getBoolean(activity.getString(R.string.preference_key_never_show_payment_warning_dialog), false)) {
+            if (!PreferenceUtils.getBoolean(activity.getString(R.string.preference_key_never_show_payment_warning_dialog), false)) {
                 // User hasn't opted out of warning dialog yet - show the dialog
                 showPaymentWarningDialog(activity, region);
             } else {

@@ -16,11 +16,10 @@
 package org.onebusaway.android.view;
 
 import org.onebusaway.android.R;
-import org.onebusaway.android.app.Application;
 import org.onebusaway.android.util.LocationHelper;
+import org.onebusaway.android.util.PreferenceUtils;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.location.Location;
 import android.util.AttributeSet;
 import android.widget.TextView;
@@ -68,8 +67,6 @@ public class DistanceToStopView extends TextView implements LocationHelper.Liste
 
     private static String AUTOMATIC;
 
-    SharedPreferences mSettings;
-
     private String preferredUnits;
 
     boolean mInitialized = false;
@@ -86,8 +83,7 @@ public class DistanceToStopView extends TextView implements LocationHelper.Liste
         METRIC = mContext.getString(R.string.preferences_preferred_units_option_metric);
         AUTOMATIC = mContext.getString(R.string.preferences_preferred_units_option_automatic);
 
-        mSettings = Application.getPrefs();
-        preferredUnits = mSettings
+        preferredUnits = PreferenceUtils
                 .getString(mContext.getString(R.string.preference_key_preferred_units),
                         AUTOMATIC);
     }
@@ -118,7 +114,7 @@ public class DistanceToStopView extends TextView implements LocationHelper.Liste
      * may have changed (typically, in onResume() of the parent context)
      */
     public void refreshUnitsPreference() {
-        preferredUnits = mSettings
+        preferredUnits = PreferenceUtils
                 .getString(mContext.getString(R.string.preference_key_preferred_units),
                         AUTOMATIC);
     }

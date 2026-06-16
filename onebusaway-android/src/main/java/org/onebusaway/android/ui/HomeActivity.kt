@@ -1075,8 +1075,7 @@ class HomeActivity : AppCompatActivity() {
         if (currentRegionChanged) {
             Application.get().setUseOldOtpApiUrlVersion(false)
             val region = regionRepository.region.value
-            if (Application.getPrefs()
-                    .getBoolean(getString(R.string.preference_key_auto_select_region), true)
+            if (PreferenceUtils.getBoolean(getString(R.string.preference_key_auto_select_region), true)
                 && region != null
             ) {
                 Toast.makeText(

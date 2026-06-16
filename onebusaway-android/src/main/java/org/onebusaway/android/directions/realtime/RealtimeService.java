@@ -23,7 +23,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -37,6 +36,7 @@ import org.onebusaway.android.directions.util.OTPConstants;
 import org.onebusaway.android.directions.util.TripRequestBuilder;
 import org.onebusaway.android.ui.HomeActivity;
 import org.onebusaway.android.ui.nav.NavRoutes;
+import org.onebusaway.android.util.PreferenceUtils;
 import org.opentripplanner.api.model.Itinerary;
 import org.opentripplanner.api.model.Leg;
 import org.opentripplanner.api.model.TripPlan;
@@ -71,8 +71,7 @@ public class RealtimeService extends IntentService {
      */
     public static void start(Activity source, Bundle bundle) {
 
-        SharedPreferences prefs = Application.getPrefs();
-        if (!prefs.getBoolean(OTPConstants.PREFERENCE_KEY_LIVE_UPDATES, true)) {
+        if (!PreferenceUtils.getBoolean(OTPConstants.PREFERENCE_KEY_LIVE_UPDATES, true)) {
             return;
         }
 

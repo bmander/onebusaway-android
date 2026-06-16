@@ -251,7 +251,7 @@ public class NavigationService extends Service implements LocationHelper.Listene
         try {
             // Get the counter that's incremented for each test
             final String NAV_TEST_ID = getString(R.string.preference_key_nav_test_id);
-            int counter = Application.getPrefs().getInt(NAV_TEST_ID, 0);
+            int counter = PreferenceUtils.getInt(NAV_TEST_ID, 0);
             counter++;
             PreferenceUtils.saveInt(NAV_TEST_ID, counter);
 
@@ -326,7 +326,7 @@ public class NavigationService extends Service implements LocationHelper.Listene
         NotificationCompat.Builder mBuilder;
 
         String message = Application.get().getString(R.string.feedback_notify_dialog_msg);
-        mFirstFeedback = Application.getPrefs().getBoolean(FIRST_FEEDBACK, true);
+        mFirstFeedback = PreferenceUtils.getBoolean(FIRST_FEEDBACK, true);
 
         // Create delete intent to set flag for snackbar creation next time the app is opened.
         Intent delIntent = new Intent(app.getApplicationContext(), FeedbackReceiver.class);

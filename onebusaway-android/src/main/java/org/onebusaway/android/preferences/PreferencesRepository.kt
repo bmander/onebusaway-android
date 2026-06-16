@@ -46,6 +46,9 @@ interface PreferencesRepository {
     /** Emits the current value of the boolean pref [keyRes] and re-emits on every change. */
     fun observeBoolean(@StringRes keyRes: Int, default: Boolean): Flow<Boolean>
 
+    /** Emits the current value of the String pref [keyRes] and re-emits on every change. */
+    fun observeString(@StringRes keyRes: Int, default: String?): Flow<String?>
+
     fun getBoolean(@StringRes keyRes: Int, default: Boolean): Boolean
     fun getBoolean(key: String, default: Boolean): Boolean
 
@@ -88,6 +91,16 @@ class DefaultPreferencesRepository @Inject constructor(
         trySend(prefs.getBoolean(key, default))
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
             if (changedKey == key) trySend(prefs.getBoolean(key, default))
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }.conflate().distinctUntilChanged()
+
+    override fun observeString(keyRes: Int, default: String?): Flow<String?> = callbackFlow {
+        val key = context.getString(keyRes)
+        trySend(prefs.getString(key, default))
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+            if (changedKey == key) trySend(prefs.getString(key, default))
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }

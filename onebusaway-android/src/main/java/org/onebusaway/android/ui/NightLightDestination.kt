@@ -18,7 +18,6 @@ package org.onebusaway.android.ui
 
 import android.content.Intent
 import android.content.pm.ActivityInfo
-import android.preference.PreferenceManager
 import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -58,6 +57,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.nav.NavRoutes
+import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.UIUtils
 
 /** The dimmed "off" color between flashes (a dark scrim over the theme background). */
@@ -113,9 +113,7 @@ fun NightLightRoute(onBack: () -> Unit) {
     LaunchedEffect(Unit) {
         if (introHandled) return@LaunchedEffect
         introHandled = true
-        @Suppress("DEPRECATION")
-        val sp = PreferenceManager.getDefaultSharedPreferences(activity)
-        if (sp.getBoolean(PREFERENCE_SHOWED_DIALOG, false)) {
+        if (PreferenceUtils.getBoolean(PREFERENCE_SHOWED_DIALOG, false)) {
             fullBrightness = true
         } else {
             MaterialAlertDialogBuilder(activity)
@@ -123,7 +121,7 @@ fun NightLightRoute(onBack: () -> Unit) {
                 .setMessage(R.string.night_light_dialog_message)
                 .setCancelable(false)
                 .setPositiveButton(R.string.night_light_start) { _, _ ->
-                    sp.edit().putBoolean(PREFERENCE_SHOWED_DIALOG, true).apply()
+                    PreferenceUtils.saveBoolean(PREFERENCE_SHOWED_DIALOG, true)
                     fullBrightness = true
                 }
                 .setNegativeButton(R.string.night_light_cancel) { _, _ -> onBack() }

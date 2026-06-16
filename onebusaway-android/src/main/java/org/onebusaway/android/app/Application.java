@@ -27,8 +27,9 @@ import android.hardware.GeomagneticField;
 import android.location.Location;
 import android.os.Build;
 import android.os.PowerManager;
-import android.preference.PreferenceManager;
 import android.text.TextUtils;
+
+import androidx.preference.PreferenceManager;
 import android.util.Log;
 
 import com.google.firebase.analytics.FirebaseAnalytics;
@@ -78,8 +79,6 @@ public class Application extends android.app.Application {
     public static final String CHANNEL_ARRIVAL_REMINDERS_ID = "arrival_reminders";
     public static final String CHANNEL_DESTINATION_ALERT_ID = "destination_alerts";
 
-    private SharedPreferences mPrefs;
-
     private DonationsManager mDonationsManager;
 
     private GtfsAlerts mGtfsAlerts;
@@ -99,7 +98,6 @@ public class Application extends android.app.Application {
         super.onCreate();
 
         mApp = this;
-        mPrefs = PreferenceManager.getDefaultSharedPreferences(this);
 
         initOba();
         initObaRegion();
@@ -125,7 +123,7 @@ public class Application extends android.app.Application {
 
         initFirebaseMessaging();
 
-        mDonationsManager = new DonationsManager(mPrefs, mFirebaseAnalytics, getResources(), getAppLaunchCount());
+        mDonationsManager = new DonationsManager(mFirebaseAnalytics, getResources(), getAppLaunchCount());
 
         mGtfsAlerts = new GtfsAlerts(getApplicationContext());
     }
@@ -148,8 +146,15 @@ public class Application extends android.app.Application {
         return mApp;
     }
 
+    /**
+     * @deprecated Temporary shim for the legacy preference fragments (which register
+     * {@code OnSharedPreferenceChangeListener}s directly). It is removed alongside those fragments in
+     * the settings Compose migration. Everything else reaches prefs via the
+     * {@code PreferencesRepository} seam / {@link org.onebusaway.android.util.PreferenceUtils}.
+     */
+    @Deprecated
     public static SharedPreferences getPrefs() {
-        return get().mPrefs;
+        return PreferenceManager.getDefaultSharedPreferences(get());
     }
 
     public static DonationsManager getDonationsManager() { return get().mDonationsManager; }
@@ -306,8 +311,7 @@ public class Application extends android.app.Application {
      * never been updated.
      */
     public long getLastRegionUpdateDate() {
-        SharedPreferences preferences = getPrefs();
-        return preferences.getLong(getString(R.string.preference_key_last_region_update), 0);
+        return PreferenceUtils.getLong(getString(R.string.preference_key_last_region_update), 0);
     }
 
     /**
@@ -317,8 +321,7 @@ public class Application extends android.app.Application {
      *             milliseconds since January 1, 1970, 00:00:00 GMT
      */
     public void setLastRegionUpdateDate(long date) {
-        PreferenceUtils
-                .saveLong(mPrefs, getString(R.string.preference_key_last_region_update), date);
+        PreferenceUtils.saveLong(getString(R.string.preference_key_last_region_update), date);
     }
 
     /**
@@ -330,8 +333,7 @@ public class Application extends android.app.Application {
      * if it has not been set
      */
     public String getCustomApiUrl() {
-        SharedPreferences preferences = getPrefs();
-        return preferences.getString(getString(R.string.preference_key_oba_api_url), null);
+        return PreferenceUtils.getString(getString(R.string.preference_key_oba_api_url));
     }
 
     /**
@@ -354,8 +356,7 @@ public class Application extends android.app.Application {
      * if it has not been set
      */
     public String getCustomOtpApiUrl() {
-        SharedPreferences preferences = getPrefs();
-        return preferences.getString(getString(R.string.preference_key_otp_api_url), null);
+        return PreferenceUtils.getString(getString(R.string.preference_key_otp_api_url));
     }
 
     /**
@@ -373,8 +374,7 @@ public class Application extends android.app.Application {
      * @return true if the OTP url version is old, or false  if it has not been set
      */
     public boolean getUseOldOtpApiUrlVersion() {
-        SharedPreferences preferences = getPrefs();
-        return preferences.getBoolean(getString(R.string.preference_key_otp_api_url_version), false);
+        return PreferenceUtils.getBoolean(getString(R.string.preference_key_otp_api_url_version), false);
     }
 
     /**
@@ -403,7 +403,7 @@ public class Application extends android.app.Application {
     }
 
     private void initOba() {
-        String uuid = mPrefs.getString(APP_UID, null);
+        String uuid = PreferenceUtils.getString(APP_UID);
         if (uuid == null) {
             // Generate one and save that.
             uuid = getAppUid();
@@ -428,7 +428,7 @@ public class Application extends android.app.Application {
     private void checkArrivalStylePreferenceDefault() {
         String arrivalInfoStylePrefKey = getResources()
                 .getString(R.string.preference_key_arrival_info_style);
-        String arrivalInfoStylePref = mPrefs.getString(arrivalInfoStylePrefKey, null);
+        String arrivalInfoStylePref = PreferenceUtils.getString(arrivalInfoStylePrefKey);
         if (arrivalInfoStylePref == null) {
             // First execution of app - set the default arrival info style based on the BuildConfig value
             switch (BuildConfig.ARRIVAL_INFO_STYLE) {
@@ -460,7 +460,7 @@ public class Application extends android.app.Application {
     private void checkDarkMode() {
         String appThemePrefKey = getResources()
                 .getString(R.string.preference_key_app_theme);
-        String appThemePref = mPrefs.getString(appThemePrefKey, null);
+        String appThemePref = PreferenceUtils.getString(appThemePrefKey);
         if (appThemePref != null) {
             setAppTheme(appThemePref);
         }
@@ -468,7 +468,7 @@ public class Application extends android.app.Application {
 
     private void initObaRegion() {
         // Read the region preference, look it up in the DB, then set the region.
-        long id = mPrefs.getLong(getString(R.string.preference_key_region), -1);
+        long id = PreferenceUtils.getLong(getString(R.string.preference_key_region), -1);
         if (id < 0) {
             Log.d(TAG, "Regions preference ID is less than 0, returning...");
             return;
@@ -526,10 +526,6 @@ public class Application extends android.app.Application {
             }
             ObaAnalytics.setRegion(mPlausible, mFirebaseAnalytics, customUrl);
         }
-        Boolean experimentalRegions = getPrefs().getBoolean(getString(R.string.preference_key_experimental_regions),
-                Boolean.FALSE);
-        Boolean autoRegion = getPrefs().getBoolean(getString(R.string.preference_key_auto_select_region),
-                true);
     }
 
     /**
@@ -600,9 +596,9 @@ public class Application extends android.app.Application {
     }
 
     public static String getUserPushID() {
-        SharedPreferences preferences = getPrefs();
         String key = get().getApplicationContext().getString(R.string.firebase_messaging_token);
-        return preferences.getString(key, "");
+        String token = PreferenceUtils.getString(key);
+        return token != null ? token : "";
     }
 
 }

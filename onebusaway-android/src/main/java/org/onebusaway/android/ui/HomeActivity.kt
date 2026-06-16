@@ -82,7 +82,6 @@ import org.onebusaway.android.map.resolveMapMode
 import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
-import org.onebusaway.android.region.ObaRegionsTask
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.io.elements.ObaArrivalInfo
 import org.onebusaway.android.report.ui.InfrastructureIssueDestination
@@ -154,7 +153,6 @@ import org.onebusaway.android.util.UIUtils
 
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity(),
-    ObaRegionsTask.Callback,
     ReportProblemFragmentCallback,
     SimpleArrivalsPickerFragment.Callback,
     InfrastructureIssueHost {
@@ -1135,11 +1133,11 @@ class HomeActivity : AppCompatActivity(),
     // preference framework's `app:fragment` / OnPreferenceStartFragmentCallback path.
 
     /**
-     * The experimental-regions / backup-restore region task callback (ported verbatim from
-     * SettingsActivity.onRegionTaskFinished): on a region change, reset the OTP API version, toast the
-     * newly found region (when auto-selecting), and re-home.
+     * The experimental-regions region-refresh callback (invoked by [RegionRefresher] from
+     * AdvancedSettingsFragment; ported from SettingsActivity.onRegionTaskFinished): on a region change,
+     * reset the OTP API version, toast the newly found region (when auto-selecting), and re-home.
      */
-    override fun onRegionTaskFinished(currentRegionChanged: Boolean) {
+    fun onRegionTaskFinished(currentRegionChanged: Boolean) {
         if (currentRegionChanged) {
             Application.get().setUseOldOtpApiUrlVersion(false)
             val region = regionRepository.region.value

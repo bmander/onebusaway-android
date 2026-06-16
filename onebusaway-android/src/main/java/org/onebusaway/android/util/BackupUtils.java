@@ -32,11 +32,9 @@ import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.ObaAnalytics;
 import org.onebusaway.android.io.PlausibleAnalytics;
 import org.onebusaway.android.io.backup.Backup;
-import org.onebusaway.android.region.ObaRegionsTask;
+import org.onebusaway.android.region.RegionRefresher;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 import androidx.appcompat.app.AlertDialog;
@@ -83,13 +81,13 @@ public class BackupUtils {
             Backup.restore(context, uri);
 
             if (activityContext != null) {
-                List<ObaRegionsTask.Callback> callbacks = new ArrayList<>();
-                callbacks.add(currentRegionChanged -> Toast.makeText(context,
-                        context.getString(R.string.preferences_db_restored, context.getString(R.string.app_name)),
-                        Toast.LENGTH_LONG).show());
-                ObaRegionsTask task = new ObaRegionsTask(activityContext, callbacks, true, true);
-                task.setProgressDialogMessage(context.getString(R.string.preferences_restore_loading));
-                task.execute();
+                RegionRefresher.refresh(
+                        activityContext,
+                        context.getString(R.string.preferences_restore_loading),
+                        currentRegionChanged -> Toast.makeText(context,
+                                context.getString(R.string.preferences_db_restored,
+                                        context.getString(R.string.app_name)),
+                                Toast.LENGTH_LONG).show());
             }
         } catch (IOException e) {
             Toast.makeText(context,

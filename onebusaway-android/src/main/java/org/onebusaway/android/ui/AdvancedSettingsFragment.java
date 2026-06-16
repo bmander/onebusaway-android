@@ -38,11 +38,9 @@ import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.ObaAnalytics;
 import org.onebusaway.android.io.PlausibleAnalytics;
-import org.onebusaway.android.region.ObaRegionsTask;
+import org.onebusaway.android.region.RegionRefresher;
 import org.onebusaway.android.travelbehavior.io.coroutines.FirebaseDataPusher;
 
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * The advanced settings preference fragment (custom OBA/OTP API URLs, experimental regions, debug
@@ -176,11 +174,8 @@ public class AdvancedSettingsFragment extends PreferenceFragmentCompat
             boolean experimentalServers = sharedPreferences.getBoolean(key, false);
             Log.d(TAG, "Experimental regions preference changed to " + experimentalServers);
 
-            List<ObaRegionsTask.Callback> callbacks = new ArrayList<>();
             HomeActivity activity = (HomeActivity) requireActivity();
-            callbacks.add(activity);
-            ObaRegionsTask task = new ObaRegionsTask(requireContext(), callbacks, true, false);
-            task.execute();
+            RegionRefresher.refresh(requireContext(), null, activity::onRegionTaskFinished);
 
             if (experimentalServers) {
                 ObaAnalytics.reportUiEvent(mFirebaseAnalytics,

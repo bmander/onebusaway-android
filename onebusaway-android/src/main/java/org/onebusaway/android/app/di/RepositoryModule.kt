@@ -38,6 +38,8 @@ import org.onebusaway.android.ui.home.NavItemsRepository
 import org.onebusaway.android.ui.home.StartupPreferencesRepository
 import org.onebusaway.android.ui.home.WeatherRepository
 import org.onebusaway.android.ui.home.WideAlertsRepository
+import org.onebusaway.android.location.DefaultLocationRepository
+import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.region.DefaultRegionActivator
 import org.onebusaway.android.region.DefaultRegionRepository
 import org.onebusaway.android.region.RegionActivator
@@ -153,6 +155,12 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindRegionRepository(impl: DefaultRegionRepository): RegionRepository
+
+    // Campaign A (B1): the location repository is a real Hilt @Singleton — the one process-wide instance
+    // that owns last-known-location state + provider polling. (Was sourced from Application via a bridge.)
+    @Binds
+    @Singleton
+    abstract fun bindLocationRepository(impl: DefaultLocationRepository): LocationRepository
 
     // Arrivals: unscoped on purpose — DefaultArrivalsRepository is stateful (lastGood) and 1:1 with its
     // (assisted) ArrivalsViewModel, so each VM gets its own. Do NOT make this @Singleton.

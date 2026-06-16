@@ -25,17 +25,12 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.hardware.GeomagneticField;
 import android.location.Location;
-import android.location.LocationManager;
 import android.os.Build;
 import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GoogleApiAvailability;
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.tasks.Task;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.messaging.FirebaseMessaging;
 
@@ -48,8 +43,7 @@ import org.onebusaway.android.io.ObaAnalytics;
 import org.onebusaway.android.io.ObaApi;
 import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.provider.ObaContract;
-import org.onebusaway.android.location.DefaultLocationRepository;
-import org.onebusaway.android.location.LocationRepository;
+import org.onebusaway.android.app.di.LocationEntryPoint;
 import org.onebusaway.android.app.di.RegionEntryPoint;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.BuildFlavorUtils;
@@ -60,8 +54,6 @@ import org.onebusaway.android.widealerts.GtfsAlerts;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.MessageDigest;
-import java.util.Iterator;
-import java.util.List;
 import java.util.UUID;
 
 import edu.usf.cutr.open311client.Open311Manager;
@@ -91,21 +83,10 @@ public class Application extends android.app.Application {
 
     private GtfsAlerts mGtfsAlerts;
 
-    private DefaultLocationRepository mLocationRepository;
-
     private static Application mApp;
 
-    /**
-     * We centralize location tracking in the Application class to allow all objects to make
-     * use of the last known location that we've seen.  This is more reliable than using the
-     * getLastKnownLocation() method of the location providers, and allows us to track both
-     * Location
-     * API v1 and fused provider.  It allows us to avoid strange behavior like animating a map view
-     * change when opening a new Activity, even when the previous Activity had a current location.
-     */
-    private static Location mLastKnownLocation = null;
-
-    // Magnetic declination is based on location, so track this centrally too.
+    // Magnetic declination is based on location, so track this centrally too. (The last-known location
+    // itself moved to the reactive LocationRepository singleton in Campaign A, B1.)
     static GeomagneticField mGeomagneticField = null;
 
     private FirebaseAnalytics mFirebaseAnalytics;
@@ -121,13 +102,12 @@ public class Application extends android.app.Application {
 
         initOba();
         initObaRegion();
-        // The region repository (which owns region state + resolution) is now a Hilt @Singleton
-        // (Campaign A, A2), constructed lazily on first injection after onCreate — it seeds itself from
-        // the region initObaRegion just loaded. The legacy setCurrentRegion writers sync it via the
-        // RegionEntryPoint. So nothing to construct here.
-        // The observable last-known location starts empty; it's published from setLastKnownLocation
-        // (listener updates) and getLastKnownLocation's lazy poll.
-        mLocationRepository = new DefaultLocationRepository(mLastKnownLocation);
+        // The region and location repositories (which own region/location state) are now Hilt
+        // @Singletons (Campaign A, A2/B1), constructed lazily on first injection after onCreate. The
+        // region repo seeds itself from the region initObaRegion just loaded; the location repo starts
+        // empty and fills from setLastKnownLocation (listener updates) / its lazy provider poll. The
+        // legacy setCurrentRegion / setLastKnownLocation writers reach them via their EntryPoints. So
+        // nothing to construct here.
         initOpen311(getCurrentRegion());
 
         reportAnalytics();
@@ -174,11 +154,6 @@ public class Application extends android.app.Application {
     }
 
 
-    /** The observable last-known location (reactive companion to getLastKnownLocation). */
-    public static LocationRepository getLocationRepository() {
-        return get().mLocationRepository;
-    }
-
     private static String appLaunchCountPreferencesKey = "appLaunchCountPreferencesKey";
 
     private void incrementAppLaunchCount() {
@@ -196,57 +171,42 @@ public class Application extends android.app.Application {
      * location yet.  When trying to get a most recent location in one shot, this method should
      * always be called.
      *
+     * <p>As of Campaign A (B1) the location lives in the reactive {@code LocationRepository}; this is a
+     * thin delegate kept for the {@code LocationHelper} listener read-back and the io/* instrumented
+     * tests. Injectable production readers inject {@code LocationRepository} directly. The {@code cxt}
+     * is used only to resolve the singleton graph (any context's application works), so a null one
+     * falls back to the Application itself.
+     *
      * @param cxt    The Context being used, or null if one isn't available
      * @return the last known location that the application has seen, or null if we haven't seen a
      * location yet
      */
     public static synchronized Location getLastKnownLocation(Context cxt) {
-        if (mLastKnownLocation == null) {
-            // Try to get a last known location from the location providers
-            try {
-                mLastKnownLocation = getLocation2(cxt);
-            } catch (SecurityException e) {
-                Log.e(TAG, "User may have denied location permission - " + e);
-            }
-            // Seed the reactive LocationRepository with the lazily-polled value (mirrors setLastKnownLocation),
-            // so consumers reading the flow see the same first-call poll result the static accessor returns.
-            publishLocation();
+        Context ctx = cxt != null ? cxt : mApp;
+        if (ctx == null) {
+            return null;
         }
-        // Pass back last known saved location, hopefully from past location listener updates
-        return mLastKnownLocation;
+        return LocationEntryPoint.get(ctx).lastKnownLocation();
     }
 
     /**
-     * Sets the last known location observed by the application via an instance of LocationHelper
+     * Sets the last known location observed by the application via an instance of LocationHelper. The
+     * location itself is stored in the {@code LocationRepository} (which applies the "is it better?"
+     * gate); when it accepts the update we refresh the location-derived magnetic declination here.
      *
      * @param l a location received by a LocationHelper instance
      */
     public static synchronized void setLastKnownLocation(Location l) {
-        // If the new location is better than the old one, save it
-        if (LocationUtils.compareLocations(l, mLastKnownLocation)) {
-            if (mLastKnownLocation == null) {
-                mLastKnownLocation = new Location("Last known location");
-            }
-            mLastKnownLocation.set(l);
+        Application app = mApp;
+        if (app == null) {
+            return;
+        }
+        if (LocationEntryPoint.get(app).update(l)) {
             mGeomagneticField = new GeomagneticField(
                     (float) l.getLatitude(),
                     (float) l.getLongitude(),
                     (float) l.getAltitude(),
                     System.currentTimeMillis());
-            // Log.d(TAG, "Newest best location: " + mLastKnownLocation.toString());
-            publishLocation();
-        }
-    }
-
-    /**
-     * Publishes the current last-known location to the reactive {@link LocationRepository}. Application
-     * is the sole writer. Publishes a fresh copy because mLastKnownLocation is reused in place, and the
-     * StateFlow dedupes by reference (Location has no value equality) so it would otherwise not emit.
-     */
-    private static void publishLocation() {
-        Application app = mApp;
-        if (app != null && app.mLocationRepository != null && mLastKnownLocation != null) {
-            app.mLocationRepository.publish(new Location(mLastKnownLocation));
         }
     }
 
@@ -265,65 +225,6 @@ public class Application extends android.app.Application {
         } else {
             return null;
         }
-    }
-
-    /**
-     * Returns a location, considering both Google Play Services (if available) and the Android
-     * Location API
-     *
-     * @return a recent location, considering both Google Play Services (if available) and the
-     * Android Location API
-     * @throws SecurityException if the user has remove location permissions
-     */
-    private static Location getLocation2(Context cxt)
-            throws SecurityException {
-        GoogleApiAvailability api = GoogleApiAvailability.getInstance();
-        Location playServices = null;
-        if (cxt != null &&
-                api.isGooglePlayServicesAvailable(cxt)
-                        == ConnectionResult.SUCCESS) {
-            FusedLocationProviderClient fusedClient = getFusedLocationProviderClient(cxt);
-            Task<Location> task = fusedClient.getLastLocation();
-            // isSuccessful() (not isComplete()) - a task that completed with a failure would
-            // throw RuntimeExecutionException from getResult()
-            if (task.isSuccessful()) {
-                playServices = task.getResult();
-                Log.d(TAG, "Got location from Google Play Services, testing against API v1...");
-            }
-        }
-        Location apiV1 = getLocationApiV1(cxt);
-
-        if (LocationUtils.compareLocationsByTime(playServices, apiV1)) {
-            Log.d(TAG, "Using location from Google Play Services");
-            return playServices;
-        } else {
-            Log.d(TAG, "Using location from Location API v1");
-            return apiV1;
-        }
-    }
-
-    private static Location getLocationApiV1(Context cxt) {
-        if (cxt == null) {
-            return null;
-        }
-        LocationManager mgr = (LocationManager) cxt.getSystemService(Context.LOCATION_SERVICE);
-        List<String> providers = mgr.getProviders(true);
-        Location last = null;
-        for (Iterator<String> i = providers.iterator(); i.hasNext(); ) {
-            Location loc = null;
-            try {
-                loc = mgr.getLastKnownLocation(i.next());
-            }  catch (SecurityException e) {
-                Log.w(TAG, "User may have denied location permission - " + e);
-            }
-            // If this provider has a last location, and either:
-            // 1. We don't have a last location,
-            // 2. Our last location is older than this location.
-            if (LocationUtils.compareLocationsByTime(loc, last)) {
-                last = loc;
-            }
-        }
-        return last;
     }
 
     //

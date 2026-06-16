@@ -17,6 +17,9 @@
 package org.onebusaway.android.report.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,6 +41,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,17 +50,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.DialogProperties
-import androidx.fragment.app.FragmentContainerView
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import edu.usf.cutr.open311client.Open311
 import edu.usf.cutr.open311client.models.Service
 import org.onebusaway.android.R
@@ -68,8 +75,13 @@ import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.map.compose.ObaMapCallbacks
 import edu.usf.cutr.open311client.constants.Open311Constants
 import android.content.Context
+import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import com.google.firebase.analytics.FirebaseAnalytics
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
@@ -88,7 +100,13 @@ import org.onebusaway.android.ui.report.infrastructure.InfrastructureIssueEvent
 import org.onebusaway.android.ui.report.infrastructure.InfrastructureIssueViewModel
 import org.onebusaway.android.ui.report.infrastructure.IssueLocation
 import org.onebusaway.android.ui.report.infrastructure.ReportTarget
-import org.onebusaway.android.ui.report.open311.Open311ProblemFragment
+import org.onebusaway.android.ui.nav.NavRoutes
+import org.onebusaway.android.ui.report.open311.DefaultOpen311Repository
+import org.onebusaway.android.ui.report.open311.Open311IssueContext
+import org.onebusaway.android.ui.report.open311.Open311ProblemViewModel
+import org.onebusaway.android.ui.report.open311.Open311Route
+import org.onebusaway.android.ui.report.open311.Open311SubmitState
+import org.onebusaway.android.ui.report.open311.Open311TripContext
 import org.onebusaway.android.ui.report.problem.DefaultProblemReportRepository
 import org.onebusaway.android.ui.report.problem.ProblemCodes
 import org.onebusaway.android.ui.report.problem.ProblemKind
@@ -107,16 +125,12 @@ const val EXTRA_BLOCK_ID = ".blockId"
  * The infrastructure-issue (stop/trip problem) NavHost destination (Campaign C; former
  * [InfrastructureIssueActivity]). It replaces the `infrastructure_issue.xml` layout with a Compose
  * [Scaffold]: the declarative [ObaMap] (entry-scoped [MapViewModel], stop mode), the
- * [InfrastructureControls], the inline stop/trip form + arrivals picker (Tier 1, P3a), and a
- * [FragmentContainerView] (id `R.id.ri_report_stop_problem`) the remaining Open311 form fragment is
- * swapped into (P3b inlines it too).
+ * [InfrastructureControls], and the inline stop/trip form, arrivals picker, and Open311 dynamic form
+ * (Tier 1) — the whole report flow is pure Compose now, with no fragments.
  *
  * The [InfrastructureIssueViewModel] is built once (back-stack-entry-scoped) from the nav-arg
  * `selectedService` plus the host intent extras (lat/lon, stop id/name/code, the opaque
- * `ObaArrivalInfo`, agency name, block id), reproducing the former Activity's hand-built factory. A
- * [DisposableEffect] publishes that VM to the host [HomeActivity] (which implements
- * [ReportProblemFragmentCallback] and [InfrastructureIssueHost]) so the Open311 fragment — hosted on the
- * host activity's `supportFragmentManager` — reaches it through `getActivity()`, and clears it on dispose.
+ * `ObaArrivalInfo`, agency name, block id), reproducing the former Activity's hand-built factory.
  */
 @Composable
 fun InfrastructureIssueDestination(
@@ -124,7 +138,6 @@ fun InfrastructureIssueDestination(
     selectedService: String?,
 ) {
     val activity = LocalContext.current.findActivity() as HomeActivity
-    val fragmentManager = activity.supportFragmentManager
 
     // Entry-scoped map view model (distinct from HomeActivity's own; this is a separate back-stack
     // entry). Stop mode so nearby stops load + are tappable, matching the former view-owning host.
@@ -149,30 +162,14 @@ fun InfrastructureIssueDestination(
     // The "report submitted" dialog (Tier 1: was ReportSuccessDialog, a DialogFragment).
     var showSuccess by remember { mutableStateOf(false) }
 
-    // The active inline form's "send" action, hoisted so it can live in the app bar (Tier 1, P3a). Set
-    // by the stop/trip form while shown, null otherwise (so the send icon only appears for those forms).
+    // The active inline form's "send" action, hoisted so it can live in the app bar (Tier 1). Set by the
+    // showing form, null otherwise (so the send icon only appears while a submittable form is up).
     var formSubmit by remember { mutableStateOf<(() -> Unit)?>(null) }
 
-    // Publish this VM to the host activity so the form fragments (hosted on the activity's
-    // supportFragmentManager, reached via getActivity()) can deliver their callbacks to it; clear on
-    // leave, and clear any lingering report fragments so re-entry doesn't double-add.
-    DisposableEffect(viewModel) {
-        activity.infrastructureIssueViewModel = viewModel
-        // The success dialog's OK (ReportSuccessDialog) leaves the *whole* report flow through this —
-        // back to the home/map, matching the former finishActivityWithResult (which closed the entire
-        // report stack, not just this screen). Plain back / the up arrow pop only this destination.
-        activity.popInfrastructureIssue = {
-            navController.popBackStack(
-                org.onebusaway.android.ui.nav.NavRoutes.HOME, inclusive = false
-            )
-        }
-        onDispose {
-            activity.infrastructureIssueViewModel = null
-            activity.popInfrastructureIssue = null
-            activity.hideReportProgress()
-            clearReportingFragments(fragmentManager)
-        }
-    }
+    // The submit/loading progress overlay, owned locally now the forms are all inline (Tier 1, P3b: was
+    // the host's reportProgressVisible / showProgress). Driven by service-loading + the Open311 submit.
+    var loadingServices by remember { mutableStateOf(false) }
+    var open311Submitting by remember { mutableStateOf(false) }
 
     // Map taps drive the report location: a stop tap reports that stop, an empty-map tap reports the
     // tapped point (manual pin). Both update the map's render focus + recenter via the map VM.
@@ -197,14 +194,6 @@ fun InfrastructureIssueDestination(
         }
     }
 
-    // Form routing (ported applyTarget): swap the form fragment into the container as the target
-    // changes. On dispose is handled by the DisposableEffect above.
-    LaunchedEffect(viewModel) {
-        viewModel.uiState.map { it.target }.distinctUntilChanged().collect { target ->
-            applyTarget(activity, viewModel, target)
-        }
-    }
-
     // Reconcile the single manual marker.
     LaunchedEffect(viewModel) {
         viewModel.uiState.map { it.markerLocation }.distinctUntilChanged().collect { location ->
@@ -212,10 +201,10 @@ fun InfrastructureIssueDestination(
         }
     }
 
-    // Loading-services progress drives the same overlay the Open311 form's showProgress uses.
+    // Loading-services progress drives the destination's local progress overlay.
     LaunchedEffect(viewModel) {
         viewModel.uiState.map { it.loadingServices }.distinctUntilChanged().collect { loading ->
-            activity.showReportProgress(loading)
+            loadingServices = loading
         }
     }
 
@@ -245,8 +234,6 @@ fun InfrastructureIssueDestination(
     BackHandler(enabled = state.target != ReportTarget.None) {
         viewModel.onResetToHint()
     }
-
-    val reportProgressVisible by activity.reportProgressVisible.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -297,9 +284,8 @@ fun InfrastructureIssueDestination(
                     onServiceSelected = viewModel::onServiceSelected,
                 )
 
-                // The stop/trip problem form + the arrivals picker render inline (Tier 1, P3a); each
-                // sets/clears the app-bar send via [formSubmit]. Open311 + None render nothing here and
-                // use the FragmentContainerView below (P3b retires that).
+                // The stop/trip problem form, the arrivals picker, and the Open311 dynamic form all
+                // render inline (Tier 1); each sets/clears the app-bar send via [formSubmit].
                 when (val target = state.target) {
                     is ReportTarget.StopProblem ->
                         StopTripProblemForm(target.stop, null, viewModel) { formSubmit = it }
@@ -311,40 +297,39 @@ fun InfrastructureIssueDestination(
                             StopTripProblemForm(target.stop, target.arrival, viewModel) { formSubmit = it }
                         }
 
-                    ReportTarget.None, is ReportTarget.Open311 -> Unit
-                }
+                    is ReportTarget.Open311 ->
+                        Open311FormInline(
+                            target = target,
+                            issueViewModel = viewModel,
+                            onSubmit = { formSubmit = it },
+                            onSubmittingChanged = { open311Submitting = it },
+                        )
 
-                // The container the Open311 form fragment is swapped into (P3b inlines it too); the id
-                // matches what Open311ProblemFragment.show(...) replaces into.
-                AndroidView(
-                    modifier = Modifier.fillMaxWidth(),
-                    factory = { ctx ->
-                        FragmentContainerView(ctx).apply { id = R.id.ri_report_stop_problem }
-                    }
-                )
+                    ReportTarget.None -> Unit
+                }
             }
 
-            if (reportProgressVisible) {
+            if (loadingServices || open311Submitting) {
                 CircularProgressIndicator(Modifier.align(Alignment.TopEnd).padding(16.dp))
             }
         }
     }
 
     // OK (or back) leaves the whole report flow back to home/map, matching ReportSuccessDialog's
-    // closeSuperActivity (finishInfrastructureIssue == popInfrastructureIssue). Not cancelable outside.
+    // closeSuperActivity — popping past the chooser to HOME, not just this destination. Not
+    // cancelable outside.
     if (showSuccess) {
+        val leaveReportFlow = {
+            showSuccess = false
+            navController.popBackStack(NavRoutes.HOME, inclusive = false)
+            Unit
+        }
         AlertDialog(
-            onDismissRequest = {
-                showSuccess = false
-                activity.popInfrastructureIssue?.invoke()
-            },
+            onDismissRequest = leaveReportFlow,
             properties = DialogProperties(dismissOnClickOutside = false),
             text = { Text(Open311Constants.M_REPORT_SUCCESS) },
             confirmButton = {
-                TextButton(onClick = {
-                    showSuccess = false
-                    activity.popInfrastructureIssue?.invoke()
-                }) { Text("OK") }
+                TextButton(onClick = leaveReportFlow) { Text("OK") }
             },
         )
     }
@@ -357,35 +342,6 @@ private const val NO_MARKER = -1
 // The former map FrameLayout was 200dp tall (infrastructure_issue.xml).
 private const val MAP_HEIGHT = 200
 
-/**
- * Swaps the Open311 form fragment in/out for the chosen target. The stop/trip form + arrivals picker
- * are now inline Compose (Tier 1, P3a); only Open311 remains a fragment (P3b), so any non-Open311 target
- * clears it.
- */
-private fun applyTarget(
-    activity: HomeActivity,
-    viewModel: InfrastructureIssueViewModel,
-    target: ReportTarget,
-) {
-    when (target) {
-        is ReportTarget.Open311 -> {
-            val (_, agencyName, blockId) = viewModel.tripContext()
-            Open311ProblemFragment.show(
-                activity,
-                R.id.ri_report_stop_problem,
-                viewModel.open311 as Open311,
-                target.category.raw as Service,
-                target.arrival,
-                agencyName,
-                blockId,
-            )
-        }
-
-        ReportTarget.None, is ReportTarget.StopProblem, is ReportTarget.TripProblem ->
-            clearReportingFragments(activity.supportFragmentManager)
-    }
-}
-
 private fun reconcileMarker(
     mapViewModel: MapViewModel,
     markerId: IntArray,
@@ -397,16 +353,6 @@ private fun reconcileMarker(
     }
     if (location != null) {
         markerId[0] = mapViewModel.addMarker(location.latitude, location.longitude, null)
-    }
-}
-
-/** Removes the Open311 form fragment if present (the only remaining report fragment; P3b inlines it). */
-internal fun clearReportingFragments(
-    fragmentManager: androidx.fragment.app.FragmentManager,
-) {
-    if (fragmentManager.isStateSaved) return
-    fragmentManager.findFragmentByTag(Open311ProblemFragment.TAG)?.let {
-        fragmentManager.beginTransaction().remove(it).commit()
     }
 }
 
@@ -587,4 +533,165 @@ private fun reportProblemAnalytics(context: Context, kind: ProblemKind) {
             }
         ),
     )
+}
+
+// --- Inline Open311 dynamic form (Tier 1, P3b: was Open311ProblemFragment) -----------------------
+
+private const val OPEN311_LOG_TAG = "Open311FormInline"
+
+/**
+ * The Open311 dynamic issue form, rendered inline. Builds its [Open311ProblemViewModel] from the
+ * chosen category's opaque library `Service` + the host's `Open311` endpoint (port of the fragment's
+ * createViewModel), owns the camera/gallery image pickers (FileProvider + PickVisualMedia /
+ * TakePicture), reports a successful submission to the destination's [issueViewModel] (→ the success
+ * dialog), surfaces the submit progress via [onSubmittingChanged], and hoists its "send" action via
+ * [onSubmit] so the app bar can trigger it (port of onSend).
+ */
+@Composable
+private fun Open311FormInline(
+    target: ReportTarget.Open311,
+    issueViewModel: InfrastructureIssueViewModel,
+    onSubmit: ((() -> Unit)?) -> Unit,
+    onSubmittingChanged: (Boolean) -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val vm: Open311ProblemViewModel = viewModel(
+        key = "open311:${target.category.code ?: target.category.name}",
+        factory = viewModelFactory {
+            initializer { createOpen311ViewModel(context, issueViewModel, target) }
+        },
+    )
+
+    // Absolute path of the file handed to the camera, promoted to the form only on success (survives
+    // the launch round-trip + process death, matching the fragment's pendingCameraPath).
+    var pendingCameraPath by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val takePicture = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success -> if (success) vm.setImagePath(pendingCameraPath) }
+
+    val pickMedia = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val path = withContext(Dispatchers.IO) { copyUriToCache(context, uri) }
+                if (path != null) {
+                    vm.setImagePath(path)
+                } else {
+                    Toast.makeText(context, R.string.ri_resize_image_problem, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    // Submit results: drive the progress spinner; on success tell the destination (→ success dialog),
+    // otherwise toast the validation/server message. Port of the fragment's onSubmitState.
+    LaunchedEffect(vm) {
+        vm.submitState.collect { state ->
+            onSubmittingChanged(state == Open311SubmitState.Submitting)
+            when (state) {
+                Open311SubmitState.Sent -> {
+                    issueViewModel.onReportSent()
+                    vm.onSubmitStateHandled()
+                }
+
+                is Open311SubmitState.ValidationError -> {
+                    Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
+                    vm.onSubmitStateHandled()
+                }
+
+                is Open311SubmitState.ServerError -> {
+                    Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
+                    vm.onSubmitStateHandled()
+                }
+
+                else -> Unit
+            }
+        }
+    }
+
+    // Publish the send action to the app bar while shown; clear it (and the spinner) on leave. Port of
+    // onSend: submit + the Open311 server analytics event.
+    val firebaseAnalytics = remember { FirebaseAnalytics.getInstance(context) }
+    DisposableEffect(vm) {
+        onSubmit {
+            vm.submit()
+            (target.category.raw as? Service)?.let { service ->
+                ObaAnalytics.reportUiEvent(
+                    firebaseAnalytics,
+                    Application.get().plausibleInstance,
+                    PlausibleAnalytics.REPORT_OPEN311_SERVER_EVENT_URL,
+                    context.getString(R.string.analytics_problem),
+                    service.service_name,
+                )
+            }
+        }
+        onDispose {
+            onSubmit(null)
+            onSubmittingChanged(false)
+        }
+    }
+
+    Open311Route(
+        viewModel = vm,
+        onTakePhoto = {
+            val file = createImageFileOrNull(context)
+            if (file == null) {
+                Toast.makeText(context, R.string.ri_open_camera_problem, Toast.LENGTH_LONG).show()
+            } else {
+                pendingCameraPath = file.absolutePath
+                takePicture.launch(
+                    FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                )
+            }
+        },
+        onPickFromGallery = {
+            pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        },
+    )
+}
+
+/** Port of Open311ProblemFragment.createViewModel — opaque service/endpoint + issue/trip context. */
+private fun createOpen311ViewModel(
+    context: Context,
+    issueViewModel: InfrastructureIssueViewModel,
+    target: ReportTarget.Open311,
+): Open311ProblemViewModel {
+    val (_, agencyName, blockId) = issueViewModel.tripContext()
+    val tripContext = target.arrival?.let { Open311TripContext(it, agencyName, blockId) }
+    val repository = DefaultOpen311Repository(
+        context = context.applicationContext,
+        service = target.category.raw as Service,
+        open311 = issueViewModel.open311 as Open311,
+        tripContext = tripContext,
+        // Read the location/address/stop fresh from the issue VM (the form can't outlive a map focus
+        // change — that clears the target — so this is effectively the snapshot the fragment held).
+        issueProvider = {
+            val snapshot = issueViewModel.issueContext()
+            Open311IssueContext(snapshot.latitude, snapshot.longitude, snapshot.address, snapshot.stop)
+        },
+    )
+    return Open311ProblemViewModel(repository)
+}
+
+/** Creates the camera output file, or null if it can't be opened (was the fragment's try/catch). */
+private fun createImageFileOrNull(context: Context): File? = try {
+    UIUtils.createImageFile(context, null)
+} catch (e: IOException) {
+    Log.e(OPEN311_LOG_TAG, "Couldn't open camera", e)
+    null
+}
+
+/** Copies a picked content image into the cache so the repository can downsample from a file. */
+private fun copyUriToCache(context: Context, uri: Uri): String? = try {
+    val file = File.createTempFile("gallery_", ".jpg", context.cacheDir)
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        FileOutputStream(file).use { output -> input.copyTo(output) }
+    }
+    file.absolutePath
+} catch (e: IOException) {
+    Log.e(OPEN311_LOG_TAG, "Couldn't copy picked image", e)
+    null
 }

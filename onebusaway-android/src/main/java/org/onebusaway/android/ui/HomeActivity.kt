@@ -62,7 +62,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -85,14 +84,10 @@ import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.report.ui.InfrastructureIssueDestination
-import org.onebusaway.android.report.ui.InfrastructureIssueHost
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.report.ui.ReportDestination
-import org.onebusaway.android.report.ui.ReportProblemFragmentCallback
 import org.onebusaway.android.report.ui.CustomerServiceDestination
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
-import org.onebusaway.android.ui.report.infrastructure.InfrastructureIssueViewModel
-import org.onebusaway.android.ui.report.open311.Open311IssueContext
 import org.onebusaway.android.ui.agencies.AgenciesRoute
 import org.onebusaway.android.ui.arrivals.ArrivalsIntents
 import org.onebusaway.android.ui.arrivals.ArrivalsRoute
@@ -151,9 +146,7 @@ import org.onebusaway.android.util.ShowcaseViewUtils
 import org.onebusaway.android.util.UIUtils
 
 @AndroidEntryPoint
-class HomeActivity : AppCompatActivity(),
-    ReportProblemFragmentCallback,
-    InfrastructureIssueHost {
+class HomeActivity : AppCompatActivity() {
 
     // HomeActivity's own preference reads (what's-new opt-out, zoom/left-hand chrome flags, the
     // remembered nav item). HomeViewModel is now a plain @HiltViewModel — no hand-built factory.
@@ -241,58 +234,6 @@ class HomeActivity : AppCompatActivity(),
     // Set true by the report chooser's region-validate dialog (ReportDestination) when the user
     // confirms their region; the chooser observes it to swap the validate dialog for the type list.
     val reportRegionValidated = MutableStateFlow(false)
-
-    // --- Infrastructure-issue report host glue (former InfrastructureIssueActivity) ------------------
-    //
-    // The infrastructure-issue NavHost destination ([InfrastructureIssueDestination]) hosts the Open311
-    // report form fragment (Open311ProblemFragment; the stop/trip form + arrivals picker are inline
-    // Compose as of Tier 1 P3a) via this activity's supportFragmentManager, so it reaches the host
-    // callbacks through its host activity (now HomeActivity). The destination publishes its
-    // back-stack-scoped InfrastructureIssueViewModel here (set on enter / cleared on dispose); the
-    // callbacks below delegate to it. Null whenever the destination isn't on screen.
-    var infrastructureIssueViewModel: InfrastructureIssueViewModel? = null
-
-    // The infrastructure-issue destination's pop action (popBackStack), set on enter / cleared on
-    // dispose, invoked by [finishInfrastructureIssue] after a successful submission.
-    var popInfrastructureIssue: (() -> Unit)? = null
-
-    // Drives the report screen's progress overlay (was BaseReportActivity's action-bar spinner): the
-    // VM's loadingServices and the Open311 form's showProgress both write here; the destination renders.
-    private val _reportProgressVisible = MutableStateFlow(false)
-    val reportProgressVisible: StateFlow<Boolean> = _reportProgressVisible
-
-    /** Shows/hides the report progress overlay (driven by the VM's loadingServices). */
-    fun showReportProgress(visible: Boolean) {
-        _reportProgressVisible.value = visible
-    }
-
-    /** Clears the report progress overlay (on leaving the destination). */
-    fun hideReportProgress() {
-        _reportProgressVisible.value = false
-    }
-
-    // [ReportProblemFragmentCallback] — a hosted stop/trip/Open311 form submitted successfully.
-    override fun onReportSent() {
-        infrastructureIssueViewModel?.onReportSent()
-    }
-
-    // [InfrastructureIssueHost] — the Open311 form reads the current issue context + drives progress;
-    // a successful submission's success dialog leaves the screen. All forward to the published VM.
-    override fun currentIssueContext(): Open311IssueContext {
-        val snapshot = infrastructureIssueViewModel?.issueContext()
-        return Open311IssueContext(
-            latitude = snapshot?.latitude ?: 0.0,
-            longitude = snapshot?.longitude ?: 0.0,
-            address = snapshot?.address,
-            obaStop = snapshot?.stop
-        )
-    }
-
-    override fun showProgress(visible: Boolean) = showReportProgress(visible)
-
-    override fun finishInfrastructureIssue() {
-        popInfrastructureIssue?.invoke()
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

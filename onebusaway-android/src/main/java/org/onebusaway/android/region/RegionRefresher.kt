@@ -64,7 +64,7 @@ object RegionRefresher {
         }
         scope.launch {
             val status = repo.refresh()
-            dialog?.takeIf { it.isShowing }?.dismiss()
+            dialog?.dismiss()
             when (status) {
                 is RegionStatus.Changed -> onFinished?.onRegionTaskFinished(true)
                 is RegionStatus.NeedsManualSelection -> chooseRegion(context, status.regions, repo, onFinished)

@@ -19,6 +19,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
+import org.onebusaway.android.app.di.RegionEntryPoint;
 import org.onebusaway.android.util.PreferenceUtils;
 
 import android.content.Context;
@@ -117,7 +118,7 @@ public class ExperimentalRegionsPreference extends CheckBoxPreference {
                                     public void onClick(DialogInterface dialog, int which) {
                                         dialog.dismiss();
                                         // Set the region info to null, so we no longer use the current experimental region
-                                        Application.get().setCurrentRegion(null);
+                                        RegionEntryPoint.get(getContext()).clear();
                                         setValue(false);
                                     }
                                 }

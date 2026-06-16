@@ -40,5 +40,5 @@ class RegionsViewModel @Inject constructor(private val repository: RegionsReposi
      *
      * @return true if this selection disabled automatic region selection
      */
-    fun selectRegion(item: RegionItem): Boolean = repository.selectRegion(item.id)
+    suspend fun selectRegion(item: RegionItem): Boolean = repository.selectRegion(item.id)
 }

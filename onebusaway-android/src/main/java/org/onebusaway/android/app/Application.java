@@ -333,15 +333,18 @@ public class Application extends android.app.Application {
         return ObaApi.getDefaultContext().getRegion();
     }
 
+    /**
+     * Sets the current region directly. As of Campaign A (A4) the production region writers all route
+     * through {@code RegionRepository} ({@code refresh}/{@code choose}/{@code clear}); this remains only
+     * as the instrumented-test seam (the io/* request tests that pin a known region synchronously). It
+     * runs the activation transaction and then syncs the observable region state via the repository.
+     */
     public synchronized void setCurrentRegion(ObaRegion region) {
         setCurrentRegion(region, true);
     }
 
     public synchronized void setCurrentRegion(ObaRegion region, boolean regionChanged) {
         applyRegionTransaction(region, regionChanged);
-        // Sync the observable region state (covers the legacy ObaRegionsTask / ExperimentalRegionsPreference
-        // writers; the repository's own refresh/choose update it directly). The repository is a Hilt
-        // @Singleton now, reached via its EntryPoint. setCurrentRegion is only called post-onCreate.
         RegionEntryPoint.get(this).syncActivated(region);
     }
 

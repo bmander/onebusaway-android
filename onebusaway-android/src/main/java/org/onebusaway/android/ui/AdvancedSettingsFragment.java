@@ -36,6 +36,7 @@ import com.google.firebase.analytics.FirebaseAnalytics;
 import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
+import org.onebusaway.android.app.di.RegionEntryPoint;
 import org.onebusaway.android.io.ObaAnalytics;
 import org.onebusaway.android.io.PlausibleAnalytics;
 import org.onebusaway.android.region.RegionRefresher;
@@ -144,7 +145,7 @@ public class AdvancedSettingsFragment extends PreferenceFragmentCompat
                             Toast.LENGTH_SHORT).show();
                     return false;
                 }
-                Application.get().setCurrentRegion(null);
+                RegionEntryPoint.get(requireContext()).clear();
                 Log.d(TAG, "User entered new API URL, set region to null.");
             } else {
                 Log.d(TAG, "User entered blank API URL, re-initializing regions...");

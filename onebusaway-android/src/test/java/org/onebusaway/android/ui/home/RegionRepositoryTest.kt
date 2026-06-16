@@ -44,6 +44,7 @@ internal class FakeRegionRepository(initial: ObaRegion? = null) : RegionReposito
 
     override suspend fun refresh(): RegionStatus { refreshCount++; return refreshResult }
     override suspend fun choose(region: ObaRegion) { chosen.add(region); emit(region) }
+    override fun clear() = emit(null)
     override fun syncActivated(region: ObaRegion?) = emit(region)
 
     fun emit(region: ObaRegion?) { _region.value = region; _state.value = RegionState.Active(region) }

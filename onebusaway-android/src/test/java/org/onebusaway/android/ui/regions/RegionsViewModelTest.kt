@@ -41,7 +41,7 @@ private class FakeRegionsRepository(
         return result
     }
 
-    override fun selectRegion(id: Long): Boolean {
+    override suspend fun selectRegion(id: Long): Boolean {
         selectedId = id
         return selectRegionReturns
     }

@@ -64,10 +64,17 @@ interface RegionRepository {
     suspend fun choose(region: ObaRegion)
 
     /**
-     * Syncs the observable state after a region write that bypassed [refresh]/[choose] — i.e. the
-     * legacy `Application.setCurrentRegion` writers (`ObaRegionsTask`, `ExperimentalRegionsPreference`).
-     * It does not run the activation transaction (the caller already did); it only updates the flows.
-     * Removed once those writers route through [choose] (A3/A4).
+     * Clears the current region — a custom API URL was entered, or an experimental region was disabled.
+     * The non-null counterpart to [choose]; unlike resolution it does no IO (just the activation
+     * transaction + a state publish), so it is synchronous and callable from non-coroutine Java writers.
+     */
+    fun clear()
+
+    /**
+     * Syncs the observable state after a region write that bypassed [refresh]/[choose] — now only the
+     * instrumented-test seam `Application.setCurrentRegion` (production writers all route through
+     * [refresh]/[choose]/[clear] as of A4). It does not run the activation transaction (the caller
+     * already did); it only updates the flows.
      */
     fun syncActivated(region: ObaRegion?)
 }
@@ -192,6 +199,11 @@ class DefaultRegionRepository @Inject constructor(
     override suspend fun choose(region: ObaRegion) = withContext(Dispatchers.IO) {
         activator.activate(region, true)
         holder.activated(region)
+    }
+
+    override fun clear() {
+        activator.activate(null, true)
+        holder.activated(null)
     }
 
     @Suppress("DEPRECATION")

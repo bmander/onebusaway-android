@@ -28,6 +28,7 @@ import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.preferences.PreferencesRepository
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.RegionUtils
 
 /**
@@ -60,7 +61,7 @@ interface RegionsRepository {
      *
      * @return true if this call disabled automatic region selection (drives the toast)
      */
-    fun selectRegion(id: Long): Boolean
+    suspend fun selectRegion(id: Long): Boolean
 }
 
 /**
@@ -72,10 +73,11 @@ interface RegionsRepository {
 class DefaultRegionsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val prefs: PreferencesRepository,
+    private val regionRepository: RegionRepository,
 ) : RegionsRepository {
 
-    // Domain objects from the last successful load, so the synchronous selectRegion(id) can
-    // resolve the ObaRegion that Application.setCurrentRegion() needs
+    // Domain objects from the last successful load, so selectRegion(id) can resolve the ObaRegion
+    // that RegionRepository.choose() needs
     private var regionsById: Map<Long, ObaRegion> = emptyMap()
 
     override suspend fun getRegions(refresh: Boolean): Result<List<RegionItem>> =
@@ -107,9 +109,9 @@ class DefaultRegionsRepository @Inject constructor(
             )
         }
 
-    override fun selectRegion(id: Long): Boolean {
+    override suspend fun selectRegion(id: Long): Boolean {
         val region = regionsById[id] ?: return false
-        Application.get().setCurrentRegion(region)
+        regionRepository.choose(region)
 
         // If we're currently auto-selecting regions, disable this so it doesn't override
         // the manual setting

@@ -1080,7 +1080,7 @@ class HomeActivity : AppCompatActivity(),
 
         if (obaCustomUrl != null && SettingsSupport.validateUrl(obaCustomUrl)) {
             Application.get().setCustomApiUrl(obaCustomUrl)
-            Application.get().setCurrentRegion(null)
+            regionRepository.clear()
         }
         if (otpCustomUrl != null && SettingsSupport.validateUrl(otpCustomUrl)) {
             Application.get().setCustomOtpApiUrl(otpCustomUrl)

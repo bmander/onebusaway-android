@@ -84,13 +84,11 @@ import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
-import org.onebusaway.android.io.elements.ObaArrivalInfo
 import org.onebusaway.android.report.ui.InfrastructureIssueDestination
 import org.onebusaway.android.report.ui.InfrastructureIssueHost
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.report.ui.ReportDestination
 import org.onebusaway.android.report.ui.ReportProblemFragmentCallback
-import org.onebusaway.android.report.ui.SimpleArrivalsPickerFragment
 import org.onebusaway.android.report.ui.CustomerServiceDestination
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.report.infrastructure.InfrastructureIssueViewModel
@@ -155,7 +153,6 @@ import org.onebusaway.android.util.UIUtils
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity(),
     ReportProblemFragmentCallback,
-    SimpleArrivalsPickerFragment.Callback,
     InfrastructureIssueHost {
 
     // HomeActivity's own preference reads (what's-new opt-out, zoom/left-hand chrome flags, the
@@ -247,12 +244,12 @@ class HomeActivity : AppCompatActivity(),
 
     // --- Infrastructure-issue report host glue (former InfrastructureIssueActivity) ------------------
     //
-    // The infrastructure-issue NavHost destination ([InfrastructureIssueDestination]) hosts the report
-    // form fragments (ProblemReportFragment / Open311ProblemFragment / SimpleArrivalsPickerFragment)
-    // via this activity's supportFragmentManager, so those fragments reach the host callbacks through
-    // their host activity (now HomeActivity). The destination publishes its back-stack-scoped
-    // InfrastructureIssueViewModel here (set on enter / cleared on dispose); the fragment callbacks
-    // below delegate to it. Null whenever the destination isn't on screen.
+    // The infrastructure-issue NavHost destination ([InfrastructureIssueDestination]) hosts the Open311
+    // report form fragment (Open311ProblemFragment; the stop/trip form + arrivals picker are inline
+    // Compose as of Tier 1 P3a) via this activity's supportFragmentManager, so it reaches the host
+    // callbacks through its host activity (now HomeActivity). The destination publishes its
+    // back-stack-scoped InfrastructureIssueViewModel here (set on enter / cleared on dispose); the
+    // callbacks below delegate to it. Null whenever the destination isn't on screen.
     var infrastructureIssueViewModel: InfrastructureIssueViewModel? = null
 
     // The infrastructure-issue destination's pop action (popBackStack), set on enter / cleared on
@@ -277,15 +274,6 @@ class HomeActivity : AppCompatActivity(),
     // [ReportProblemFragmentCallback] — a hosted stop/trip/Open311 form submitted successfully.
     override fun onReportSent() {
         infrastructureIssueViewModel?.onReportSent()
-    }
-
-    // [SimpleArrivalsPickerFragment.Callback] — the user picked an arrival in the picker; remove the
-    // picker and route the selection to the trip / Open311-trip form (was the Activity's override).
-    override fun onArrivalItemClicked(arrival: ObaArrivalInfo, agencyId: String?, blockId: String?) {
-        supportFragmentManager.findFragmentByTag(SimpleArrivalsPickerFragment.TAG)?.let {
-            supportFragmentManager.beginTransaction().remove(it).commit()
-        }
-        infrastructureIssueViewModel?.onArrivalSelected(arrival)
     }
 
     // [InfrastructureIssueHost] — the Open311 form reads the current issue context + drives progress;

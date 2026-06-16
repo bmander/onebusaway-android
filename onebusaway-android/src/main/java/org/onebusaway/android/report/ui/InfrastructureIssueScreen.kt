@@ -27,6 +27,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -64,7 +67,16 @@ import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.map.compose.ObaMapCallbacks
 import edu.usf.cutr.open311client.constants.Open311Constants
+import android.content.Context
+import android.widget.Toast
+import com.google.firebase.analytics.FirebaseAnalytics
+import org.onebusaway.android.app.Application
+import org.onebusaway.android.io.ObaAnalytics
+import org.onebusaway.android.io.PlausibleAnalytics
+import org.onebusaway.android.io.elements.ObaArrivalInfo
+import org.onebusaway.android.ui.ArrivalInfo
 import org.onebusaway.android.ui.HomeActivity
+import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.report.infrastructure.DefaultGeocodeAddressRepository
@@ -77,7 +89,14 @@ import org.onebusaway.android.ui.report.infrastructure.InfrastructureIssueViewMo
 import org.onebusaway.android.ui.report.infrastructure.IssueLocation
 import org.onebusaway.android.ui.report.infrastructure.ReportTarget
 import org.onebusaway.android.ui.report.open311.Open311ProblemFragment
-import org.onebusaway.android.ui.report.problem.ProblemReportFragment
+import org.onebusaway.android.ui.report.problem.DefaultProblemReportRepository
+import org.onebusaway.android.ui.report.problem.ProblemCodes
+import org.onebusaway.android.ui.report.problem.ProblemKind
+import org.onebusaway.android.ui.report.problem.ProblemParams
+import org.onebusaway.android.ui.report.problem.ProblemReportRoute
+import org.onebusaway.android.ui.report.problem.ProblemReportViewModel
+import org.onebusaway.android.ui.report.problem.SubmitState
+import org.onebusaway.android.util.UIUtils
 
 /** Host-intent extras carrying the opaque trip context for the InfrastructureIssue destination. */
 const val EXTRA_TRIP_INFO = ".tripInfo"
@@ -88,16 +107,16 @@ const val EXTRA_BLOCK_ID = ".blockId"
  * The infrastructure-issue (stop/trip problem) NavHost destination (Campaign C; former
  * [InfrastructureIssueActivity]). It replaces the `infrastructure_issue.xml` layout with a Compose
  * [Scaffold]: the declarative [ObaMap] (entry-scoped [MapViewModel], stop mode), the
- * [InfrastructureControls], and a [FragmentContainerView] (id `R.id.ri_report_stop_problem`) the
- * report form fragments are swapped into — exactly the View ids the fragments expect.
+ * [InfrastructureControls], the inline stop/trip form + arrivals picker (Tier 1, P3a), and a
+ * [FragmentContainerView] (id `R.id.ri_report_stop_problem`) the remaining Open311 form fragment is
+ * swapped into (P3b inlines it too).
  *
  * The [InfrastructureIssueViewModel] is built once (back-stack-entry-scoped) from the nav-arg
  * `selectedService` plus the host intent extras (lat/lon, stop id/name/code, the opaque
  * `ObaArrivalInfo`, agency name, block id), reproducing the former Activity's hand-built factory. A
  * [DisposableEffect] publishes that VM to the host [HomeActivity] (which implements
- * [ReportProblemFragmentCallback], [SimpleArrivalsPickerFragment.Callback] and
- * [InfrastructureIssueHost]) so the fragments — hosted on the host activity's `supportFragmentManager`
- * — reach it through `getActivity()`, and clears it on dispose.
+ * [ReportProblemFragmentCallback] and [InfrastructureIssueHost]) so the Open311 fragment — hosted on the
+ * host activity's `supportFragmentManager` — reaches it through `getActivity()`, and clears it on dispose.
  */
 @Composable
 fun InfrastructureIssueDestination(
@@ -129,6 +148,10 @@ fun InfrastructureIssueDestination(
 
     // The "report submitted" dialog (Tier 1: was ReportSuccessDialog, a DialogFragment).
     var showSuccess by remember { mutableStateOf(false) }
+
+    // The active inline form's "send" action, hoisted so it can live in the app bar (Tier 1, P3a). Set
+    // by the stop/trip form while shown, null otherwise (so the send icon only appears for those forms).
+    var formSubmit by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     // Publish this VM to the host activity so the form fragments (hosted on the activity's
     // supportFragmentManager, reached via getActivity()) can deliver their callbacks to it; clear on
@@ -217,9 +240,9 @@ fun InfrastructureIssueDestination(
     // Back: if a form/picker is showing, drop the spinner back to the hint (and clear the form);
     // otherwise pop the whole destination. Mirrors the former onBackPressed + form back-stack.
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val formShowing = state.target != ReportTarget.None ||
-        fragmentManager.findFragmentByTag(SimpleArrivalsPickerFragment.TAG) != null
-    BackHandler(enabled = formShowing) {
+    // A form/picker is showing whenever the target isn't the hint (all forms are inline now bar Open311,
+    // which is also driven by the target). Back drops the spinner back to the hint.
+    BackHandler(enabled = state.target != ReportTarget.None) {
         viewModel.onResetToHint()
     }
 
@@ -230,6 +253,17 @@ fun InfrastructureIssueDestination(
             ObaTopAppBar(
                 title = stringResource(R.string.rt_infrastructure_problem_title),
                 onBack = { navController.popBackStack() },
+                actions = {
+                    // The stop/trip form's "send" (Tier 1: was the form fragment's MenuProvider item).
+                    formSubmit?.let { submit ->
+                        IconButton(onClick = submit) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_action_social_send_now),
+                                contentDescription = stringResource(R.string.report_problem_send),
+                            )
+                        }
+                    }
+                },
             )
         }
     ) { padding ->
@@ -263,8 +297,25 @@ fun InfrastructureIssueDestination(
                     onServiceSelected = viewModel::onServiceSelected,
                 )
 
-                // The container the stop/trip/Open311/arrival-picker fragments are swapped into;
-                // the id matches what the fragments' show(...) helpers replace into.
+                // The stop/trip problem form + the arrivals picker render inline (Tier 1, P3a); each
+                // sets/clears the app-bar send via [formSubmit]. Open311 + None render nothing here and
+                // use the FragmentContainerView below (P3b retires that).
+                when (val target = state.target) {
+                    is ReportTarget.StopProblem ->
+                        StopTripProblemForm(target.stop, null, viewModel) { formSubmit = it }
+
+                    is ReportTarget.TripProblem ->
+                        if (target.arrival == null) {
+                            ArrivalsPickerInline(target.stop, activity, viewModel)
+                        } else {
+                            StopTripProblemForm(target.stop, target.arrival, viewModel) { formSubmit = it }
+                        }
+
+                    ReportTarget.None, is ReportTarget.Open311 -> Unit
+                }
+
+                // The container the Open311 form fragment is swapped into (P3b inlines it too); the id
+                // matches what Open311ProblemFragment.show(...) replaces into.
                 AndroidView(
                     modifier = Modifier.fillMaxWidth(),
                     factory = { ctx ->
@@ -306,28 +357,17 @@ private const val NO_MARKER = -1
 // The former map FrameLayout was 200dp tall (infrastructure_issue.xml).
 private const val MAP_HEIGHT = 200
 
-/** Port of InfrastructureIssueActivity.applyTarget — swap the form fragment for the chosen target. */
+/**
+ * Swaps the Open311 form fragment in/out for the chosen target. The stop/trip form + arrivals picker
+ * are now inline Compose (Tier 1, P3a); only Open311 remains a fragment (P3b), so any non-Open311 target
+ * clears it.
+ */
 private fun applyTarget(
     activity: HomeActivity,
     viewModel: InfrastructureIssueViewModel,
     target: ReportTarget,
 ) {
     when (target) {
-        ReportTarget.None -> clearReportingFragments(activity.supportFragmentManager)
-        is ReportTarget.StopProblem ->
-            ProblemReportFragment.showStop(activity, target.stop, R.id.ri_report_stop_problem)
-
-        is ReportTarget.TripProblem -> {
-            val arrival = target.arrival
-            if (arrival == null) {
-                SimpleArrivalsPickerFragment.show(
-                    activity, R.id.ri_report_stop_problem, target.stop, activity
-                )
-            } else {
-                ProblemReportFragment.showTrip(activity, arrival, R.id.ri_report_stop_problem)
-            }
-        }
-
         is ReportTarget.Open311 -> {
             val (_, agencyName, blockId) = viewModel.tripContext()
             Open311ProblemFragment.show(
@@ -340,6 +380,9 @@ private fun applyTarget(
                 blockId,
             )
         }
+
+        ReportTarget.None, is ReportTarget.StopProblem, is ReportTarget.TripProblem ->
+            clearReportingFragments(activity.supportFragmentManager)
     }
 }
 
@@ -357,20 +400,13 @@ private fun reconcileMarker(
     }
 }
 
-/** Port of InfrastructureIssueActivity.clearReportingFragments. */
+/** Removes the Open311 form fragment if present (the only remaining report fragment; P3b inlines it). */
 internal fun clearReportingFragments(
     fragmentManager: androidx.fragment.app.FragmentManager,
 ) {
     if (fragmentManager.isStateSaved) return
-    listOf(
-        ProblemReportFragment.STOP_TAG,
-        ProblemReportFragment.TRIP_TAG,
-        Open311ProblemFragment.TAG,
-        SimpleArrivalsPickerFragment.TAG,
-    ).forEach { tag ->
-        fragmentManager.findFragmentByTag(tag)?.let {
-            fragmentManager.beginTransaction().remove(it).commit()
-        }
+    fragmentManager.findFragmentByTag(Open311ProblemFragment.TAG)?.let {
+        fragmentManager.beginTransaction().remove(it).commit()
     }
 }
 
@@ -414,5 +450,141 @@ private fun createInfrastructureIssueViewModel(
         arrivalInfo = arrival,
         agencyName = source.getStringExtra(EXTRA_AGENCY_NAME),
         blockId = source.getStringExtra(EXTRA_BLOCK_ID),
+    )
+}
+
+// --- Inline report forms (Tier 1, P3a: were ProblemReportFragment / SimpleArrivalsPickerFragment) -----
+
+/**
+ * The stop/trip problem form, rendered inline. Builds its [ProblemReportViewModel] from the
+ * [stop]/[arrival] (port of the fragment's createViewModel), reports a successful submission to the
+ * destination's [issueViewModel] (→ the success dialog), and hoists its "send" action via [onSubmit] so
+ * the app bar can trigger it (validate + analytics + submit-with-location — port of onSendClicked).
+ */
+@Composable
+private fun StopTripProblemForm(
+    stop: ObaStop,
+    arrival: ObaArrivalInfo?,
+    issueViewModel: InfrastructureIssueViewModel,
+    onSubmit: ((() -> Unit)?) -> Unit,
+) {
+    val context = LocalContext.current
+    val activity = context.findActivity() as HomeActivity
+    val vm: ProblemReportViewModel = viewModel(
+        key = "problem:${arrival?.tripId ?: stop.id}",
+        factory = viewModelFactory {
+            initializer { createProblemReportViewModel(context, stop, arrival) }
+        },
+    )
+
+    LaunchedEffect(vm) {
+        vm.submitState.collect { state ->
+            when (state) {
+                SubmitState.Sent -> {
+                    issueViewModel.onReportSent()
+                    vm.onSubmitResultHandled()
+                }
+
+                SubmitState.Error -> {
+                    Toast.makeText(context, R.string.report_problem_error, Toast.LENGTH_LONG).show()
+                    vm.onSubmitResultHandled()
+                }
+
+                else -> Unit
+            }
+        }
+    }
+
+    // Publish the send action to the app bar while shown; clear it on leave.
+    DisposableEffect(vm) {
+        onSubmit {
+            val form = vm.formState.value
+            if (!form.canSubmit) {
+                Toast.makeText(
+                    context, R.string.report_problem_invalid_argument, Toast.LENGTH_LONG
+                ).show()
+            } else {
+                reportProblemAnalytics(context, form.kind)
+                vm.submit(activity.locationRepository.lastKnownLocation())
+            }
+        }
+        onDispose { onSubmit(null) }
+    }
+
+    ProblemReportRoute(vm)
+}
+
+/** The arrivals picker, rendered inline; a tap re-drives the VM target (→ trip form or Open311). */
+@Composable
+private fun ArrivalsPickerInline(
+    stop: ObaStop,
+    activity: HomeActivity,
+    issueViewModel: InfrastructureIssueViewModel,
+) {
+    val arrivalsViewModel: ArrivalsViewModel = viewModel(
+        key = "picker:${stop.id}",
+        factory = viewModelFactory {
+            initializer {
+                activity.arrivalsViewModelFactory.create(stop.id, ignorePersistedFilter = true)
+            }
+        },
+    )
+    SimpleArrivalsPicker(arrivalsViewModel) { arrival ->
+        issueViewModel.onArrivalSelected(arrival.info)
+    }
+}
+
+/** Port of ProblemReportFragment.createViewModel — stop or trip params + codes + repository. */
+private fun createProblemReportViewModel(
+    context: Context,
+    stop: ObaStop,
+    arrival: ObaArrivalInfo?,
+): ProblemReportViewModel {
+    val repository = DefaultProblemReportRepository(context.applicationContext)
+    return if (arrival != null) {
+        ProblemReportViewModel(
+            params = ProblemParams.Trip(
+                tripId = arrival.tripId,
+                stopId = arrival.stopId,
+                vehicleId = arrival.vehicleId,
+                serviceDate = arrival.serviceDate,
+            ),
+            codes = ProblemCodes.trip(
+                context.resources.getStringArray(R.array.report_trip_problem_code_bus).toList()
+            ),
+            headsign = UIUtils.formatDisplayText(arrival.headsign),
+            repository = repository,
+        )
+    } else {
+        ProblemReportViewModel(
+            params = ProblemParams.Stop(stop.id),
+            codes = ProblemCodes.stop(
+                context.resources.getStringArray(R.array.report_stop_problem_code).toList()
+            ),
+            headsign = null,
+            repository = repository,
+        )
+    }
+}
+
+/** Port of ProblemReportFragment.reportAnalytics — the stop/trip problem Plausible event. */
+private fun reportProblemAnalytics(context: Context, kind: ProblemKind) {
+    val isTrip = kind == ProblemKind.TRIP
+    ObaAnalytics.reportUiEvent(
+        FirebaseAnalytics.getInstance(context),
+        Application.get().plausibleInstance,
+        if (isTrip) {
+            PlausibleAnalytics.REPORT_VEHICLE_PROBLEM_EVENT_URL
+        } else {
+            PlausibleAnalytics.REPORT_STOP_PROBLEM_EVENT_URL
+        },
+        context.getString(R.string.analytics_problem),
+        context.getString(
+            if (isTrip) {
+                R.string.analytics_label_report_trip_problem
+            } else {
+                R.string.analytics_label_report_stop_problem
+            }
+        ),
     )
 }

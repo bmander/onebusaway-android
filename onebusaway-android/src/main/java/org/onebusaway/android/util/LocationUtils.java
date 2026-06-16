@@ -28,7 +28,7 @@ import android.util.Log;
 
 import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
-import org.onebusaway.android.app.Application;
+import org.onebusaway.android.app.di.LocationEntryPoint;
 import org.onebusaway.android.app.di.RegionEntryPoint;
 import org.onebusaway.android.directions.util.CustomAddress;
 import org.onebusaway.android.io.elements.ObaRegion;
@@ -81,7 +81,7 @@ public class LocationUtils {
      * current region's center, or null when neither is available.
      */
     public static Location getSearchCenter(Context context) {
-        Location location = Application.getLastKnownLocation(context);
+        Location location = LocationEntryPoint.get(context).lastKnownLocation();
         if (location == null) {
             location = getDefaultSearchCenter(context);
         }

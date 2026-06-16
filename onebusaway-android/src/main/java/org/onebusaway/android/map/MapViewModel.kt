@@ -113,8 +113,8 @@ data class RouteHeader(
  * [RegionRepository]/[LocationRepository] singletons, and the `@ApplicationContext` in production;
  * tests construct it directly with fakes — the standard pattern here, alongside HomeViewModel /
  * WeatherViewModel. The current region is read from [RegionRepository]; the cold-start framing poll
- * still calls `Application.getLastKnownLocation(context)` (the lazy provider poll that also seeds
- * [LocationRepository]) — that static is the LocationRepository source, retired in D4.
+ * calls [LocationRepository.lastKnownLocation] (the lazy provider poll), and the live position reads
+ * [LocationRepository.location].
  */
 @HiltViewModel
 class MapViewModel @Inject constructor(
@@ -659,10 +659,10 @@ class MapViewModel @Inject constructor(
      * the user's location if we have one, else the region — but don't yank a camera the user already moved.
      */
     private fun frameCurrentRegion() {
-        // Kept on getLastKnownLocation (not the repo's value): this runs at cold-start framing and must
-        // trigger the lazy provider poll so the first frame can target the user's location. The poll also
-        // seeds the LocationRepository, keeping the .value reads (here-adjacent + requestMyLocation) consistent.
-        val location = Application.getLastKnownLocation(context)
+        // lastKnownLocation() (not the repo's .value): this runs at cold-start framing and must trigger
+        // the lazy provider poll so the first frame can target the user's location. The poll seeds the
+        // repository, keeping the .value reads (here-adjacent + requestMyLocation) consistent.
+        val location = locationRepository.lastKnownLocation()
         val center = _camera.value?.center
         val atSeed = center == null || (center.latitude == 0.0 && center.longitude == 0.0)
         when (regionRezoom(changed = true, hasLocation = location != null, cameraAtSeed = atSeed)) {

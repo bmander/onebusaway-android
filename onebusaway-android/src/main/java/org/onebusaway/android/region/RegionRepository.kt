@@ -25,8 +25,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.util.RegionUtils
 
@@ -115,6 +115,7 @@ class DefaultRegionRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val activator: RegionActivator,
     private val prefs: PreferencesRepository,
+    private val locationRepository: LocationRepository,
 ) : RegionRepository {
 
     private val holder = RegionStateHolder(activator.currentRegion())
@@ -165,7 +166,7 @@ class DefaultRegionRepository @Inject constructor(
         val autoSelect = prefs.getBoolean(R.string.preference_key_auto_select_region, true)
         // getClosestRegion uses Location.distanceTo, so only compute it when auto-selecting.
         val closest = if (autoSelect) {
-            RegionUtils.getClosestRegion(results, Application.getLastKnownLocation(context), true)
+            RegionUtils.getClosestRegion(results, locationRepository.lastKnownLocation(), true)
         } else {
             null
         }

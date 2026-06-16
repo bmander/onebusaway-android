@@ -40,6 +40,7 @@ import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
+import org.onebusaway.android.app.di.LocationEntryPoint
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaArrivalInfo
@@ -130,7 +131,7 @@ class ProblemReportFragment : Fragment(), MenuProvider {
             return
         }
         reportAnalytics(form.kind)
-        viewModel.submit(Application.getLastKnownLocation(requireContext()))
+        viewModel.submit(LocationEntryPoint.get(requireContext()).lastKnownLocation())
     }
 
     private fun reportAnalytics(kind: ProblemKind) {

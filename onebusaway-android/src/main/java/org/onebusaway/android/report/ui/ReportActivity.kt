@@ -30,6 +30,7 @@ import com.google.firebase.analytics.FirebaseAnalytics
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
+import org.onebusaway.android.app.di.LocationEntryPoint
 import org.onebusaway.android.app.di.RegionEntryPoint
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
@@ -94,7 +95,7 @@ object ReportActivity {
             .putExtra(MapParams.STOP_CODE, stopCode)
             .putExtra(MapParams.CENTER_LAT, lat)
             .putExtra(MapParams.CENTER_LON, lon)
-        Application.getLastKnownLocation(context)?.let {
+        LocationEntryPoint.get(context).lastKnownLocation()?.let {
             intent.putExtra(LOCATION_STRING, LocationUtils.printLocationDetails(it))
         }
         return intent

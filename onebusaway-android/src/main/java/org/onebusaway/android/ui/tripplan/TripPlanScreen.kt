@@ -78,6 +78,7 @@ import java.util.TimeZone
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
+import org.onebusaway.android.app.di.LocationEntryPoint
 import org.onebusaway.android.app.di.RegionEntryPoint
 import org.onebusaway.android.directions.util.ConversionUtils
 import org.onebusaway.android.directions.util.CustomAddress
@@ -434,7 +435,7 @@ private fun setCurrentLocation(
     activity: androidx.appcompat.app.AppCompatActivity,
     target: (PlaceItem) -> Unit
 ) {
-    val location = Application.getLastKnownLocation(activity.applicationContext)
+    val location = LocationEntryPoint.get(activity.applicationContext).lastKnownLocation()
     if (location == null) {
         Toast.makeText(activity, activity.getString(R.string.no_location_permission), Toast.LENGTH_SHORT)
             .show()
@@ -578,7 +579,7 @@ private fun reportProblem(
             .show()
         return
     }
-    val location = Application.getLastKnownLocation(activity.applicationContext)
+    val location = LocationEntryPoint.get(activity.applicationContext).lastKnownLocation()
     val locationString = location?.let { LocationUtils.printLocationDetails(it) }
     UIUtils.sendEmail(activity, email, locationString, null, true)
     ObaAnalytics.reportUiEvent(

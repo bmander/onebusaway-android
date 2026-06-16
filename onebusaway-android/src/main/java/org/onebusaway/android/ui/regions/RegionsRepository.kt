@@ -27,6 +27,7 @@ import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.RegionUtils
@@ -74,6 +75,7 @@ class DefaultRegionsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val prefs: PreferencesRepository,
     private val regionRepository: RegionRepository,
+    private val locationRepository: LocationRepository,
 ) : RegionsRepository {
 
     // Domain objects from the last successful load, so selectRegion(id) can resolve the ObaRegion
@@ -89,7 +91,7 @@ class DefaultRegionsRepository @Inject constructor(
             val usable = regions.filter { RegionUtils.isRegionUsable(it) }
             regionsById = usable.associateBy { it.id }
 
-            val location = Application.getLastKnownLocation(context)
+            val location = locationRepository.lastKnownLocation()
             val currentRegionId = Application.get().currentRegion?.id
             val items = usable.map { region ->
                 RegionItem(

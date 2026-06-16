@@ -74,6 +74,7 @@ import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
+import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.map.MapCameraSeed
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
@@ -171,6 +172,11 @@ class HomeActivity : AppCompatActivity(),
     // toast, the region's Twitter URL) collect this instead of Application.get().currentRegion.
     @Inject
     lateinit var regionRepository: RegionRepository
+
+    // The last-known location (Campaign A, B1): the send-feedback fallback reads it from here instead
+    // of Application.getLastKnownLocation.
+    @Inject
+    lateinit var locationRepository: LocationRepository
 
     private val viewModel: HomeViewModel by viewModels()
 
@@ -1422,7 +1428,7 @@ class HomeActivity : AppCompatActivity(),
                 focusedStop.lat, focusedStop.lon
             )
         } else {
-            val loc = Application.getLastKnownLocation(this)
+            val loc = locationRepository.lastKnownLocation()
             if (loc != null) {
                 ReportActivity.start(this, loc.latitude, loc.longitude)
             } else {

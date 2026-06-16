@@ -32,12 +32,12 @@ import java.net.URL;
  * {@code SettingsActivity}; they moved here when the settings screens became a HomeActivity NavHost
  * destination (Campaign C) so they survive independently of any single host.
  */
-final class SettingsSupport {
+public final class SettingsSupport {
 
     private SettingsSupport() {
     }
 
-    static boolean validateUrl(String apiUrl) {
+    public static boolean validateUrl(String apiUrl) {
         if (!apiUrl.startsWith("http")) {
             apiUrl = "https://" + apiUrl;
         }

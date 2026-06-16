@@ -49,6 +49,13 @@ interface PreferencesRepository {
     /** Emits the current value of the String pref [keyRes] and re-emits on every change. */
     fun observeString(@StringRes keyRes: Int, default: String?): Flow<String?>
 
+    /**
+     * Emits once immediately, then a [Unit] on every preference change (any key). For a screen that
+     * derives its whole state from many keys at once (e.g. Settings), collecting this and re-reading
+     * the values synchronously is simpler than combining a flow per key.
+     */
+    fun observeChanges(): Flow<Unit>
+
     fun getBoolean(@StringRes keyRes: Int, default: Boolean): Boolean
     fun getBoolean(key: String, default: Boolean): Boolean
 
@@ -105,6 +112,13 @@ class DefaultPreferencesRepository @Inject constructor(
         prefs.registerOnSharedPreferenceChangeListener(listener)
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }.conflate().distinctUntilChanged()
+
+    override fun observeChanges(): Flow<Unit> = callbackFlow {
+        trySend(Unit)
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(Unit) }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }.conflate()
 
     // The @StringRes overloads resolve the key and delegate to the String overloads, which are the
     // single point of contact with SharedPreferences.

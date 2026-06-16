@@ -32,6 +32,10 @@ class FakePreferencesRepository(private val observeValue: Boolean = true) : Pref
 
     override fun observeBoolean(keyRes: Int, default: Boolean): Flow<Boolean> = flowOf(observeValue)
 
+    override fun observeString(keyRes: Int, default: String?): Flow<String?> = flowOf(read(keyRes, default))
+
+    override fun observeChanges(): Flow<Unit> = flowOf(Unit)
+
     @Suppress("UNCHECKED_CAST")
     private fun <T> read(key: Any, default: T): T = (values[key] as T?) ?: default
 

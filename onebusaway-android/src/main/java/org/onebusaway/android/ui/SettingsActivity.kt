@@ -24,10 +24,9 @@ import org.onebusaway.android.ui.nav.NavRoutes
  * Launches the settings screen (preferences + the nested advanced screen).
  *
  * Campaign C: the settings screens are a NavHost destination hosted by [HomeActivity] (see
- * [SettingsScreen] / the [NavRoutes.SETTINGS] composable); this is no longer an Activity but a
+ * [SettingsRoute] / the [NavRoutes.SETTINGS] composable); this is no longer an Activity but a
  * launcher facade. [start] builds an explicit [HomeActivity] intent carrying the [NavRoutes.SETTINGS]
- * route, which HomeActivity's translator navigates to. The preference *fragments*
- * ([SettingsFragment] / [AdvancedSettingsFragment]) are unchanged and hosted in the destination.
+ * route, which HomeActivity's translator navigates to.
  *
  * The FQN `org.onebusaway.android.ui.SettingsActivity` is preserved so the few remaining Kotlin
  * callers compile with a minimal change.

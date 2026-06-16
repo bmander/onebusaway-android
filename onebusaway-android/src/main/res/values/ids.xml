@@ -23,8 +23,4 @@
     <item name="loading" type="id" />
     <item name="refresh_loading" type="id" />
     <item name="refresh_progress_small" type="id" />
-    <!-- Stable container id for the settings preference fragments hosted inside the Compose
-         settings NavHost destination (see SettingsScreen.SettingsFragmentHost). Was defined by the
-         now-deleted activity_settings.xml. -->
-    <item name="settings_container" type="id" />
 </resources>

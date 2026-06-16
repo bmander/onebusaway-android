@@ -19,7 +19,6 @@ package org.onebusaway.android.app;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -28,8 +27,6 @@ import android.location.Location;
 import android.os.Build;
 import android.os.PowerManager;
 import android.text.TextUtils;
-
-import androidx.preference.PreferenceManager;
 import android.util.Log;
 
 import com.google.firebase.analytics.FirebaseAnalytics;
@@ -144,17 +141,6 @@ public class Application extends android.app.Application {
     //
     public static Application get() {
         return mApp;
-    }
-
-    /**
-     * @deprecated Temporary shim for the legacy preference fragments (which register
-     * {@code OnSharedPreferenceChangeListener}s directly). It is removed alongside those fragments in
-     * the settings Compose migration. Everything else reaches prefs via the
-     * {@code PreferencesRepository} seam / {@link org.onebusaway.android.util.PreferenceUtils}.
-     */
-    @Deprecated
-    public static SharedPreferences getPrefs() {
-        return PreferenceManager.getDefaultSharedPreferences(get());
     }
 
     public static DonationsManager getDonationsManager() { return get().mDonationsManager; }

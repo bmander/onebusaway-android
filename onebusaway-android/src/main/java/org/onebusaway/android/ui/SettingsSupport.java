@@ -19,18 +19,13 @@ package org.onebusaway.android.ui;
 
 import android.util.Patterns;
 
-import androidx.preference.Preference;
-import androidx.preference.PreferenceGroup;
-
 import java.net.MalformedURLException;
 import java.net.URL;
 
 /**
- * Shared, stateless helpers used by the settings preference fragments
- * ({@link SettingsFragment} / {@link AdvancedSettingsFragment}) and by the {@code add-region} deep
- * link translator in {@link HomeActivity}. These were package-private statics on the former
- * {@code SettingsActivity}; they moved here when the settings screens became a HomeActivity NavHost
- * destination (Campaign C) so they survive independently of any single host.
+ * Shared, stateless settings helper: validates a user-entered custom API URL. Used by the advanced
+ * settings screen ({@link org.onebusaway.android.ui.settings.AdvancedSettingsViewModel}) and by the
+ * {@code add-region} deep link translator in {@link HomeActivity}.
  */
 public final class SettingsSupport {
 
@@ -49,16 +44,6 @@ public final class SettingsSupport {
             return Patterns.WEB_URL.matcher(apiUrl).matches();
         } catch (MalformedURLException e) {
             return false;
-        }
-    }
-
-    static void setIconSpaceReservedRecursive(PreferenceGroup group, boolean reserved) {
-        for (int i = 0; i < group.getPreferenceCount(); i++) {
-            Preference pref = group.getPreference(i);
-            pref.setIconSpaceReserved(reserved);
-            if (pref instanceof PreferenceGroup) {
-                setIconSpaceReservedRecursive((PreferenceGroup) pref, reserved);
-            }
         }
     }
 }

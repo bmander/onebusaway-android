@@ -202,6 +202,10 @@ class SettingsViewModel @Inject constructor(
 
     // region Click actions
 
+    /** The currently-selected notification ringtone URI (for seeding the picker), or null. */
+    val ringtoneValue: String?
+        get() = prefs.getString(R.string.preference_key_notification_sound, null)
+
     /** Persists the ringtone the host's picker returned (empty string == silent). */
     fun onRingtonePicked(value: String) =
         prefs.setString(R.string.preference_key_notification_sound, value)

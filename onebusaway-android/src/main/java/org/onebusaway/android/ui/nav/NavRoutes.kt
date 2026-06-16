@@ -46,8 +46,11 @@ object NavRoutes {
     /** "Why donate" explainer with a button out to the donations page. */
     const val DONATION_LEARN_MORE = "donationLearnMore"
 
-    /** App settings (the preference fragments + the nested advanced screen). */
+    /** App settings (the root Compose settings screen). */
     const val SETTINGS = "settings"
+
+    /** Advanced app settings (custom API URLs, experimental regions, debug data push). */
+    const val SETTINGS_ADVANCED = "settingsAdvanced"
 
     // --- Report / problem-reporting flow (Campaign C: former ReportActivity /
     // CustomerServiceActivity / InfrastructureIssueActivity). The chooser ([REPORT]) and the

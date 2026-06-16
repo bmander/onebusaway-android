@@ -39,6 +39,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -56,6 +57,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.fragment.app.Fragment
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -82,6 +84,7 @@ import org.onebusaway.android.map.resolveMapMode
 import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
+import org.onebusaway.android.region.RegionRefresher
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.report.ui.InfrastructureIssueDestination
 import org.onebusaway.android.report.ui.ReportActivity
@@ -120,6 +123,7 @@ import org.onebusaway.android.ui.mylists.StarredRoutesRepository
 import org.onebusaway.android.ui.mylists.StarredStopsRepository
 import org.onebusaway.android.ui.mylists.rememberListVm
 import org.onebusaway.android.ui.nav.NavRoutes
+import org.onebusaway.android.ui.settings.AdvancedSettingsRoute
 import org.onebusaway.android.ui.regions.RegionsRoute
 import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
 import org.onebusaway.android.ui.searchresults.SearchResultsRoute
@@ -215,20 +219,13 @@ class HomeActivity : AppCompatActivity() {
     var otpCustomAPIUrlChanged: Boolean = false
         private set
 
-    /** Called by [AdvancedSettingsFragment] (its host activity) when the custom OTP API URL changes. */
+    /**
+     * Set by the advanced settings screen ([org.onebusaway.android.ui.settings.AdvancedSettingsRoute])
+     * when the user changes the custom OTP API URL; read on leaving the settings subtree to decide
+     * whether to re-home (so the change takes effect).
+     */
     fun setOtpCustomAPIUrlChanged(changed: Boolean) {
         otpCustomAPIUrlChanged = changed
-    }
-
-    // The preference sub-screen ([AdvancedSettingsFragment]) the settings destination should show, by
-    // class name, or null for the root. Set by [showSettingsSubScreen] (a preference-click in
-    // SettingsFragment), cleared by back. Drives SettingsDestination instead of the FragmentManager
-    // back stack, so back handling stays unambiguous under the single-Activity NavHost.
-    private val settingsNestedFragment = MutableStateFlow<String?>(null)
-
-    /** Called by [SettingsFragment] to open a preference sub-screen (e.g. Advanced) in-place. */
-    fun showSettingsSubScreen(fragmentClassName: String) {
-        settingsNestedFragment.value = fragmentClassName
     }
 
     // Set true by the report chooser's region-validate dialog (ReportDestination) when the user
@@ -294,6 +291,34 @@ class HomeActivity : AppCompatActivity() {
                     }
                     pendingDeepLinkRoute.value = null
                 }
+            }
+            // Re-home when leaving the settings subtree if the user re-enabled auto-select-region or
+            // changed the custom OTP URL (ported from the former SettingsActivity.onDestroy). The
+            // auto-select baseline is captured on entry and compared on exit, so a re-home fires only
+            // when it was turned back on during this settings visit.
+            DisposableEffect(navController) {
+                val settingsRoutes = setOf(NavRoutes.SETTINGS, NavRoutes.SETTINGS_ADVANCED)
+                val autoSelectKey = getString(R.string.preference_key_auto_select_region)
+                var autoSelectInitial: Boolean? = null
+                val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+                    if (destination.route in settingsRoutes) {
+                        if (autoSelectInitial == null) {
+                            autoSelectInitial = PreferenceUtils.getBoolean(autoSelectKey, true)
+                        }
+                    } else if (autoSelectInitial != null) {
+                        val reEnabledAutoSelect =
+                            PreferenceUtils.getBoolean(autoSelectKey, true) && autoSelectInitial == false
+                        autoSelectInitial = null
+                        if (reEnabledAutoSelect) {
+                            NavHelp.goHome(this@HomeActivity, false)
+                        } else if (otpCustomAPIUrlChanged) {
+                            setOtpCustomAPIUrlChanged(false)
+                            NavHelp.goHome(this@HomeActivity, false)
+                        }
+                    }
+                }
+                navController.addOnDestinationChangedListener(listener)
+                onDispose { navController.removeOnDestinationChangedListener(listener) }
             }
             NavHost(navController = navController, startDestination = NavRoutes.HOME) {
                 composable(NavRoutes.HOME) {
@@ -605,17 +630,49 @@ class HomeActivity : AppCompatActivity() {
                         )
                     }
                 }
-                // Settings destination (Campaign C; former SettingsActivity): the preference fragments
-                // ([SettingsFragment] + nested [AdvancedSettingsFragment]) hosted in a Compose
-                // FragmentContainerView. Reached in-app from the home drawer's Settings item and from the
-                // report flow (region-validate dialog, with the SHOW_CHECK_REGION_DIALOG extra on the
-                // HomeActivity intent). HomeActivity implements the preference host callbacks.
+                // Settings destination (Campaign C; former SettingsActivity): a pure-Compose settings
+                // screen ([SettingsRoute]). Reached in-app from the home drawer's Settings item and from
+                // the report flow (region-validate dialog, with the SHOW_CHECK_REGION_DIALOG extra on the
+                // HomeActivity intent). Host-bound actions (theme recreate, go-home, donate/browser) are
+                // passed as lambdas; the Advanced sub-screen is its own destination below.
                 composable(NavRoutes.SETTINGS) {
                     ObaTheme {
-                        SettingsDestination(
-                            navController = navController,
-                            nestedFragmentClass = settingsNestedFragment,
-                            onClearNested = { settingsNestedFragment.value = null },
+                        SettingsRoute(
+                            onNavigateToRegions = { navController.navigate(NavRoutes.REGIONS) },
+                            onNavigateToAbout = { navController.navigate(NavRoutes.ABOUT) },
+                            onNavigateToAdvanced = {
+                                navController.navigate(NavRoutes.SETTINGS_ADVANCED)
+                            },
+                            onBack = { navController.popBackStack() },
+                            onRecreate = { recreate() },
+                            onGoHomeResetTutorial = { NavHelp.goHome(this@HomeActivity, true) },
+                            onOpenDonate = {
+                                startActivity(
+                                    Application.getDonationsManager().buildOpenDonationsPageIntent()
+                                )
+                            },
+                            onOpenPoweredByOba = {
+                                startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse(getString(R.string.powered_by_oba_url))
+                                    )
+                                )
+                            },
+                        )
+                    }
+                }
+                composable(NavRoutes.SETTINGS_ADVANCED) {
+                    ObaTheme {
+                        AdvancedSettingsRoute(
+                            onBack = { navController.popBackStack() },
+                            onRefreshRegions = {
+                                RegionRefresher.refresh(this@HomeActivity, null) { changed ->
+                                    this@HomeActivity.onRegionTaskFinished(changed)
+                                }
+                            },
+                            onOtpUrlChanged = { setOtpCustomAPIUrlChanged(true) },
+                            onGoHome = { NavHelp.goHome(this@HomeActivity, false) },
                         )
                     }
                 }
@@ -1059,17 +1116,11 @@ class HomeActivity : AppCompatActivity() {
     }
 
     // --- Settings preference-screen host glue (re-homed from the former SettingsActivity) ------------
-    //
-    // The settings NavHost destination ([SettingsDestination]) hosts the preference fragments
-    // ([SettingsFragment] / [AdvancedSettingsFragment]) via the activity's supportFragmentManager, so
-    // those fragments find the region-task host callback below (their host activity is HomeActivity).
-    // Sub-screen navigation (Settings → Advanced) goes through [showSettingsSubScreen], not the
-    // preference framework's `app:fragment` / OnPreferenceStartFragmentCallback path.
 
     /**
-     * The experimental-regions region-refresh callback (invoked by [RegionRefresher] from
-     * AdvancedSettingsFragment; ported from SettingsActivity.onRegionTaskFinished): on a region change,
-     * reset the OTP API version, toast the newly found region (when auto-selecting), and re-home.
+     * The experimental-regions region-refresh callback (invoked by [RegionRefresher] from the advanced
+     * settings screen; ported from SettingsActivity.onRegionTaskFinished): on a region change, reset the
+     * OTP API version, toast the newly found region (when auto-selecting), and re-home.
      */
     fun onRegionTaskFinished(currentRegionChanged: Boolean) {
         if (currentRegionChanged) {

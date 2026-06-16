@@ -20,23 +20,26 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.ContactsContract
 import android.text.format.DateFormat
-import android.widget.ArrayAdapter
-import android.widget.CheckBox
-import android.widget.EditText
-import android.widget.Spinner
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,8 +47,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberStandardBottomSheetState
@@ -57,9 +62,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -190,6 +198,8 @@ fun TripPlanDestination(navController: NavHostController, onBack: () -> Unit) {
         maybeRestoreFromIntent(viewModel, activity.intent)?.let { activity.setIntent(it) }
     }
 
+    var showAdvanced by remember { mutableStateOf(false) }
+
     TripPlanRoute(
         viewModel = viewModel,
         onBack = onBack,
@@ -201,9 +211,13 @@ fun TripPlanDestination(navController: NavHostController, onBack: () -> Unit) {
         onToContacts = { launchContacts(viewModel::setTo) },
         onFromPickOnMap = { launchMapPicker("from", viewModel.formState.value.from) },
         onToPickOnMap = { launchMapPicker("to", viewModel.formState.value.to) },
-        onAdvancedSettings = { showAdvancedSettings(activity, viewModel) },
+        onAdvancedSettings = { showAdvanced = true },
         onReportProblem = { reportProblem(activity, firebaseAnalytics, regionRepository) }
     )
+
+    if (showAdvanced) {
+        AdvancedSettingsDialog(activity, viewModel) { showAdvanced = false }
+    }
 }
 
 /**
@@ -420,87 +434,128 @@ private fun formattedAddress(
     return null
 }
 
-// -- Advanced options dialog (ported from the legacy form) -----------------------------------
+// -- Advanced options dialog (Compose port of the legacy form) --------------------------------
 
-private fun showAdvancedSettings(
+@Composable
+private fun AdvancedSettingsDialog(
     activity: androidx.appcompat.app.AppCompatActivity,
-    viewModel: TripPlanViewModel
+    viewModel: TripPlanViewModel,
+    onDismiss: () -> Unit,
 ) {
-    val current = viewModel.formState.value
-    val imperial = !PreferenceUtils.getUnitsAreMetricFromPreferences(activity)
-    val dialog = MaterialAlertDialogBuilder(activity)
-        .setTitle(R.string.trip_plan_advanced_settings)
-        .setView(R.layout.trip_plan_advanced_settings_dialog)
-        .setPositiveButton(R.string.ok, null)
-        .create()
-    dialog.show()
-
-    val minimizeTransfers = dialog.findViewById<CheckBox>(R.id.checkbox_minimize_transfers)!!
-    val travelBy = dialog.findViewById<Spinner>(R.id.spinner_travel_by)!!
-    val wheelchair = dialog.findViewById<CheckBox>(R.id.checkbox_wheelchair_acccesible)!!
-    val maxWalkField = dialog.findViewById<EditText>(R.id.number_maximum_walk_distance)!!
-
-    minimizeTransfers.isChecked = current.optimizeTransfers
-    wheelchair.isChecked = current.wheelchair
-
-    val options = activity.resources.getStringArray(R.array.transit_mode_array).toMutableList()
-    if (!Application.isBikeshareEnabled()) {
-        options.remove(activity.getString(R.string.transit_mode_bikeshare))
-        options.remove(activity.getString(R.string.transit_mode_transit_and_bikeshare))
-    }
-    travelBy.adapter = ArrayAdapter(activity, android.R.layout.simple_spinner_item, options).apply {
-        setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-    }
-    if (current.modeId in options.indices) {
-        travelBy.setSelection(TripModes.getSpinnerPositionFromSeledctedCode(current.modeId))
-    }
-    current.maxWalkMeters?.let { meters ->
-        val shown = if (imperial) ConversionUtils.metersToFeet(meters) else meters
-        maxWalkField.setText(String.format("%d", shown.toLong()))
-    }
-    if (imperial) {
-        dialog.findViewById<TextView>(R.id.label_minimum_walk_distance)
-            ?.setText(activity.getString(R.string.feet_abbreviation))
-    }
-
-    dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-        val modeResources = activity.resources.obtainTypedArray(R.array.transit_mode_array)
-        val selected = travelBy.selectedItem.toString()
-        var resourceId = 0
-        for (i in 0 until modeResources.length()) {
-            if (selected == modeResources.getString(i)) {
-                resourceId = modeResources.getResourceId(i, 0)
-            }
+    val imperial = remember { !PreferenceUtils.getUnitsAreMetricFromPreferences(activity) }
+    // (display label, trip-mode code) for each option, dropping bikeshare modes when unavailable.
+    val options = remember {
+        val typed = activity.resources.obtainTypedArray(R.array.transit_mode_array)
+        val labels = activity.resources.getStringArray(R.array.transit_mode_array)
+        val all = (0 until typed.length()).map { i ->
+            labels[i] to TripModes.getTripModeCodeFromSelection(typed.getResourceId(i, 0))
         }
-        modeResources.recycle()
-        val modeId = TripModes.getTripModeCodeFromSelection(resourceId)
-
-        val maxWalkText = maxWalkField.text.toString()
-        val maxWalkMeters: Double? = if (maxWalkText.isEmpty()) {
-            null
+        typed.recycle()
+        if (Application.isBikeshareEnabled()) {
+            all
         } else {
-            val value = maxWalkText.toDouble()
-            if (imperial) ConversionUtils.feetToMeters(value) else value
+            all.filter { it.second != TripModes.BIKESHARE && it.second != TripModes.TRANSIT_AND_BIKE }
         }
+    }
+    val current = remember { viewModel.formState.value }
+    var selectedMode by remember {
+        mutableStateOf(options.firstOrNull { it.second == current.modeId }?.second ?: options.first().second)
+    }
+    var minimizeTransfers by remember { mutableStateOf(current.optimizeTransfers) }
+    var wheelchair by remember { mutableStateOf(current.wheelchair) }
+    var maxWalk by remember {
+        mutableStateOf(
+            current.maxWalkMeters?.let {
+                (if (imperial) ConversionUtils.metersToFeet(it) else it).toLong().toString()
+            }.orEmpty()
+        )
+    }
+    var expanded by remember { mutableStateOf(false) }
 
-        val settings =
-            AdvancedSettings(modeId, maxWalkMeters, minimizeTransfers.isChecked, wheelchair.isChecked)
-        viewModel.applyAdvancedSettings(settings)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.trip_plan_advanced_settings)) },
+        text = {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.travel_by_label))
+                    Spacer(Modifier.width(8.dp))
+                    Box {
+                        TextButton(onClick = { expanded = true }) {
+                            Text(options.firstOrNull { it.second == selectedMode }?.first.orEmpty())
+                        }
+                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            options.forEach { (label, code) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = { selectedMode = code; expanded = false },
+                                )
+                            }
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(R.string.maximum_walk_distance), modifier = Modifier.weight(1f))
+                    OutlinedTextField(
+                        value = maxWalk,
+                        onValueChange = { new -> maxWalk = new.filter { it.isDigit() } },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.width(96.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        stringResource(
+                            if (imperial) R.string.feet_abbreviation else R.string.meters_abbreviation
+                        )
+                    )
+                }
+                AdvancedCheckbox(
+                    stringResource(R.string.minimize_transfers), minimizeTransfers
+                ) { minimizeTransfers = it }
+                AdvancedCheckbox(
+                    stringResource(R.string.wheelchair_accessible), wheelchair
+                ) { wheelchair = it }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val maxWalkMeters: Double? = maxWalk.takeIf { it.isNotEmpty() }?.toDouble()?.let {
+                    if (imperial) ConversionUtils.feetToMeters(it) else it
+                }
+                viewModel.applyAdvancedSettings(
+                    AdvancedSettings(selectedMode, maxWalkMeters, minimizeTransfers, wheelchair)
+                )
+                PreferenceUtils.saveInt(
+                    activity.getString(R.string.preference_key_trip_plan_travel_by), selectedMode
+                )
+                PreferenceUtils.saveDouble(
+                    activity.getString(R.string.preference_key_trip_plan_maximum_walking_distance),
+                    maxWalkMeters ?: Double.MAX_VALUE
+                )
+                PreferenceUtils.saveBoolean(
+                    activity.getString(R.string.preference_key_trip_plan_minimize_transfers), minimizeTransfers
+                )
+                PreferenceUtils.saveBoolean(
+                    activity.getString(R.string.preference_key_trip_plan_avoid_stairs), wheelchair
+                )
+                onDismiss()
+            }) { Text(stringResource(R.string.ok)) }
+        },
+    )
+}
 
-        PreferenceUtils.saveInt(activity.getString(R.string.preference_key_trip_plan_travel_by), modeId)
-        PreferenceUtils.saveDouble(
-            activity.getString(R.string.preference_key_trip_plan_maximum_walking_distance),
-            maxWalkMeters ?: Double.MAX_VALUE
-        )
-        PreferenceUtils.saveBoolean(
-            activity.getString(R.string.preference_key_trip_plan_minimize_transfers),
-            minimizeTransfers.isChecked
-        )
-        PreferenceUtils.saveBoolean(
-            activity.getString(R.string.preference_key_trip_plan_avoid_stairs),
-            wheelchair.isChecked
-        )
-        dialog.dismiss()
+@Composable
+private fun AdvancedCheckbox(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null)
+        Text(label, modifier = Modifier.padding(start = 8.dp))
     }
 }
 

@@ -32,22 +32,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.LinkAnnotation
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLinkStyles
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withLink
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
+import org.onebusaway.android.ui.compose.components.linkifyUrls
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.nav.NavRoutes
 
@@ -159,30 +152,6 @@ private fun NameList(names: Array<String>, bold: Boolean) {
         }
     }
 }
-
-private val URL_REGEX = Regex("""https?://[^\s)]+""")
-
-/** Wraps every bare URL in [text] with a tappable, underlined [LinkAnnotation.Url]. */
-private fun linkifyUrls(text: String, linkColor: Color): AnnotatedString =
-    buildAnnotatedString {
-        var last = 0
-        for (match in URL_REGEX.findAll(text)) {
-            val url = match.value.trimEnd('.', ',')
-            append(text.substring(last, match.range.first))
-            withLink(
-                LinkAnnotation.Url(
-                    url,
-                    TextLinkStyles(
-                        style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
-                    )
-                )
-            ) {
-                append(url)
-            }
-            last = match.range.first + url.length
-        }
-        append(text.substring(last))
-    }
 
 @Preview(showBackground = true)
 @Composable

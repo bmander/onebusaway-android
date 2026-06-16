@@ -68,7 +68,6 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -86,7 +85,6 @@ import androidx.core.content.pm.ShortcutInfoCompat;
 import androidx.core.content.pm.ShortcutManagerCompat;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.core.graphics.Insets;
-import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.core.graphics.drawable.IconCompat;
 import androidx.core.util.Pair;
 import androidx.core.view.MenuItemCompat;
@@ -1705,33 +1703,31 @@ public final class UIUtils {
     }
 
     /**
-     * Launches the fare payment app for the currently selected region if the payment app is
-     * installed, otherwise directs the user to the Google Play store listing to download it.  If
-     * a region has a fare payment app warning, it will show the warning before checking if the app
-     * is installed, unless the user has opted out of the warning.
-     * If the current region is null (i.e., if a custom API URL is entered), then no-op.
+     * Begins the fare-payment flow for the currently selected region. If the region has a fare
+     * payment-app warning the user hasn't opted out of, returns that region so the caller can show
+     * the warning dialog and then call {@link #startPaymentIntent}; otherwise launches the payment
+     * intent directly (installed app, else the Google Play listing) and returns null. Returns null
+     * when there is no current region (e.g. a custom API URL is set).
      * @param activity activity to launch the fare payment app or Google Play store from
+     * @return the region whose payment warning must be shown first, or null if already handled
      */
-    public static void launchPayMyFareApp(@NonNull Activity activity) {
+    public static ObaRegion launchPayMyFareApp(@NonNull Activity activity) {
         ObaRegion region = Application.get().getCurrentRegion();
         if (region == null) {
             // If a custom API URL is set (i.e., no region), then no op
-            return;
+            return null;
         }
 
-        if (!TextUtils.isEmpty(region.getPaymentWarningTitle()) || !TextUtils.isEmpty(region.getPaymentWarningBody())) {
-            // Region has a warning for using the payment app
-            if (!PreferenceUtils.getBoolean(activity.getString(R.string.preference_key_never_show_payment_warning_dialog), false)) {
-                // User hasn't opted out of warning dialog yet - show the dialog
-                showPaymentWarningDialog(activity, region);
-            } else {
-                // User opted out of warning - start the Intent
-                startPaymentIntent(activity, region);
-            }
-        } else {
-            // No payment warning for this region - start the Intent
-            startPaymentIntent(activity, region);
+        boolean hasWarning = !TextUtils.isEmpty(region.getPaymentWarningTitle())
+                || !TextUtils.isEmpty(region.getPaymentWarningBody());
+        if (hasWarning && !PreferenceUtils.getBoolean(
+                activity.getString(R.string.preference_key_never_show_payment_warning_dialog), false)) {
+            // Caller shows the warning dialog, then calls startPaymentIntent on confirm.
+            return region;
         }
+        // No warning (or opted out) - start the Intent directly.
+        startPaymentIntent(activity, region);
+        return null;
     }
 
     /**
@@ -1740,7 +1736,7 @@ public final class UIUtils {
      * @param activity Activity to use to launch the Intent
      * @param region region to launch a payment Intent for
      */
-    private static void startPaymentIntent(@NonNull Activity activity, @NonNull ObaRegion region) {
+    public static void startPaymentIntent(@NonNull Activity activity, @NonNull ObaRegion region) {
         PackageManager manager = activity.getPackageManager();
         Intent intent = manager.getLaunchIntentForPackage(region.getPaymentAndroidAppId());
         if (intent != null) {
@@ -1764,40 +1760,6 @@ public final class UIUtils {
                     Application.get().getString(R.string.analytics_label_button_fare_payment),
                     Application.get().getString(R.string.analytics_label_download_app));
         }
-    }
-
-    /**
-     * Shows the payment warning to the user for the provided region if the user hasn't already
-     * opted out of the warning, and then calls the method to create the correct payment Intent.
-     * If the user has opted out of the warning, just call the method to create the payment Intent
-     * @param activity Activity to use to launch the Intent
-     * @param region region to launch a payment Intent for
-     */
-    private static void showPaymentWarningDialog(@NonNull Activity activity, @NonNull ObaRegion region) {
-        View view = activity.getLayoutInflater().inflate(R.layout.payment_warning_dialog, null);
-        CheckBox neverShowDialog = view.findViewById(R.id.payment_warning_never_ask_again);
-        TextView warningBody = view.findViewById(R.id.payment_warning_body);
-
-        neverShowDialog.setOnCheckedChangeListener((compoundButton, isChecked) -> {
-            // Save the preference
-            PreferenceUtils.saveBoolean(activity.getString(R.string.preference_key_never_show_payment_warning_dialog), isChecked);
-        });
-
-        warningBody.setText(region.getPaymentWarningBody());
-
-        Drawable icon = activity.getResources().getDrawable(android.R.drawable.ic_dialog_alert);
-        DrawableCompat.setTint(icon, activity.getResources().getColor(R.color.alert_icon_error));
-
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(activity)
-                .setTitle(region.getPaymentWarningTitle())
-                .setIcon(icon)
-                .setCancelable(false)
-                .setView(view)
-                .setPositiveButton(R.string.ok,
-                        (dialog, which) -> startPaymentIntent(activity, region)
-                );
-
-        builder.create().show();
     }
 
     /**

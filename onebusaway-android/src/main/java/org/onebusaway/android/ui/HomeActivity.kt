@@ -46,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
@@ -73,6 +74,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
+import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.location.LocationRepository
@@ -113,6 +115,7 @@ import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
 import org.onebusaway.android.ui.home.analyticsLabelRes
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
+import org.onebusaway.android.ui.compose.components.OptOutInfoDialog
 import org.onebusaway.android.ui.mylists.MyRecentDestination
 import org.onebusaway.android.ui.mylists.MyRoutesDestination
 import org.onebusaway.android.ui.mylists.MyStopsDestination
@@ -231,6 +234,10 @@ class HomeActivity : AppCompatActivity() {
     // Set true by the report chooser's region-validate dialog (ReportDestination) when the user
     // confirms their region; the chooser observes it to swap the validate dialog for the type list.
     val reportRegionValidated = MutableStateFlow(false)
+
+    // The region whose fare-payment warning to show (former imperative payment_warning_dialog). Set by
+    // the PAY_FARE menu action when a warning is needed; the Compose dialog in setContent renders it.
+    private val paymentWarningRegion = MutableStateFlow<ObaRegion?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -934,6 +941,32 @@ class HomeActivity : AppCompatActivity() {
                     }
                 }
             }
+
+            // Fare-payment warning (former imperative payment_warning_dialog): shown over any
+            // destination when the PAY_FARE menu item needs a region's warning before launching.
+            val warnRegion by paymentWarningRegion.collectAsStateWithLifecycle()
+            warnRegion?.let { region ->
+                ObaTheme {
+                    OptOutInfoDialog(
+                        title = region.paymentWarningTitle.orEmpty(),
+                        icon = painterResource(android.R.drawable.ic_dialog_alert),
+                        iconTint = colorResource(R.color.alert_icon_error),
+                        body = region.paymentWarningBody.orEmpty(),
+                        optOutLabel = stringResource(R.string.main_never_ask_again),
+                        onOptOut = {
+                            PreferenceUtils.saveBoolean(
+                                getString(R.string.preference_key_never_show_payment_warning_dialog), it
+                            )
+                        },
+                        confirmText = stringResource(R.string.ok),
+                        onConfirm = {
+                            paymentWarningRegion.value = null
+                            UIUtils.startPaymentIntent(this@HomeActivity, region)
+                        },
+                        onDismissRequest = { paymentWarningRegion.value = null },
+                    )
+                }
+            }
         }
 
         setupNavigationDrawer()
@@ -1220,7 +1253,8 @@ class HomeActivity : AppCompatActivity() {
             HomeNavItem.MY_REMINDERS -> Unit
             HomeNavItem.PLAN_TRIP ->
                 pendingDeepLinkRoute.value = NavRoutes.TRIP_PLAN
-            HomeNavItem.PAY_FARE -> UIUtils.launchPayMyFareApp(this)
+            HomeNavItem.PAY_FARE ->
+                UIUtils.launchPayMyFareApp(this)?.let { paymentWarningRegion.value = it }
             HomeNavItem.SETTINGS ->
                 pendingDeepLinkRoute.value = NavRoutes.SETTINGS
             // Hide "Contact Us" when a custom API URL is set (no contact email to use).

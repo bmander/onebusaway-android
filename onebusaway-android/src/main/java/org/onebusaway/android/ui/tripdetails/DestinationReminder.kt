@@ -25,7 +25,6 @@ import android.content.IntentFilter
 import android.content.IntentSender
 import android.os.Build
 import android.provider.Settings
-import android.widget.CheckBox
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -37,9 +36,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.DrawableCompat
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.LocationRequest
@@ -56,6 +57,7 @@ import org.onebusaway.android.nav.NavigationService
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.TripDetailsActivity
+import org.onebusaway.android.ui.compose.components.OptOutInfoDialog
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.LocationUtils
@@ -80,6 +82,11 @@ internal fun rememberDestinationReminderAction(
 ): (stopIndex: Int) -> Unit {
     val context = LocalContext.current
     val activity = context.findActivity()
+
+    // The two informational dialogs are Compose-hosted; these flags drive them (set by the
+    // dialogFor*/destinationReminderBetaDialog actions below, rendered near the end of this composable).
+    var showLocationModeDialog by remember { mutableStateOf(false) }
+    var showBetaDialog by remember { mutableStateOf(false) }
 
     // Saved when we must wait for the user to enable location settings; started on the OK result.
     var pendingServiceIntent by remember { mutableStateOf<Intent?>(null) }
@@ -146,50 +153,11 @@ internal fun rememberDestinationReminderAction(
     }
 
     fun dialogForLocationModeChanges() {
-        val view = activity.layoutInflater.inflate(R.layout.change_locationmode_dialog, null)
-        view.findViewById<CheckBox>(R.id.change_locationmode_never_ask_again)
-            .setOnCheckedChangeListener { _, isChecked ->
-                prefsRepository.setBoolean(
-                    R.string.preference_key_never_show_change_location_mode_dialog, isChecked
-                )
-            }
-        @Suppress("DEPRECATION")
-        val icon = activity.resources.getDrawable(android.R.drawable.ic_dialog_map).also {
-            @Suppress("DEPRECATION")
-            DrawableCompat.setTint(it, activity.resources.getColor(R.color.theme_primary))
-        }
-        MaterialAlertDialogBuilder(context)
-            .setTitle(R.string.main_changelocationmode_title)
-            .setIcon(icon)
-            .setCancelable(false)
-            .setView(view)
-            .setPositiveButton(R.string.rt_yes) { _, _ ->
-                context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-            }
-            .setNegativeButton(R.string.rt_no) { _, _ -> }
-            .show()
+        showLocationModeDialog = true
     }
 
     fun destinationReminderBetaDialog() {
-        val view = activity.layoutInflater.inflate(R.layout.destination_reminder_beta_dialog, null)
-        view.findViewById<CheckBox>(R.id.destination_reminder_beta_never_show_again)
-            .setOnCheckedChangeListener { _, isChecked ->
-                prefsRepository.setBoolean(
-                    R.string.preference_key_never_show_destination_reminder_beta_dialog, isChecked
-                )
-            }
-        @Suppress("DEPRECATION")
-        val icon = activity.resources.getDrawable(android.R.drawable.ic_dialog_alert).also {
-            @Suppress("DEPRECATION")
-            DrawableCompat.setTint(it, activity.resources.getColor(R.color.theme_primary))
-        }
-        MaterialAlertDialogBuilder(context)
-            .setTitle(R.string.destination_reminder_beta_title)
-            .setIcon(icon)
-            .setCancelable(false)
-            .setView(view)
-            .setPositiveButton(R.string.ok) { _, _ -> }
-            .show()
+        showBetaDialog = true
     }
 
     fun onDestinationReminderConfirmed(position: Int) {
@@ -238,6 +206,46 @@ internal fun rememberDestinationReminderAction(
             }
             .setNegativeButton(R.string.destination_reminder_cancel) { _, _ -> }
             .show()
+    }
+
+    if (showLocationModeDialog) {
+        OptOutInfoDialog(
+            title = stringResource(R.string.main_changelocationmode_title),
+            icon = painterResource(android.R.drawable.ic_dialog_map),
+            iconTint = colorResource(R.color.theme_primary),
+            body = stringResource(R.string.main_changelocationmode),
+            optOutLabel = stringResource(R.string.main_never_ask_again),
+            onOptOut = {
+                prefsRepository.setBoolean(
+                    R.string.preference_key_never_show_change_location_mode_dialog, it
+                )
+            },
+            confirmText = stringResource(R.string.rt_yes),
+            onConfirm = {
+                showLocationModeDialog = false
+                context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            },
+            dismissText = stringResource(R.string.rt_no),
+            onDismiss = { showLocationModeDialog = false },
+            onDismissRequest = { showLocationModeDialog = false },
+        )
+    }
+    if (showBetaDialog) {
+        OptOutInfoDialog(
+            title = stringResource(R.string.destination_reminder_beta_title),
+            icon = painterResource(android.R.drawable.ic_dialog_alert),
+            iconTint = colorResource(R.color.theme_primary),
+            body = stringResource(R.string.destination_reminder_beta_summary),
+            optOutLabel = stringResource(R.string.main_never_show_again),
+            onOptOut = {
+                prefsRepository.setBoolean(
+                    R.string.preference_key_never_show_destination_reminder_beta_dialog, it
+                )
+            },
+            confirmText = stringResource(R.string.ok),
+            onConfirm = { showBetaDialog = false },
+            onDismissRequest = { showBetaDialog = false },
+        )
     }
 
     // Clears the destination flag when the NavigationService is destroyed (trip cancelled/ended).

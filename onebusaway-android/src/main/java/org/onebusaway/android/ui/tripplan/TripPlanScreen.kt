@@ -50,7 +50,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,9 +61,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.fragment.app.FragmentContainerView
-import androidx.fragment.app.FragmentManager
-import androidx.fragment.app.commit
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -89,13 +85,12 @@ import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.ui.TripModes
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.nav.NavRoutes
-import org.onebusaway.android.ui.tripresults.TripResultsFragment
+import org.onebusaway.android.ui.tripresults.TripResults
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.UIUtils
 import org.opentripplanner.api.model.Itinerary
 
-private const val RESULTS_TAG = "TripResults"
 
 /**
  * The trip-plan NavHost destination (Campaign C). Ports the Android glue that the former
@@ -197,7 +192,6 @@ fun TripPlanDestination(navController: NavHostController, onBack: () -> Unit) {
 
     TripPlanRoute(
         viewModel = viewModel,
-        fragmentManager = activity.supportFragmentManager,
         onBack = onBack,
         onPickDate = { pickDate(activity, viewModel) },
         onPickTime = { pickTime(activity, viewModel) },
@@ -214,15 +208,14 @@ fun TripPlanDestination(navController: NavHostController, onBack: () -> Unit) {
 
 /**
  * The trip-plan container: the [TripPlanForm] is the main content; when a plan completes, the
- * results appear in a Material3 bottom sheet. Because the results screen owns the native map, it
- * stays a Fragment ([TripResultsFragment]) hosted via [FragmentContainerView]. Date/time/contacts/
- * current-location/advanced/report are platform interactions delegated to the host Activity.
+ * results appear inline in a Material3 bottom sheet via [TripResults] (Compose, owning its own
+ * directions-mode map). Date/time/contacts/current-location/advanced/report are platform interactions
+ * delegated to the host Activity.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TripPlanRoute(
     viewModel: TripPlanViewModel,
-    fragmentManager: FragmentManager,
     onBack: () -> Unit,
     onPickDate: () -> Unit,
     onPickTime: () -> Unit,
@@ -277,9 +270,8 @@ fun TripPlanRoute(
             sheetContent = {
                 val result = planState
                 if (result is PlanResult.Success) {
-                    ResultsFragmentHost(
+                    TripResults(
                         itineraries = result.itineraries,
-                        fragmentManager = fragmentManager,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -341,44 +333,6 @@ private fun TripPlanTopBar(onBack: () -> Unit, onReportProblem: () -> Unit) {
             }
         }
     )
-}
-
-/**
- * Hosts the results [TripResultsFragment] (which owns the native map) inside Compose. The fragment
- * is (re)committed whenever the itineraries change; it reads them from its arguments, matching the
- * Phase A contract.
- */
-@Composable
-private fun ResultsFragmentHost(
-    itineraries: List<Itinerary>,
-    fragmentManager: FragmentManager,
-    modifier: Modifier = Modifier
-) {
-    androidx.compose.ui.viewinterop.AndroidView(
-        modifier = modifier,
-        factory = { context ->
-            FragmentContainerView(context).apply { id = R.id.trip_results_container }
-        }
-    )
-    DisposableEffect(itineraries) {
-        val fragment = TripResultsFragment().apply {
-            arguments = Bundle().apply {
-                putSerializable(OTPConstants.ITINERARIES, ArrayList(itineraries))
-                putInt(OTPConstants.SELECTED_ITINERARY, 0)
-                putBoolean(OTPConstants.SHOW_MAP, false)
-            }
-        }
-        fragmentManager.commit(allowStateLoss = true) {
-            replace(R.id.trip_results_container, fragment, RESULTS_TAG)
-        }
-        onDispose {
-            if (!fragmentManager.isStateSaved) {
-                fragmentManager.findFragmentByTag(RESULTS_TAG)?.let { existing ->
-                    fragmentManager.commit(allowStateLoss = true) { remove(existing) }
-                }
-            }
-        }
-    }
 }
 
 // -- Trip-plan platform glue, ported verbatim from the former TripPlanActivity ---------------------

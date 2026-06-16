@@ -38,6 +38,7 @@ import org.junit.Test
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.map.MapCommand
 import org.onebusaway.android.map.MapInteractionBus
+import org.onebusaway.android.region.RegionStatus
 import org.onebusaway.android.testing.MainDispatcherRule
 
 private class FakeWideAlertsRepository(private val alerts: List<WideAlert>) : WideAlertsRepository {
@@ -46,16 +47,6 @@ private class FakeWideAlertsRepository(private val alerts: List<WideAlert>) : Wi
     }
 }
 
-private class FakeRegionStatusRepository(
-    var result: RegionStatus = RegionStatus.Unchanged
-) : RegionStatusRepository {
-    val selected = mutableListOf<ObaRegion>()
-    var refreshCount = 0
-    override suspend fun refreshRegions(): RegionStatus { refreshCount++; return result }
-    override suspend fun selectRegion(region: ObaRegion) {
-        selected.add(region)
-    }
-}
 
 private class FakeStartupPreferencesRepository(
     var initial: Boolean = false
@@ -103,14 +94,13 @@ class HomeViewModelTest {
     private fun viewModel(
         alerts: List<WideAlert> = emptyList(),
         regionStatus: RegionStatus = RegionStatus.Unchanged,
-        regionRepo: FakeRegionStatusRepository = FakeRegionStatusRepository(regionStatus),
         startupRepo: FakeStartupPreferencesRepository = FakeStartupPreferencesRepository(),
         navItemsRepo: FakeNavItemsRepository = FakeNavItemsRepository(),
-        regions: FakeRegionRepository = FakeRegionRepository(),
+        regionRepo: FakeRegionRepository = FakeRegionRepository().apply { refreshResult = regionStatus },
         savedState: SavedStateHandle = SavedStateHandle(),
         bus: MapInteractionBus = FakeMapInteractionBus(),
     ) = HomeViewModel(
-        savedState, FakeWideAlertsRepository(alerts), regionRepo, startupRepo, navItemsRepo, regions, bus
+        savedState, FakeWideAlertsRepository(alerts), startupRepo, navItemsRepo, regionRepo, bus
     )
 
     // --- map loading + peek inputs ---
@@ -157,7 +147,7 @@ class HomeViewModelTest {
     fun `a wide alert surfaces as state and is cleared on dismiss`() = runTest {
         val alert = WideAlert("Title", "Message", "https://example.org")
         val regions = FakeRegionRepository()
-        val vm = viewModel(alerts = listOf(alert), regions = regions)
+        val vm = viewModel(alerts = listOf(alert), regionRepo = regions)
         assertNull(vm.uiState.value.wideAlert)
 
         regions.emit(region(1)) // a current region streams its wide alerts
@@ -359,7 +349,7 @@ class HomeViewModelTest {
     @Test
     fun `a current region surfaces regionReady for the survey trigger`() = runTest {
         val regions = FakeRegionRepository()
-        val vm = viewModel(regions = regions)
+        val vm = viewModel(regionRepo = regions)
         advanceUntilIdle()
         assertFalse(vm.uiState.value.regionReady)
 
@@ -444,7 +434,9 @@ class HomeViewModelTest {
     @Test
     fun `onRegionChosen selects the region, dismisses the dialog, and signals a change`() = runTest {
         val regions = listOf(region(1), region(2))
-        val repo = FakeRegionStatusRepository(RegionStatus.NeedsManualSelection(regions))
+        val repo = FakeRegionRepository().apply {
+            refreshResult = RegionStatus.NeedsManualSelection(regions)
+        }
         val vm = viewModel(regionRepo = repo)
         val events = mutableListOf<HomeEvent>()
         val job = launch { vm.events.collect { events.add(it) } }
@@ -456,7 +448,7 @@ class HomeViewModelTest {
         vm.onRegionChosen(chosen)
         advanceUntilIdle()
 
-        assertEquals(listOf(chosen), repo.selected)
+        assertEquals(listOf(chosen), repo.chosen)
         assertEquals(HomeDialog.None, vm.uiState.value.dialog)
         // regionName null: the legacy manual-pick path logged no analytics.
         assertEquals(listOf<HomeEvent>(HomeEvent.RegionResolved(true, null)), events)
@@ -467,7 +459,7 @@ class HomeViewModelTest {
 
     @Test
     fun `first launch without permission defers the region check`() = runTest {
-        val region = FakeRegionStatusRepository()
+        val region = FakeRegionRepository()
         viewModel(regionRepo = region, startupRepo = FakeStartupPreferencesRepository(initial = true))
             .onHomeStarted(hasLocationPermission = false)
         advanceUntilIdle()
@@ -476,7 +468,7 @@ class HomeViewModelTest {
 
     @Test
     fun `first launch with permission checks the region now`() = runTest {
-        val region = FakeRegionStatusRepository()
+        val region = FakeRegionRepository()
         viewModel(regionRepo = region, startupRepo = FakeStartupPreferencesRepository(initial = true))
             .onHomeStarted(hasLocationPermission = true)
         advanceUntilIdle()
@@ -485,7 +477,7 @@ class HomeViewModelTest {
 
     @Test
     fun `a later launch checks the region regardless of permission`() = runTest {
-        val region = FakeRegionStatusRepository()
+        val region = FakeRegionRepository()
         viewModel(regionRepo = region, startupRepo = FakeStartupPreferencesRepository(initial = false))
             .onHomeStarted(hasLocationPermission = false)
         advanceUntilIdle()
@@ -494,7 +486,7 @@ class HomeViewModelTest {
 
     @Test
     fun `the first-launch permission result clears the flag and checks the region`() = runTest {
-        val region = FakeRegionStatusRepository()
+        val region = FakeRegionRepository()
         val startup = FakeStartupPreferencesRepository(initial = true)
         val vm = viewModel(regionRepo = region, startupRepo = startup)
         vm.onLocationPermissionResult()
@@ -505,7 +497,7 @@ class HomeViewModelTest {
 
     @Test
     fun `a permission result after the first launch does nothing`() = runTest {
-        val region = FakeRegionStatusRepository()
+        val region = FakeRegionRepository()
         val startup = FakeStartupPreferencesRepository(initial = false)
         viewModel(regionRepo = region, startupRepo = startup).onLocationPermissionResult()
         advanceUntilIdle()
@@ -571,7 +563,7 @@ class HomeViewModelTest {
     fun `a region change rebuilds the nav items from current availability`() = runTest {
         val repo = FakeNavItemsRepository(NavItemAvailability(false, false, false))
         val regions = FakeRegionRepository()
-        val vm = viewModel(navItemsRepo = repo, regions = regions)
+        val vm = viewModel(navItemsRepo = repo, regionRepo = regions)
         advanceUntilIdle()
         assertFalse(vm.uiState.value.navItems.contains(HomeNavItem.PAY_FARE))
 

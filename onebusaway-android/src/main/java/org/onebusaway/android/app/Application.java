@@ -50,6 +50,8 @@ import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.location.DefaultLocationRepository;
 import org.onebusaway.android.location.LocationRepository;
+import org.onebusaway.android.preferences.DefaultPreferencesRepository;
+import org.onebusaway.android.region.DefaultRegionActivator;
 import org.onebusaway.android.region.DefaultRegionRepository;
 import org.onebusaway.android.region.RegionRepository;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
@@ -124,9 +126,12 @@ public class Application extends android.app.Application {
 
         initOba();
         initObaRegion();
-        // Seed the observable region with the region just loaded from prefs, before any view model can
-        // collect it. All later writes publish via setCurrentRegion().
-        mRegionRepository = new DefaultRegionRepository(getCurrentRegion());
+        // The observable region repository now also owns region resolution (Campaign A, A1); it's
+        // seeded (via the activator) from the region just loaded by initObaRegion, before any view model
+        // can collect it. Still Application-constructed with its collaborators passed in until A2 flips
+        // it to a Hilt @Singleton. All later writes sync via setCurrentRegion / refresh / choose.
+        mRegionRepository = new DefaultRegionRepository(
+                this, new DefaultRegionActivator(), new DefaultPreferencesRepository(this, mPrefs));
         // The observable last-known location starts empty; it's published from setLastKnownLocation
         // (listener updates) and getLastKnownLocation's lazy poll.
         mLocationRepository = new DefaultLocationRepository(mLastKnownLocation);
@@ -345,10 +350,11 @@ public class Application extends android.app.Application {
 
     public synchronized void setCurrentRegion(ObaRegion region, boolean regionChanged) {
         applyRegionTransaction(region, regionChanged);
-        // Publish to the observable region (the single write choke point — covers modern, manual-pick,
-        // and legacy ObaRegionsTask writers). Null-guarded for any write before the repo is constructed.
+        // Sync the observable region state (the single write choke point — covers the legacy
+        // ObaRegionsTask / ExperimentalRegionsPreference writers; the repository's own refresh/choose
+        // update it directly). Null-guarded for any write before the repo is constructed.
         if (mRegionRepository != null) {
-            mRegionRepository.publish(region);
+            mRegionRepository.syncActivated(region);
         }
     }
 

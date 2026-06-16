@@ -24,6 +24,7 @@ import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.map.MapCommand
 import org.onebusaway.android.map.MapInteractionBus
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.region.RegionStatus
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,14 +50,13 @@ import kotlinx.coroutines.launch
 class HomeViewModel @Inject constructor(
     private val savedState: SavedStateHandle,
     private val wideAlertsRepo: WideAlertsRepository,
-    // The resolve *action* (refresh / manual-pick); writes through Application.setCurrentRegion.
-    private val regionStatusRepo: RegionStatusRepository,
     private val startupRepo: StartupPreferencesRepository,
     // Supplies the region/preference-derived gating inputs for the drawer items, so the VM rebuilds its
     // own (region-gated) nav list rather than the host pushing it in.
     private val navItemsRepo: NavItemsRepository,
-    // The observable current region (state); the VM self-subscribes for alerts / regionReady / nav items
-    // instead of being hand-fed by the host's region-resolution fan-out.
+    // The observable current region + its resolution action (refresh / manual-pick). The VM
+    // self-subscribes to [region] for alerts / regionReady / nav items, and drives [refresh]/[choose]
+    // for the resolve action (Campaign A: resolution moved into the repository).
     private val regionRepo: RegionRepository,
     // The shared Home->Map command bus (sheet padding, recenter, route mode, clear focus). Replaces the
     // old HomeMapController VM-on-VM reference, so this is a plain @HiltViewModel; faked in tests.
@@ -308,7 +308,7 @@ class HomeViewModel @Inject constructor(
      */
     fun refreshRegions() {
         viewModelScope.launch {
-            when (val status = regionStatusRepo.refreshRegions()) {
+            when (val status = regionRepo.refresh()) {
                 is RegionStatus.Changed -> resolvedRegion(true, status.region.name)
                 RegionStatus.Unchanged -> resolvedRegion(false, null)
                 is RegionStatus.NeedsManualSelection -> {
@@ -348,7 +348,7 @@ class HomeViewModel @Inject constructor(
     /** The user picked a region in the forced-choice dialog (old haveUserChooseRegion onClick). */
     fun onRegionChosen(region: ObaRegion) {
         viewModelScope.launch {
-            regionStatusRepo.selectRegion(region)
+            regionRepo.choose(region)
             dialog = HomeDialog.None
             recompute()
             // regionName null: the legacy manual-pick path logged no analytics.

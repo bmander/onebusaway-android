@@ -30,12 +30,10 @@ import org.onebusaway.android.ui.agencies.DefaultAgenciesRepository
 import org.onebusaway.android.ui.arrivals.ArrivalsRepository
 import org.onebusaway.android.ui.arrivals.DefaultArrivalsRepository
 import org.onebusaway.android.ui.home.DefaultNavItemsRepository
-import org.onebusaway.android.ui.home.DefaultRegionStatusRepository
 import org.onebusaway.android.ui.home.DefaultStartupPreferencesRepository
 import org.onebusaway.android.ui.home.DefaultWeatherRepository
 import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
 import org.onebusaway.android.ui.home.NavItemsRepository
-import org.onebusaway.android.ui.home.RegionStatusRepository
 import org.onebusaway.android.ui.home.StartupPreferencesRepository
 import org.onebusaway.android.ui.home.WeatherRepository
 import org.onebusaway.android.ui.home.WideAlertsRepository
@@ -142,9 +140,6 @@ abstract class RepositoryModule {
     abstract fun bindStartupPreferencesRepository(
         impl: DefaultStartupPreferencesRepository
     ): StartupPreferencesRepository
-
-    @Binds
-    abstract fun bindRegionStatusRepository(impl: DefaultRegionStatusRepository): RegionStatusRepository
 
     // Campaign A (A0b): the region-activation transaction seam, injected by RegionRepository in A1.
     @Binds

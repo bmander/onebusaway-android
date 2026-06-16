@@ -34,6 +34,9 @@ interface RegionActivator {
 
     /** Applies [region] (or null for a custom API URL) as the active region; mirrors `regionChanged`. */
     fun activate(region: ObaRegion?, regionChanged: Boolean)
+
+    /** The currently-active region (the OBA context's), for seeding the repository's state at startup. */
+    fun currentRegion(): ObaRegion?
 }
 
 /**
@@ -45,4 +48,6 @@ class DefaultRegionActivator @Inject constructor() : RegionActivator {
     override fun activate(region: ObaRegion?, regionChanged: Boolean) {
         Application.get().applyRegionTransaction(region, regionChanged)
     }
+
+    override fun currentRegion(): ObaRegion? = Application.get().currentRegion
 }

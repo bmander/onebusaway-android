@@ -21,11 +21,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.io.elements.ObaRegionElement
+import org.onebusaway.android.region.REGION_UPDATE_THRESHOLD_MS
+import org.onebusaway.android.region.RegionStatus
+import org.onebusaway.android.region.resolveRegionStatus
+import org.onebusaway.android.region.shouldForceReload
 
 /**
  * Unit tests for the pure region-status decision functions extracted from
  * `HomeActivity.checkRegionStatus()` and `ObaRegionsTask.onPostExecute`. The blocking IO wrapper
- * ([DefaultRegionStatusRepository]) is exercised at the ViewModel layer (P8); here we cover the
+ * (`DefaultRegionRepository.refresh`) is exercised at the ViewModel layer (P8); here we cover the
  * branch logic that the legacy code never had a seam to test.
  */
 class RegionStatusTest {

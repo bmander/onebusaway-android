@@ -21,51 +21,82 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.region.DefaultRegionRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.region.RegionState
+import org.onebusaway.android.region.RegionStateHolder
+import org.onebusaway.android.region.RegionStatus
 
-/** A controllable [RegionRepository] for ViewModel tests; shared across the package (see `region(id)`). */
+/**
+ * A controllable [RegionRepository] for ViewModel tests; shared across the package (see `region(id)`).
+ * It drives both the observable [region]/[state] flows and the resolve action ([refresh]/[choose]) —
+ * folding in the former `FakeRegionStatusRepository` now that resolution lives in the repository.
+ */
 internal class FakeRegionRepository(initial: ObaRegion? = null) : RegionRepository {
     private val _region = MutableStateFlow(initial)
     override val region: StateFlow<ObaRegion?> = _region
     private val _state = MutableStateFlow<RegionState>(RegionState.Active(initial))
     override val state: StateFlow<RegionState> = _state
+
+    /** The outcome [refresh] returns; set per test (default mirrors a no-op refresh). */
+    var refreshResult: RegionStatus = RegionStatus.Unchanged
+    var refreshCount = 0
+    val chosen = mutableListOf<ObaRegion>()
+
+    override suspend fun refresh(): RegionStatus { refreshCount++; return refreshResult }
+    override suspend fun choose(region: ObaRegion) { chosen.add(region); emit(region) }
+    override fun syncActivated(region: ObaRegion?) = emit(region)
+
     fun emit(region: ObaRegion?) { _region.value = region; _state.value = RegionState.Active(region) }
     /** Drives the richer [state] flow directly (Resolving / NeedsManualChoice / Failed). */
     fun emitState(state: RegionState) { _state.value = state }
 }
 
-/** Unit tests for [DefaultRegionRepository] — the observable current-region holder. */
-class RegionRepositoryTest {
+/** Unit tests for [RegionStateHolder] — the observable region-state holder the repository exposes. */
+class RegionStateHolderTest {
 
     @Test
-    fun `the seed region is the initial value`() {
+    fun `the seed region is the initial value and Active`() {
         // ObaRegion equality is id-based, so region(1) matches the seeded region(1).
-        assertEquals(region(1), DefaultRegionRepository(region(1)).region.value)
+        val holder = RegionStateHolder(region(1))
+        assertEquals(region(1), holder.region.value)
+        assertEquals(RegionState.Active(region(1)), holder.state.value)
     }
 
     @Test
-    fun `a null seed yields a null initial value`() {
-        assertNull(DefaultRegionRepository(null).region.value)
+    fun `a null seed yields a null Active`() {
+        val holder = RegionStateHolder(null)
+        assertNull(holder.region.value)
+        assertEquals(RegionState.Active(null), holder.state.value)
     }
 
     @Test
-    fun `publish updates the observable region, including back to null`() {
-        val repo = DefaultRegionRepository(region(1))
-        repo.publish(region(2))
-        assertEquals(region(2), repo.region.value)
-        repo.publish(null)
-        assertNull(repo.region.value)
+    fun `activated updates region and state, including back to null`() {
+        val holder = RegionStateHolder(region(1))
+        holder.activated(region(2))
+        assertEquals(region(2), holder.region.value)
+        assertEquals(RegionState.Active(region(2)), holder.state.value)
+        holder.activated(null)
+        assertNull(holder.region.value)
+        assertEquals(RegionState.Active(null), holder.state.value)
     }
 
     @Test
-    fun `state mirrors the region as Active, including the seed and back to null`() {
-        val repo = DefaultRegionRepository(region(1))
-        assertEquals(RegionState.Active(region(1)), repo.state.value)
-        repo.publish(region(2))
-        assertEquals(RegionState.Active(region(2)), repo.state.value)
-        repo.publish(null)
-        assertEquals(RegionState.Active(null), repo.state.value)
+    fun `resolving and failed change state but keep the last region`() {
+        val holder = RegionStateHolder(region(1))
+        holder.resolving()
+        assertEquals(region(1), holder.region.value)
+        assertEquals(RegionState.Resolving, holder.state.value)
+        holder.failed()
+        assertEquals(region(1), holder.region.value)
+        assertEquals(RegionState.Failed, holder.state.value)
+    }
+
+    @Test
+    fun `needsChoice carries the regions and keeps the last region`() {
+        val holder = RegionStateHolder(null)
+        val regions = listOf(region(1), region(2))
+        holder.needsChoice(regions)
+        assertNull(holder.region.value)
+        assertEquals(RegionState.NeedsManualChoice(regions), holder.state.value)
     }
 }

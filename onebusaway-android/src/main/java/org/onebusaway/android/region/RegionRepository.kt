@@ -17,6 +17,9 @@ package org.onebusaway.android.region
 
 import android.content.Context
 import android.content.pm.PackageManager
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
@@ -95,11 +98,14 @@ private const val CHECK_REGION_VER = "checkRegionVer"
  * Default implementation. The observable state lives in a [RegionStateHolder] (so its transitions stay
  * JVM-testable); resolution ([refresh]) is the `Context`-coupled IO ported from
  * `DefaultRegionStatusRepository.refreshRegions`, calling [RegionActivator] (not
- * `Application.setCurrentRegion`) to apply the model writes. Still constructed by `Application` with its
- * collaborators passed in (A1); it becomes a Hilt `@Singleton` in A2.
+ * `Application.setCurrentRegion`) to apply the model writes. A Hilt `@Singleton` (A2): constructed
+ * lazily on first injection — which is after `Application.onCreate` finishes, so the eager seed below
+ * reads the region `initObaRegion` already loaded (no `@Singleton` injects this during onCreate). The
+ * legacy writers reach it through `RegionEntryPoint` to [syncActivated] their state.
  */
-class DefaultRegionRepository(
-    private val context: Context,
+@Singleton
+class DefaultRegionRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val activator: RegionActivator,
     private val prefs: PreferencesRepository,
 ) : RegionRepository {

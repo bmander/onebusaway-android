@@ -24,24 +24,18 @@ import javax.inject.Singleton
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.donations.DonationsManager
 import org.onebusaway.android.location.LocationRepository
-import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.TimeProvider
 
 /**
- * Provides the process-wide singletons that today live on [Application] (the de-facto DI container), so
+ * Provides the process-wide singletons that still live on [Application] (the de-facto DI container), so
  * Hilt-managed code can inject them instead of reaching `Application.getX()` statically. During the
- * transition they're sourced from the existing [Application] instances — Application stays the single
- * owner/writer (notably [RegionRepository], whose single write chokepoint Campaign A established, so this
- * must return Application's instance, never a new one). More singletons get added here as converted
- * consumers need them.
+ * transition they're sourced from the existing [Application] instances. (RegionRepository graduated to a
+ * real Hilt `@Singleton` in Campaign A's A2 — it's bound in `RepositoryModule`, not here.) More
+ * singletons get added here as converted consumers need them.
  */
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-
-    @Provides
-    @Singleton
-    fun provideRegionRepository(): RegionRepository = Application.getRegionRepository()
 
     @Provides
     @Singleton

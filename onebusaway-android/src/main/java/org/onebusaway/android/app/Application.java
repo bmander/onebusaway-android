@@ -50,10 +50,7 @@ import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.location.DefaultLocationRepository;
 import org.onebusaway.android.location.LocationRepository;
-import org.onebusaway.android.preferences.DefaultPreferencesRepository;
-import org.onebusaway.android.region.DefaultRegionActivator;
-import org.onebusaway.android.region.DefaultRegionRepository;
-import org.onebusaway.android.region.RegionRepository;
+import org.onebusaway.android.app.di.RegionEntryPoint;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.BuildFlavorUtils;
 import org.onebusaway.android.util.LocationUtils;
@@ -94,8 +91,6 @@ public class Application extends android.app.Application {
 
     private GtfsAlerts mGtfsAlerts;
 
-    private DefaultRegionRepository mRegionRepository;
-
     private DefaultLocationRepository mLocationRepository;
 
     private static Application mApp;
@@ -126,12 +121,10 @@ public class Application extends android.app.Application {
 
         initOba();
         initObaRegion();
-        // The observable region repository now also owns region resolution (Campaign A, A1); it's
-        // seeded (via the activator) from the region just loaded by initObaRegion, before any view model
-        // can collect it. Still Application-constructed with its collaborators passed in until A2 flips
-        // it to a Hilt @Singleton. All later writes sync via setCurrentRegion / refresh / choose.
-        mRegionRepository = new DefaultRegionRepository(
-                this, new DefaultRegionActivator(), new DefaultPreferencesRepository(this, mPrefs));
+        // The region repository (which owns region state + resolution) is now a Hilt @Singleton
+        // (Campaign A, A2), constructed lazily on first injection after onCreate — it seeds itself from
+        // the region initObaRegion just loaded. The legacy setCurrentRegion writers sync it via the
+        // RegionEntryPoint. So nothing to construct here.
         // The observable last-known location starts empty; it's published from setLastKnownLocation
         // (listener updates) and getLastKnownLocation's lazy poll.
         mLocationRepository = new DefaultLocationRepository(mLastKnownLocation);
@@ -180,10 +173,6 @@ public class Application extends android.app.Application {
         return get().mGtfsAlerts;
     }
 
-    /** The observable current region (reactive replacement for static currentRegion reads). */
-    public static RegionRepository getRegionRepository() {
-        return get().mRegionRepository;
-    }
 
     /** The observable last-known location (reactive companion to getLastKnownLocation). */
     public static LocationRepository getLocationRepository() {
@@ -350,12 +339,10 @@ public class Application extends android.app.Application {
 
     public synchronized void setCurrentRegion(ObaRegion region, boolean regionChanged) {
         applyRegionTransaction(region, regionChanged);
-        // Sync the observable region state (the single write choke point — covers the legacy
-        // ObaRegionsTask / ExperimentalRegionsPreference writers; the repository's own refresh/choose
-        // update it directly). Null-guarded for any write before the repo is constructed.
-        if (mRegionRepository != null) {
-            mRegionRepository.syncActivated(region);
-        }
+        // Sync the observable region state (covers the legacy ObaRegionsTask / ExperimentalRegionsPreference
+        // writers; the repository's own refresh/choose update it directly). The repository is a Hilt
+        // @Singleton now, reached via its EntryPoint. setCurrentRegion is only called post-onCreate.
+        RegionEntryPoint.get(this).syncActivated(region);
     }
 
     /**

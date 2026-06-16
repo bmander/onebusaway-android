@@ -19,6 +19,7 @@ import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
 import org.onebusaway.android.map.DefaultRouteMapRepository
 import org.onebusaway.android.map.DefaultStopsRepository
 import org.onebusaway.android.map.RouteMapRepository
@@ -38,7 +39,9 @@ import org.onebusaway.android.ui.home.StartupPreferencesRepository
 import org.onebusaway.android.ui.home.WeatherRepository
 import org.onebusaway.android.ui.home.WideAlertsRepository
 import org.onebusaway.android.region.DefaultRegionActivator
+import org.onebusaway.android.region.DefaultRegionRepository
 import org.onebusaway.android.region.RegionActivator
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.ui.regions.DefaultRegionsRepository
 import org.onebusaway.android.ui.regions.RegionsRepository
 import org.onebusaway.android.ui.report.customerservice.CustomerServiceRepository
@@ -141,9 +144,15 @@ abstract class RepositoryModule {
         impl: DefaultStartupPreferencesRepository
     ): StartupPreferencesRepository
 
-    // Campaign A (A0b): the region-activation transaction seam, injected by RegionRepository in A1.
+    // Campaign A (A0b): the region-activation transaction seam, injected by RegionRepository.
     @Binds
     abstract fun bindRegionActivator(impl: DefaultRegionActivator): RegionActivator
+
+    // Campaign A (A2): the region repository is a real Hilt @Singleton — the one process-wide instance
+    // that owns region state + resolution. (Was sourced from Application via an AppModule bridge.)
+    @Binds
+    @Singleton
+    abstract fun bindRegionRepository(impl: DefaultRegionRepository): RegionRepository
 
     // Arrivals: unscoped on purpose — DefaultArrivalsRepository is stateful (lastGood) and 1:1 with its
     // (assisted) ArrivalsViewModel, so each VM gets its own. Do NOT make this @Singleton.

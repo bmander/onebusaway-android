@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
+import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.preferences.PreferencesRepository
@@ -55,8 +56,8 @@ interface RegionRepository {
 
     /**
      * Resolves the current region (Regions REST API + closest-match auto-select), applies the result via
-     * `RegionActivator`, updates [state]/[region], and returns the one-shot [RegionStatus] outcome for
-     * the caller's effects (toast, picker, analytics). Replaces `RegionStatusRepository.refreshRegions`.
+     * [applyRegion], updates [state]/[region], and returns the one-shot [RegionStatus] outcome for the
+     * caller's effects (toast, picker, analytics). Replaces `RegionStatusRepository.refreshRegions`.
      */
     suspend fun refresh(): RegionStatus
 
@@ -71,12 +72,13 @@ interface RegionRepository {
     fun clear()
 
     /**
-     * Syncs the observable state after a region write that bypassed [refresh]/[choose] — now only the
-     * instrumented-test seam `Application.setCurrentRegion` (production writers all route through
-     * [refresh]/[choose]/[clear] as of A4). It does not run the activation transaction (the caller
-     * already did); it only updates the flows.
+     * Applies [region] as the active region directly — the canonical region write (A7): the OBA API
+     * context region, the persisted region-id pref, the custom-URL clears, and the state publish. This
+     * is what [refresh]/[choose]/[clear] use internally; it is also the seam the instrumented-test writer
+     * `Application.setCurrentRegion` calls. The region-*derived* subsystems (Plausible, Open311) react to
+     * the published [region] flow rather than being written here.
      */
-    fun syncActivated(region: ObaRegion?)
+    fun applyRegion(region: ObaRegion?, regionChanged: Boolean)
 }
 
 /**
@@ -104,27 +106,40 @@ private const val CHECK_REGION_VER = "checkRegionVer"
 /**
  * Default implementation. The observable state lives in a [RegionStateHolder] (so its transitions stay
  * JVM-testable); resolution ([refresh]) is the `Context`-coupled IO ported from
- * `DefaultRegionStatusRepository.refreshRegions`, calling [RegionActivator] (not
- * `Application.setCurrentRegion`) to apply the model writes. A Hilt `@Singleton` (A2): constructed
- * lazily on first injection — which is after `Application.onCreate` finishes, so the eager seed below
- * reads the region `initObaRegion` already loaded (no `@Singleton` injects this during onCreate). The
- * legacy writers reach it through `RegionEntryPoint` to [syncActivated] their state.
+ * `DefaultRegionStatusRepository.refreshRegions`. As of A7 the repo owns the canonical region *write*
+ * ([applyRegion]) directly — the OBA API context region + the region prefs — instead of delegating to
+ * `Application.applyRegionTransaction`; the region-derived subsystems (Plausible, Open311) observe the
+ * [region] flow. A Hilt `@Singleton` (A2) seeded from the OBA context region `initObaRegion` already
+ * loaded. The instrumented-test writer reaches it through `RegionEntryPoint` to [applyRegion].
  */
 @Singleton
 class DefaultRegionRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val activator: RegionActivator,
     private val prefs: PreferencesRepository,
     private val locationRepository: LocationRepository,
 ) : RegionRepository {
 
-    private val holder = RegionStateHolder(activator.currentRegion())
+    private val holder = RegionStateHolder(ObaApi.getDefaultContext().region)
 
     override val region: StateFlow<ObaRegion?> get() = holder.region
 
     override val state: StateFlow<RegionState> get() = holder.state
 
-    override fun syncActivated(region: ObaRegion?) = holder.activated(region)
+    override fun applyRegion(region: ObaRegion?, regionChanged: Boolean) {
+        // The canonical region write: the OBA API context region every request URL-builder reads, the
+        // persisted region-id pref, and (when a region is set) the custom-URL clears. The region-derived
+        // subsystems (Plausible rebuild, Open311 re-init) react to the published flow, not here.
+        ObaApi.getDefaultContext().setRegion(region)
+        prefs.setLong(R.string.preference_key_region, region?.id ?: -1L)
+        if (region != null) {
+            prefs.setString(R.string.preference_key_oba_api_url, null) // using a region → clear custom OBA URL
+            if (regionChanged && region.otpBaseUrl != null) {
+                prefs.setString(R.string.preference_key_otp_api_url, null)
+                prefs.setBoolean(R.string.preference_key_otp_api_url_version, false)
+            }
+        }
+        holder.activated(region)
+    }
 
     override suspend fun refresh(): RegionStatus = withContext(Dispatchers.IO) {
         holder.resolving()
@@ -139,14 +154,13 @@ class DefaultRegionRepository @Inject constructor(
         if (BuildConfig.USE_FIXED_REGION) {
             val region = RegionUtils.getRegionFromBuildFlavor()
             RegionUtils.saveToProvider(context, listOf(region))
-            activator.activate(region, true)
-            holder.activated(region)
+            applyRegion(region, true)
             prefs.setBoolean(R.string.preference_key_auto_select_region, false)
             return@withContext RegionStatus.Fixed(region)
         }
 
         // Force a server reload when we have no region, the cache has expired, or the app updated.
-        val current = activator.currentRegion()
+        val current = ObaApi.getDefaultContext().region
         val newVer = appVersionCode()
         val force = shouldForceReload(
             hasRegion = current != null,
@@ -173,15 +187,13 @@ class DefaultRegionRepository @Inject constructor(
 
         when (val status = resolveRegionStatus(current, closest, autoSelect)) {
             is RegionStatus.Changed -> {
-                activator.activate(status.region, true)
-                holder.activated(status.region)
+                applyRegion(status.region, true)
                 status
             }
             // Same region as before: refresh its contents silently (auto-select only).
             RegionStatus.Unchanged -> {
                 if (autoSelect && closest != null) {
-                    activator.activate(closest, false)
-                    holder.activated(closest)
+                    applyRegion(closest, false)
                 } else {
                     holder.activated(current) // clear the transient Resolving; region is unchanged
                 }
@@ -198,13 +210,11 @@ class DefaultRegionRepository @Inject constructor(
     }
 
     override suspend fun choose(region: ObaRegion) = withContext(Dispatchers.IO) {
-        activator.activate(region, true)
-        holder.activated(region)
+        applyRegion(region, true)
     }
 
     override fun clear() {
-        activator.activate(null, true)
-        holder.activated(null)
+        applyRegion(null, true)
     }
 
     @Suppress("DEPRECATION")

@@ -45,6 +45,7 @@ import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.app.di.LocationEntryPoint;
 import org.onebusaway.android.app.di.RegionEntryPoint;
+import org.onebusaway.android.region.RegionSubsystems;
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.BuildFlavorUtils;
 import org.onebusaway.android.util.LocationUtils;
@@ -108,7 +109,11 @@ public class Application extends android.app.Application {
         // empty and fills from setLastKnownLocation (listener updates) / its lazy provider poll. The
         // legacy setCurrentRegion / setLastKnownLocation writers reach them via their EntryPoints. So
         // nothing to construct here.
-        initOpen311(getCurrentRegion());
+        // The region-derived subsystems (Plausible, Open311) now observe the region flow (A7) — this
+        // performs their initial init (the StateFlow replays its seeded region) and re-inits on change,
+        // replacing the former explicit initOpen311(getCurrentRegion()) call. Started after initObaRegion
+        // so the repo seeds from the region just loaded.
+        RegionSubsystems.observe(this);
 
         reportAnalytics();
 
@@ -238,45 +243,26 @@ public class Application extends android.app.Application {
      * Sets the current region directly. As of Campaign A (A4) the production region writers all route
      * through {@code RegionRepository} ({@code refresh}/{@code choose}/{@code clear}); this remains only
      * as the instrumented-test seam (the io/* request tests that pin a known region synchronously). It
-     * runs the activation transaction and then syncs the observable region state via the repository.
+     * delegates the canonical region write to {@code RegionRepository.applyRegion} (A7).
      */
     public synchronized void setCurrentRegion(ObaRegion region) {
         setCurrentRegion(region, true);
     }
 
     public synchronized void setCurrentRegion(ObaRegion region, boolean regionChanged) {
-        applyRegionTransaction(region, regionChanged);
-        RegionEntryPoint.get(this).syncActivated(region);
+        // The canonical region write lives in RegionRepository as of A7; the region-derived subsystems
+        // (Plausible, Open311) re-init reactively via RegionSubsystems observing the published flow.
+        RegionEntryPoint.get(this).applyRegion(region, regionChanged);
     }
 
     /**
-     * The region "activation" side effects — the OBA API context region write, the persisted region-id
-     * preference, the custom-URL / OTP clears, the Plausible rebuild, and the Open311 re-init — i.e.
-     * everything {@link #setCurrentRegion} does <em>except</em> publishing the observable region state.
-     * Extracted (Campaign A, A0b) behind the {@link org.onebusaway.android.region.RegionActivator} seam
-     * so region resolution can move into {@code RegionRepository} and drive this transaction without
-     * depending on {@code setCurrentRegion}. Only {@code DefaultRegionActivator} and
-     * {@link #setCurrentRegion} call it.
+     * Re-initializes the region-*derived* subsystems — the Plausible analytics instance and the Open311
+     * reporting endpoints — for [region]. Driven reactively by
+     * {@link org.onebusaway.android.region.RegionSubsystems}, which observes the region flow (A7), rather
+     * than poked imperatively by a region write transaction.
      */
-    public synchronized void applyRegionTransaction(ObaRegion region, boolean regionChanged) {
-        if (region != null) {
-            // First set it in preferences, then set it in OBA.
-            ObaApi.getDefaultContext().setRegion(region);
-            PreferenceUtils
-                    .saveLong(mPrefs, getString(R.string.preference_key_region), region.getId());
-            //We're using a region, so clear the custom API URL preference
-            setCustomApiUrl(null);
-            if (regionChanged && region.getOtpBaseUrl() != null) {
-                setCustomOtpApiUrl(null);
-                setUseOldOtpApiUrlVersion(false);
-                buildPlausibleInstance(region);
-            }
-        } else {
-            //User must have just entered a custom API URL via Preferences, so clear the region info
-            ObaApi.getDefaultContext().setRegion(null);
-            PreferenceUtils.saveLong(mPrefs, getString(R.string.preference_key_region), -1);
-        }
-        // Init the reporting with the new endpoints
+    public void onRegionChanged(ObaRegion region) {
+        buildPlausibleInstance(region);
         initOpen311(region);
     }
 

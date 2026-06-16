@@ -40,9 +40,7 @@ import org.onebusaway.android.ui.home.WeatherRepository
 import org.onebusaway.android.ui.home.WideAlertsRepository
 import org.onebusaway.android.location.DefaultLocationRepository
 import org.onebusaway.android.location.LocationRepository
-import org.onebusaway.android.region.DefaultRegionActivator
 import org.onebusaway.android.region.DefaultRegionRepository
-import org.onebusaway.android.region.RegionActivator
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.ui.regions.DefaultRegionsRepository
 import org.onebusaway.android.ui.regions.RegionsRepository
@@ -146,12 +144,9 @@ abstract class RepositoryModule {
         impl: DefaultStartupPreferencesRepository
     ): StartupPreferencesRepository
 
-    // Campaign A (A0b): the region-activation transaction seam, injected by RegionRepository.
-    @Binds
-    abstract fun bindRegionActivator(impl: DefaultRegionActivator): RegionActivator
-
     // Campaign A (A2): the region repository is a real Hilt @Singleton — the one process-wide instance
-    // that owns region state + resolution. (Was sourced from Application via an AppModule bridge.)
+    // that owns region state + resolution + the canonical region write (A7). (Was sourced from
+    // Application via an AppModule bridge.)
     @Binds
     @Singleton
     abstract fun bindRegionRepository(impl: DefaultRegionRepository): RegionRepository

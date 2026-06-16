@@ -29,16 +29,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.onebusaway.android.util.LocationHelper
@@ -162,11 +163,7 @@ class DefaultLocationRepository @Inject constructor(
     override fun startUpdates() {
         if (mapHoldActive) return
         mapHoldActive = true
-        // Seed from the cached fix so observers + the .value read see a value before the first live
-        // callback (mirrors the legacy host's cold-start seed from getLastKnownLocation).
-        if (_location.value == null) {
-            lastKnownLocation()
-        }
+        ensureSeeded()
         demand.update { it + MAP_UPDATE_INTERVAL_SECONDS }
     }
 
@@ -177,15 +174,24 @@ class DefaultLocationRepository @Inject constructor(
         demand.update { it - MAP_UPDATE_INTERVAL_SECONDS } // removes one occurrence
     }
 
-    override fun locationUpdates(intervalSeconds: Int): Flow<Location> = callbackFlow {
+    override fun locationUpdates(intervalSeconds: Int): Flow<Location> =
+        location.filterNotNull()
+            .onStart {
+                ensureSeeded()
+                demand.update { it + intervalSeconds }
+            }
+            .onCompletion {
+                demand.update { it - intervalSeconds } // removes one occurrence (also on cancellation)
+            }
+
+    /**
+     * Seeds [_location] from the cached fix (the lazy [lastKnownLocation] poll) the first time a
+     * consumer arrives, so observers + the `.value` read see a value before the first live callback
+     * (mirrors the legacy host's cold-start seed).
+     */
+    private fun ensureSeeded() {
         if (_location.value == null) {
-            lastKnownLocation() // seed
-        }
-        demand.update { it + intervalSeconds }
-        val job = launch { location.collect { loc -> loc?.let { trySend(it) } } }
-        awaitClose {
-            demand.update { it - intervalSeconds } // removes one occurrence
-            job.cancel()
+            lastKnownLocation()
         }
     }
 

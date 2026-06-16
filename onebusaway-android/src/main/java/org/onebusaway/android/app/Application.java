@@ -344,6 +344,24 @@ public class Application extends android.app.Application {
     }
 
     public synchronized void setCurrentRegion(ObaRegion region, boolean regionChanged) {
+        applyRegionTransaction(region, regionChanged);
+        // Publish to the observable region (the single write choke point — covers modern, manual-pick,
+        // and legacy ObaRegionsTask writers). Null-guarded for any write before the repo is constructed.
+        if (mRegionRepository != null) {
+            mRegionRepository.publish(region);
+        }
+    }
+
+    /**
+     * The region "activation" side effects — the OBA API context region write, the persisted region-id
+     * preference, the custom-URL / OTP clears, the Plausible rebuild, and the Open311 re-init — i.e.
+     * everything {@link #setCurrentRegion} does <em>except</em> publishing the observable region state.
+     * Extracted (Campaign A, A0b) behind the {@link org.onebusaway.android.region.RegionActivator} seam
+     * so region resolution can move into {@code RegionRepository} and drive this transaction without
+     * depending on {@code setCurrentRegion}. Only {@code DefaultRegionActivator} and
+     * {@link #setCurrentRegion} call it.
+     */
+    public synchronized void applyRegionTransaction(ObaRegion region, boolean regionChanged) {
         if (region != null) {
             // First set it in preferences, then set it in OBA.
             ObaApi.getDefaultContext().setRegion(region);
@@ -363,11 +381,6 @@ public class Application extends android.app.Application {
         }
         // Init the reporting with the new endpoints
         initOpen311(region);
-        // Publish to the observable region (the single write choke point — covers modern, manual-pick,
-        // and legacy ObaRegionsTask writers). Null-guarded for any write before the repo is constructed.
-        if (mRegionRepository != null) {
-            mRegionRepository.publish(region);
-        }
     }
 
     /**

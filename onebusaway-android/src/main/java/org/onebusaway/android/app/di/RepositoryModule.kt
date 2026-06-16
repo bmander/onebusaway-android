@@ -39,6 +39,8 @@ import org.onebusaway.android.ui.home.RegionStatusRepository
 import org.onebusaway.android.ui.home.StartupPreferencesRepository
 import org.onebusaway.android.ui.home.WeatherRepository
 import org.onebusaway.android.ui.home.WideAlertsRepository
+import org.onebusaway.android.region.DefaultRegionActivator
+import org.onebusaway.android.region.RegionActivator
 import org.onebusaway.android.ui.regions.DefaultRegionsRepository
 import org.onebusaway.android.ui.regions.RegionsRepository
 import org.onebusaway.android.ui.report.customerservice.CustomerServiceRepository
@@ -143,6 +145,10 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindRegionStatusRepository(impl: DefaultRegionStatusRepository): RegionStatusRepository
+
+    // Campaign A (A0b): the region-activation transaction seam, injected by RegionRepository in A1.
+    @Binds
+    abstract fun bindRegionActivator(impl: DefaultRegionActivator): RegionActivator
 
     // Arrivals: unscoped on purpose — DefaultArrivalsRepository is stateful (lastGood) and 1:1 with its
     // (assisted) ArrivalsViewModel, so each VM gets its own. Do NOT make this @Singleton.

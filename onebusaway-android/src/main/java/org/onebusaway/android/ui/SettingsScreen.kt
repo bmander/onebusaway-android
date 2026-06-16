@@ -247,10 +247,11 @@ fun SettingsScreen(
                     checked = state.showZoomControls,
                     onCheckedChange = actions.onShowZoomControls,
                 )
+                val mapOptions = stringArrayResource(R.array.preferred_map_options).toList()
                 ListPreferenceItem(
                     title = stringResource(R.string.preferences_preferred_maps_title),
-                    entries = stringArrayResource(R.array.preferred_map_options).toList(),
-                    entryValues = stringArrayResource(R.array.preferred_map_options).toList(),
+                    entries = mapOptions,
+                    entryValues = mapOptions,
                     selectedValue = state.mapMode,
                     onValueSelected = actions.onMapMode,
                 )
@@ -284,24 +285,27 @@ fun SettingsScreen(
                     checked = state.showHeaderArrivals,
                     onCheckedChange = actions.onShowHeaderArrivals,
                 )
+                val unitOptions = stringArrayResource(R.array.preferred_units_options).toList()
                 ListPreferenceItem(
                     title = stringResource(R.string.preferences_preferred_units_title),
-                    entries = stringArrayResource(R.array.preferred_units_options).toList(),
-                    entryValues = stringArrayResource(R.array.preferred_units_options).toList(),
+                    entries = unitOptions,
+                    entryValues = unitOptions,
                     selectedValue = state.preferredUnits,
                     onValueSelected = actions.onPreferredUnits,
                 )
+                val tempUnitOptions = stringArrayResource(R.array.preferred_temp_unit_options).toList()
                 ListPreferenceItem(
                     title = stringResource(R.string.preferred_temperature_unit),
-                    entries = stringArrayResource(R.array.preferred_temp_unit_options).toList(),
-                    entryValues = stringArrayResource(R.array.preferred_temp_unit_options).toList(),
+                    entries = tempUnitOptions,
+                    entryValues = tempUnitOptions,
                     selectedValue = state.preferredTempUnits,
                     onValueSelected = actions.onPreferredTempUnits,
                 )
+                val themeOptions = stringArrayResource(R.array.app_theme_options).toList()
                 ListPreferenceItem(
                     title = stringResource(R.string.preferences_app_theme_title),
-                    entries = stringArrayResource(R.array.app_theme_options).toList(),
-                    entryValues = stringArrayResource(R.array.app_theme_options).toList(),
+                    entries = themeOptions,
+                    entryValues = themeOptions,
                     selectedValue = state.appTheme,
                     onValueSelected = actions.onAppTheme,
                 )

@@ -16,10 +16,8 @@
 package org.onebusaway.android.ui.settings
 
 import android.content.Context
-import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.analytics.FirebaseAnalytics
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -33,8 +31,6 @@ import kotlinx.coroutines.channels.Channel
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.io.ObaAnalytics
-import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
@@ -65,8 +61,6 @@ class AdvancedSettingsViewModel @Inject constructor(
     private val prefs: PreferencesRepository,
     private val regionRepository: RegionRepository,
 ) : ViewModel() {
-
-    private val firebaseAnalytics: FirebaseAnalytics by lazy { FirebaseAnalytics.getInstance(context) }
 
     init {
         // The old fragment reset this on every (re)display of the advanced screen.
@@ -111,7 +105,8 @@ class AdvancedSettingsViewModel @Inject constructor(
     fun setExperimentalRegions(enabled: Boolean, regionWasExperimental: Boolean) {
         if (!enabled && regionWasExperimental) regionRepository.clear()
         prefs.setBoolean(R.string.preference_key_experimental_regions, enabled)
-        reportPrefEvent(
+        reportPreferencesEvent(
+            context,
             if (enabled) R.string.analytics_label_button_press_experimental_on
             else R.string.analytics_label_button_press_experimental_off
         )
@@ -155,15 +150,5 @@ class AdvancedSettingsViewModel @Inject constructor(
     fun onResetDonationTimestamps() {
         Application.getDonationsManager().setDonationRequestReminderDate(null)
         Application.getDonationsManager().setDonationRequestDismissedDate(null)
-    }
-
-    private fun reportPrefEvent(@StringRes labelRes: Int) {
-        ObaAnalytics.reportUiEvent(
-            firebaseAnalytics,
-            Application.get().plausibleInstance,
-            PlausibleAnalytics.REPORT_PREFERENCES_EVENT_URL,
-            context.getString(labelRes),
-            null,
-        )
     }
 }

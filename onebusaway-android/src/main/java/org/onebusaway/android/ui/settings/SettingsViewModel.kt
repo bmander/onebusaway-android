@@ -17,7 +17,6 @@ package org.onebusaway.android.ui.settings
 
 import android.content.Context
 import android.os.Build
-import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -35,9 +34,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
-import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
@@ -130,7 +127,8 @@ class SettingsViewModel @Inject constructor(
 
     fun onAutoSelectRegionChanged(value: Boolean) {
         prefs.setBoolean(R.string.preference_key_auto_select_region, value)
-        reportPrefEvent(
+        reportPreferencesEvent(
+            context,
             if (value) R.string.analytics_label_button_press_auto
             else R.string.analytics_label_button_press_manual
         )
@@ -211,24 +209,15 @@ class SettingsViewModel @Inject constructor(
         prefs.setString(R.string.preference_key_notification_sound, value)
 
     fun onTutorialClicked() {
-        reportPrefEvent(R.string.analytics_label_button_press_tutorial)
+        reportPreferencesEvent(context, R.string.analytics_label_button_press_tutorial)
         ShowcaseViewUtils.resetAllTutorials(context)
         _effects.trySend(SettingsEffect.GoHomeResetTutorial)
     }
 
-    fun onPoweredByObaClicked() = reportPrefEvent(R.string.analytics_label_button_press_powered_by_oba)
+    fun onPoweredByObaClicked() =
+        reportPreferencesEvent(context, R.string.analytics_label_button_press_powered_by_oba)
 
-    fun onAboutClicked() = reportPrefEvent(R.string.analytics_label_button_press_about)
+    fun onAboutClicked() = reportPreferencesEvent(context, R.string.analytics_label_button_press_about)
 
     // endregion
-
-    private fun reportPrefEvent(@StringRes labelRes: Int) {
-        ObaAnalytics.reportUiEvent(
-            firebaseAnalytics,
-            Application.get().plausibleInstance,
-            PlausibleAnalytics.REPORT_PREFERENCES_EVENT_URL,
-            context.getString(labelRes),
-            null,
-        )
-    }
 }

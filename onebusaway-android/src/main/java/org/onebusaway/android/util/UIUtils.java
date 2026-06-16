@@ -152,16 +152,6 @@ public final class UIUtils {
             bar.setDisplayHomeAsUpEnabled(true);
         }
 
-        // Toolbar inset listener - pass through insets (don't consume) so content receives them
-        View toolbar = activity.findViewById(R.id.toolbar);
-        if (toolbar != null) {
-            ViewCompat.setOnApplyWindowInsetsListener(toolbar, (v, windowInsets) -> {
-                Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.statusBars());
-                v.setPadding(v.getPaddingLeft(), insets.top, v.getPaddingRight(), v.getPaddingBottom());
-                return windowInsets;
-            });
-        }
-
         setStatusBarColor(activity, ContextCompat.getColor(activity, R.color.md_theme_surfaceContainer), true);
 
         View contentView = activity.findViewById(android.R.id.content);

@@ -25,9 +25,22 @@ import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import org.onebusaway.android.util.LocationHelper
 import org.onebusaway.android.util.LocationUtils
 
@@ -35,21 +48,20 @@ import org.onebusaway.android.util.LocationUtils
  * The observable last-known device location, and (Campaign A, B1) the owner of location *production* —
  * the reactive replacement for the static `Application.getLastKnownLocation()`, mirroring
  * [org.onebusaway.android.region.RegionRepository]. Features read the current value
- * ([lastKnownLocation]) or observe changes by collecting [location].
+ * ([lastKnownLocation]) or observe changes by collecting [location] / [locationUpdates].
  *
- * This repository is the single source of truth: the value lives in its [StateFlow], not on
- * `Application`. The Android location listener funnels updates in through [update]; one-shot readers
- * call [lastKnownLocation], which lazily polls the providers on first access (the old
- * `getLastKnownLocation` side effect). One process-singleton instance is shared via Hilt; tests
- * substitute a fake.
+ * This repository is the single source of truth AND the single producer: it owns one device feed for
+ * the whole app (the map's keep-alive + `NavigationService`'s 1 s nav updates share it), so there is a
+ * single set of OS location registrations. The value lives in its [StateFlow], not on `Application`.
+ * One process-singleton instance is shared via Hilt; tests substitute a fake.
  */
 interface LocationRepository {
 
     /**
-     * The last-known location, or null until one is established. **Live** while [startUpdates] is active
-     * (the foreground map drives it) and seeded on start, so observers see real movement; otherwise it
-     * holds whatever the last live feed or [lastKnownLocation] poll established. One-shot callers that
-     * just need a synchronous best-effort value should use [lastKnownLocation], not `.value`.
+     * The last-known location, or null until one is established. **Live** while any consumer holds the
+     * feed open ([startUpdates] / a [locationUpdates] collector) and seeded on start, so observers see
+     * real movement; otherwise it holds whatever the last feed or [lastKnownLocation] poll established.
+     * One-shot callers that just need a synchronous best-effort value should use [lastKnownLocation].
      */
     val location: StateFlow<Location?>
 
@@ -57,8 +69,7 @@ interface LocationRepository {
      * The last-known location, polled synchronously. Returns [location]'s current value, lazily polling
      * the providers to seed it the first time none has been established — exactly like the former
      * `Application.getLastKnownLocation`. This is the accessor for one-shot callers with no active feed
-     * (region selection, the report flow); during an active [startUpdates] feed it agrees with
-     * [location] and reflects the current position.
+     * (region selection, the report flow); during an active feed it agrees with [location].
      */
     fun lastKnownLocation(): Location?
 
@@ -70,23 +81,30 @@ interface LocationRepository {
     fun update(raw: Location?): Boolean
 
     /**
-     * Begins live location production: registers a device-location listener so [location] becomes an
-     * actual live stream (and keeps [lastKnownLocation] fresh) for as long as updates are active. The
-     * foreground map calls this over its lifecycle. Idempotent and permission-gated — safe to call on
-     * every resume and again right after a permission grant (a pre-grant call is a graceful no-op that
-     * the post-grant call upgrades). Pair with [stopUpdates].
+     * Holds the shared location feed open for the foreground map without consuming fixes — keeps
+     * [location] a live stream (and [lastKnownLocation] fresh) for as long as the map is shown.
+     * Idempotent and permission-gated (the feed retries registration until permission is granted), so
+     * it's safe to call on every resume and after a permission grant. Pair with [stopUpdates].
      */
     fun startUpdates()
 
-    /** Stops the live location production started by [startUpdates] (tears down the device listener). */
+    /** Releases the map's feed hold taken by [startUpdates]. */
     fun stopUpdates()
+
+    /**
+     * A cold [Flow] of device fixes (the post-gate "best" [Location], as the legacy `LocationHelper`
+     * delivered). Collecting it holds the shared feed open and requests at least [intervalSeconds]
+     * cadence; the single underlying producer runs at the *minimum* interval any active consumer asks
+     * for. Cancelling the collection releases the demand. Used by `NavigationService` for 1 s nav updates.
+     */
+    fun locationUpdates(intervalSeconds: Int): Flow<Location>
 }
 
 /**
- * Default implementation: owns the canonical [MutableStateFlow] plus the provider-polling producer
- * (the `getLocation2` / `getLocationApiV1` logic moved off `Application` in B1). A Hilt [Singleton]
- * constructed lazily on first injection (after `Application.onCreate`); it starts null and fills from
- * the listener ([update]) or the lazy poll ([lastKnownLocation]).
+ * Default implementation: owns the canonical [MutableStateFlow], the provider-polling producer (the
+ * `getLocation2` / `getLocationApiV1` logic moved off `Application` in B1), and the one shared live
+ * feed. A Hilt [Singleton] constructed lazily on first injection (after `Application.onCreate`); it
+ * starts null and fills from the feed or the lazy poll ([lastKnownLocation]).
  */
 @Singleton
 class DefaultLocationRepository @Inject constructor(
@@ -97,17 +115,79 @@ class DefaultLocationRepository @Inject constructor(
 
     override val location: StateFlow<Location?> = _location.asStateFlow()
 
-    // Live production (Campaign A): the foreground map drives start/stopUpdates over its lifecycle so
-    // [location] is an actual live stream while shown, not just a lazily-polled cache. The helper's own
-    // onLocationChanged already ingests fixes via Application.setLastKnownLocation -> update() (which
-    // also refreshes the magnetic declination), so this listener is intentionally a no-op: it exists
-    // only so registerListener() starts the providers. Single caller (the map) -> a plain active flag
-    // suffices; a ref count would be needed if other features adopt startUpdates().
-    private var locationHelper: LocationHelper? = null
+    // The reactive shared feed: every consumer adds its requested interval to `demand`; the producer
+    // launched below runs ONE LocationHelper at the minimum requested interval, rebuilding (via
+    // collectLatest) when that minimum changes and tearing down when demand drops to zero — so the
+    // whole app has a single set of OS registrations. Each fix reaches `_location` through
+    // LocationHelper.onLocationChanged -> Application.setLastKnownLocation -> update() (which also
+    // refreshes the magnetic declination); the feed's own listener is a no-op that just starts the
+    // providers. Consumers that want the fixes collect [locationUpdates]; the map only holds the feed
+    // open via start/stopUpdates.
+    private val demand = MutableStateFlow<List<Int>>(emptyList())
 
-    private var updatesActive = false
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    private val updatesListener = LocationHelper.Listener { /* see note above */ }
+    // The map's hold is idempotent (start/stopUpdates fire on every resume/pause), so track it apart
+    // from the multiset `demand` to add/remove its interval exactly once.
+    private var mapHoldActive = false
+
+    init {
+        scope.launch {
+            demand.map { it.minOrNull() }
+                .distinctUntilChanged()
+                .collectLatest { interval -> if (interval != null) runFeed(interval) }
+        }
+    }
+
+    /**
+     * Runs one [LocationHelper] at [intervalSeconds] until cancelled — which `collectLatest` does when
+     * the minimum requested interval changes or demand drops to zero. A no-op keep-alive listener
+     * starts the providers; fixes are ingested via the helper's `Application.setLastKnownLocation` path.
+     * Retries registration until permission is granted (or this run is cancelled).
+     */
+    private suspend fun runFeed(intervalSeconds: Int) {
+        val helper = LocationHelper(context, intervalSeconds)
+        val keepAlive = LocationHelper.Listener { /* no-op: fixes reach _location via the ingestion path */ }
+        try {
+            while (!helper.registerListener(keepAlive)) {
+                delay(PERMISSION_RETRY_MS) // permission not granted yet — retry until it is
+            }
+            awaitCancellation()
+        } finally {
+            helper.unregisterListener(keepAlive)
+        }
+    }
+
+    @Synchronized
+    override fun startUpdates() {
+        if (mapHoldActive) return
+        mapHoldActive = true
+        // Seed from the cached fix so observers + the .value read see a value before the first live
+        // callback (mirrors the legacy host's cold-start seed from getLastKnownLocation).
+        if (_location.value == null) {
+            lastKnownLocation()
+        }
+        demand.update { it + MAP_UPDATE_INTERVAL_SECONDS }
+    }
+
+    @Synchronized
+    override fun stopUpdates() {
+        if (!mapHoldActive) return
+        mapHoldActive = false
+        demand.update { it - MAP_UPDATE_INTERVAL_SECONDS } // removes one occurrence
+    }
+
+    override fun locationUpdates(intervalSeconds: Int): Flow<Location> = callbackFlow {
+        if (_location.value == null) {
+            lastKnownLocation() // seed
+        }
+        demand.update { it + intervalSeconds }
+        val job = launch { location.collect { loc -> loc?.let { trySend(it) } } }
+        awaitClose {
+            demand.update { it - intervalSeconds } // removes one occurrence
+            job.cancel()
+        }
+    }
 
     @Synchronized
     override fun lastKnownLocation(): Location? {
@@ -131,26 +211,6 @@ class DefaultLocationRepository @Inject constructor(
         // A fresh copy: the StateFlow dedupes by reference (Location has no value equality).
         _location.value = Location(raw)
         return true
-    }
-
-    @Synchronized
-    override fun startUpdates() {
-        if (updatesActive) return
-        // Seed from the cached fix so observers + the .value read see a value before the first live
-        // callback (mirrors the legacy host's cold-start seed from getLastKnownLocation).
-        if (_location.value == null) {
-            lastKnownLocation()
-        }
-        val helper = locationHelper ?: LocationHelper(context).also { locationHelper = it }
-        // registerListener starts nothing and returns false until permission is granted; because we
-        // leave updatesActive false in that case, a later startUpdates() after the grant retries.
-        updatesActive = helper.registerListener(updatesListener)
-    }
-
-    @Synchronized
-    override fun stopUpdates() {
-        locationHelper?.unregisterListener(updatesListener)
-        updatesActive = false
     }
 
     /**
@@ -201,5 +261,11 @@ class DefaultLocationRepository @Inject constructor(
 
     private companion object {
         const val TAG = "LocationRepository"
+
+        /** The map's keep-alive cadence (seconds); nav requests finer via [locationUpdates]. */
+        const val MAP_UPDATE_INTERVAL_SECONDS = 5
+
+        /** How often to retry feed registration while the location permission is still ungranted. */
+        const val PERMISSION_RETRY_MS = 2000L
     }
 }

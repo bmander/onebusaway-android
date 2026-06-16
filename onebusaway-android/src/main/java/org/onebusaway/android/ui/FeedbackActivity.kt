@@ -58,7 +58,6 @@ import org.apache.commons.io.FileUtils
 import org.onebusaway.android.R
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.nav.NavigationService
-import org.onebusaway.android.nav.NavigationService.LOG_DIRECTORY
 import org.onebusaway.android.nav.NavigationUploadWorker
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
@@ -151,7 +150,7 @@ class FeedbackSubmitter(
             FileUtils.write(file, System.lineSeparator() + feedback, true)
             val destFolder = File(
                 context.filesDir.absolutePath
-                        + File.separator + LOG_DIRECTORY + File.separator + response
+                        + File.separator + NavigationService.LOG_DIRECTORY + File.separator + response
             )
             try {
                 FileUtils.moveFileToDirectory(file, destFolder, true)

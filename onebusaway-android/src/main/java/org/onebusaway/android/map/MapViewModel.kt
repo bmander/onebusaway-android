@@ -703,6 +703,9 @@ class MapViewModel @Inject constructor(
         PreferenceUtils.setUserDeniedLocationPermissions(!granted)
         if (granted) {
             _myLocationEnabled.value = true
+            // onResume already ran startUpdates() with no permission (a no-op); now that it's granted,
+            // begin the live feed immediately rather than waiting for the next resume.
+            locationRepository.startUpdates()
         }
     }
 
@@ -753,6 +756,8 @@ class MapViewModel @Inject constructor(
     /** Stop the vehicle poll and persist the camera for the next launch's seed (the host's onPause). */
     fun onPause() {
         vehicleJob?.cancel()
+        // Stop the live location feed so the providers don't run in the background (battery).
+        locationRepository.stopUpdates()
         _camera.value?.let {
             PreferenceUtils.saveMapViewToPreferences(it.center.latitude, it.center.longitude, it.zoom.toFloat())
         }
@@ -762,6 +767,9 @@ class MapViewModel @Inject constructor(
     fun onResume() {
         setBikeshareLayerVisible(LayerUtils.isBikeshareLayerVisible(context))
         refreshMyLocationEnabled()
+        // Begin the live location feed for as long as the map is shown (permission-gated; a no-op until
+        // granted). This is what makes `location` a live stream — the legacy host's LocationHelper feed.
+        locationRepository.startUpdates()
         if (isRouteMode && vehicleJob?.isActive != true) {
             startVehiclePolling(nextVehicleDelay(lastVehicleLoadNanos, UIUtils.getCurrentTimeForComparison()))
         }

@@ -28,6 +28,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.onebusaway.android.util.LocationHelper
 import org.onebusaway.android.util.LocationUtils
 
 /**
@@ -44,13 +45,20 @@ import org.onebusaway.android.util.LocationUtils
  */
 interface LocationRepository {
 
-    /** The last-known location, or null until one is established. Observe for changes. */
+    /**
+     * The last-known location, or null until one is established. **Live** while [startUpdates] is active
+     * (the foreground map drives it) and seeded on start, so observers see real movement; otherwise it
+     * holds whatever the last live feed or [lastKnownLocation] poll established. One-shot callers that
+     * just need a synchronous best-effort value should use [lastKnownLocation], not `.value`.
+     */
     val location: StateFlow<Location?>
 
     /**
-     * The last-known location. On first access (when none has been established yet) this lazily polls
-     * the location providers and publishes the result, exactly like the former
-     * `Application.getLastKnownLocation` — so one-shot callers see a value even before the listener fires.
+     * The last-known location, polled synchronously. Returns [location]'s current value, lazily polling
+     * the providers to seed it the first time none has been established — exactly like the former
+     * `Application.getLastKnownLocation`. This is the accessor for one-shot callers with no active feed
+     * (region selection, the report flow); during an active [startUpdates] feed it agrees with
+     * [location] and reflects the current position.
      */
     fun lastKnownLocation(): Location?
 
@@ -60,6 +68,18 @@ interface LocationRepository {
      * caller uses this to keep the location-derived magnetic declination in sync).
      */
     fun update(raw: Location?): Boolean
+
+    /**
+     * Begins live location production: registers a device-location listener so [location] becomes an
+     * actual live stream (and keeps [lastKnownLocation] fresh) for as long as updates are active. The
+     * foreground map calls this over its lifecycle. Idempotent and permission-gated — safe to call on
+     * every resume and again right after a permission grant (a pre-grant call is a graceful no-op that
+     * the post-grant call upgrades). Pair with [stopUpdates].
+     */
+    fun startUpdates()
+
+    /** Stops the live location production started by [startUpdates] (tears down the device listener). */
+    fun stopUpdates()
 }
 
 /**
@@ -76,6 +96,18 @@ class DefaultLocationRepository @Inject constructor(
     private val _location = MutableStateFlow<Location?>(null)
 
     override val location: StateFlow<Location?> = _location.asStateFlow()
+
+    // Live production (Campaign A): the foreground map drives start/stopUpdates over its lifecycle so
+    // [location] is an actual live stream while shown, not just a lazily-polled cache. The helper's own
+    // onLocationChanged already ingests fixes via Application.setLastKnownLocation -> update() (which
+    // also refreshes the magnetic declination), so this listener is intentionally a no-op: it exists
+    // only so registerListener() starts the providers. Single caller (the map) -> a plain active flag
+    // suffices; a ref count would be needed if other features adopt startUpdates().
+    private var locationHelper: LocationHelper? = null
+
+    private var updatesActive = false
+
+    private val updatesListener = LocationHelper.Listener { /* see note above */ }
 
     @Synchronized
     override fun lastKnownLocation(): Location? {
@@ -99,6 +131,26 @@ class DefaultLocationRepository @Inject constructor(
         // A fresh copy: the StateFlow dedupes by reference (Location has no value equality).
         _location.value = Location(raw)
         return true
+    }
+
+    @Synchronized
+    override fun startUpdates() {
+        if (updatesActive) return
+        // Seed from the cached fix so observers + the .value read see a value before the first live
+        // callback (mirrors the legacy host's cold-start seed from getLastKnownLocation).
+        if (_location.value == null) {
+            lastKnownLocation()
+        }
+        val helper = locationHelper ?: LocationHelper(context).also { locationHelper = it }
+        // registerListener starts nothing and returns false until permission is granted; because we
+        // leave updatesActive false in that case, a later startUpdates() after the grant retries.
+        updatesActive = helper.registerListener(updatesListener)
+    }
+
+    @Synchronized
+    override fun stopUpdates() {
+        locationHelper?.unregisterListener(updatesListener)
+        updatesActive = false
     }
 
     /**

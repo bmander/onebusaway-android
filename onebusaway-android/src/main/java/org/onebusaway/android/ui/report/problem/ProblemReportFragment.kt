@@ -37,14 +37,16 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.analytics.FirebaseAnalytics
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.app.di.LocationEntryPoint
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaArrivalInfo
 import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.report.ui.ReportProblemFragmentCallback
 import org.onebusaway.android.ui.compose.composeFragmentView
 import org.onebusaway.android.util.UIUtils
@@ -55,7 +57,11 @@ import org.onebusaway.android.util.UIUtils
  * [ProblemReportViewModel]; this fragment owns the "send" menu, the user's location, analytics,
  * and the host [ReportProblemFragmentCallback].
  */
+@AndroidEntryPoint
 class ProblemReportFragment : Fragment(), MenuProvider {
+
+    @Inject
+    lateinit var locationRepository: LocationRepository
 
     private val viewModel: ProblemReportViewModel by viewModels {
         viewModelFactory { initializer { createViewModel() } }
@@ -131,7 +137,7 @@ class ProblemReportFragment : Fragment(), MenuProvider {
             return
         }
         reportAnalytics(form.kind)
-        viewModel.submit(LocationEntryPoint.get(requireContext()).lastKnownLocation())
+        viewModel.submit(locationRepository.lastKnownLocation())
     }
 
     private fun reportAnalytics(kind: ProblemKind) {

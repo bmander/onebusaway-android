@@ -36,11 +36,15 @@ import com.google.firebase.analytics.FirebaseAnalytics;
 import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
-import org.onebusaway.android.app.di.RegionEntryPoint;
 import org.onebusaway.android.io.ObaAnalytics;
 import org.onebusaway.android.io.PlausibleAnalytics;
 import org.onebusaway.android.region.RegionRefresher;
+import org.onebusaway.android.region.RegionRepository;
 import org.onebusaway.android.travelbehavior.io.coroutines.FirebaseDataPusher;
+
+import javax.inject.Inject;
+
+import dagger.hilt.android.AndroidEntryPoint;
 
 
 /**
@@ -52,12 +56,16 @@ import org.onebusaway.android.travelbehavior.io.coroutines.FirebaseDataPusher;
  * destination (Campaign C); it reaches the host's region-task callback and the OTP-changed signal
  * through {@link HomeActivity} (the host activity) instead of the deleted SettingsActivity.
  */
+@AndroidEntryPoint
 public class AdvancedSettingsFragment extends PreferenceFragmentCompat
         implements Preference.OnPreferenceClickListener,
         Preference.OnPreferenceChangeListener,
         SharedPreferences.OnSharedPreferenceChangeListener {
 
     private static final String TAG = "AdvancedSettings";
+
+    @Inject
+    RegionRepository regionRepository;
 
     private Preference mCustomApiUrlPref;
     private Preference mCustomOtpApiUrlPref;
@@ -145,7 +153,7 @@ public class AdvancedSettingsFragment extends PreferenceFragmentCompat
                             Toast.LENGTH_SHORT).show();
                     return false;
                 }
-                RegionEntryPoint.get(requireContext()).clear();
+                regionRepository.clear();
                 Log.d(TAG, "User entered new API URL, set region to null.");
             } else {
                 Log.d(TAG, "User entered blank API URL, re-initializing regions...");

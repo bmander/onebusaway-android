@@ -16,24 +16,34 @@
 package org.onebusaway.android.preferences
 
 import android.content.Context
-import android.content.SharedPreferences
 import androidx.annotation.StringRes
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
-import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import org.onebusaway.android.app.di.AppScope
 
 /**
- * Injected access to user preferences — the replacement for scattered static
- * `Application.getPrefs()` / `PreferenceUtils` reads (roadmap §1.2, alongside RegionRepository /
- * LocationRepository).
+ * Injected access to user preferences — the single seam in front of the persisted store (replacing
+ * scattered `Application.getPrefs()` / `PreferenceUtils` reads).
  *
  * Two ways in:
- * - [observeBoolean] is the *reactive* seam — a consumer that today polls a pref on resume collects
- *   it instead.
+ * - [observeBoolean] / [observeString] / [observeChanges] are the *reactive* seam — a consumer that
+ *   would otherwise poll a pref on resume collects it instead.
  * - The synchronous `getX` / `setX` accessors are the one-shot replacement for `PreferenceUtils`.
  *
  * Every accessor comes in two key forms. The `@StringRes` overload lets a caller name a pref by its
@@ -87,69 +97,87 @@ interface PreferencesRepository {
     fun setFloat(key: String, value: Float)
 }
 
-/** Default implementation over the injected [SharedPreferences]. */
+/**
+ * Default implementation backed by Preferences [DataStore].
+ *
+ * DataStore is async (Flow/suspend), but many callers — `PreferenceUtils`, background services, the
+ * content provider — read synchronously and can't suspend. So this keeps a synchronous, read-your-writes
+ * in-memory [cache] of the latest [Preferences]: it's seeded once on construction (which runs the
+ * one-time SharedPreferences→DataStore migration) and then kept current by a collector. Writes update
+ * the cache optimistically and persist asynchronously. Single-process only (the app has no
+ * `android:process`), which is required for a single DataStore instance.
+ */
 class DefaultPreferencesRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val prefs: SharedPreferences,
+    private val dataStore: DataStore<Preferences>,
+    @AppScope private val scope: CoroutineScope,
 ) : PreferencesRepository {
 
-    override fun observeBoolean(keyRes: Int, default: Boolean): Flow<Boolean> = callbackFlow {
-        val key = context.getString(keyRes)
-        trySend(prefs.getBoolean(key, default))
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
-            if (changedKey == key) trySend(prefs.getBoolean(key, default))
-        }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
-        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
-    }.conflate().distinctUntilChanged()
+    // Seeded synchronously so the first synchronous read (e.g. from Application.onCreate) sees real
+    // values; the first DataStore access also performs the migration. Kept fresh by the collector below.
+    @Volatile
+    private var cache: Preferences = runBlocking { dataStore.data.first() }
 
-    override fun observeString(keyRes: Int, default: String?): Flow<String?> = callbackFlow {
-        val key = context.getString(keyRes)
-        trySend(prefs.getString(key, default))
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
-            if (changedKey == key) trySend(prefs.getString(key, default))
-        }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
-        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
-    }.conflate().distinctUntilChanged()
+    init {
+        scope.launch { dataStore.data.collect { cache = it } }
+    }
 
-    override fun observeChanges(): Flow<Unit> = callbackFlow {
-        trySend(Unit)
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(Unit) }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
-        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
-    }.conflate()
+    // --- reactive ---
 
-    // The @StringRes overloads resolve the key and delegate to the String overloads, which are the
-    // single point of contact with SharedPreferences.
+    override fun observeBoolean(keyRes: Int, default: Boolean): Flow<Boolean> {
+        val key = booleanPreferencesKey(context.getString(keyRes))
+        return dataStore.data.map { it[key] ?: default }.distinctUntilChanged()
+    }
+
+    override fun observeString(keyRes: Int, default: String?): Flow<String?> {
+        val key = stringPreferencesKey(context.getString(keyRes))
+        return dataStore.data.map { it[key] ?: default }.distinctUntilChanged()
+    }
+
+    override fun observeChanges(): Flow<Unit> = dataStore.data.map { }.conflate()
+
+    // --- synchronous reads (from the cache) ---
+    // The @StringRes overloads resolve the key and delegate to the String overloads.
 
     override fun getBoolean(keyRes: Int, default: Boolean) = getBoolean(context.getString(keyRes), default)
-    override fun getBoolean(key: String, default: Boolean) = prefs.getBoolean(key, default)
+    override fun getBoolean(key: String, default: Boolean) = cache[booleanPreferencesKey(key)] ?: default
 
     override fun getString(keyRes: Int, default: String?) = getString(context.getString(keyRes), default)
-    override fun getString(key: String, default: String?): String? = prefs.getString(key, default)
+    override fun getString(key: String, default: String?) = cache[stringPreferencesKey(key)] ?: default
 
     override fun getInt(keyRes: Int, default: Int) = getInt(context.getString(keyRes), default)
-    override fun getInt(key: String, default: Int) = prefs.getInt(key, default)
+    override fun getInt(key: String, default: Int) = cache[intPreferencesKey(key)] ?: default
 
     override fun getLong(keyRes: Int, default: Long) = getLong(context.getString(keyRes), default)
-    override fun getLong(key: String, default: Long) = prefs.getLong(key, default)
+    override fun getLong(key: String, default: Long) = cache[longPreferencesKey(key)] ?: default
 
     override fun getFloat(keyRes: Int, default: Float) = getFloat(context.getString(keyRes), default)
-    override fun getFloat(key: String, default: Float) = prefs.getFloat(key, default)
+    override fun getFloat(key: String, default: Float) = cache[floatPreferencesKey(key)] ?: default
+
+    // --- writes (optimistic cache update + async persist) ---
 
     override fun setBoolean(keyRes: Int, value: Boolean) = setBoolean(context.getString(keyRes), value)
-    override fun setBoolean(key: String, value: Boolean) = prefs.edit().putBoolean(key, value).apply()
+    override fun setBoolean(key: String, value: Boolean) = put(booleanPreferencesKey(key), value)
 
     override fun setString(keyRes: Int, value: String?) = setString(context.getString(keyRes), value)
-    override fun setString(key: String, value: String?) = prefs.edit().putString(key, value).apply()
+    override fun setString(key: String, value: String?) = put(stringPreferencesKey(key), value)
 
     override fun setInt(keyRes: Int, value: Int) = setInt(context.getString(keyRes), value)
-    override fun setInt(key: String, value: Int) = prefs.edit().putInt(key, value).apply()
+    override fun setInt(key: String, value: Int) = put(intPreferencesKey(key), value)
 
     override fun setLong(keyRes: Int, value: Long) = setLong(context.getString(keyRes), value)
-    override fun setLong(key: String, value: Long) = prefs.edit().putLong(key, value).apply()
+    override fun setLong(key: String, value: Long) = put(longPreferencesKey(key), value)
 
     override fun setFloat(keyRes: Int, value: Float) = setFloat(context.getString(keyRes), value)
-    override fun setFloat(key: String, value: Float) = prefs.edit().putFloat(key, value).apply()
+    override fun setFloat(key: String, value: Float) = put(floatPreferencesKey(key), value)
+
+    /** Apply [value] (or remove the key when null) to the cache immediately, then persist async. */
+    private fun <T : Any> put(key: Preferences.Key<T>, value: T?) {
+        cache = cache.toMutablePreferences().apply {
+            if (value == null) remove(key) else set(key, value)
+        }.toPreferences()
+        scope.launch {
+            dataStore.edit { prefs -> if (value == null) prefs.remove(key) else prefs[key] = value }
+        }
+    }
 }

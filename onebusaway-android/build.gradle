@@ -279,6 +279,8 @@ dependencies {
     implementation "androidx.concurrent:concurrent-listenablefuture-callback:1.0.0-beta01"
     implementation "androidx.core:core-ktx:1.13.1"
     implementation "androidx.preference:preference:1.2.1"
+    // Preferences DataStore — the backing store behind PreferencesRepository. 1.0.0 keeps minSdk 21.
+    implementation "androidx.datastore:datastore-preferences:1.0.0"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     // RoomDB
     implementation "androidx.room:room-runtime:2.7.0"

@@ -117,7 +117,10 @@ abstract class RepositoryModule {
         impl: DefaultAdvancedSettingsRepository
     ): AdvancedSettingsRepository
 
+    // Must be @Singleton: the impl keeps an in-memory cache of the DataStore and starts a collector +
+    // a one-time blocking seed on construction, so the whole app shares exactly one instance.
     @Binds
+    @Singleton
     abstract fun bindPreferencesRepository(impl: DefaultPreferencesRepository): PreferencesRepository
 
     @Binds

@@ -16,14 +16,20 @@
 package org.onebusaway.android.app.di
 
 import android.content.Context
-import android.content.SharedPreferences
-import androidx.preference.PreferenceManager
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.SharedPreferencesMigration
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStoreFile
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.donations.DonationsManager
 import org.onebusaway.android.util.TimeProvider
@@ -39,13 +45,25 @@ import org.onebusaway.android.util.TimeProvider
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
-    // The default SharedPreferences file (PreferenceManager's "<package>_preferences"), sourced
-    // directly rather than via Application so the seam doesn't depend on Application's lifecycle. This
-    // is the backing store for DefaultPreferencesRepository until it graduates to DataStore.
+    /** Process-lifetime scope for fire-and-forget persistence work (DataStore + repository writes). */
     @Provides
     @Singleton
-    fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences =
-        PreferenceManager.getDefaultSharedPreferences(context)
+    @AppScope
+    fun provideAppScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // The Preferences DataStore backing [PreferencesRepository]. A one-time SharedPreferencesMigration
+    // imports the existing default prefs file ("<package>_preferences"), so existing users' values carry
+    // over on first access; thereafter that file is unused.
+    @Provides
+    @Singleton
+    fun providePreferencesDataStore(
+        @ApplicationContext context: Context,
+        @AppScope scope: CoroutineScope,
+    ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        migrations = listOf(SharedPreferencesMigration(context, context.packageName + "_preferences")),
+        scope = scope,
+        produceFile = { context.preferencesDataStoreFile("settings") },
+    )
 
     @Provides
     @Singleton

@@ -83,6 +83,7 @@ import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.ObaRegionsTask
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.io.elements.ObaArrivalInfo
 import org.onebusaway.android.report.ui.InfrastructureIssueDestination
 import org.onebusaway.android.report.ui.InfrastructureIssueHost
@@ -167,6 +168,11 @@ class HomeActivity : AppCompatActivity(),
     // arrivals NavHost destination). Assisted because the sheet's stop id is runtime-dynamic.
     @Inject
     lateinit var arrivalsViewModelFactory: ArrivalsViewModel.Factory
+
+    // The observable current region (Campaign A): the activity's region-dependent reads (region-found
+    // toast, the region's Twitter URL) collect this instead of Application.get().currentRegion.
+    @Inject
+    lateinit var regionRepository: RegionRepository
 
     private val viewModel: HomeViewModel by viewModels()
 
@@ -1136,16 +1142,14 @@ class HomeActivity : AppCompatActivity(),
     override fun onRegionTaskFinished(currentRegionChanged: Boolean) {
         if (currentRegionChanged) {
             Application.get().setUseOldOtpApiUrlVersion(false)
+            val region = regionRepository.region.value
             if (Application.getPrefs()
                     .getBoolean(getString(R.string.preference_key_auto_select_region), true)
-                && Application.get().currentRegion != null
+                && region != null
             ) {
                 Toast.makeText(
                     this,
-                    getString(
-                        R.string.region_region_found,
-                        Application.get().currentRegion.name
-                    ),
+                    getString(R.string.region_region_found, region.name),
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -1345,10 +1349,9 @@ class HomeActivity : AppCompatActivity(),
             HelpAction.AGENCIES -> AgenciesActivity.start(this)
             HelpAction.TWITTER -> {
                 var twitterUrl = TWITTER_URL
-                if (Application.get().currentRegion != null &&
-                    !TextUtils.isEmpty(Application.get().currentRegion.twitterUrl)
-                ) {
-                    twitterUrl = Application.get().currentRegion.twitterUrl
+                val region = regionRepository.region.value
+                if (region != null && !TextUtils.isEmpty(region.twitterUrl)) {
+                    twitterUrl = region.twitterUrl
                 }
                 UIUtils.goToUrl(this, twitterUrl)
                 ObaAnalytics.reportUiEvent(

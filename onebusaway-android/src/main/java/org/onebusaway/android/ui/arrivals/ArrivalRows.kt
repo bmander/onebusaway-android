@@ -480,9 +480,8 @@ private fun EtaRealtimeIndicator(predicted: Boolean, color: Color) {
 
 /**
  * The pulsing real-time "connectedness" indicator: concentric stroked circles expanding and
- * contracting at staggered durations, a Compose port of the legacy [org.onebusaway.android.view
- * .RealtimeIndicatorView] (transparent fill, stroked outline, FastOutLinearIn, REVERSE repeat).
- * Shared by the standalone/list ETA and the map drawer's ETA pill.
+ * contracting at staggered durations (transparent fill, stroked outline, FastOutLinearIn, REVERSE
+ * repeat). Shared by the standalone/list ETA and the map drawer's ETA pill.
  */
 @Composable
 internal fun RealtimeIndicator(color: Color, modifier: Modifier = Modifier) {

@@ -71,9 +71,6 @@
 
     <color name="stop_info_arrival_list_background">#eaeaea</color>
 
-    <color name="realtime_indicator_fill">@android:color/transparent</color>
-    <color name="realtime_indicator_line">@android:color/white</color>
-
     <!--Reporting-->
     <color name="light_gray">#CCCCCC</color>
     <color name="material_gray">#6A6A6A</color>

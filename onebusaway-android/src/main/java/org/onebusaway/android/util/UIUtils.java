@@ -117,7 +117,6 @@ import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.ui.ArrivalsListActivity;
 import org.onebusaway.android.ui.HomeActivity;
 import org.onebusaway.android.ui.RouteInfoActivity;
-import org.onebusaway.android.view.RealtimeIndicatorView;
 import org.onebusaway.util.comparators.AlphanumComparator;
 
 import java.io.File;
@@ -1303,55 +1302,6 @@ public final class UIUtils {
             list.add(R.drawable.ic_occupancy);
         }
         return list;
-    }
-
-    /**
-     * Sets the line and fill colors for real-time indicator circles contained in the provided
-     * realtime_indicator.xml layout.  There are several circles, so each needs to be set
-     * individually.  The resource code for the color to be used should be provided.
-     *
-     * @param vg        realtime_indicator.xml layout
-     * @param lineColor resource code color to be used as line color, or null to use the default
-     *                  colors
-     * @param fillColor resource code color to be used as fill color, or null to use the default
-     *                  colors
-     */
-    public static void setRealtimeIndicatorColorByResourceCode(ViewGroup vg, Integer lineColor,
-            Integer fillColor) {
-        Resources r = vg.getResources();
-        setRealtimeIndicatorColor(vg, r.getColor(lineColor), r.getColor(fillColor));
-    }
-
-    /**
-     * Sets the line and fill colors for real-time indicator circles contained in the provided
-     * realtime_indicator.xml layout.  There are several circles, so each needs to be set
-     * individually.  The integer representation of the color to be used should be provided.
-     *
-     * @param vg        realtime_indicator.xml layout
-     * @param lineColor color to be used as line color, or null to use the default colors
-     * @param fillColor color to be used as fill color, or null to use the default colors
-     */
-    public static void setRealtimeIndicatorColor(ViewGroup vg, Integer lineColor,
-            Integer fillColor) {
-        for (int i = 0; i < vg.getChildCount(); i++) {
-            View v = vg.getChildAt(i);
-            if (v instanceof RealtimeIndicatorView) {
-                if (lineColor != null) {
-                    ((RealtimeIndicatorView) v).setLineColor(lineColor);
-                } else {
-                    // Use default color
-                    ((RealtimeIndicatorView) v).setLineColor(
-                            R.color.realtime_indicator_line);
-                }
-                if (fillColor != null) {
-                    ((RealtimeIndicatorView) v).setFillColor(fillColor);
-                } else {
-                    // Use default color
-                    ((RealtimeIndicatorView) v).setLineColor(
-                            R.color.realtime_indicator_fill);
-                }
-            }
-        }
     }
 
     /**

@@ -1711,7 +1711,7 @@ public final class UIUtils {
      * @param activity activity to launch the fare payment app or Google Play store from
      * @return the region whose payment warning must be shown first, or null if already handled
      */
-    public static ObaRegion launchPayMyFareApp(@NonNull Activity activity) {
+    public static ObaRegion payFareOrWarningRegion(@NonNull Activity activity) {
         ObaRegion region = Application.get().getCurrentRegion();
         if (region == null) {
             // If a custom API URL is set (i.e., no region), then no op

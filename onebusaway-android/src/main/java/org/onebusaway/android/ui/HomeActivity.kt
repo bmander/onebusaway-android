@@ -1254,7 +1254,7 @@ class HomeActivity : AppCompatActivity() {
             HomeNavItem.PLAN_TRIP ->
                 pendingDeepLinkRoute.value = NavRoutes.TRIP_PLAN
             HomeNavItem.PAY_FARE ->
-                UIUtils.launchPayMyFareApp(this)?.let { paymentWarningRegion.value = it }
+                UIUtils.payFareOrWarningRegion(this)?.let { paymentWarningRegion.value = it }
             HomeNavItem.SETTINGS ->
                 pendingDeepLinkRoute.value = NavRoutes.SETTINGS
             // Hide "Contact Us" when a custom API URL is set (no contact email to use).

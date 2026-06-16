@@ -16,11 +16,8 @@
 package org.onebusaway.android.ui.compose.components
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,11 +27,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 
@@ -56,17 +51,14 @@ fun OptOutInfoDialog(
     confirmText: String,
     onConfirm: () -> Unit,
     onDismissRequest: () -> Unit,
-    modifier: Modifier = Modifier,
     optOutLabel: String? = null,
     onOptOut: ((Boolean) -> Unit)? = null,
     dismissText: String? = null,
     onDismiss: () -> Unit = onDismissRequest,
-    cancelable: Boolean = false,
 ) {
     val linkColor = MaterialTheme.colorScheme.primary
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        modifier = modifier,
         icon = { Icon(painter = icon, contentDescription = null, tint = iconTint) },
         title = { Text(title) },
         text = {
@@ -74,19 +66,12 @@ fun OptOutInfoDialog(
                 Text(remember(body, linkColor) { linkifyUrls(body, linkColor) })
                 if (optOutLabel != null && onOptOut != null) {
                     var optedOut by remember { mutableStateOf(false) }
-                    Row(
-                        modifier = Modifier
-                            .padding(top = 12.dp)
-                            .toggleable(
-                                value = optedOut,
-                                role = Role.Checkbox,
-                                onValueChange = { optedOut = it; onOptOut(it) },
-                            ),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(checked = optedOut, onCheckedChange = null)
-                        Text(optOutLabel, modifier = Modifier.padding(start = 8.dp))
-                    }
+                    CheckboxRow(
+                        label = optOutLabel,
+                        checked = optedOut,
+                        onCheckedChange = { optedOut = it; onOptOut(it) },
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
                 }
             }
         },
@@ -95,8 +80,8 @@ fun OptOutInfoDialog(
             { TextButton(onClick = onDismiss) { Text(label) } }
         },
         properties = DialogProperties(
-            dismissOnBackPress = cancelable,
-            dismissOnClickOutside = cancelable,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
         ),
     )
 }

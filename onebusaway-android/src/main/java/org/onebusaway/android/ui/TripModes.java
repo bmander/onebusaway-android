@@ -16,7 +16,6 @@
 package org.onebusaway.android.ui;
 
 import org.onebusaway.android.R;
-import org.onebusaway.android.app.Application;
 
 /**
  * Utility class to convert between the selected trip mode in the spinner and the trip mode code.
@@ -50,37 +49,5 @@ public class TripModes {
         }
         return -1;
 
-    }
-
-    /**
-     * Return the position of the selected mode in a 0 based index.
-     * @param selectedCode the selected mode code
-     * @return the position of the selected mode in the list of available modes
-     */
-    public static int getSpinnerPositionFromSeledctedCode(int selectedCode) {
-        if (Application.isBikeshareEnabled()) {
-            switch (selectedCode) {
-                case TRANSIT_AND_BIKE:
-                    return 0;
-                case TRANSIT_ONLY:
-                    return 1;
-                case BUS_ONLY:
-                    return 2;
-                case RAIL_ONLY:
-                    return 3;
-                case BIKESHARE:
-                    return 4;
-            }
-        } else {
-            switch (selectedCode) {
-                case TRANSIT_ONLY:
-                    return 0;
-                case BUS_ONLY:
-                    return 1;
-                case RAIL_ONLY:
-                    return 2;
-            }
-        }
-        return 0;
     }
 }

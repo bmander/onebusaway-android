@@ -146,7 +146,7 @@ class MapLibreComposeAdapter : ObaComposeMapAdapter {
                     val r = MapLibreRenderer(map, context, renderState)
                     renderer = r
                     wireClicks(map, r, mapViewModel, callbacks)
-                    installInfoWindowAdapter(map, r, context, activity)
+                    installInfoWindowAdapter(map, r, activity)
                     map.addOnCameraIdleListener {
                         map.cameraPosition.target?.let { mapViewModel.onCameraIdle(snapshot(map, it)) }
                     }
@@ -230,26 +230,27 @@ private fun wireClicks(
 /**
  * Renders the shared vehicle/bike info-window composables as the maplibre info window (replacing the
  * classic title/snippet), so both map flavors show identical content. maplibre's custom info window
- * is a plain [View], so each is a themed [ComposeView]; the bike content gets its own white bubble
- * (the vehicle composable draws its own card).
+ * is a plain [View], so each is a themed [ComposeView]. Only the bike content is wrapped in a white
+ * bubble here: [VehicleInfoWindow] draws its own card (matching Google, where it's a `MarkerInfoWindow`
+ * with no SDK chrome), whereas [BikeInfoWindow] is background-free (Google draws its bubble via
+ * `MarkerInfoWindowContent`), so maplibre supplies the bubble in its stead.
  */
 private fun installInfoWindowAdapter(
     map: MapLibreMap,
     renderer: MapLibreRenderer,
-    context: Context,
     activity: Activity,
 ) {
     map.setInfoWindowAdapter { marker ->
         val vehicle = renderer.vehicleForMarker(marker)
         val response = renderer.vehicleResponse()
         if (vehicle != null && response != null) {
-            return@setInfoWindowAdapter infoWindowComposeView(context, activity) {
+            return@setInfoWindowAdapter infoWindowComposeView(activity) {
                 VehicleInfoWindow(vehicle.status, response)
             }
         }
         val bike = renderer.bikeForMarker(marker)
         if (bike != null) {
-            return@setInfoWindowAdapter infoWindowComposeView(context, activity) {
+            return@setInfoWindowAdapter infoWindowComposeView(activity) {
                 Surface(
                     color = Color.White,
                     shape = RoundedCornerShape(8.dp),
@@ -265,14 +266,14 @@ private fun installInfoWindowAdapter(
 
 /**
  * A [ComposeView] hosting [content] in [ObaTheme] for use as a maplibre info window. The ViewTree
- * owners are set from the host [activity] because the info-window view is added outside the activity's
- * normal content view, and the composition is disposed when the window detaches.
+ * owners are set from the host [activity] (also the view's [Context]) because the info-window view is
+ * added outside the activity's normal content view; the composition is disposed when the window
+ * detaches.
  */
 private fun infoWindowComposeView(
-    context: Context,
     activity: Activity,
     content: @Composable () -> Unit,
-): View = ComposeView(context).apply {
+): View = ComposeView(activity).apply {
     setViewTreeLifecycleOwner(activity as LifecycleOwner)
     setViewTreeViewModelStoreOwner(activity as ViewModelStoreOwner)
     setViewTreeSavedStateRegistryOwner(activity as SavedStateRegistryOwner)

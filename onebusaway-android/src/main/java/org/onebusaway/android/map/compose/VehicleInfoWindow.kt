@@ -141,7 +141,7 @@ fun VehicleInfoWindow(status: ObaTripStatus, response: ObaTripsForRouteResponse)
     }
 }
 
-/** Number of occupancy silhouettes to show (0–3), mirroring UIUtils.setOccupancyVisibilityAndColor. */
+/** Number of occupancy silhouettes to show (0–3) for the vehicle's occupancy level. */
 private fun occupancyDots(occupancy: Occupancy?): Int = when (occupancy) {
     null, Occupancy.EMPTY -> 0
     Occupancy.MANY_SEATS_AVAILABLE -> 1

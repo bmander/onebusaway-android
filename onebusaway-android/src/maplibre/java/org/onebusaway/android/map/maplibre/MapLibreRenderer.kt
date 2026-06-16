@@ -22,6 +22,7 @@ import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.annotations.PolylineOptions
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
+import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.map.render.BikeBand
 import org.onebusaway.android.map.render.BikeBitmaps
 import org.onebusaway.android.map.render.BikeMarker
@@ -30,7 +31,6 @@ import org.onebusaway.android.map.render.StopMarker
 import org.onebusaway.android.map.render.VehicleBitmaps
 import org.onebusaway.android.map.render.VehicleMarker
 import org.onebusaway.android.map.render.bikeZoomBand
-import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.util.UIUtils
 
 /**

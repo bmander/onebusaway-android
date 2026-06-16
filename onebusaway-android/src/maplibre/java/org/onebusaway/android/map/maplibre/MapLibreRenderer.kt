@@ -30,6 +30,7 @@ import org.onebusaway.android.map.render.StopMarker
 import org.onebusaway.android.map.render.VehicleBitmaps
 import org.onebusaway.android.map.render.VehicleMarker
 import org.onebusaway.android.map.render.bikeZoomBand
+import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.util.UIUtils
 
 /**
@@ -116,17 +117,13 @@ class MapLibreRenderer(
                         else -> BikeBitmaps.small(context)
                     }
                     val station = bike.station
-                    val snippet = if (bike.isFloatingBike) {
-                        ""
-                    } else {
-                        "${station.bikesAvailable} bikes, ${station.spacesAvailable} spaces"
-                    }
+                    // Title is kept only so a marker tap opens the info window; the InfoWindowAdapter
+                    // renders the shared BikeInfoWindow composable instead of the title/snippet.
                     val marker = map.addMarker(
                         MarkerOptions()
                             .position(LatLng(bike.point.latitude, bike.point.longitude))
                             .icon(iconFactory.fromBitmap(bitmap))
                             .title(station.name)
-                            .snippet(snippet)
                     )
                     bikeByMarker[marker] = bike
                 }
@@ -147,6 +144,9 @@ class MapLibreRenderer(
     fun bikeForMarker(marker: Marker): BikeMarker? = bikeByMarker[marker]
 
     fun vehicleForMarker(marker: Marker): VehicleMarker? = vehicleByMarker[marker]
+
+    /** The current trips-for-route response, needed to render a vehicle's info window. */
+    fun vehicleResponse(): ObaTripsForRouteResponse? = renderState.snapshot.value.vehicleResponse
 
     companion object {
         private const val ROUTE_WIDTH_DP = 3f

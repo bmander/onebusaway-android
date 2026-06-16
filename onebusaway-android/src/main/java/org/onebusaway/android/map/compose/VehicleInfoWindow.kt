@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.map.googlemapsv2.compose
+package org.onebusaway.android.map.compose
 
 import android.content.res.Resources
 import androidx.compose.foundation.background
@@ -44,27 +44,28 @@ import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.Occupancy
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse
-import org.onebusaway.android.map.googlemapsv2.VehicleIconFactory
+import org.onebusaway.android.map.render.VehicleBitmaps
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.UIUtils
 import java.util.concurrent.TimeUnit
 
-// Google Maps info windows are rendered on a white bubble regardless of app theme, so all text uses
-// fixed dark colors rather than theme-aware ones (see the project's info-window color guidance).
+// Map info windows are rendered on a white bubble regardless of app theme, so all text uses fixed
+// dark colors rather than theme-aware ones (see the project's info-window color guidance).
 private val InfoPrimary = Color(0xDE000000)
 private val InfoSecondary = Color(0x99000000)
 
 /**
- * Compose port of the legacy `VehicleOverlay.CustomInfoWindowAdapter` (R.layout.vehicle_info_window):
- * route + headsign, a schedule-deviation status chip, occupancy silhouettes, the last-updated line,
- * and the "more info" chevron. Rendered as the content of a maps-compose `MarkerInfoWindow`.
+ * The vehicle marker info-window content (shared across map flavors): route + headsign, a
+ * schedule-deviation status chip, occupancy silhouettes, the last-updated line, and the "more info"
+ * chevron. Rendered as the content of the Google `MarkerInfoWindow` and of the MapLibre info-window
+ * `ComposeView`.
  */
 @Composable
 fun VehicleInfoWindow(status: ObaTripStatus, response: ObaTripsForRouteResponse) {
     val res = LocalContext.current.resources
     val trip = response.getTrip(status.activeTripId)
     val route = response.getRoute(trip.routeId)
-    val realtime = VehicleIconFactory.isLocationRealtime(status)
+    val realtime = VehicleBitmaps.isLocationRealtime(status)
     val deviationMin = TimeUnit.SECONDS.toMinutes(status.scheduleDeviation)
 
     Column(

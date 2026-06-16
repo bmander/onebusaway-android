@@ -21,7 +21,10 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.res.Configuration
 import android.os.Bundle
+import android.view.View
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -31,11 +34,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
@@ -46,9 +59,12 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.compose.BikeInfoWindow
 import org.onebusaway.android.map.compose.ObaComposeMapAdapter
 import org.onebusaway.android.map.compose.ObaMapCallbacks
+import org.onebusaway.android.map.compose.VehicleInfoWindow
 import org.onebusaway.android.map.maplibre.MapLibreRenderer
+import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.map.render.CameraSnapshot
 import org.onebusaway.android.map.render.GeoPoint
 import org.onebusaway.android.map.render.MapRenderState
@@ -130,6 +146,7 @@ class MapLibreComposeAdapter : ObaComposeMapAdapter {
                     val r = MapLibreRenderer(map, context, renderState)
                     renderer = r
                     wireClicks(map, r, mapViewModel, callbacks)
+                    installInfoWindowAdapter(map, r, context, activity)
                     map.addOnCameraIdleListener {
                         map.cameraPosition.target?.let { mapViewModel.onCameraIdle(snapshot(map, it)) }
                     }
@@ -208,6 +225,59 @@ private fun wireClicks(
         }
         false
     }
+}
+
+/**
+ * Renders the shared vehicle/bike info-window composables as the maplibre info window (replacing the
+ * classic title/snippet), so both map flavors show identical content. maplibre's custom info window
+ * is a plain [View], so each is a themed [ComposeView]; the bike content gets its own white bubble
+ * (the vehicle composable draws its own card).
+ */
+private fun installInfoWindowAdapter(
+    map: MapLibreMap,
+    renderer: MapLibreRenderer,
+    context: Context,
+    activity: Activity,
+) {
+    map.setInfoWindowAdapter { marker ->
+        val vehicle = renderer.vehicleForMarker(marker)
+        val response = renderer.vehicleResponse()
+        if (vehicle != null && response != null) {
+            return@setInfoWindowAdapter infoWindowComposeView(context, activity) {
+                VehicleInfoWindow(vehicle.status, response)
+            }
+        }
+        val bike = renderer.bikeForMarker(marker)
+        if (bike != null) {
+            return@setInfoWindowAdapter infoWindowComposeView(context, activity) {
+                Surface(
+                    color = Color.White,
+                    shape = RoundedCornerShape(8.dp),
+                    shadowElevation = 2.dp,
+                ) {
+                    BikeInfoWindow(bike.station)
+                }
+            }
+        }
+        null
+    }
+}
+
+/**
+ * A [ComposeView] hosting [content] in [ObaTheme] for use as a maplibre info window. The ViewTree
+ * owners are set from the host [activity] because the info-window view is added outside the activity's
+ * normal content view, and the composition is disposed when the window detaches.
+ */
+private fun infoWindowComposeView(
+    context: Context,
+    activity: Activity,
+    content: @Composable () -> Unit,
+): View = ComposeView(context).apply {
+    setViewTreeLifecycleOwner(activity as LifecycleOwner)
+    setViewTreeViewModelStoreOwner(activity as ViewModelStoreOwner)
+    setViewTreeSavedStateRegistryOwner(activity as SavedStateRegistryOwner)
+    setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    setContent { ObaTheme { content() } }
 }
 
 /** Builds a [CameraSnapshot] from the maplibre map's current camera + visible region. */

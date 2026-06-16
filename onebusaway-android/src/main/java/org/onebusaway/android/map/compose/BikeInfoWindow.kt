@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.map.googlemapsv2.compose
+package org.onebusaway.android.map.compose
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,14 +34,15 @@ import androidx.compose.ui.unit.sp
 import org.onebusaway.android.R
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
-// Info-window contents sit on the SDK's default white bubble, so text uses fixed dark colors.
+// Info-window contents sit on a white bubble, so text uses fixed dark colors.
 private val BikePrimary = Color(0xDE000000)
 private val BikeSecondary = Color(0x99000000)
 
 /**
- * Compose port of the legacy `BikeInfoWindowAdapter` contents: a floating bike shows just its name;
- * a docking station shows its name plus available bikes and open spaces. Rendered as the content of a
- * maps-compose `MarkerInfoWindowContent` (the SDK draws the surrounding white bubble).
+ * The bike-station marker info-window content (shared across map flavors): a floating bike shows just
+ * its name; a docking station shows its name plus available bikes and open spaces. On Google it is the
+ * content of a `MarkerInfoWindowContent` (the SDK draws the white bubble); on MapLibre it is hosted in
+ * a `ComposeView` wrapped in its own bubble.
  */
 @Composable
 fun BikeInfoWindow(station: BikeRentalStation) {

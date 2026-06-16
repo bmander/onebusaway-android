@@ -39,7 +39,9 @@ import com.google.maps.android.compose.MarkerInfoWindowContent
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberMarkerState
 import org.onebusaway.android.R
+import org.onebusaway.android.map.compose.BikeInfoWindow
 import org.onebusaway.android.map.compose.ObaMapCallbacks
+import org.onebusaway.android.map.compose.VehicleInfoWindow
 import org.onebusaway.android.map.googlemapsv2.StopIconFactory
 import org.onebusaway.android.map.googlemapsv2.VehicleIconFactory
 import org.onebusaway.android.map.render.BikeBand

@@ -18,11 +18,16 @@ package org.onebusaway.android.report.ui
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -37,8 +42,8 @@ import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.report.constants.ReportConstants
-import org.onebusaway.android.report.ui.dialog.RegionValidateDialog
 import org.onebusaway.android.ui.HomeActivity
+import org.onebusaway.android.ui.SettingsActivity
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.report.types.ReportAction
@@ -116,19 +121,42 @@ fun ReportDestination(navController: NavController) {
     // Whether the region needs validating: false → show the type list straight away. Computed once.
     val needsValidation = remember { showValidateRegionDialog(activity) }
 
-    // The validate dialog (hosted on the host activity's FragmentManager) flips this when confirmed.
+    // The region-validate gate flips this when confirmed.
     val regionValidated by activity.reportRegionValidated.collectAsStateWithLifecycle()
     val showTypeList = !needsValidation || regionValidated
 
-    // Show the region-validate dialog once on enter (if needed); reset the latch on leave so a fresh
-    // entry re-validates. RegionValidateDialog reaches the host (HomeActivity) via getActivity().
+    // Reset the latch on leave so a fresh entry re-validates.
     DisposableEffect(Unit) {
-        if (needsValidation && !regionValidated && !activity.supportFragmentManager.isStateSaved) {
-            RegionValidateDialog().show(
-                activity.supportFragmentManager, ReportConstants.TAG_REGION_VALIDATE_DIALOG
-            )
-        }
         onDispose { activity.reportRegionValidated.value = false }
+    }
+
+    // "Is this your region?" gate (Tier 1: was RegionValidateDialog, a DialogFragment). Not cancelable
+    // on outside touch; back leaves the report flow.
+    if (needsValidation && !regionValidated) {
+        val region = remember { activity.regionRepository.region.value }
+        AlertDialog(
+            onDismissRequest = { navController.popBackStack() },
+            properties = DialogProperties(dismissOnClickOutside = false),
+            text = { Text(stringResource(R.string.region_dialog_message, region?.name.orEmpty())) },
+            confirmButton = {
+                TextButton(onClick = {
+                    region?.id?.let {
+                        PreferenceUtils.saveLong(ReportConstants.PREF_VALIDATED_REGION_ID, it)
+                    }
+                    activity.reportRegionValidated.value = true
+                }) { Text(stringResource(R.string.rt_yes)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    // Open settings to pick a different region, then leave the report flow.
+                    activity.startActivity(
+                        HomeActivity.navIntent(activity, NavRoutes.SETTINGS)
+                            .putExtra(SettingsActivity.SHOW_CHECK_REGION_DIALOG, true)
+                    )
+                    navController.popBackStack()
+                }) { Text(stringResource(R.string.rt_no)) }
+            },
+        )
     }
 
     if (showTypeList) {

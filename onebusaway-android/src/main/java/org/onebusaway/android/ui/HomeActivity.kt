@@ -241,9 +241,8 @@ class HomeActivity : AppCompatActivity(),
         settingsNestedFragment.value = fragmentClassName
     }
 
-    // Set true by [RegionValidateDialog] (hosted on this activity's FragmentManager from the report
-    // chooser) when the user confirms their region; the report chooser destination observes it to swap
-    // the validate dialog for the type list. Was the former ReportActivity.createIssueTypeListFragment.
+    // Set true by the report chooser's region-validate dialog (ReportDestination) when the user
+    // confirms their region; the chooser observes it to swap the validate dialog for the type list.
     val reportRegionValidated = MutableStateFlow(false)
 
     // --- Infrastructure-issue report host glue (former InfrastructureIssueActivity) ------------------

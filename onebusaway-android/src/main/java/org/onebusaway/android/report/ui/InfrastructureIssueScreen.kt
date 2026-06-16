@@ -25,19 +25,25 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.DialogProperties
 import androidx.fragment.app.FragmentContainerView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -57,7 +63,7 @@ import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.map.compose.ObaMapCallbacks
-import org.onebusaway.android.report.ui.dialog.ReportSuccessDialog
+import edu.usf.cutr.open311client.constants.Open311Constants
 import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 import org.onebusaway.android.ui.compose.findActivity
@@ -120,6 +126,9 @@ fun InfrastructureIssueDestination(
     // The single manual marker reconciled from the ViewModel's markerLocation (an effect-held id, so
     // it survives recomposition but not the destination leaving — which is correct).
     val markerId = remember { intArrayOf(NO_MARKER) }
+
+    // The "report submitted" dialog (Tier 1: was ReportSuccessDialog, a DialogFragment).
+    var showSuccess by remember { mutableStateOf(false) }
 
     // Publish this VM to the host activity so the form fragments (hosted on the activity's
     // supportFragmentManager, reached via getActivity()) can deliver their callbacks to it; clear on
@@ -200,10 +209,7 @@ fun InfrastructureIssueDestination(
                         activity, R.string.ri_address_not_found, android.widget.Toast.LENGTH_LONG
                     ).show()
 
-                InfrastructureIssueEvent.ReportSent ->
-                    if (!fragmentManager.isStateSaved) {
-                        ReportSuccessDialog().show(fragmentManager, ReportSuccessDialog.TAG)
-                    }
+                InfrastructureIssueEvent.ReportSent -> showSuccess = true
             }
         }
     }
@@ -271,6 +277,25 @@ fun InfrastructureIssueDestination(
                 CircularProgressIndicator(Modifier.align(Alignment.TopEnd).padding(16.dp))
             }
         }
+    }
+
+    // OK (or back) leaves the whole report flow back to home/map, matching ReportSuccessDialog's
+    // closeSuperActivity (finishInfrastructureIssue == popInfrastructureIssue). Not cancelable outside.
+    if (showSuccess) {
+        AlertDialog(
+            onDismissRequest = {
+                showSuccess = false
+                activity.popInfrastructureIssue?.invoke()
+            },
+            properties = DialogProperties(dismissOnClickOutside = false),
+            text = { Text(Open311Constants.M_REPORT_SUCCESS) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSuccess = false
+                    activity.popInfrastructureIssue?.invoke()
+                }) { Text("OK") }
+            },
+        )
     }
 }
 

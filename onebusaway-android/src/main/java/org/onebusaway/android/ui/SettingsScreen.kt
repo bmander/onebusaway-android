@@ -107,10 +107,10 @@ fun SettingsRoute(
         }
     }
 
-    // Port of SettingsActivity's "check region" dialog — shown once when the report flow launches
-    // settings with the SHOW_CHECK_REGION_DIALOG extra.
+    // The "check region" dialog — shown once when the report flow launches settings with the
+    // EXTRA_SHOW_CHECK_REGION_DIALOG extra.
     LaunchedEffect(Unit) {
-        if (activity.intent.getBooleanExtra(SettingsActivity.SHOW_CHECK_REGION_DIALOG, false)) {
+        if (activity.intent.getBooleanExtra(HomeActivity.EXTRA_SHOW_CHECK_REGION_DIALOG, false)) {
             Application.get().currentRegion?.let { region ->
                 MaterialAlertDialogBuilder(activity)
                     .setTitle(activity.getString(R.string.preference_region_dialog_title))
@@ -120,7 +120,7 @@ fun SettingsRoute(
                     .setPositiveButton(android.R.string.ok, null)
                     .show()
             }
-            activity.intent.removeExtra(SettingsActivity.SHOW_CHECK_REGION_DIALOG)
+            activity.intent.removeExtra(HomeActivity.EXTRA_SHOW_CHECK_REGION_DIALOG)
         }
     }
 

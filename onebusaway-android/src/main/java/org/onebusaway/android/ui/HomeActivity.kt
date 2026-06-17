@@ -639,7 +639,7 @@ class HomeActivity : AppCompatActivity() {
                 }
                 // Settings destination (Campaign C; former SettingsActivity): a pure-Compose settings
                 // screen ([SettingsRoute]). Reached in-app from the home drawer's Settings item and from
-                // the report flow (region-validate dialog, with the SHOW_CHECK_REGION_DIALOG extra on the
+                // the report flow (region-validate dialog, with the EXTRA_SHOW_CHECK_REGION_DIALOG extra on the
                 // HomeActivity intent). Host-bound actions (theme recreate, go-home, donate/browser) are
                 // passed as lambdas; the Advanced sub-screen is its own destination below.
                 composable(NavRoutes.SETTINGS) {
@@ -1532,6 +1532,13 @@ class HomeActivity : AppCompatActivity() {
         // navigates there. Lets former screen Activities become thin facade objects with no
         // per-screen intent contract. (External contracts — shortcuts/FCM — use the data-URI branches.)
         const val EXTRA_NAV_ROUTE = "org.onebusaway.android.ui.HomeActivity.NAV_ROUTE"
+
+        /**
+         * Extra on the [navIntent] SETTINGS intent requesting the settings destination show the
+         * "check your region" dialog on first composition. Set by the report flow's region-validate
+         * dialog when the user opts to change their region.
+         */
+        const val EXTRA_SHOW_CHECK_REGION_DIALOG = ".checkRegionDialog"
 
         /** An intent that opens HomeActivity and navigates its NavHost to [route]. */
         @JvmStatic

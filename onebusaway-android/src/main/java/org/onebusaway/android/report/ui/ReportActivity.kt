@@ -43,7 +43,6 @@ import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.report.constants.ReportConstants
 import org.onebusaway.android.ui.HomeActivity
-import org.onebusaway.android.ui.SettingsActivity
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.report.types.ReportAction
@@ -151,7 +150,7 @@ fun ReportDestination(navController: NavController) {
                     // Open settings to pick a different region, then leave the report flow.
                     activity.startActivity(
                         HomeActivity.navIntent(activity, NavRoutes.SETTINGS)
-                            .putExtra(SettingsActivity.SHOW_CHECK_REGION_DIALOG, true)
+                            .putExtra(HomeActivity.EXTRA_SHOW_CHECK_REGION_DIALOG, true)
                     )
                     navController.popBackStack()
                 }) { Text(stringResource(R.string.rt_no)) }

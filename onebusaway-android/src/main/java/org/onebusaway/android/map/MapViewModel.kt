@@ -581,6 +581,20 @@ class MapViewModel @Inject constructor(
     // imperative mapView.setPadding(...) relay through HomeActivity.
     fun setTopPadding(px: Int) = renderState.setTopPadding(px)
 
+    // Keeps vehicle markers from being hidden under the route-mode header (was RoutePopup's logic).
+    private val routeHeaderMarkerPaddingPx by lazy {
+        context.resources.getDimensionPixelSize(R.dimen.map_route_vehicle_markers_padding)
+    }
+
+    /**
+     * The route-mode header reported its measured height (0 when none): set the map's top padding to the
+     * header height plus the map's own marker padding. The map owns this derivation so the route header
+     * reports straight to it, instead of the host relaying the value between the two.
+     */
+    fun setRouteHeaderHeight(heightPx: Int) {
+        setTopPadding(if (heightPx > 0) heightPx + routeHeaderMarkerPaddingPx else 0)
+    }
+
     fun setBottomPadding(px: Int) = renderState.setBottomPadding(px)
 
     private fun dispatchCamera(command: CameraCommand) = renderState.dispatchCamera(command)

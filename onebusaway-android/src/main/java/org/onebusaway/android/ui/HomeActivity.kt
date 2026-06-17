@@ -209,7 +209,6 @@ class HomeActivity : AppCompatActivity() {
         onToggleSheet = viewModel::requestToggleSheet,
         onPreferredHeight = viewModel::onPreferredHeight,
         onCancelRouteMode = ::onCancelRouteMode,
-        onRouteHeaderHeight = ::onRouteHeaderHeight,
     )
 
     /**
@@ -434,17 +433,6 @@ class HomeActivity : AppCompatActivity() {
         // location-permission prompt once the map shows.)
         viewModel.onMapShown()
         // The survey self-triggers when NEARBY is shown (SurveyFeature reads selectedItem + regionReady).
-    }
-
-    // Keeps vehicle markers from being hidden under the route-mode header (was RoutePopup's logic).
-    private val routeHeaderMarkerPaddingPx by lazy {
-        resources.getDimensionPixelSize(R.dimen.map_route_vehicle_markers_padding)
-    }
-
-    /** The Compose route header reports its measured height; set the map's top padding accordingly. */
-    private fun onRouteHeaderHeight(heightPx: Int) {
-        val top = if (heightPx > 0) heightPx + routeHeaderMarkerPaddingPx else 0
-        mapViewModel.setTopPadding(top)
     }
 
     /** The route header's cancel button: return to stop mode, preserving the current zoom + center. */

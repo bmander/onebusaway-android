@@ -113,7 +113,6 @@ class HomeCallbacks(
     val onToggleSheet: () -> Unit,
     val onPreferredHeight: (previewCount: Int, filtering: Boolean) -> Unit,
     val onCancelRouteMode: () -> Unit,
-    val onRouteHeaderHeight: (Int) -> Unit,
 )
 
 /**
@@ -315,7 +314,9 @@ fun HomeScreen(
                             routeHeader = routeHeader,
                             listMenuRequests = homeViewModel.listMenuRequests,
                             onCancelRouteMode = onCancelRouteMode,
-                            onRouteHeaderHeight = onRouteHeaderHeight,
+                            // The route header reports its height straight to the map VM (which owns the
+                            // padding derivation), so the host isn't a relay between the two features.
+                            onRouteHeaderHeight = mapViewModel::setRouteHeaderHeight,
                             onShowRouteInfo = onShowRouteInfo,
                             onShowArrivals = onShowArrivals,
                         )

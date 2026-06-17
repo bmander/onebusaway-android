@@ -78,9 +78,13 @@ public class BackupUtils {
                 null);
         try {
             Backup.restore(context, uri);
+            Toast.makeText(context,
+                    context.getString(R.string.preferences_db_restored,
+                            context.getString(R.string.app_name)),
+                    Toast.LENGTH_LONG).show();
 
-            // The region re-resolve (progress dialog + "restored" toast) is driven on the Compose home
-            // surface by the caller once the database is in place.
+            // Re-resolve the region on the Compose home surface (raises the picker if it's ambiguous),
+            // in case the restored data implies a different region.
             if (onRestored != null) {
                 onRestored.run();
             }

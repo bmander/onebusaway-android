@@ -485,59 +485,6 @@ class HomeViewModelTest {
         job.cancel()
     }
 
-    @Test
-    fun `a restore refresh emits RestoreComplete and leaves no progress dialog`() = runTest {
-        val vm = viewModel(regionStatus = RegionStatus.Changed(region(1)))
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
-        advanceUntilIdle()
-
-        vm.refreshRegionsAfterRestore()
-        advanceUntilIdle()
-
-        assertTrue(events.contains(HomeEvent.RestoreComplete))
-        assertEquals(HomeDialog.None, vm.uiState.value.dialog)
-        job.cancel()
-    }
-
-    @Test
-    fun `a restore needing manual selection raises the picker, then completes on pick`() = runTest {
-        val regions = listOf(region(1), region(2))
-        val repo = FakeRegionRepository().apply {
-            refreshResult = RegionStatus.NeedsManualSelection(regions)
-        }
-        val vm = viewModel(regionRepo = repo)
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
-        advanceUntilIdle()
-
-        vm.refreshRegionsAfterRestore()
-        advanceUntilIdle()
-        // The progress dialog gives way to the forced picker; no completion yet.
-        assertEquals(HomeDialog.ChooseRegion(regions), vm.uiState.value.dialog)
-        assertFalse(events.contains(HomeEvent.RestoreComplete))
-
-        vm.onRegionChosen(regions[1])
-        advanceUntilIdle()
-        assertTrue(events.contains(HomeEvent.RestoreComplete))
-        job.cancel()
-    }
-
-    @Test
-    fun `a catastrophic failed restore refresh does not signal completion`() = runTest {
-        val vm = viewModel(regionStatus = RegionStatus.Failed)
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
-        advanceUntilIdle()
-
-        vm.refreshRegionsAfterRestore()
-        advanceUntilIdle()
-
-        assertFalse(events.contains(HomeEvent.RestoreComplete))
-        assertEquals(HomeDialog.None, vm.uiState.value.dialog)
-        job.cancel()
-    }
-
     // --- startup region-check gate ---
 
     @Test

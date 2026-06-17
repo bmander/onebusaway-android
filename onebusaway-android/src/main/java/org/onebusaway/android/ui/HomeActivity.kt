@@ -1136,7 +1136,6 @@ class HomeActivity : AppCompatActivity() {
                     when (event) {
                         is HomeEvent.RegionResolved -> onRegionResolved(event)
                         HomeEvent.RegionToggleChanged -> onRegionToggleChanged()
-                        HomeEvent.RestoreComplete -> onRestoreComplete()
                         // Sheet commands are consumed by HomeScreen.
                         else -> Unit
                     }
@@ -1171,26 +1170,18 @@ class HomeActivity : AppCompatActivity() {
 
     /**
      * An experimental-regions toggle changed the region (the [HomeEvent.RegionToggleChanged] effect;
-     * ported from SettingsActivity.onRegionTaskFinished): reset the OTP API version and re-home. The
-     * "found region" announcement is the shared region-found snackbar, so it isn't repeated here.
+     * ported from SettingsActivity.onRegionTaskFinished): reset the OTP API version. The "found region"
+     * announcement is the shared region-found snackbar, and the new region propagates reactively, so no
+     * re-home is needed.
      */
     private fun onRegionToggleChanged() {
         Application.get().setUseOldOtpApiUrlVersion(false)
-        NavHelp.goHome(this, false)
     }
 
-    /** A backup restore finished resolving its region: toast that the database was restored. */
-    private fun onRestoreComplete() {
-        Toast.makeText(
-            this,
-            getString(R.string.preferences_db_restored, getString(R.string.app_name)),
-            Toast.LENGTH_LONG
-        ).show()
-    }
-
-    /** Re-resolves the region after a backup restore (called from SettingsScreen's restore launcher). */
+    /** Re-resolves the region after a backup restore (called from SettingsScreen's restore launcher),
+     *  in case the restored data implies a different region — raising the picker if it's ambiguous. */
     fun refreshRegionsAfterRestore() {
-        viewModel.refreshRegionsAfterRestore()
+        viewModel.refreshRegions()
     }
 
     /** Sets the initial map mode from the launch sources (route deep link, else nearby stops). */

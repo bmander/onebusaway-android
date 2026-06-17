@@ -576,8 +576,8 @@ class HomeActivity : AppCompatActivity() {
                     }
                 }
                 // Agencies destination (Campaign C): the transit agencies in the current region.
-                // Reached in-app from the help menu (HelpAction.AGENCIES → AgenciesActivity facade →
-                // HomeActivity → translator). State lives in the Hilt AgenciesViewModel. Non-exported.
+                // Reached in-app from the help menu (HelpAction.AGENCIES navigates here via a
+                // navIntent route). State lives in the Hilt AgenciesViewModel. Non-exported.
                 composable(NavRoutes.AGENCIES) {
                     ObaTheme {
                         AgenciesRoute(
@@ -587,7 +587,7 @@ class HomeActivity : AppCompatActivity() {
                     }
                 }
                 // Regions destination (Campaign C): the manual OBA region (server) picker. Reached
-                // in-app from Settings (RegionsActivity facade → HomeActivity → translator). Selecting
+                // in-app from Settings (navController.navigate(NavRoutes.REGIONS)). Selecting
                 // a region is terminal; on selection (which may disable auto-select, surfaced via the
                 // toast) we pop back, matching the legacy "set region, return home" behavior.
                 composable(NavRoutes.REGIONS) {
@@ -609,7 +609,7 @@ class HomeActivity : AppCompatActivity() {
                     }
                 }
                 // About destination (Campaign C): version / license / contributor info. Reached in-app
-                // from Settings (AboutActivity facade → HomeActivity → translator). No VM; the version
+                // from Settings (navController.navigate(NavRoutes.ABOUT)). No VM; the version
                 // line is computed from the package info via buildVersionText. Non-exported.
                 composable(NavRoutes.ABOUT) {
                     ObaTheme {
@@ -620,8 +620,8 @@ class HomeActivity : AppCompatActivity() {
                     }
                 }
                 // Donation "learn more" destination (Campaign C): the why-donate explainer. Reached
-                // in-app from the home donation card (DonationLearnMoreActivity facade → HomeActivity →
-                // translator). The donate button reproduces the former Activity's behavior: dismiss any
+                // in-app from the home donation card (a navIntent route → translator). The donate
+                // button reproduces the former Activity's behavior: dismiss any
                 // pending donation requests, open the donations page, then pop back. Non-exported.
                 composable(NavRoutes.DONATION_LEARN_MORE) {
                     ObaTheme {
@@ -1362,7 +1362,7 @@ class HomeActivity : AppCompatActivity() {
                 ShowcaseViewUtils.resetAllTutorials(this)
                 NavHelp.goHome(this, true)
             }
-            HelpAction.AGENCIES -> AgenciesActivity.start(this)
+            HelpAction.AGENCIES -> startActivity(navIntent(this, NavRoutes.AGENCIES))
             HelpAction.TWITTER -> {
                 var twitterUrl = TWITTER_URL
                 val region = regionRepository.region.value

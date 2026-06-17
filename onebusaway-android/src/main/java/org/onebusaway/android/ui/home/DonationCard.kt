@@ -50,7 +50,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.ui.DonationLearnMoreActivity
+import org.onebusaway.android.ui.HomeActivity
+import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
  * Self-wiring donation feature module: collects [DonationViewModel] state, builds its callbacks, runs
@@ -75,7 +76,7 @@ fun DonationFeature(viewModel: DonationViewModel, onNearby: Boolean, cardModifie
             viewModel.effects.collect { effect ->
                 when (effect) {
                     DonationEffect.OpenLearnMore ->
-                        DonationLearnMoreActivity.start(context)
+                        context.startActivity(HomeActivity.navIntent(context, NavRoutes.DONATION_LEARN_MORE))
                     DonationEffect.OpenDonatePage ->
                         context.startActivity(Application.getDonationsManager().buildOpenDonationsPageIntent())
                 }

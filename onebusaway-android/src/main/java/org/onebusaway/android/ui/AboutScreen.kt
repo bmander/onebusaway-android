@@ -42,24 +42,6 @@ import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 import org.onebusaway.android.ui.compose.components.linkifyUrls
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.ui.nav.NavRoutes
-
-/**
- * Launches the about screen (version, license, and contributor information).
- *
- * Campaign C: the about screen is a NavHost destination hosted by [HomeActivity]; this is no longer
- * an Activity but a launcher facade. `start` builds an explicit [HomeActivity] intent carrying the
- * [NavRoutes.ABOUT] route, which HomeActivity's translator navigates to. The screen prose lives in
- * per-locale string resources, the contributor/translator/credit names in string-arrays, and URLs
- * in the prose render as tappable links. (Non-exported, launched only in-app, so no alias needed.)
- */
-object AboutActivity {
-
-    @JvmStatic
-    fun start(context: Context) {
-        context.startActivity(HomeActivity.navIntent(context, NavRoutes.ABOUT))
-    }
-}
 
 /** The displayed "Version: name (code)" line, or empty if the package info can't be read. */
 internal fun buildVersionText(context: Context): String = try {
@@ -70,6 +52,11 @@ internal fun buildVersionText(context: Context): String = try {
     ""
 }
 
+/**
+ * The about screen (version, license, and contributor info): a NavHost destination hosted by
+ * [HomeActivity]. Prose lives in per-locale string resources, contributor/translator/credit names in
+ * string-arrays, and bare URLs in the prose render as tappable links.
+ */
 @Composable
 internal fun AboutScreen(versionText: String, onBack: () -> Unit) {
     Scaffold(

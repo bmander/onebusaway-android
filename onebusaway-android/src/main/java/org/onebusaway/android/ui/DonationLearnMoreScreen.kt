@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.ui
 
-import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,26 +42,12 @@ import androidx.compose.ui.unit.sp
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
- * Launches the donation "learn more" screen (why donations matter, with a button out to the
- * donations page).
- *
- * Campaign C: the explainer is a NavHost destination hosted by [HomeActivity]; this is no longer an
- * Activity but a launcher facade. `start` builds an explicit [HomeActivity] intent carrying the
- * [NavRoutes.DONATION_LEARN_MORE] route, which HomeActivity's translator navigates to. The donate
- * button's behavior (dismiss pending requests + open the donations page) lives in the destination.
- * (Non-exported, launched only in-app, so no activity-alias is needed.)
+ * The donation "learn more" screen (why donations matter, with a button out to the donations page):
+ * a NavHost destination hosted by [HomeActivity]. The donate button's behavior (dismiss pending
+ * requests + open the donations page) lives in the destination.
  */
-object DonationLearnMoreActivity {
-
-    @JvmStatic
-    fun start(context: Context) {
-        context.startActivity(HomeActivity.navIntent(context, NavRoutes.DONATION_LEARN_MORE))
-    }
-}
-
 @Composable
 internal fun DonationLearnMoreScreen(onBack: () -> Unit, onDonate: () -> Unit) {
     Scaffold(

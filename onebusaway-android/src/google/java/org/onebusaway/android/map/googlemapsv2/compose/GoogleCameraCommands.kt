@@ -27,7 +27,7 @@ import org.onebusaway.android.app.Application
 import org.onebusaway.android.map.googlemapsv2.MapHelpV2
 import org.onebusaway.android.map.render.CameraCommand
 import org.onebusaway.android.map.render.MapRenderState
-import org.onebusaway.android.util.AndroidUtils
+import org.onebusaway.android.util.ViewUtils
 import kotlin.math.abs
 
 // The same constants the imperative GoogleMapHost used for these camera moves.
@@ -93,7 +93,7 @@ suspend fun applyCameraCommand(
                 Toast.makeText(context, R.string.route_info_no_shape_data, Toast.LENGTH_SHORT).show()
             } else {
                 camera.move(
-                    CameraUpdateFactory.newLatLngBounds(bounds, AndroidUtils.dpToPixels(context, DEFAULT_MAP_PADDING_DP))
+                    CameraUpdateFactory.newLatLngBounds(bounds, ViewUtils.dpToPixels(context, DEFAULT_MAP_PADDING_DP))
                 )
             }
         }
@@ -104,7 +104,7 @@ suspend fun applyCameraCommand(
             camera.move(
                 CameraUpdateFactory.newLatLngBounds(
                     bounds, dm.widthPixels, dm.heightPixels,
-                    AndroidUtils.dpToPixels(context, DEFAULT_MAP_PADDING_DP)
+                    ViewUtils.dpToPixels(context, DEFAULT_MAP_PADDING_DP)
                 )
             )
         }
@@ -127,7 +127,7 @@ suspend fun applyCameraCommand(
             val bounds = LatLngBounds.Builder()
                 .include(visible.northeast).include(visible.southwest).include(closest).build()
             camera.animate(
-                CameraUpdateFactory.newLatLngBounds(bounds, AndroidUtils.dpToPixels(context, DEFAULT_MAP_PADDING_DP))
+                CameraUpdateFactory.newLatLngBounds(bounds, ViewUtils.dpToPixels(context, DEFAULT_MAP_PADDING_DP))
             )
         }
 

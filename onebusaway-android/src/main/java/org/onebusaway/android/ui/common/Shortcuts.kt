@@ -32,7 +32,7 @@ import androidx.core.graphics.drawable.IconCompat
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.arrivals.ArrivalsListLauncher
 import org.onebusaway.android.ui.routeinfo.RouteInfoLauncher
-import org.onebusaway.android.util.AndroidUtils
+import org.onebusaway.android.util.ViewUtils
 
 /**
  * Helpers for creating launcher shortcuts (stops, routes, and arbitrary destinations).
@@ -119,7 +119,7 @@ object Shortcuts {
 
         val layerDrawable = LayerDrawable(arrayOf(drawableBackground, drawableIcon))
 
-        val backgroundInset = AndroidUtils.dpToPixels(context, 2.0f)
+        val backgroundInset = ViewUtils.dpToPixels(context, 2.0f)
         layerDrawable.setLayerInset(
             0,
             backgroundInset,
@@ -127,7 +127,7 @@ object Shortcuts {
             backgroundInset,
             backgroundInset
         )
-        val iconInset = AndroidUtils.dpToPixels(context, 7.0f)
+        val iconInset = ViewUtils.dpToPixels(context, 7.0f)
         layerDrawable.setLayerInset(1, iconInset, iconInset, iconInset, iconInset)
 
         val b = Bitmap.createBitmap(

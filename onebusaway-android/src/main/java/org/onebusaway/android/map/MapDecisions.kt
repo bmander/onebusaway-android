@@ -58,7 +58,7 @@ internal val VEHICLE_REFRESH_PERIOD_MS = TimeUnit.SECONDS.toMillis(10)
 /**
  * The delay before the next vehicle refresh when (re)starting the poll — e.g. on resume. So resuming
  * mid-period waits only the remainder. Pure and unit-tested; [lastUpdated]/[now] are nanosecond
- * timestamps (`AndroidUtils.getCurrentTimeForComparison`).
+ * timestamps (`SystemClock.elapsedRealtimeNanos()`).
  *
  *  - never loaded ([lastUpdated] == 0) → a full period
  *  - already overdue → a near-immediate refresh (100 ms)

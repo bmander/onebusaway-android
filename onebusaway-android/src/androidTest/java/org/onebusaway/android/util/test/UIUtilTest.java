@@ -17,9 +17,6 @@
 
 package org.onebusaway.android.util.test;
 
-import android.graphics.Color;
-import android.location.Location;
-import android.os.Bundle;
 import android.text.TextUtils;
 
 import androidx.core.util.Pair;
@@ -40,14 +37,12 @@ import org.onebusaway.android.io.elements.OccupancyState;
 import org.onebusaway.android.io.request.ObaArrivalInfoRequest;
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse;
 import org.onebusaway.android.io.test.ObaTestCase;
-import org.onebusaway.android.map.MapParams;
 import org.onebusaway.android.mock.MockObaStop;
 import org.onebusaway.android.mock.MockRegion;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.ui.arrivals.ArrivalInfo;
 import org.onebusaway.android.ui.arrivals.StopDetailsDialog;
 import org.onebusaway.android.ui.arrivals.TripOptionsKt;
-import org.onebusaway.android.util.AndroidUtils;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.DisplayFormat;
 import org.onebusaway.android.util.MyTextUtils;
@@ -911,70 +906,8 @@ public class UIUtilTest extends ObaTestCase {
         assertEquals(35, arrivalInfo.get(31).getEta());
     }
 
-    @Test
-    public void testGetTransparentColor() {
-        String colorString = "#777777";
-        int alpha = 127;
-        int color = Color.parseColor(colorString);
-        int newColor = AndroidUtils.getTransparentColor(color, alpha);
-
-        int r = Color.red(color);
-        int g = Color.green(color);
-        int b = Color.blue(color);
-
-        int newR = Color.red(newColor);
-        int newG = Color.green(newColor);
-        int newB = Color.blue(newColor);
-        int newAlpha = Color.alpha(newColor);
-
-        assertEquals(r, newR);
-        assertEquals(g, newG);
-        assertEquals(b, newB);
-        assertEquals(alpha, newAlpha);
-    }
-
     private String formatTime(long time) {
         return DisplayFormat.formatTime(getTargetContext(), time);
-    }
-
-    /**
-     * Tests getting map view center information from a bundle
-     */
-    @Test
-    public void testGetMapCenter() {
-        // Check null and empty bundles
-        Bundle b = null;
-        assertNull(AndroidUtils.getMapCenter(b));
-
-        b = new Bundle();
-        assertNull(AndroidUtils.getMapCenter(b));
-
-        // Check single params
-        b.putDouble(MapParams.CENTER_LAT, 0.0);
-        assertNull(AndroidUtils.getMapCenter(b));
-
-        b = new Bundle();
-        b.putDouble(MapParams.CENTER_LON, 0.0);
-        assertNull(AndroidUtils.getMapCenter(b));
-
-        // Check invalid lat/long
-        b = new Bundle();
-        b.putDouble(MapParams.CENTER_LAT, 0.0);
-        b.putDouble(MapParams.CENTER_LON, 0.0);
-        assertNull(AndroidUtils.getMapCenter(b));
-
-        // Check valid lat/long
-        final double lat = 28.343243;
-        final double lon = -87.234234;
-
-        b = new Bundle();
-        b.putDouble(MapParams.CENTER_LAT, lat);
-        b.putDouble(MapParams.CENTER_LON, lon);
-        Location l = AndroidUtils.getMapCenter(b);
-        assertNotNull(l);
-
-        assertEquals(lat, l.getLatitude());
-        assertEquals(lon, l.getLongitude());
     }
 
     /**

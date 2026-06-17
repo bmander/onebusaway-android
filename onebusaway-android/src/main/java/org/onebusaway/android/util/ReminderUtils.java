@@ -21,6 +21,7 @@ import org.onebusaway.android.io.elements.ObaArrivalInfo;
 import org.onebusaway.android.io.request.reminders.DeleteRequestListener;
 import org.onebusaway.android.io.request.reminders.ObaReminderDeleteRequest;
 import org.onebusaway.android.provider.ObaContract;
+import org.onebusaway.android.provider.ProviderQueries;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -49,7 +50,7 @@ public class ReminderUtils {
      * @return the short name of the route
      */
     public static String getRouteShortName(Context context, String id) {
-        return AndroidUtils.stringForQuery(context, Uri.withAppendedPath(ObaContract.Routes.CONTENT_URI, id), ObaContract.Routes.SHORTNAME);
+        return ProviderQueries.stringForQuery(context, Uri.withAppendedPath(ObaContract.Routes.CONTENT_URI, id), ObaContract.Routes.SHORTNAME);
     }
 
     /**

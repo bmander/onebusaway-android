@@ -219,7 +219,7 @@ public class ShowcaseViewUtils {
      * @return a dialog that prompts the user if they want to see tutorial popups
      */
     public static void showOptOutDialog(final AppCompatActivity activity) {
-        if (!AndroidUtils.canManageDialog(activity)) {
+        if (!ViewUtils.canManageDialog(activity)) {
             return;
         }
         final String showTutorialsKey = activity
@@ -283,7 +283,7 @@ public class ShowcaseViewUtils {
                 ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
         lp.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-        int p = AndroidUtils.dpToPixels(context, 12);
+        int p = ViewUtils.dpToPixels(context, 12);
         lp.setMargins(p, p, p, p);
         v.setButtonPosition(lp);
     }

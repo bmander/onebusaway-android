@@ -22,8 +22,8 @@ import android.widget.Toast;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.ObaApi;
 import org.onebusaway.android.io.request.ObaResponse;
-import org.onebusaway.android.util.AndroidUtils;
 import org.onebusaway.android.util.ObaRequestErrors;
+import org.onebusaway.android.util.ViewUtils;
 
 /**
  * Utility methods related to the map display.
@@ -44,7 +44,7 @@ public class MapUtils {
         } else {
             code = ObaApi.OBA_INTERNAL_ERROR;
         }
-        if (AndroidUtils.canManageDialog(context)) {
+        if (ViewUtils.canManageDialog(context)) {
             Toast.makeText(context,
                     ObaRequestErrors.getMapErrorString(context, code),
                     Toast.LENGTH_LONG).show();

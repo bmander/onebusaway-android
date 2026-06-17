@@ -19,17 +19,11 @@ package org.onebusaway.android.util
 
 import android.app.Activity
 import android.content.Context
-import android.graphics.Color
-import android.location.Location
-import android.net.Uri
-import android.os.Bundle
-import android.os.SystemClock
-import org.onebusaway.android.map.MapParams
 
 /**
- * A class containing small, mostly-pure Android utility helpers.
+ * Small view/dialog-related Android utility helpers.
  */
-object AndroidUtils {
+object ViewUtils {
 
     /**
      * Converts screen dimension units from dp to pixels, based on algorithm defined in
@@ -47,57 +41,6 @@ object AndroidUtils {
     }
 
     /**
-     * Transforms a given opaque color into the same color but with the given alpha value
-     *
-     * @param solidColor hex color value that is completely opaque
-     * @param alpha      Specify an alpha value. 0 means fully transparent, and 255 means fully
-     *                   opaque.
-     * @return the provided color with the given alpha value
-     */
-    @JvmStatic
-    fun getTransparentColor(solidColor: Int, alpha: Int): Int {
-        val r = Color.red(solidColor)
-        val g = Color.green(solidColor)
-        val b = Color.blue(solidColor)
-        return Color.argb(alpha, r, g, b)
-    }
-
-    /**
-     * Returns the current time for comparison against another current time, using
-     * SystemClock.elapsedRealtimeNanos() since it's guaranteed monotonic.
-     *
-     * @return the current time for comparison against another current time, in nanoseconds
-     */
-    @JvmStatic
-    fun getCurrentTimeForComparison(): Long {
-        // Use elapsed real-time nanos, since its guaranteed monotonic
-        return SystemClock.elapsedRealtimeNanos()
-    }
-
-    /**
-     * Returns the location of the map center if it has been previously saved in the bundle, or
-     * null if it wasn't saved in the bundle.
-     *
-     * @param b bundle to check for the map center
-     * @return the location of the map center if it has been previously saved in the bundle, or null
-     * if it wasn't saved in the bundle.
-     */
-    @JvmStatic
-    fun getMapCenter(b: Bundle?): Location? {
-        if (b == null) {
-            return null
-        }
-        var center: Location? = null
-        val lat = b.getDouble(MapParams.CENTER_LAT)
-        val lon = b.getDouble(MapParams.CENTER_LON)
-
-        if (lat != 0.0 && lon != 0.0) {
-            center = LocationUtils.makeLocation(lat, lon)
-        }
-        return center
-    }
-
-    /**
      * Returns true if the activity is still active and dialogs can be managed (i.e., displayed
      * or dismissed), or false if it is
      * not
@@ -108,11 +51,7 @@ object AndroidUtils {
      */
     @JvmStatic
     fun canManageDialog(activity: Activity?): Boolean {
-        if (activity == null) {
-            return false
-        }
-
-        return !activity.isFinishing && !activity.isDestroyed
+        return activity != null && !activity.isFinishing && !activity.isDestroyed
     }
 
     /**
@@ -143,24 +82,5 @@ object AndroidUtils {
             // need to do this, we don't have any way of checking whether its possible
             true
         }
-    }
-
-    /**
-     * Returns the first string for the query URI.
-     */
-    @JvmStatic
-    fun stringForQuery(context: Context, uri: Uri, column: String): String {
-        val cr = context.contentResolver
-        val c = cr.query(uri, arrayOf(column), null, null, null)
-        if (c != null) {
-            try {
-                if (c.moveToFirst()) {
-                    return c.getString(0)
-                }
-            } finally {
-                c.close()
-            }
-        }
-        return ""
     }
 }

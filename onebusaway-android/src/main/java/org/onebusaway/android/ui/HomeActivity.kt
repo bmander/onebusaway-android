@@ -53,7 +53,6 @@ import org.onebusaway.android.report.ui.ReportDestination
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.arrivals.ArrivalsIntents
 import org.onebusaway.android.ui.nav.NavHelp
-import org.onebusaway.android.ui.settings.SettingsSupport
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.donation.DonationViewModel
@@ -291,7 +290,11 @@ class HomeActivity : AppCompatActivity() {
         // path (the legacy handler immediately went Home), so return null after processing.
         val data = intent.data
         if (data?.scheme == "onebusaway" && data.host == "add-region") {
-            applyAddRegionDeepLink(data)
+            // Validating and applying the URLs is the region domain's job; we just parse them off the URI.
+            regionRepository.applyCustomApiUrls(
+                obaUrl = data.getQueryParameter("oba-url"),
+                otpUrl = data.getQueryParameter("otp-url"),
+            )
             return null
         }
         // System search (HomeActivity is the default_searchable target): open the search destination.
@@ -351,25 +354,6 @@ class HomeActivity : AppCompatActivity() {
                 )
             } else null
             else -> null
-        }
-    }
-
-    /**
-     * Applies the `onebusaway://add-region` deep link (ported from SettingsActivity.onAddCustomRegion):
-     * set the custom OBA / OTP API URLs from the query params (validating each), clearing the current
-     * region when a valid OBA URL is supplied. The legacy handler then went Home + finished; here the
-     * caller ([routeForIntent]) returns null so we simply stay on the home/map path.
-     */
-    private fun applyAddRegionDeepLink(deepLink: Uri) {
-        val obaCustomUrl = deepLink.getQueryParameter("oba-url")
-        val otpCustomUrl = deepLink.getQueryParameter("otp-url")
-
-        if (obaCustomUrl != null && SettingsSupport.validateUrl(obaCustomUrl)) {
-            Application.get().setCustomApiUrl(obaCustomUrl)
-            regionRepository.clear()
-        }
-        if (otpCustomUrl != null && SettingsSupport.validateUrl(otpCustomUrl)) {
-            Application.get().setCustomOtpApiUrl(otpCustomUrl)
         }
     }
 

@@ -33,6 +33,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.preferences.PreferencesRepository
+import org.onebusaway.android.region.ApiUrlValidator
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.travelbehavior.io.coroutines.FirebaseDataPusher
 
@@ -119,7 +120,7 @@ class AdvancedSettingsViewModel @Inject constructor(
     fun onCustomObaApiUrlChanged(url: String): UrlChangeResult {
         val trimmed = url.trim()
         return if (trimmed.isNotEmpty()) {
-            if (!SettingsSupport.validateUrl(trimmed)) {
+            if (!ApiUrlValidator.validateUrl(trimmed)) {
                 UrlChangeResult.InvalidObaUrl
             } else {
                 prefs.setString(R.string.preference_key_oba_api_url, trimmed)
@@ -136,7 +137,7 @@ class AdvancedSettingsViewModel @Inject constructor(
     /** Apply an edit to the custom OTP API URL. Returns the outcome (see [onCustomObaApiUrlChanged]). */
     fun onCustomOtpApiUrlChanged(url: String): UrlChangeResult {
         val trimmed = url.trim()
-        if (trimmed.isNotEmpty() && !SettingsSupport.validateUrl(trimmed)) {
+        if (trimmed.isNotEmpty() && !ApiUrlValidator.validateUrl(trimmed)) {
             return UrlChangeResult.InvalidOtpUrl
         }
         prefs.setString(R.string.preference_key_otp_api_url, trimmed)

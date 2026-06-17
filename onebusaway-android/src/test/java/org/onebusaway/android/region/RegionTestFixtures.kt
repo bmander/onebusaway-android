@@ -36,11 +36,18 @@ internal class FakeRegionRepository(initial: ObaRegion? = null) : RegionReposito
     var refreshResult: RegionStatus = RegionStatus.Unchanged
     var refreshCount = 0
     val chosen = mutableListOf<ObaRegion>()
+    val customApiUrls = mutableListOf<Pair<String?, String?>>()
 
     override suspend fun refresh(): RegionStatus { refreshCount++; return refreshResult }
     override suspend fun choose(region: ObaRegion) { chosen.add(region); emit(region) }
     override fun clear() = emit(null)
     override fun applyRegion(region: ObaRegion?, regionChanged: Boolean) = emit(region)
+
+    override fun applyCustomApiUrls(obaUrl: String?, otpUrl: String?) {
+        customApiUrls.add(obaUrl to otpUrl)
+        // Mirror the real repo's observable effect: a custom OBA endpoint clears the current region.
+        if (obaUrl != null) emit(null)
+    }
 
     fun emit(region: ObaRegion?) { _region.value = region; _state.value = RegionState.Active(region) }
     /** Drives the richer [state] flow directly (Resolving / NeedsManualChoice / Failed). */

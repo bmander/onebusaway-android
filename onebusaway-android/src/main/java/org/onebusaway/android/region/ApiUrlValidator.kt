@@ -15,18 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.settings
+package org.onebusaway.android.region
 
 import android.util.Patterns
 import java.net.MalformedURLException
 import java.net.URL
 
 /**
- * Shared, stateless settings helper: validates a user-entered custom API URL. Used by the advanced
- * settings screen ([org.onebusaway.android.ui.settings.AdvancedSettingsViewModel]) and by the
- * `add-region` deep link translator in `HomeActivity`.
+ * Stateless validator for a custom OBA/OTP API URL — the rule for "is this a usable region API URL".
+ * Used by the region domain ([RegionRepository.applyCustomApiUrls], applying the `add-region` deep
+ * link) and by the advanced settings screen
+ * ([org.onebusaway.android.ui.settings.AdvancedSettingsViewModel]) for live input validation. It lives
+ * in the neutral `region` package so both can depend on it without a `region` → `ui` back-dependency.
  */
-object SettingsSupport {
+object ApiUrlValidator {
 
     fun validateUrl(apiUrl: String): Boolean {
         val url = if (!apiUrl.startsWith("http")) "https://$apiUrl" else apiUrl

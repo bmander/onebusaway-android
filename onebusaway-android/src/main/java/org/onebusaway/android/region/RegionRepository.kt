@@ -72,6 +72,14 @@ interface RegionRepository {
     fun clear()
 
     /**
+     * Applies custom OBA / OTP API URLs (e.g. from the `onebusaway://add-region` deep link), validating
+     * each via [ApiUrlValidator]: a valid [obaUrl] is persisted and the current region is [clear]ed (a
+     * custom OBA endpoint replaces region resolution); a valid [otpUrl] is persisted. Null or invalid
+     * URLs are ignored. The caller is only responsible for parsing the URLs out of the intent.
+     */
+    fun applyCustomApiUrls(obaUrl: String?, otpUrl: String?)
+
+    /**
      * Applies [region] as the active region directly — the canonical region write (A7): the OBA API
      * context region, the persisted region-id pref, the custom-URL clears, and the state publish. This
      * is what [refresh]/[choose]/[clear] use internally; it is also the seam the instrumented-test writer
@@ -215,6 +223,18 @@ class DefaultRegionRepository @Inject constructor(
 
     override fun clear() {
         applyRegion(null, true)
+    }
+
+    override fun applyCustomApiUrls(obaUrl: String?, otpUrl: String?) {
+        // Order matters: persist the OBA URL first, then clear() — clear() applies a null region, which
+        // leaves the custom OBA URL pref untouched (applyRegion only clears it when a region is set).
+        if (obaUrl != null && ApiUrlValidator.validateUrl(obaUrl)) {
+            prefs.setString(R.string.preference_key_oba_api_url, obaUrl)
+            clear()
+        }
+        if (otpUrl != null && ApiUrlValidator.validateUrl(otpUrl)) {
+            prefs.setString(R.string.preference_key_otp_api_url, otpUrl)
+        }
     }
 
     @Suppress("DEPRECATION")

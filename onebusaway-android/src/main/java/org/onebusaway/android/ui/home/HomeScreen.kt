@@ -132,7 +132,7 @@ class HomeListViewModels(
  * The arrivals sheet inverts to declarative: **visibility is business state** — the sheet peeks iff
  * a stop is focused on NEARBY — driven by a [LaunchedEffect] keyed on that derived flag, so it never
  * fights a user drag. **Expansion (peek<->full)** is the live `SheetState`, nudged by one-shot
- * [HomeEvent.ToggleSheet]/[HomeEvent.CollapseSheet] commands (the screen alone knows the live state),
+ * [SheetCommand.ToggleSheet]/[SheetCommand.CollapseSheet] commands (the screen alone knows the live state),
  * plus [BackHandler]. The arrivals panel is hosted directly per focused stop (see [ArrivalsSheetHost]);
  * the map ([MapFeature]), the route-mode header ([RouteHeaderOverlay]), and the survey ([org.onebusaway.android.ui.survey.SurveyOverlay])
  * are all composables now — no map-related `AndroidView` / View seam remains.
@@ -141,7 +141,7 @@ class HomeListViewModels(
 @Composable
 fun HomeScreen(
     state: HomeUiState,
-    events: SharedFlow<HomeEvent>,
+    sheetCommands: SharedFlow<SheetCommand>,
     // The map is a self-wiring [MapFeature] (gated by [mapComposed] so SDK init stays lazy until the
     // first NEARBY selection); the route-mode header and survey are Compose overlays over it.
     homeViewModel: HomeViewModel,
@@ -208,18 +208,17 @@ fun HomeScreen(
             }
         }
 
-        // One-shot sheet/drawer commands from the ViewModel (the screen holds the live states).
+        // One-shot sheet commands from the ViewModel (the screen holds the live SheetState).
         LaunchedEffect(Unit) {
-            events.collect { event ->
-                when (event) {
-                    HomeEvent.ToggleSheet -> runCatching {
+            sheetCommands.collect { command ->
+                when (command) {
+                    SheetCommand.ToggleSheet -> runCatching {
                         when (toggleSheetTarget(sheetState.currentValue.toArrivalsSheetState())) {
                             ArrivalsSheetState.Expanded -> sheetState.expand()
                             else -> sheetState.partialExpand()
                         }
                     }
-                    HomeEvent.CollapseSheet -> runCatching { sheetState.partialExpand() }
-                    else -> {} // RegionResolved is handled by the activity
+                    SheetCommand.CollapseSheet -> runCatching { sheetState.partialExpand() }
                 }
             }
         }

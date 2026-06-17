@@ -132,14 +132,14 @@ class HomeViewModelTest {
     @Test
     fun `the chevron tap emits ToggleSheet`() = runTest {
         val vm = viewModel()
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
+        val events = mutableListOf<SheetCommand>()
+        val job = launch { vm.sheetCommands.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.requestToggleSheet()
         advanceUntilIdle()
 
-        assertEquals(listOf<HomeEvent>(HomeEvent.ToggleSheet), events)
+        assertEquals(listOf<SheetCommand>(SheetCommand.ToggleSheet), events)
         job.cancel()
     }
 
@@ -165,8 +165,8 @@ class HomeViewModelTest {
     @Test
     fun `the initial sheet reveal from hidden emits no map effects`() = runTest {
         val vm = viewModel()
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
+        val events = mutableListOf<SheetCommand>()
+        val job = launch { vm.sheetCommands.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // previous == Hidden -> skip
@@ -277,14 +277,14 @@ class HomeViewModelTest {
     fun `show route on map collapses the sheet and shows the route`() = runTest {
         val bus = FakeMapInteractionBus()
         val vm = viewModel(bus = bus)
-        val events = mutableListOf<HomeEvent>()
-        val eventJob = launch { vm.events.collect { events.add(it) } }
+        val events = mutableListOf<SheetCommand>()
+        val eventJob = launch { vm.sheetCommands.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.requestShowRouteOnMap("42")
         advanceUntilIdle()
 
-        assertEquals(listOf<HomeEvent>(HomeEvent.CollapseSheet), events)
+        assertEquals(listOf<SheetCommand>(SheetCommand.CollapseSheet), events)
         assertEquals(listOf("42"), bus.routesShown)
         eventJob.cancel()
     }
@@ -337,14 +337,14 @@ class HomeViewModelTest {
     fun `a changed region emits RegionResolved with the region name`() = runTest {
         val region = region(1)
         val vm = viewModel(regionStatus = RegionStatus.Changed(region))
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
+        val events = mutableListOf<RegionEvent>()
+        val job = launch { vm.regionEvents.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.refreshRegions()
         advanceUntilIdle()
 
-        assertEquals(listOf(HomeEvent.RegionResolved(true, region.name)), events)
+        assertEquals(listOf(RegionEvent.RegionResolved(true, region.name)), events)
         job.cancel()
     }
 
@@ -389,14 +389,14 @@ class HomeViewModelTest {
     @Test
     fun `an unchanged region emits RegionResolved without a name`() = runTest {
         val vm = viewModel(regionStatus = RegionStatus.Unchanged)
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
+        val events = mutableListOf<RegionEvent>()
+        val job = launch { vm.regionEvents.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.refreshRegions()
         advanceUntilIdle()
 
-        assertEquals(listOf(HomeEvent.RegionResolved(false, null)), events)
+        assertEquals(listOf(RegionEvent.RegionResolved(false, null)), events)
         job.cancel()
     }
 
@@ -404,8 +404,8 @@ class HomeViewModelTest {
     fun `needing manual selection raises the chooser dialog and emits no event`() = runTest {
         val regions = listOf(region(1), region(2))
         val vm = viewModel(regionStatus = RegionStatus.NeedsManualSelection(regions))
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
+        val events = mutableListOf<RegionEvent>()
+        val job = launch { vm.regionEvents.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.refreshRegions()
@@ -421,8 +421,8 @@ class HomeViewModelTest {
         val statuses = listOf(RegionStatus.Skipped, RegionStatus.Fixed(region(1)), RegionStatus.Failed)
         for (status in statuses) {
             val vm = viewModel(regionStatus = status)
-            val events = mutableListOf<HomeEvent>()
-            val job = launch { vm.events.collect { events.add(it) } }
+            val events = mutableListOf<RegionEvent>()
+            val job = launch { vm.regionEvents.collect { events.add(it) } }
             advanceUntilIdle()
 
             vm.refreshRegions()
@@ -440,8 +440,8 @@ class HomeViewModelTest {
             refreshResult = RegionStatus.NeedsManualSelection(regions)
         }
         val vm = viewModel(regionRepo = repo)
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
+        val events = mutableListOf<RegionEvent>()
+        val job = launch { vm.regionEvents.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.refreshRegions()
@@ -453,7 +453,7 @@ class HomeViewModelTest {
         assertEquals(listOf(chosen), repo.chosen)
         assertEquals(HomeDialog.None, vm.uiState.value.dialog)
         // regionName null: the legacy manual-pick path logged no analytics.
-        assertEquals(listOf<HomeEvent>(HomeEvent.RegionResolved(true, null)), events)
+        assertEquals(listOf<RegionEvent>(RegionEvent.RegionResolved(true, null)), events)
         job.cancel()
     }
 
@@ -462,28 +462,28 @@ class HomeViewModelTest {
     @Test
     fun `the experimental-regions toggle signals RegionToggleChanged on a real change`() = runTest {
         val vm = viewModel(regionStatus = RegionStatus.Changed(region(1)))
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
+        val events = mutableListOf<RegionEvent>()
+        val job = launch { vm.regionEvents.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.onExperimentalRegionsToggled()
         advanceUntilIdle()
 
-        assertTrue(events.contains(HomeEvent.RegionToggleChanged))
+        assertTrue(events.contains(RegionEvent.RegionToggleChanged))
         job.cancel()
     }
 
     @Test
     fun `the experimental-regions toggle signals nothing when the region is unchanged`() = runTest {
         val vm = viewModel(regionStatus = RegionStatus.Unchanged)
-        val events = mutableListOf<HomeEvent>()
-        val job = launch { vm.events.collect { events.add(it) } }
+        val events = mutableListOf<RegionEvent>()
+        val job = launch { vm.regionEvents.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.onExperimentalRegionsToggled()
         advanceUntilIdle()
 
-        assertFalse(events.contains(HomeEvent.RegionToggleChanged))
+        assertFalse(events.contains(RegionEvent.RegionToggleChanged))
         job.cancel()
     }
 

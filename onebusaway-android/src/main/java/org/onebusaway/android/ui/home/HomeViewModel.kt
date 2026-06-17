@@ -67,8 +67,14 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    private val _events = MutableSharedFlow<HomeEvent>(extraBufferCapacity = 4)
-    val events: SharedFlow<HomeEvent> = _events.asSharedFlow()
+    // Two single-consumer command flows: the host (HomeActivity) collects regionEvents, HomeScreen
+    // collects sheetCommands. Kept separate (rather than one multiplexed flow) so each collector's
+    // `when` is exhaustive with no discard-the-rest else.
+    private val _regionEvents = MutableSharedFlow<RegionEvent>(extraBufferCapacity = 4)
+    val regionEvents: SharedFlow<RegionEvent> = _regionEvents.asSharedFlow()
+
+    private val _sheetCommands = MutableSharedFlow<SheetCommand>(extraBufferCapacity = 4)
+    val sheetCommands: SharedFlow<SheetCommand> = _sheetCommands.asSharedFlow()
 
     // Raw inputs the gated [HomeUiState] is derived from.
     private var navItems: List<HomeNavItem> = emptyList()
@@ -238,7 +244,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /** Chevron tap — ask the screen to toggle the sheet (it holds the live SheetState). */
-    fun requestToggleSheet() = emit(HomeEvent.ToggleSheet)
+    fun requestToggleSheet() = emit(SheetCommand.ToggleSheet)
 
     /**
      * The host has a restored / deep-linked focus the imperative map hasn't been told about yet;
@@ -278,7 +284,7 @@ class HomeViewModel @Inject constructor(
 
     /** "Show vehicles on map" — collapse the sheet (screen), then switch the map to route mode. */
     fun requestShowRouteOnMap(routeId: String) {
-        emit(HomeEvent.CollapseSheet)
+        emit(SheetCommand.CollapseSheet)
         bus.send(MapCommand.ShowRoute(routeId))
     }
 
@@ -294,8 +300,14 @@ class HomeViewModel @Inject constructor(
         bus.send(MapCommand.ClearFocus)
     }
 
-    private fun emit(event: HomeEvent) {
-        viewModelScope.launch { _events.emit(event) }
+    // tryEmit (not a launched emit): the buffer (capacity 4, 0 replay) has room for these low-frequency
+    // one-shot commands, matching the codebase effect-flow idiom (MapViewModel etc.).
+    private fun emit(event: RegionEvent) {
+        _regionEvents.tryEmit(event)
+    }
+
+    private fun emit(command: SheetCommand) {
+        _sheetCommands.tryEmit(command)
     }
 
     /** The host re-snapshotted preferences / app-global flags (onResume, nav change, layer toggle). */
@@ -337,7 +349,7 @@ class HomeViewModel @Inject constructor(
 
     /**
      * The Advanced-settings "experimental regions" toggle: re-resolve, then on a real change have the
-     * host reset the OTP API version ([HomeEvent.RegionToggleChanged]). The region-found announcement is
+     * host reset the OTP API version ([RegionEvent.RegionToggleChanged]). The region-found announcement is
      * the shared [HomeUiState.regionFoundName] snackbar.
      */
     fun onExperimentalRegionsToggled() {
@@ -349,7 +361,7 @@ class HomeViewModel @Inject constructor(
      *  clear the flag. */
     private fun fireToggleEffect() {
         if (settingsTogglePending) {
-            emit(HomeEvent.RegionToggleChanged)
+            emit(RegionEvent.RegionToggleChanged)
         }
         settingsTogglePending = false
     }
@@ -401,7 +413,7 @@ class HomeViewModel @Inject constructor(
         // The map re-zoom is now driven by the map's own region collector (it observes RegionRepository).
         regionFoundName = name
         recompute() // surface regionFoundName for the snackbar
-        emit(HomeEvent.RegionResolved(changed, name))
+        emit(RegionEvent.RegionResolved(changed, name))
     }
 
     /** HomeScreen has shown the region-found snackbar; clear it so it isn't re-shown on recomposition. */

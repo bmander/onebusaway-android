@@ -100,7 +100,7 @@ fun HomeNavHost(
             val routeHeader by home.mapViewModel.routeHeader.collectAsStateWithLifecycle()
             HomeScreen(
                 state = state,
-                events = home.homeViewModel.events,
+                sheetCommands = home.homeViewModel.sheetCommands,
                 homeViewModel = home.homeViewModel,
                 mapViewModel = home.mapViewModel,
                 mapSeedLat = home.mapSeed.lat,

@@ -68,7 +68,7 @@ import org.onebusaway.android.ui.home.help.HelpAction
 import org.onebusaway.android.ui.home.help.HelpViewModel
 import org.onebusaway.android.ui.home.HomeEnvironment
 import org.onebusaway.android.ui.home.HomeCallbacks
-import org.onebusaway.android.ui.home.HomeEvent
+import org.onebusaway.android.ui.home.RegionEvent
 import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
 import org.onebusaway.android.ui.home.initialNavItem
@@ -251,7 +251,7 @@ class HomeActivity : AppCompatActivity() {
             }
         }
 
-        observeRegionResolved()
+        observeRegionEvents()
     }
 
     /**
@@ -393,19 +393,17 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
-     * Subscribes to the region [HomeEvent]s the activity (as opposed to [HomeScreen]) handles:
-     * [HomeEvent.RegionResolved] and [HomeEvent.RegionToggleChanged]. The sheet/drawer commands on the
-     * same multicast flow are consumed by HomeScreen, so they fall through the `else` here.
+     * Subscribes to the [RegionEvent]s the activity handles: [RegionEvent.RegionResolved] and
+     * [RegionEvent.RegionToggleChanged]. (Sheet commands ride a separate [HomeViewModel.sheetCommands]
+     * flow consumed by [HomeScreen], so this `when` is exhaustive with no discard arm.)
      */
-    private fun observeRegionResolved() {
+    private fun observeRegionEvents() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.events.collect { event ->
+                viewModel.regionEvents.collect { event ->
                     when (event) {
-                        is HomeEvent.RegionResolved -> onRegionResolved(event)
-                        HomeEvent.RegionToggleChanged -> onRegionToggleChanged()
-                        // Sheet commands are consumed by HomeScreen.
-                        else -> Unit
+                        is RegionEvent.RegionResolved -> onRegionResolved(event)
+                        RegionEvent.RegionToggleChanged -> onRegionToggleChanged()
                     }
                 }
             }
@@ -418,7 +416,7 @@ class HomeActivity : AppCompatActivity() {
      * and the survey (SurveyFeature) are all self-wired elsewhere; what remains here is analytics plus a
      * chrome-environment refresh (a region change can flip bikeshare availability).
      */
-    private fun onRegionResolved(event: HomeEvent.RegionResolved) {
+    private fun onRegionResolved(event: RegionEvent.RegionResolved) {
         // Report an auto-selected region change to analytics (a manual pick passes a null name, so none).
         if (event.changed && event.regionName != null) {
             ObaAnalytics.setRegion(
@@ -433,7 +431,7 @@ class HomeActivity : AppCompatActivity() {
     // --- Settings preference-screen host glue (re-homed from the former SettingsActivity) ------------
 
     /**
-     * An experimental-regions toggle changed the region (the [HomeEvent.RegionToggleChanged] effect;
+     * An experimental-regions toggle changed the region (the [RegionEvent.RegionToggleChanged] effect;
      * ported from SettingsActivity.onRegionTaskFinished): reset the OTP API version. The "found region"
      * announcement is the shared region-found snackbar, and the new region propagates reactively, so no
      * re-home is needed.

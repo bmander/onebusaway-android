@@ -153,27 +153,32 @@ data class HomeUiState(
 enum class ArrivalsSheetState { Hidden, Collapsed, Expanded }
 
 /**
- * One-shot effects driven from the ViewModel. [RegionResolved] is handled by the activity; the sheet
- * commands are handled by [HomeScreen] (which alone holds the live `SheetState`). Both subscribe to
- * the same multicast `events` flow and ignore the others. (The drawer is opened directly by
- * [org.onebusaway.android.ui.home.chrome.HomeTopBar]'s hamburger, so it needs no event. The region-wide GTFS alert is plain state now —
+ * One-shot region effects driven from the ViewModel, consumed by the host ([HomeActivity]) off its own
+ * [HomeViewModel.regionEvents] flow. (The region-wide GTFS alert is plain state now —
  * [HomeUiState.wideAlert], rendered as a Compose dialog — not a one-shot event.)
  */
-sealed interface HomeEvent {
+sealed interface RegionEvent {
     /**
      * Region resolved (replaces ObaRegionsTask's callback). [changed] is the old
      * `currentRegionChanged`; [regionName] is non-null only for an auto-selected change (the
      * activity uses it for analytics — a manual pick passes null, matching the legacy onClick which
      * logged none).
      */
-    data class RegionResolved(val changed: Boolean, val regionName: String?) : HomeEvent
-
-    /** The arrivals-sheet chevron was tapped — toggle peek <-> full. */
-    object ToggleSheet : HomeEvent
-
-    /** Collapse the sheet to its peek (e.g. after "show vehicles on map"). */
-    object CollapseSheet : HomeEvent
+    data class RegionResolved(val changed: Boolean, val regionName: String?) : RegionEvent
 
     /** An experimental-regions toggle changed the region: reset the OTP API version. */
-    object RegionToggleChanged : HomeEvent
+    object RegionToggleChanged : RegionEvent
+}
+
+/**
+ * One-shot sheet commands driven from the ViewModel, consumed by [HomeScreen] (which alone holds the
+ * live `SheetState`) off its own [HomeViewModel.sheetCommands] flow. (The drawer is opened directly by
+ * [org.onebusaway.android.ui.home.chrome.HomeTopBar]'s hamburger, so it needs no command.)
+ */
+sealed interface SheetCommand {
+    /** The arrivals-sheet chevron was tapped — toggle peek <-> full. */
+    object ToggleSheet : SheetCommand
+
+    /** Collapse the sheet to its peek (e.g. after "show vehicles on map"). */
+    object CollapseSheet : SheetCommand
 }

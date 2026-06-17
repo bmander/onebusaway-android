@@ -35,7 +35,9 @@ import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.DBUtil
+import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.getRouteDisplayName
 
 /** A loaded snapshot of a stop's arrivals plus the header, actions, alerts, and filter data. */
 data class ArrivalsData(
@@ -196,7 +198,7 @@ class DefaultArrivalsRepository @Inject constructor(
         val userInfo = loadStopUserInfo(context, stopId)
         val header = StopHeader(
             stopId = stopId,
-            name = UIUtils.formatDisplayText(stop?.name).orEmpty(),
+            name = MyTextUtils.formatDisplayText(stop?.name).orEmpty(),
             direction = stop?.direction,
             isFavorite = userInfo?.isFavorite ?: false,
             routeCount = stop?.routeIds?.size ?: 0
@@ -274,7 +276,7 @@ class DefaultArrivalsRepository @Inject constructor(
         return response.getRoutes(routeIds).map { route ->
             RouteFilterOption(
                 routeId = route.id,
-                displayName = UIUtils.getRouteDisplayName(route),
+                displayName = getRouteDisplayName(route),
                 checked = routeFilter.contains(route.id)
             )
         }

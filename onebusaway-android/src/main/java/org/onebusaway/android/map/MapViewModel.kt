@@ -76,8 +76,11 @@ import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
+import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.RegionUtils
 import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.getRouteDescription
+import org.onebusaway.android.util.getRouteDisplayName
 import org.opentripplanner.api.model.EncodedPolylineBean
 import org.opentripplanner.api.model.Itinerary
 import org.opentripplanner.api.model.Leg
@@ -398,8 +401,8 @@ class MapViewModel @Inject constructor(
         setRouteHeader(
             RouteHeader(
                 loading = false,
-                shortName = UIUtils.formatDisplayText(UIUtils.getRouteDisplayName(route)),
-                longName = UIUtils.formatDisplayText(UIUtils.getRouteDescription(route)),
+                shortName = MyTextUtils.formatDisplayText(getRouteDisplayName(route))!!,
+                longName = MyTextUtils.formatDisplayText(getRouteDescription(route))!!,
                 agency = response.getAgency(route.agencyId).name ?: "",
             )
         )

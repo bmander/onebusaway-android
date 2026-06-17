@@ -32,6 +32,7 @@ import org.onebusaway.android.io.request.ObaStopsForRouteRequest
 import org.onebusaway.android.io.request.ObaStopsForRouteResponse
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.UIUtils
 import org.onebusaway.android.util.routeDisplayNames
 
@@ -111,7 +112,7 @@ class DefaultRouteInfoRepository @Inject constructor(
         return stops.stopGroupings.flatMap { grouping ->
             grouping.stopGroups.map { group ->
                 RouteDirection(
-                    name = UIUtils.formatDisplayText(group.name).orEmpty(),
+                    name = MyTextUtils.formatDisplayText(group.name).orEmpty(),
                     stops = group.stopIds.mapNotNull { stopsById[it]?.let(::toStopItem) }
                 )
             }
@@ -120,7 +121,7 @@ class DefaultRouteInfoRepository @Inject constructor(
 
     private fun toStopItem(stop: ObaStop) = RouteStopItem(
         id = stop.id,
-        name = UIUtils.formatDisplayText(stop.name).orEmpty(),
+        name = MyTextUtils.formatDisplayText(stop.name).orEmpty(),
         direction = stop.direction.orEmpty(),
         latitude = stop.latitude,
         longitude = stop.longitude

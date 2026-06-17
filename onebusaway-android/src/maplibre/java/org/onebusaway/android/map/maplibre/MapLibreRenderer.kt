@@ -31,7 +31,8 @@ import org.onebusaway.android.map.render.StopMarker
 import org.onebusaway.android.map.render.VehicleBitmaps
 import org.onebusaway.android.map.render.VehicleMarker
 import org.onebusaway.android.map.render.bikeZoomBand
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.MyTextUtils
+import org.onebusaway.android.util.getRouteDisplayName
 
 /**
  * The maplibre counterpart of the Google `ObaMapContent`: it draws the shared [MapRenderState] onto
@@ -99,8 +100,8 @@ class MapLibreRenderer(
                         .position(LatLng(vehicle.point.latitude, vehicle.point.longitude))
                         .icon(icon)
                         .title(
-                            UIUtils.getRouteDisplayName(route) + " - " +
-                                UIUtils.formatDisplayText(trip.headsign)
+                            getRouteDisplayName(route) + " - " +
+                                MyTextUtils.formatDisplayText(trip.headsign)
                         )
                 )
                 vehicleByMarker[marker] = vehicle

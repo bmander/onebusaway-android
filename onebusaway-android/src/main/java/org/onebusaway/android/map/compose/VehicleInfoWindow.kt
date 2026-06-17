@@ -46,7 +46,8 @@ import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.map.render.VehicleBitmaps
 import org.onebusaway.android.util.ArrivalInfoUtils
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.MyTextUtils
+import org.onebusaway.android.util.getRouteDisplayName
 import java.util.concurrent.TimeUnit
 
 // Map info windows are rendered on a white bubble regardless of app theme, so all text uses fixed
@@ -75,9 +76,9 @@ fun VehicleInfoWindow(status: ObaTripStatus, response: ObaTripsForRouteResponse)
             .widthIn(max = 280.dp)
     ) {
         Text(
-            text = UIUtils.getRouteDisplayName(route) + " " +
+            text = getRouteDisplayName(route) + " " +
                 stringResource(R.string.trip_info_separator) + " " +
-                UIUtils.formatDisplayText(trip.headsign),
+                MyTextUtils.formatDisplayText(trip.headsign),
             color = InfoPrimary,
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp,

@@ -32,6 +32,7 @@ import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.util.ArrivalInfoUtils
+import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.UIUtils
 
 /** A loaded snapshot of a trip's header + ordered stops, ready for the UI. */
@@ -126,7 +127,7 @@ class DefaultTripDetailsRepository @Inject constructor(
             val millis = serviceDate + stopTime.arrivalTime * 1000 + deviation * 1000
             TripStopItem(
                 stopId = stopTime.stopId,
-                name = UIUtils.formatDisplayText(stop.name),
+                name = MyTextUtils.formatDisplayText(stop.name)!!,
                 direction = stop.direction,
                 timeText = UIUtils.formatTime(context, millis),
                 canceled = canceled,

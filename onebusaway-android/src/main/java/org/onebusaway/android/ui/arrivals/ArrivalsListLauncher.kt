@@ -24,7 +24,7 @@ import android.net.Uri
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.provider.ObaContract
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.serializeRouteDisplayNames
 import java.util.HashMap
 
 /**
@@ -62,7 +62,7 @@ object ArrivalsListLauncher {
             intent.data = Uri.withAppendedPath(ObaContract.Stops.CONTENT_URI, stop.id)
             setStopName(stop.name)
             setStopDirection(stop.direction)
-            setStopRoutes(UIUtils.serializeRouteDisplayNames(stop, routes))
+            setStopRoutes(serializeRouteDisplayNames(stop, routes))
         }
 
         fun setStopName(stopName: String?): Builder {

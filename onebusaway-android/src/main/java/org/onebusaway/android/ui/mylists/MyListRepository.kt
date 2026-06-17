@@ -51,9 +51,11 @@ import org.onebusaway.android.io.request.ObaArrivalInfoRequest
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.ui.arrivals.ArrivalInfo
 import org.onebusaway.android.util.ArrivalInfoUtils
+import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.getRouteDisplayName
 
 /**
  * A My-tab list backed by the content provider: [observe] re-emits whenever the underlying table
@@ -373,7 +375,7 @@ private fun Cursor.toReminderItem(context: Context): ReminderItem {
         stopId = getString(5),
         routeId = routeId,
         name = getString(1).orEmpty().ifEmpty { context.getString(R.string.trip_info_noname) },
-        headsign = getString(2)?.takeIf { it.isNotEmpty() }?.let { UIUtils.formatDisplayText(it) },
+        headsign = getString(2)?.takeIf { it.isNotEmpty() }?.let { MyTextUtils.formatDisplayText(it) },
         routeText = routeName?.let { context.getString(R.string.trip_info_route, it) },
         departureText = context.getString(R.string.trip_info_depart, UIUtils.formatTime(context, departureMs))
     )
@@ -419,7 +421,7 @@ private fun ArrivalInfo.toBadge(context: Context): ArrivalBadge {
     }
     return ArrivalBadge(
         text = context.getString(
-            R.string.starred_stop_arrival_badge, UIUtils.getRouteDisplayName(info), etaText
+            R.string.starred_stop_arrival_badge, getRouteDisplayName(info), etaText
         ),
         colorRes = badgeColor(color)
     )

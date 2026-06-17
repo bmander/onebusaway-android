@@ -114,6 +114,7 @@ import org.onebusaway.android.ui.report.problem.ProblemParams
 import org.onebusaway.android.ui.report.problem.ProblemReportRoute
 import org.onebusaway.android.ui.report.problem.ProblemReportViewModel
 import org.onebusaway.android.ui.report.problem.SubmitState
+import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.UIUtils
 
 /** Host-intent extras carrying the opaque trip context for the InfrastructureIssue destination. */
@@ -498,7 +499,7 @@ private fun createProblemReportViewModel(
             codes = ProblemCodes.trip(
                 context.resources.getStringArray(R.array.report_trip_problem_code_bus).toList()
             ),
-            headsign = UIUtils.formatDisplayText(arrival.headsign),
+            headsign = MyTextUtils.formatDisplayText(arrival.headsign),
             repository = repository,
         )
     } else {

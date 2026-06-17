@@ -32,6 +32,7 @@ import org.onebusaway.android.io.request.reminders.ReminderRequestListener
 import org.onebusaway.android.io.request.reminders.model.ReminderResponse
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.util.PreferenceUtils
+import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.UIUtils
 import kotlin.coroutines.resume
@@ -178,9 +179,9 @@ class DefaultTripInfoRepository @Inject constructor(
         tripName = tripName,
         reminderMinutes = reminderMinutes,
         isNewTrip = isNewTrip,
-        stopNameText = UIUtils.formatDisplayText(stopName.orEmpty()),
-        routeText = UIUtils.formatDisplayText(context.getString(R.string.trip_info_route, routeName.orEmpty())),
-        headsignText = UIUtils.formatDisplayText(headsign.orEmpty()),
+        stopNameText = MyTextUtils.formatDisplayText(stopName.orEmpty())!!,
+        routeText = MyTextUtils.formatDisplayText(context.getString(R.string.trip_info_route, routeName.orEmpty()))!!,
+        headsignText = MyTextUtils.formatDisplayText(headsign.orEmpty())!!,
         departureText = context.getString(
             R.string.trip_info_depart,
             DateUtils.formatDateTime(

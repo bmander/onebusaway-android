@@ -24,6 +24,7 @@ import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.getRouteDisplayName
 import java.text.DateFormat
 import java.util.Date
 
@@ -288,7 +289,7 @@ class ArrivalInfo(
             return ""
         }
 
-        val routeDisplayName = UIUtils.getRouteDisplayName(info)
+        val routeDisplayName = getRouteDisplayName(info)
 
         return if (eta > 0) {
             // Bus hasn't yet arrived/departed

@@ -22,7 +22,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.text.TextUtils
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -64,7 +63,6 @@ import org.onebusaway.android.ui.home.RegionEvent
 import org.onebusaway.android.ui.home.ReportTarget
 import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
-import org.onebusaway.android.ui.home.initialNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
 import org.onebusaway.android.ui.home.HomeNavHost
@@ -91,8 +89,8 @@ import org.onebusaway.android.util.ShowcaseViewUtils
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity() {
 
-    // HomeActivity's own preference reads (what's-new opt-out, zoom/left-hand chrome flags, the
-    // remembered nav item). HomeViewModel is now a plain @HiltViewModel — no hand-built factory.
+    // Shared with the NavHost destinations (My* / report / trip-details) that read preferences off the
+    // host. (HomeActivity's own nav-selection prefs now live in HomeViewModel.)
     @Inject
     lateinit var prefsRepository: PreferencesRepository
 
@@ -427,8 +425,7 @@ class HomeActivity : AppCompatActivity() {
                 ExternalIntents.payFareOrWarningRegion(this)?.let { viewModel.showPaymentWarning(it) }
             HomeNavItem.SETTINGS ->
                 viewModel.stageDeepLinkRoute(NavRoutes.SETTINGS)
-            // Hide "Contact Us" when a custom API URL is set (no contact email to use).
-            HomeNavItem.HELP -> helpViewModel.showMenu(TextUtils.isEmpty(Application.get().customApiUrl))
+            HomeNavItem.HELP -> helpViewModel.showMenu()
             HomeNavItem.SEND_FEEDBACK -> goToSendFeedBack()
             HomeNavItem.OPEN_SOURCE ->
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.open_source_github))))
@@ -601,17 +598,12 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupNavigationDrawer() {
         // The nav items themselves are built by the ViewModel (init + on region resolve); here we only
-        // determine and apply the initial selection. The deep-link-vs-remembered-tab decision is the pure
-        // initialNavItem() (the enum-name pref falls back to the legacy int position for pre-P16 installs;
-        // process-death restore uses the VM's SavedStateHandle).
+        // determine and apply the initial selection. The VM resolves the deep-link-vs-remembered-tab
+        // decision from its persisted prefs; the host just reads whether the intent deep-links to the map.
         val bundle = intent.extras
         val deepLinksToMap = bundle != null &&
             (bundle.getString(MapParams.ROUTE_ID) != null || bundle.getString(MapParams.STOP_ID) != null)
-        val item = initialNavItem(
-            persistedName = prefsRepository.getString(STATE_SELECTED_NAV_ITEM, null),
-            legacyPosition = prefsRepository.getInt(STATE_SELECTED_POSITION, 0),
-            deepLinksToMap = deepLinksToMap,
-        )
+        val item = viewModel.resolveInitialNavItem(deepLinksToMap)
         // Defer the first content selection until after onCreate (so the Compose content has composed
         // and lazy map/survey gating reads the applied selection).
         window.decorView.post { onHomeNavItemSelected(item) }
@@ -619,13 +611,10 @@ class HomeActivity : AppCompatActivity() {
 
     /** Routes a Compose-drawer selection to the ViewModel selection + the imperative per-item work. */
     private fun onHomeNavItemSelected(item: HomeNavItem) {
-        // The VM owns the fresh-vs-re-tap decision (and the first-selection bookkeeping); a re-tap of
-        // the active in-place tab returns false to suppress the redundant showMap()/analytics.
+        // The VM owns the fresh-vs-re-tap decision and the selection persistence (SavedStateHandle +
+        // cross-session pref); a re-tap of the active in-place tab returns false to suppress the redundant
+        // showMap()/analytics.
         val fresh = viewModel.selectNav(item)
-        if (!item.launchesActivity) {
-            // Remember the tab across sessions, keyed by enum name (the cross-session pref boundary).
-            PreferenceUtils.saveString(STATE_SELECTED_NAV_ITEM, item.name)
-        }
         goToNavDrawerItem(item, reselect = !fresh)
     }
 
@@ -667,11 +656,6 @@ class HomeActivity : AppCompatActivity() {
         @JvmStatic
         fun navIntent(context: Context, route: String): Intent =
             Intent(context, HomeActivity::class.java).putExtra(EXTRA_NAV_ROUTE, route)
-
-        // The remembered nav tab, keyed by HomeNavItem.name. STATE_SELECTED_POSITION is the legacy
-        // int key (NavigationDrawerFragment's), read once as a migration fallback for old installs.
-        private const val STATE_SELECTED_NAV_ITEM = "home_selected_nav_item"
-        private const val STATE_SELECTED_POSITION = "selected_navigation_drawer_position"
 
         /**
          * Starts HomeActivity with a particular stop focused with the center of

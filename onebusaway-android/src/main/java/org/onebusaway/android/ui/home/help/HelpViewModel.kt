@@ -65,9 +65,14 @@ class HelpViewModel @Inject constructor(
     fun twitterUrl(): String =
         regionRepository.region.value?.twitterUrl?.takeUnless { it.isEmpty() } ?: TWITTER_URL
 
-    /** Open the help menu (from the nav drawer's Help item). */
-    fun showMenu(showContactUs: Boolean) =
-        _state.update { it.copy(dialog = HelpDialog.Menu, showContactUs = showContactUs) }
+    /**
+     * Open the help menu (from the nav drawer's Help item). "Contact us" is hidden when a custom OBA API
+     * URL is set (there's no region contact email to reach) — derived here rather than passed by the host.
+     */
+    fun showMenu() {
+        val customApiUrl = prefs.getString(R.string.preference_key_oba_api_url, null)
+        _state.update { it.copy(dialog = HelpDialog.Menu, showContactUs = customApiUrl.isNullOrEmpty()) }
+    }
 
     fun showWhatsNew() = _state.update { it.copy(dialog = HelpDialog.WhatsNew) }
 

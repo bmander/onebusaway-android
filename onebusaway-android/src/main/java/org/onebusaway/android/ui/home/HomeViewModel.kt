@@ -223,11 +223,24 @@ class HomeViewModel @Inject constructor(
         navApplied = true
         if (!item.launchesActivity) {
             selectedItem = item
-            savedState[KEY_SELECTED_ITEM] = item.name
+            savedState[KEY_SELECTED_ITEM] = item.name           // survive process death (config change)
+            prefsRepo.setString(SELECTED_NAV_ITEM, item.name)   // remember across sessions (enum name)
             recompute()
         }
         return !reselect
     }
+
+    /**
+     * The initial nav tab to apply on create: a map deep link forces NEARBY, otherwise the cross-session
+     * remembered tab (the enum-name pref, falling back to the legacy int position for pre-P16 installs).
+     * The host supplies only [deepLinksToMap] (an intent read); the persisted reads live here so the
+     * activity no longer owns the nav-selection prefs.
+     */
+    fun resolveInitialNavItem(deepLinksToMap: Boolean): HomeNavItem = initialNavItem(
+        persistedName = prefsRepo.getString(SELECTED_NAV_ITEM, null),
+        legacyPosition = prefsRepo.getInt(SELECTED_NAV_POSITION, 0),
+        deepLinksToMap = deepLinksToMap,
+    )
 
     /** The map was shown (NEARBY first selected). Latches [HomeUiState.mapComposed] true so it stays composed. */
     fun onMapShown() {
@@ -552,6 +565,11 @@ class HomeViewModel @Inject constructor(
         const val KEY_STOP_LON = "home.focusedStop.lon"
         const val KEY_BIKE_STATION = "home.focusedBikeStation.id"
         const val KEY_SELECTED_ITEM = "home.selectedItem"
+
+        // Cross-session (DataStore) nav-tab persistence, distinct from the SavedStateHandle keys above:
+        // the remembered tab keyed by HomeNavItem.name, plus the pre-P16 legacy int-position slot.
+        const val SELECTED_NAV_ITEM = "home_selected_nav_item"
+        const val SELECTED_NAV_POSITION = "selected_navigation_drawer_position"
 
         fun readNavItem(s: SavedStateHandle): HomeNavItem? = navItemByName(s[KEY_SELECTED_ITEM])
 

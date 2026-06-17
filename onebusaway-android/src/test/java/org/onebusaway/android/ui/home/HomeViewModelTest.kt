@@ -602,6 +602,27 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `an in-place tab is remembered cross-session and resolved as the initial item`() = runTest {
+        val prefs = FakePreferencesRepository()
+        viewModel(prefsRepo = prefs).selectNav(HomeNavItem.STARRED_ROUTES)
+        // A fresh ViewModel over the same prefs (no shared SavedStateHandle) simulates a new session.
+        assertEquals(
+            HomeNavItem.STARRED_ROUTES,
+            viewModel(prefsRepo = prefs).resolveInitialNavItem(deepLinksToMap = false),
+        )
+    }
+
+    @Test
+    fun `resolveInitialNavItem forces NEARBY for a map deep link over the remembered tab`() = runTest {
+        val prefs = FakePreferencesRepository()
+        viewModel(prefsRepo = prefs).selectNav(HomeNavItem.STARRED_ROUTES)
+        assertEquals(
+            HomeNavItem.NEARBY,
+            viewModel(prefsRepo = prefs).resolveInitialNavItem(deepLinksToMap = true),
+        )
+    }
+
+    @Test
     fun `the first selection is fresh even when it matches the default tab`() = runTest {
         val vm = viewModel() // selectedItem defaults to NEARBY
         assertTrue(vm.selectNav(HomeNavItem.NEARBY))

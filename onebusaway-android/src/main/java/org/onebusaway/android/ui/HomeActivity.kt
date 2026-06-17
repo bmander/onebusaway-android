@@ -39,7 +39,6 @@ import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
-import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.location.LocationRepository
@@ -151,10 +150,6 @@ class HomeActivity : AppCompatActivity() {
     // onNewIntent can't navigate directly — they stage the route here and a LaunchedEffect consumes it.
     private val pendingDeepLinkRoute = MutableStateFlow<String?>(null)
 
-    // The region whose fare-payment warning to show (former imperative payment_warning_dialog). Set by
-    // the PAY_FARE menu action when a warning is needed; the Compose dialog in setContent renders it.
-    private val paymentWarningRegion = MutableStateFlow<ObaRegion?>(null)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -193,7 +188,7 @@ class HomeActivity : AppCompatActivity() {
                     callbacks = homeCallbacks,
                 ),
             )
-            PaymentWarningDialog(paymentWarningRegion)
+            PaymentWarningDialog(viewModel.paymentWarning, viewModel::dismissPaymentWarning)
         }
 
         setupNavigationDrawer()
@@ -436,7 +431,7 @@ class HomeActivity : AppCompatActivity() {
             HomeNavItem.PLAN_TRIP ->
                 pendingDeepLinkRoute.value = NavRoutes.TRIP_PLAN
             HomeNavItem.PAY_FARE ->
-                ExternalIntents.payFareOrWarningRegion(this)?.let { paymentWarningRegion.value = it }
+                ExternalIntents.payFareOrWarningRegion(this)?.let { viewModel.showPaymentWarning(it) }
             HomeNavItem.SETTINGS ->
                 pendingDeepLinkRoute.value = NavRoutes.SETTINGS
             // Hide "Contact Us" when a custom API URL is set (no contact email to use).

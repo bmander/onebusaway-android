@@ -88,6 +88,11 @@ class HomeViewModel @Inject constructor(
     private val _sheetCommands = MutableSharedFlow<SheetCommand>(extraBufferCapacity = 4)
     val sheetCommands: SharedFlow<SheetCommand> = _sheetCommands.asSharedFlow()
 
+    // The region whose fare-payment warning dialog is showing (PAY_FARE), or null when none — dialog UI
+    // state the host's PaymentWarningDialog observes; set by [showPaymentWarning], cleared by [dismissPaymentWarning].
+    private val _paymentWarning = MutableStateFlow<ObaRegion?>(null)
+    val paymentWarning: StateFlow<ObaRegion?> = _paymentWarning.asStateFlow()
+
     // Raw inputs the gated [HomeUiState] is derived from.
     private var navItems: List<HomeNavItem> = emptyList()
     // Restored from SavedStateHandle so the tab survives process death (config change survives via the
@@ -249,6 +254,17 @@ class HomeViewModel @Inject constructor(
         return locationRepository.lastKnownLocation()
             ?.let { ReportTarget.Location(it.latitude, it.longitude) }
             ?: ReportTarget.Generic
+    }
+
+    /** PAY_FARE needs a fare-payment warning shown before launching: record the [region] the dialog
+     *  should warn about (the host's PaymentWarningDialog observes [paymentWarning]). */
+    fun showPaymentWarning(region: ObaRegion) {
+        _paymentWarning.value = region
+    }
+
+    /** The fare-payment warning dialog was confirmed or dismissed; clear the dialog state. */
+    fun dismissPaymentWarning() {
+        _paymentWarning.value = null
     }
 
     fun onBikeStationFocused(id: String?) {

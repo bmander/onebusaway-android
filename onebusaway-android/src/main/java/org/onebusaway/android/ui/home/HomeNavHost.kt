@@ -36,6 +36,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.google.firebase.analytics.FirebaseAnalytics
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import org.onebusaway.android.R
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.elements.ObaRegion
@@ -210,13 +211,16 @@ internal fun SettingsRehomeEffect(navController: NavHostController) {
 
 /**
  * The fare-payment warning (former imperative payment_warning_dialog): shown over any destination when
- * the PAY_FARE menu item needs a region's warning before launching. Driven by [paymentWarningRegion];
- * lifted verbatim from the former inline `onCreate` dialog.
+ * the PAY_FARE menu item needs a region's warning before launching. Observes the dialog state the
+ * [HomeViewModel] owns ([paymentWarning]); [onDismiss] clears it on confirm/dismiss.
  */
 @Composable
-internal fun PaymentWarningDialog(paymentWarningRegion: MutableStateFlow<ObaRegion?>) {
+internal fun PaymentWarningDialog(
+    paymentWarning: StateFlow<ObaRegion?>,
+    onDismiss: () -> Unit,
+) {
     val activity = LocalContext.current.findActivity()
-    val warnRegion by paymentWarningRegion.collectAsStateWithLifecycle()
+    val warnRegion by paymentWarning.collectAsStateWithLifecycle()
     warnRegion?.let { region ->
         ObaTheme {
             OptOutInfoDialog(
@@ -232,10 +236,10 @@ internal fun PaymentWarningDialog(paymentWarningRegion: MutableStateFlow<ObaRegi
                 },
                 confirmText = stringResource(R.string.ok),
                 onConfirm = {
-                    paymentWarningRegion.value = null
+                    onDismiss()
                     ExternalIntents.startPaymentIntent(activity, region)
                 },
-                onDismissRequest = { paymentWarningRegion.value = null },
+                onDismissRequest = onDismiss,
             )
         }
     }

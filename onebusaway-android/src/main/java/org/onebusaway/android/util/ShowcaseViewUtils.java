@@ -16,11 +16,7 @@
 
 package org.onebusaway.android.util;
 
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-
 import android.content.Context;
-import android.content.DialogInterface;
-import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
@@ -43,8 +39,9 @@ import com.github.amlcurran.showcaseview.targets.ViewTarget;
 
 import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
-import org.onebusaway.android.app.Application;
+import org.onebusaway.android.app.di.PreferencesEntryPoint;
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse;
+import org.onebusaway.android.preferences.PreferencesRepository;
 
 /**
  * A class containing utility methods related to showing a tutorial to users for how to use various
@@ -92,17 +89,16 @@ public class ShowcaseViewUtils {
             return;
         }
 
-        SharedPreferences settings = Application.getPrefs();
+        PreferencesRepository prefs = PreferencesEntryPoint.get(activity);
 
         // If user has opted out of tutorials, do nothing
-        boolean showTutorials = settings.getBoolean(
-                activity.getString(R.string.preference_key_show_tutorial_screens), true);
+        boolean showTutorials = prefs.getBoolean(R.string.preference_key_show_tutorial_screens, true);
         if (!showTutorials && !alwaysShow) {
             return;
         }
 
         // If we've already shown this tutorial to the user, do nothing
-        boolean showedThisTutorial = settings.getBoolean(tutorialType, false);
+        boolean showedThisTutorial = prefs.getBoolean(tutorialType, false);
         if (showedThisTutorial) {
             return;
         }
@@ -167,7 +163,7 @@ public class ShowcaseViewUtils {
         }
 
         // Set the preference for this tutorial type so it doesn't show again
-        doNotShowTutorial(tutorialType);
+        doNotShowTutorial(activity, tutorialType);
     }
 
     /**
@@ -201,9 +197,10 @@ public class ShowcaseViewUtils {
         final String TUTORIAL_COUNTER = context.getString(R.string.preference_key_tutorial_counter);
         if (!tutorialType.equals(TUTORIAL_WELCOME)) {
 
-            int counter = Application.getPrefs().getInt(TUTORIAL_COUNTER, 0);
+            PreferencesRepository prefs = PreferencesEntryPoint.get(context);
+            int counter = prefs.getInt(TUTORIAL_COUNTER, 0);
             counter++;
-            PreferenceUtils.saveInt(TUTORIAL_COUNTER, counter);
+            prefs.setInt(TUTORIAL_COUNTER, counter);
 
             if (!(counter % 10 == 0)) {
                 // Wait longer to show the next tutorial
@@ -211,45 +208,6 @@ public class ShowcaseViewUtils {
             }
         }
         return false;
-    }
-
-    /**
-     * Creates a dialog that prompts the user if they want to see tutorial popups
-     *
-     * @return a dialog that prompts the user if they want to see tutorial popups
-     */
-    public static void showOptOutDialog(final AppCompatActivity activity) {
-        if (!UIUtils.canManageDialog(activity)) {
-            return;
-        }
-        final String showTutorialsKey = activity
-                .getString(R.string.preference_key_show_tutorial_screens);
-
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(activity);
-        builder.setTitle(R.string.tutorial_opt_out_dialog_title)
-                .setMessage(activity.getString(R.string.tutorial_opt_out_dialog_text, activity.getString(R.string.app_name)))
-                .setPositiveButton(R.string.rt_yes,
-                        new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                // Make sure tutorials are enabled - they will show on their own
-                                PreferenceUtils.saveBoolean(showTutorialsKey, true);
-                                // Show the welcome tutorial
-                                showTutorial(ShowcaseViewUtils.TUTORIAL_WELCOME, activity, null, false);
-                            }
-                        })
-                .setNegativeButton(R.string.rt_no,
-                        new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                // Turn off all tutorials
-                                PreferenceUtils.saveBoolean(showTutorialsKey, false);
-                            }
-                        });
-        builder.create().show();
-
-        // Don't show this dialog again
-        PreferenceUtils.saveBoolean(TUTORIAL_OPT_OUT_DIALOG, false);
     }
 
     /**
@@ -282,7 +240,7 @@ public class ShowcaseViewUtils {
                 ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
         lp.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-        int p = UIUtils.dpToPixels(context, 12);
+        int p = ViewUtils.dpToPixels(context, 12);
         lp.setMargins(p, p, p, p);
         v.setButtonPosition(lp);
     }
@@ -298,8 +256,8 @@ public class ShowcaseViewUtils {
      * @param tutorialType type of tutorial to not show, defined by the TUTORIAL_* constants in
      *                     ShowcaseViewUtils
      */
-    public static void doNotShowTutorial(String tutorialType) {
-        PreferenceUtils.saveBoolean(tutorialType, true);
+    public static void doNotShowTutorial(Context context, String tutorialType) {
+        PreferencesEntryPoint.get(context).setBoolean(tutorialType, true);
     }
 
     /**
@@ -310,15 +268,14 @@ public class ShowcaseViewUtils {
         if (mShowcaseView != null) {
             mShowcaseView.hide();
         }
-        PreferenceUtils
-                .saveBoolean(context.getString(R.string.preference_key_show_tutorial_screens),
-                        true);
+        PreferencesRepository prefs = PreferencesEntryPoint.get(context);
+        prefs.setBoolean(R.string.preference_key_show_tutorial_screens, true);
 
-        PreferenceUtils.saveBoolean(TUTORIAL_WELCOME, false);
-        PreferenceUtils.saveBoolean(TUTORIAL_ARRIVAL_SORT, false);
-        PreferenceUtils.saveBoolean(TUTORIAL_RECENT_STOPS_ROUTES, false);
-        PreferenceUtils.saveBoolean(TUTORIAL_STARRED_STOPS_SORT, false);
-        PreferenceUtils.saveBoolean(TUTORIAL_STARRED_STOPS_SHORTCUT, false);
-        PreferenceUtils.saveBoolean(TUTORIAL_SEND_FEEDBACK_OPEN311_CATEGORIES, false);
+        prefs.setBoolean(TUTORIAL_WELCOME, false);
+        prefs.setBoolean(TUTORIAL_ARRIVAL_SORT, false);
+        prefs.setBoolean(TUTORIAL_RECENT_STOPS_ROUTES, false);
+        prefs.setBoolean(TUTORIAL_STARRED_STOPS_SORT, false);
+        prefs.setBoolean(TUTORIAL_STARRED_STOPS_SHORTCUT, false);
+        prefs.setBoolean(TUTORIAL_SEND_FEEDBACK_OPEN311_CATEGORIES, false);
     }
 }

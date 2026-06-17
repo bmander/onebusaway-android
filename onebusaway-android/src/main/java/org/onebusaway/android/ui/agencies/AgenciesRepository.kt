@@ -16,6 +16,8 @@
 package org.onebusaway.android.ui.agencies
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -45,7 +47,7 @@ interface AgenciesRepository {
  * never throws — errors surface as a response with a non-OBA_OK code — so failures are mapped
  * to [Result.failure] here.
  */
-class DefaultAgenciesRepository(private val context: Context) : AgenciesRepository {
+class DefaultAgenciesRepository @Inject constructor(@ApplicationContext private val context: Context) : AgenciesRepository {
 
     override suspend fun getAgencies(): Result<List<AgencyItem>> = withContext(Dispatchers.IO) {
         val response = ObaAgenciesWithCoverageRequest.newRequest(context).call()

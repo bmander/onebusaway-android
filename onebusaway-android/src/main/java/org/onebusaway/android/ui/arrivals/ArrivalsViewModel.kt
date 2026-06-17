@@ -17,6 +17,9 @@ package org.onebusaway.android.ui.arrivals
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedFactory
+import dagger.assisted.AssistedInject
 import org.onebusaway.android.io.elements.ObaSituation
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -35,17 +38,30 @@ internal fun collapseRouteFilter(selected: Set<String>, totalRoutes: Int): Set<S
     if (selected.size >= totalRoutes) emptySet() else selected
 
 /**
- * ViewModel for the standalone arrivals screen. The 60-second polling loop lives in the screen
- * (driven by the activity lifecycle); this exposes [refresh] for it to call plus the user
- * actions. The current time window ([minutesAfter]) grows with "load more"; the route filter is
- * seeded from the provider on the first load and then held in memory.
+ * ViewModel for the arrivals screen. The 60-second polling loop lives in the screen (driven by the
+ * host lifecycle); this exposes [refresh] for it to call plus the user actions. The current time
+ * window ([minutesAfter]) grows with "load more"; the route filter is seeded from the provider on
+ * the first load and then held in memory.
+ *
+ * Assisted-injected: [repository] comes from Dagger, while [stopId]/[ignorePersistedFilter] are
+ * runtime args supplied by each host via [Factory] — the NavHost destination passes the nav-arg
+ * stop id, the home sheet passes the focused stop's (dynamic) id, and the report picker passes its
+ * stop with `ignorePersistedFilter = true`. Plain `@AssistedInject` (not `@HiltViewModel`) so the
+ * [Factory] can be `@Inject`ed into each host and used inside `viewModelFactory {}` — Hilt forbids
+ * injecting a `@HiltViewModel`'s assisted factory, and the home sheet's per-stop cleared
+ * `ViewModelStoreOwner` isn't Hilt-aware, so `hiltViewModel()` can't serve it either.
  */
-class ArrivalsViewModel(
-    private val stopId: String,
-    private val repository: ArrivalsRepository,
+class ArrivalsViewModel @AssistedInject constructor(
+    @Assisted private val stopId: String,
     /** When true, always show all routes (the report-flow picker), ignoring the saved filter. */
-    ignorePersistedFilter: Boolean = false
+    @Assisted ignorePersistedFilter: Boolean,
+    private val repository: ArrivalsRepository,
 ) : ViewModel() {
+
+    @AssistedFactory
+    interface Factory {
+        fun create(stopId: String, ignorePersistedFilter: Boolean): ArrivalsViewModel
+    }
 
     private val _state = MutableStateFlow<ArrivalsUiState>(ArrivalsUiState.Loading)
     val state: StateFlow<ArrivalsUiState> = _state.asStateFlow()
@@ -57,6 +73,14 @@ class ArrivalsViewModel(
      */
     private val _responses = MutableSharedFlow<ObaArrivalInfoResponse>(extraBufferCapacity = 1)
     val responses: SharedFlow<ObaArrivalInfoResponse> = _responses.asSharedFlow()
+
+    /** The pending route-favorite dialog request (the route the user tapped "favorite" on), or null. */
+    private val _favoriteRequest = MutableStateFlow<ArrivalActions?>(null)
+    val favoriteRequest: StateFlow<ArrivalActions?> = _favoriteRequest.asStateFlow()
+
+    /** Whether the stop-details dialog (the overflow "show stop details" action) is showing. */
+    private val _stopDetailsVisible = MutableStateFlow(false)
+    val stopDetailsVisible: StateFlow<Boolean> = _stopDetailsVisible.asStateFlow()
 
     private var minutesAfter = DefaultArrivalsRepository.MINUTES_AFTER_DEFAULT
 
@@ -114,6 +138,45 @@ class ArrivalsViewModel(
         val newValue = !content.header.isFavorite
         _state.value = content.copy(header = content.header.copy(isFavorite = newValue))
         viewModelScope.launch { repository.setStopFavorite(content.header.stopId, newValue) }
+    }
+
+    /** Opens the route-favorite dialog for [actions] (the per-arrival "favorite route" tap). */
+    fun requestRouteFavorite(actions: ArrivalActions) {
+        _favoriteRequest.value = actions
+    }
+
+    /** Dismisses the route-favorite dialog without changing anything. */
+    fun dismissRouteFavorite() {
+        _favoriteRequest.value = null
+    }
+
+    /** Opens the stop-details dialog (the overflow "show stop details" action). */
+    fun requestStopDetails() {
+        _stopDetailsVisible.value = true
+    }
+
+    /** Dismisses the stop-details dialog. */
+    fun dismissStopDetails() {
+        _stopDetailsVisible.value = false
+    }
+
+    /**
+     * Applies the route-favorite choice: stars/unstars the route/headsign (scoped to this stop, or
+     * all stops when [allStops]), backfills the route details, then reloads. Closes the dialog.
+     */
+    fun favoriteRoute(actions: ArrivalActions, allStops: Boolean) {
+        _favoriteRequest.value = null
+        viewModelScope.launch {
+            repository.favoriteRoute(
+                routeId = actions.routeId,
+                headsign = actions.headsign,
+                stopId = if (allStops) null else actions.stopId,
+                shortName = actions.routeShortName,
+                longName = actions.routeLongName,
+                favorite = !actions.isRouteFavorite
+            )
+            refresh()
+        }
     }
 
     /** Switches the arrival-info display style (the legacy "sort by" view-mode toggle) and reloads. */

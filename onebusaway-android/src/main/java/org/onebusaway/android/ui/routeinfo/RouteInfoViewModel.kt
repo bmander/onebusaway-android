@@ -15,18 +15,29 @@
  */
 package org.onebusaway.android.ui.routeinfo
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.onebusaway.android.ui.nav.NavRoutes
 
 /** ViewModel for the route info screen. */
-class RouteInfoViewModel(
-    private val routeId: String,
-    private val repository: RouteInfoRepository
+@HiltViewModel
+class RouteInfoViewModel @Inject constructor(
+    savedState: SavedStateHandle,
+    private val repository: RouteInfoRepository,
 ) : ViewModel() {
+
+    // The route id arrives via SavedStateHandle, keyed by NavRoutes.ARG_ROUTE_ID — populated either by
+    // the NavHost destination's nav-arg, or by RouteInfoActivity normalizing its data URI into that
+    // extra (the standalone/legacy host).
+    private val routeId: String =
+        savedState.get<String>(NavRoutes.ARG_ROUTE_ID).orEmpty()
 
     private val _state = MutableStateFlow<RouteInfoUiState>(RouteInfoUiState.Loading)
     val state: StateFlow<RouteInfoUiState> = _state.asStateFlow()

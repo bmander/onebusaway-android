@@ -16,10 +16,12 @@
 package org.onebusaway.android.ui.tripplan
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.directions.util.CustomAddress
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.LocationUtils
 
 /** Address-autocomplete suggestions for the trip-plan endpoints. */
@@ -33,12 +35,15 @@ interface GeocodeRepository {
  * [LocationUtils.processPeliasGeocoding] on the IO thread and projects [CustomAddress] onto the
  * JVM-pure [PlaceItem] so the ViewModel stays testable.
  */
-class DefaultGeocodeRepository(private val context: Context) : GeocodeRepository {
+class DefaultGeocodeRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val regionRepository: RegionRepository,
+) : GeocodeRepository {
 
     override suspend fun suggest(query: String): Result<List<PlaceItem>> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val region = Application.get().currentRegion
+                val region = regionRepository.region.value
                 LocationUtils.processPeliasGeocoding(context, region, query).map { it.toPlaceItem() }
             }
         }

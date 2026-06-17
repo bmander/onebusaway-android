@@ -42,6 +42,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -69,9 +71,16 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.onebusaway.android.R
-import org.onebusaway.android.ui.ArrivalInfo
+import org.onebusaway.android.ui.nightlight.NightLightLauncher
+import org.onebusaway.android.ui.arrivals.components.ArrivalCardStyleB
+import org.onebusaway.android.ui.arrivals.components.ArrivalRowCallbacks
+import org.onebusaway.android.ui.arrivals.components.ArrivalRowStyleA
+import org.onebusaway.android.ui.arrivals.components.MenuRow
+import org.onebusaway.android.ui.arrivals.components.groupForStyleB
+import org.onebusaway.android.ui.arrivals.dialogs.RouteFavoriteHost
+import org.onebusaway.android.ui.arrivals.dialogs.StopDetailsHost
 import org.onebusaway.android.util.BuildFlavorUtils
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.DisplayFormat
 import org.onebusaway.android.ui.compose.components.LoadingContent
 
 /** Refresh interval matching the legacy ArrivalsListFragment (fixed 60s, not the server value). */
@@ -143,10 +152,15 @@ fun ArrivalsRoute(
     viewModel: ArrivalsViewModel,
     initialTitle: String,
     handler: ArrivalActionHandler,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    // Provided by the NavHost destination so its alert-hide undo Snackbar has a Compose host (the
+    // standalone activity anchors its own Snackbar to a View instead, leaving this null).
+    snackbarHostState: SnackbarHostState? = null
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     ArrivalsPolling(viewModel)
+    RouteFavoriteHost(viewModel)
+    StopDetailsHost(viewModel)
     val rowCallbacks = rememberArrivalRowCallbacks(handler, viewModel)
     ArrivalsScreen(
         state = state,
@@ -161,7 +175,8 @@ fun ArrivalsRoute(
         onSetArrivalStyle = viewModel::setArrivalStyle,
         onShowAllRoutes = viewModel::showAllRoutes,
         onHideAllAlerts = viewModel::hideAllAlerts,
-        onShowHiddenAlerts = viewModel::showHiddenAlerts
+        onShowHiddenAlerts = viewModel::showHiddenAlerts,
+        snackbarHostState = snackbarHostState
     )
 }
 
@@ -180,12 +195,14 @@ fun ArrivalsScreen(
     onSetArrivalStyle: (Int) -> Unit,
     onShowAllRoutes: () -> Unit,
     onHideAllAlerts: () -> Unit,
-    onShowHiddenAlerts: () -> Unit
+    onShowHiddenAlerts: () -> Unit,
+    snackbarHostState: SnackbarHostState? = null
 ) {
     val content = state as? ArrivalsUiState.Content
     var showFilterDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     Scaffold(
+        snackbarHost = { snackbarHostState?.let { SnackbarHost(it) } },
         topBar = {
             TopAppBar(
                 title = { Text(content?.header?.name?.takeIf { it.isNotEmpty() } ?: initialTitle) },
@@ -304,27 +321,35 @@ private fun SortByDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.menu_option_sort_by)) },
-        text = {
-            Column {
-                options.forEachIndexed { index, label ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(index) }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = index == selected, onClick = { onSelect(index) })
-                        Spacer(Modifier.width(8.dp))
-                        Text(label, style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
-        },
+        text = { RadioOptionList(options = options, selectedIndex = selected, onSelect = onSelect) },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
         }
     )
+}
+
+/** A single-choice radio list (one row per option), shared by the sort and route-favorite dialogs. */
+@Composable
+internal fun RadioOptionList(
+    options: Array<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit
+) {
+    Column {
+        options.forEachIndexed { index, label ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelect(index) }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(selected = index == selectedIndex, onClick = { onSelect(index) })
+                Spacer(Modifier.width(8.dp))
+                Text(label, style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+    }
 }
 
 @Composable
@@ -335,6 +360,7 @@ internal fun OverflowMenu(
     onHideAlerts: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     Box {
         IconButton(onClick = { expanded = true }) {
             Icon(
@@ -348,6 +374,9 @@ internal fun OverflowMenu(
             MenuRow(R.string.stop_info_option_show_details) { expanded = false; onStopDetails() }
             MenuRow(R.string.stop_info_option_report_problem) { expanded = false; onReportStopProblem() }
             MenuRow(R.string.stop_info_option_hide_alerts) { expanded = false; onHideAlerts() }
+            MenuRow(R.string.stop_info_option_night_light) {
+                expanded = false; NightLightLauncher.start(context)
+            }
         }
     }
 }
@@ -366,8 +395,7 @@ internal fun ArrivalsList(
      *  avoid duplicating it as a list item. */
     showDirection: Boolean = true
 ) {
-    val useCards = content.style == BuildFlavorUtils.ARRIVAL_INFO_STYLE_B &&
-        UIUtils.canSupportArrivalInfoStyleB()
+    val useCards = content.style == BuildFlavorUtils.ARRIVAL_INFO_STYLE_B
     // Sorting/grouping is non-trivial; keep it off the recomposition path
     val groups = remember(content.arrivals, useCards) {
         if (useCards) groupForStyleB(content.arrivals) else emptyList()
@@ -541,7 +569,7 @@ internal fun RouteFilterDialog(
 
 @Composable
 private fun DirectionLine(direction: String) {
-    val directionText = stringResource(UIUtils.getStopDirectionText(direction))
+    val directionText = stringResource(DisplayFormat.getStopDirectionText(direction))
     if (directionText.isNotEmpty()) {
         Text(
             text = directionText,
@@ -556,7 +584,7 @@ private fun DirectionLine(direction: String) {
 private fun EmptyArrivals(minutesAfter: Int) {
     val context = LocalContext.current
     Text(
-        text = UIUtils.getNoArrivalsMessage(context, minutesAfter, false, false),
+        text = DisplayFormat.getNoArrivalsMessage(context, minutesAfter, false, false),
         style = MaterialTheme.typography.bodyLarge,
         textAlign = TextAlign.Center,
         modifier = Modifier

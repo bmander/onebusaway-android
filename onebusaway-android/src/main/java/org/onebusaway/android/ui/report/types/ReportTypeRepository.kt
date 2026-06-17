@@ -17,9 +17,11 @@
 package org.onebusaway.android.ui.report.types
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import edu.usf.cutr.open311client.Open311Manager
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
+import org.onebusaway.android.region.RegionRepository
 
 /** Builds the "Send feedback" type list for the current region. */
 interface ReportTypeRepository {
@@ -32,10 +34,13 @@ interface ReportTypeRepository {
  * Open311 vs. non-Open311 type set, pairs titles/descriptions/icons with their [ReportAction]s, and
  * applies the region-email gate via [ReportTypeGate].
  */
-class DefaultReportTypeRepository(private val context: Context) : ReportTypeRepository {
+class DefaultReportTypeRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val regionRepository: RegionRepository,
+) : ReportTypeRepository {
 
     override fun reportTypes(): List<ReportType> {
-        val open311Active = Application.get().currentRegion != null && Open311Manager.isOpen311Exist()
+        val open311Active = regionRepository.region.value != null && Open311Manager.isOpen311Exist()
 
         val titles = context.resources.getStringArray(
             if (open311Active) R.array.report_types else R.array.report_types_without_open311
@@ -57,7 +62,7 @@ class DefaultReportTypeRepository(private val context: Context) : ReportTypeRepo
         }
         icons.recycle()
 
-        val emailDefined = Application.get().currentRegion?.contactEmail != null
+        val emailDefined = regionRepository.region.value?.contactEmail != null
         return ReportTypeGate.apply(types, emailDefined)
     }
 }

@@ -15,7 +15,7 @@
      limitations under the License.
 -->
 <paths>
-    <!-- Camera captures: UIUtils.createImageFile writes to getExternalFilesDir(Pictures). -->
+    <!-- Camera captures: BitmapUtils.createImageFile writes to getExternalFilesDir(Pictures). -->
     <external-files-path name="report_images" path="Pictures/"/>
     <!-- Gallery picks are copied into the cache before upload. -->
     <cache-path name="report_cache" path="."/>

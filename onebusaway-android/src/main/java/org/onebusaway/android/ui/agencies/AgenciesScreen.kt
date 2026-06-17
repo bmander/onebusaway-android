@@ -41,7 +41,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.ListUiState
 import org.onebusaway.android.ui.compose.components.ListScreenScaffold
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.ExternalIntents
 
 /**
  * Stateful entry point for the supported agencies screen: collects the ViewModel's state and
@@ -55,7 +55,7 @@ fun AgenciesRoute(viewModel: AgenciesViewModel, onBack: () -> Unit) {
         state = state,
         onRetry = viewModel::load,
         onAgencyClick = { agency ->
-            agency.url?.let { UIUtils.goToUrl(context, it) }
+            agency.url?.let { ExternalIntents.goToUrl(context, it) }
         },
         onBack = onBack
     )

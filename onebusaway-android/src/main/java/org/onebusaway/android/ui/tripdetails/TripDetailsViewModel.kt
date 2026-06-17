@@ -15,30 +15,39 @@
  */
 package org.onebusaway.android.ui.tripdetails
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
  * ViewModel for the trip details screen. The 60-second polling loop lives in the screen (driven by
  * the activity lifecycle); this exposes [refresh] for it to call. The destination-reminder stop is
  * held here so the host can set it (after starting the reminder) or clear it (when the trip ends).
  */
-class TripDetailsViewModel(
-    private val tripId: String,
-    private val stopId: String?,
-    private val scrollMode: String?,
+@HiltViewModel
+class TripDetailsViewModel @Inject constructor(
+    savedState: SavedStateHandle,
     private val repository: TripDetailsRepository,
-    initialDestinationId: String? = null
 ) : ViewModel() {
+
+    // Launch args arrive via SavedStateHandle — from the NavHost destination's nav-args, or from the
+    // standalone TripDetailsActivity's Builder, both keyed by the same clean NavRoutes arg names.
+    private val tripId: String = savedState.get<String>(NavRoutes.ARG_TRIP_ID)
+        ?: throw IllegalStateException("TripId should not be null")
+    private val stopId: String? = savedState.get<String>(NavRoutes.ARG_STOP_ID)
+    private val scrollMode: String? = savedState.get<String>(NavRoutes.ARG_SCROLL_MODE)
 
     private val _state = MutableStateFlow<TripDetailsUiState>(TripDetailsUiState.Loading)
     val state: StateFlow<TripDetailsUiState> = _state.asStateFlow()
 
-    private var destinationId: String? = initialDestinationId
+    private var destinationId: String? = savedState.get<String>(NavRoutes.ARG_DEST_ID)
 
     /** Wall-clock time of the last completed load, read by the screen's polling loop. */
     var lastResponseTimeMs: Long = 0L

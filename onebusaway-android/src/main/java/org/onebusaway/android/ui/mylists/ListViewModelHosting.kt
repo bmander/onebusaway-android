@@ -16,7 +16,9 @@
 package org.onebusaway.android.ui.mylists
 
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.Composable
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import org.onebusaway.android.ui.search.SearchViewModel
@@ -46,4 +48,36 @@ internal fun <T> AppCompatActivity.hostSearchVm(
     val provider = ViewModelProvider(this, viewModelFactory { initializer { SearchViewModel(search()) } })
     @Suppress("UNCHECKED_CAST")
     return provider[key, SearchViewModel::class.java] as SearchViewModel<T>
+}
+
+/**
+ * The Compose-destination equivalent of [hostListVm]: hosts a [MyListViewModel] scoped to the current
+ * [androidx.navigation.NavBackStackEntry] (the nearest `ViewModelStoreOwner`) rather than the Activity
+ * store. Used by the `My*` NavHost destinations, where each destination owns its lists for as long as
+ * it's on the back stack. The [key] disambiguates several same-runtime-class lists in one entry (e.g.
+ * recent vs starred stops), exactly as in [hostListVm].
+ */
+@Composable
+internal fun <T> rememberListVm(
+    key: String,
+    repo: () -> MyListRepository<T>
+): MyListViewModel<T> {
+    @Suppress("UNCHECKED_CAST")
+    return viewModel(
+        key = key,
+        factory = viewModelFactory { initializer { MyListViewModel(repo()) } }
+    ) as MyListViewModel<T>
+}
+
+/** The [SearchViewModel] equivalent of [rememberListVm] (entry-scoped; same keying rationale). */
+@Composable
+internal fun <T> rememberSearchVm(
+    key: String,
+    search: () -> (suspend (String) -> Result<List<T>>)
+): SearchViewModel<T> {
+    @Suppress("UNCHECKED_CAST")
+    return viewModel(
+        key = key,
+        factory = viewModelFactory { initializer { SearchViewModel(search()) } }
+    ) as SearchViewModel<T>
 }

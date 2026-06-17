@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.NumberFormat
+import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.ListUiState
 import org.onebusaway.android.ui.compose.components.ListScreenScaffold
@@ -51,8 +53,9 @@ import org.onebusaway.android.util.RegionUtils
 
 /**
  * Stateful entry point for the region picker screen: collects the ViewModel's state and wires
- * UI events back to it. Region selection is synchronous and terminal (the host navigates
- * away), so its result is delivered through the plain [onRegionSelected] callback.
+ * UI events back to it. Region selection is a suspend operation (the region is applied off the main
+ * thread) and is terminal — the host navigates away — so its result is delivered through
+ * [onRegionSelected] once the selection completes.
  */
 @Composable
 fun RegionsRoute(
@@ -61,11 +64,14 @@ fun RegionsRoute(
     onRegionSelected: (autoSelectDisabled: Boolean) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     RegionsScreen(
         state = state,
         onRetry = { viewModel.load() },
         onRefresh = { viewModel.load(refresh = true) },
-        onRegionClick = { region -> onRegionSelected(viewModel.selectRegion(region)) },
+        onRegionClick = { region ->
+            scope.launch { onRegionSelected(viewModel.selectRegion(region)) }
+        },
         onBack = onBack
     )
 }

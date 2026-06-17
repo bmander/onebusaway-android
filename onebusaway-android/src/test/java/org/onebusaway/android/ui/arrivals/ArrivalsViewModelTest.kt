@@ -27,6 +27,16 @@ import org.onebusaway.android.io.elements.ObaSituation
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.testing.MainDispatcherRule
 
+/** The arguments of a single [ArrivalsRepository.favoriteRoute] call, for assertions. */
+private data class FavoriteRouteCall(
+    val routeId: String,
+    val headsign: String?,
+    val stopId: String?,
+    val shortName: String?,
+    val longName: String?,
+    val favorite: Boolean
+)
+
 private class FakeArrivalsRepository(
     var result: Result<ArrivalsData>,
     private var persistedFilter: Set<String> = emptySet()
@@ -37,6 +47,8 @@ private class FakeArrivalsRepository(
     val requestedFilters = mutableListOf<Set<String>?>()
 
     var lastFavoriteSet: Pair<String, Boolean>? = null
+
+    var lastFavoriteRoute: FavoriteRouteCall? = null
 
     var lastSetFilter: Set<String>? = null
 
@@ -58,6 +70,17 @@ private class FakeArrivalsRepository(
 
     override suspend fun setStopFavorite(stopId: String, favorite: Boolean) {
         lastFavoriteSet = stopId to favorite
+    }
+
+    override suspend fun favoriteRoute(
+        routeId: String,
+        headsign: String?,
+        stopId: String?,
+        shortName: String?,
+        longName: String?,
+        favorite: Boolean
+    ) {
+        lastFavoriteRoute = FavoriteRouteCall(routeId, headsign, stopId, shortName, longName, favorite)
     }
 
     override suspend fun setRouteFilter(stopId: String, filter: Set<String>) {
@@ -114,14 +137,14 @@ class ArrivalsViewModelTest {
 
     @Test
     fun `initial state is Loading`() = runTest {
-        val viewModel = ArrivalsViewModel("1_100", FakeArrivalsRepository(Result.success(data())))
+        val viewModel = ArrivalsViewModel("1_100", false, FakeArrivalsRepository(Result.success(data())))
 
         assertEquals(ArrivalsUiState.Loading, viewModel.state.value)
     }
 
     @Test
     fun `refresh emits Content on success`() = runTest {
-        val viewModel = ArrivalsViewModel("1_100", FakeArrivalsRepository(Result.success(data())))
+        val viewModel = ArrivalsViewModel("1_100", false, FakeArrivalsRepository(Result.success(data())))
 
         viewModel.refresh()
 
@@ -134,6 +157,7 @@ class ArrivalsViewModelTest {
     fun `refresh emits Error when there is no content and the load fails`() = runTest {
         val viewModel = ArrivalsViewModel(
             "1_100",
+            false,
             FakeArrivalsRepository(Result.failure(IOException("No network")))
         )
 
@@ -145,7 +169,7 @@ class ArrivalsViewModelTest {
     @Test
     fun `a failed poll keeps existing content instead of showing Error`() = runTest {
         val repository = FakeArrivalsRepository(Result.success(data()))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
         viewModel.refresh()
         assertTrue(viewModel.state.value is ArrivalsUiState.Content)
 
@@ -159,6 +183,7 @@ class ArrivalsViewModelTest {
     fun `the stale flag flows through to the Content state`() = runTest {
         val viewModel = ArrivalsViewModel(
             "1_100",
+            false,
             FakeArrivalsRepository(Result.success(data(isStale = true)))
         )
 
@@ -170,7 +195,7 @@ class ArrivalsViewModelTest {
     @Test
     fun `load more widens the time window on the next request`() = runTest {
         val repository = FakeArrivalsRepository(Result.success(data(minutesAfter = 65)))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
         viewModel.refresh()
 
         viewModel.loadMore()
@@ -183,7 +208,7 @@ class ArrivalsViewModelTest {
     @Test
     fun `toggle favorite optimistically updates the header and persists`() = runTest {
         val repository = FakeArrivalsRepository(Result.success(data(favorite = false)))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
         viewModel.refresh()
 
         viewModel.toggleFavorite()
@@ -193,10 +218,66 @@ class ArrivalsViewModelTest {
         assertEquals("1_100" to true, repository.lastFavoriteSet)
     }
 
+    private fun routeActions(isRouteFavorite: Boolean) = ArrivalActions(
+        tripId = "t1",
+        routeId = "1_5",
+        headsign = "Downtown",
+        stopId = "1_100",
+        routeShortName = "5",
+        routeLongName = "Fifth Ave",
+        scheduleUrl = null,
+        agencyName = null,
+        blockId = null,
+        isRouteFavorite = isRouteFavorite
+    )
+
+    @Test
+    fun `requestRouteFavorite opens the dialog and favoriteRoute applies the choice and reloads`() = runTest {
+        val repository = FakeArrivalsRepository(Result.success(data()))
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
+        viewModel.refresh()
+
+        val actions = routeActions(isRouteFavorite = false)
+
+        viewModel.requestRouteFavorite(actions)
+        assertEquals(actions, viewModel.favoriteRequest.value)
+
+        viewModel.favoriteRoute(actions, allStops = true)
+        advanceUntilIdle()
+
+        // The dialog request is cleared as soon as a choice is applied.
+        assertEquals(null, viewModel.favoriteRequest.value)
+        // "All stops" => null stopId, and favorite = !isRouteFavorite (starring an unstarred route).
+        assertEquals(
+            FavoriteRouteCall("1_5", "Downtown", null, "5", "Fifth Ave", true),
+            repository.lastFavoriteRoute
+        )
+        // The write is followed by a reload (initial load + the post-favorite refresh).
+        assertEquals(2, repository.requestedMinutesAfter.size)
+    }
+
+    @Test
+    fun `favoriteRoute scoped to this stop keeps the stop id`() = runTest {
+        val repository = FakeArrivalsRepository(Result.success(data()))
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
+        viewModel.refresh()
+
+        val actions = routeActions(isRouteFavorite = true)
+
+        viewModel.favoriteRoute(actions, allStops = false)
+        advanceUntilIdle()
+
+        // This-stop only => the stop id is kept, and favorite = false (unstarring a starred route).
+        assertEquals(
+            FavoriteRouteCall("1_5", "Downtown", "1_100", "5", "Fifth Ave", false),
+            repository.lastFavoriteRoute
+        )
+    }
+
     @Test
     fun `the route filter is seeded from the provider on the first load`() = runTest {
         val repository = FakeArrivalsRepository(Result.success(data()), persistedFilter = setOf("1_5"))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
 
         viewModel.refresh() // first load: null lets the repo read the persisted filter
         viewModel.refresh() // second load: uses the seeded filter
@@ -207,7 +288,7 @@ class ArrivalsViewModelTest {
     @Test
     fun `setRouteFilter persists the filter and reloads with it`() = runTest {
         val repository = FakeArrivalsRepository(Result.success(data()))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
         viewModel.refresh()
 
         viewModel.setRouteFilter(setOf("1_10"))
@@ -220,7 +301,7 @@ class ArrivalsViewModelTest {
     @Test
     fun `showOnlyRoute narrows to that route, then clears when repeated`() = runTest {
         val repository = FakeArrivalsRepository(Result.success(data()))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
         viewModel.refresh()
 
         viewModel.showOnlyRoute("1_5")
@@ -239,7 +320,7 @@ class ArrivalsViewModelTest {
             alerts = listOf(AlertItem("a1", "Reduced service", AlertSeverity.WARNING))
         )
         val repository = FakeArrivalsRepository(Result.success(withAlerts))
-        val viewModel = ArrivalsViewModel("1_100", repository)
+        val viewModel = ArrivalsViewModel("1_100", false, repository)
         viewModel.refresh()
 
         viewModel.hideAllAlerts()

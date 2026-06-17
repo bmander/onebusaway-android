@@ -25,6 +25,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.testing.MainDispatcherRule
+import org.onebusaway.android.util.TimeProvider
 import org.opentripplanner.api.model.Itinerary
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -53,10 +54,14 @@ class TripPlanViewModelTest {
         }
     }
 
+    private inner class FakeAdvancedSettingsRepository : AdvancedSettingsRepository {
+        override fun load() = settings
+    }
+
     private fun viewModel(
         geocode: GeocodeRepository = FakeGeocodeRepository(Result.success(emptyList())),
         plan: TripPlanRepository = FakeTripPlanRepository(Result.success(listOf(Itinerary())))
-    ) = TripPlanViewModel(geocode, plan, initialDateTimeMillis = 0L, initialSettings = settings)
+    ) = TripPlanViewModel(geocode, plan, TimeProvider { 0L }, FakeAdvancedSettingsRepository())
 
     @Test
     fun `initial state carries the injected settings and cannot submit`() = runTest {

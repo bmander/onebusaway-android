@@ -1,221 +1,110 @@
+/*
+ * Copyright (C) 2026 Open Transit Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.onebusaway.android.ui.survey.activities
 
 import android.annotation.SuppressLint
-import android.content.pm.PackageManager
-import android.os.Build
-import android.os.Bundle
-import android.util.Log
-import android.view.MenuItem
-import android.view.View
+import android.content.Context
+import android.view.ViewGroup
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.ProgressBar
-import androidx.appcompat.app.AppCompatActivity
-import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
-import org.onebusaway.android.database.recentStops.RecentStopsManager
-import org.onebusaway.android.ui.survey.SurveyPreferences
-import org.onebusaway.android.ui.survey.utils.SurveyUtils
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
+import org.onebusaway.android.ui.HomeActivity
+import org.onebusaway.android.ui.compose.components.ObaTopAppBar
+import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
- Activity that hosts a WebView for launching and displaying external surveys
+ * Launches the external-survey web view.
+ *
+ * Campaign C: the survey web view is a NavHost destination hosted by [HomeActivity]; this is no longer
+ * an Activity but a launcher facade. [start] builds an explicit [HomeActivity] intent carrying the
+ * [NavRoutes.SURVEY_WEB_VIEW] route (the survey URL as a nav-arg), which HomeActivity's translator
+ * navigates to. (Non-exported, launched only in-app from the survey overlay, so no alias is needed.)
  */
-class SurveyWebViewActivity : AppCompatActivity() {
-    private lateinit var webView: WebView
-    private lateinit var progressBar: ProgressBar
-    private lateinit var toolbar: androidx.appcompat.widget.Toolbar
-    private var mStopID: String? = null
-    private var mRouteIDList: ArrayList<String>? = null
+object SurveyWebViewActivity {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_survey_web_view)
-        initWebView()
+    @JvmStatic
+    fun start(context: Context, url: String) {
+        context.startActivity(HomeActivity.navIntent(context, NavRoutes.surveyWebView(url)))
     }
+}
 
+/**
+ * The external-survey WebView destination. Hosts a [WebView] (the same settings as the former
+ * Activity) via [AndroidView], with a determinate progress bar that fades out at 100% and a top app
+ * bar whose title tracks the page title. JavaScript is enabled (surveys require it).
+ */
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+internal fun SurveyWebViewScreen(url: String, onBack: () -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var progress by remember { mutableIntStateOf(0) }
+    Scaffold(
+        topBar = { ObaTopAppBar(title, onBack) }
+    ) { padding ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { context ->
+                        WebView(context).apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            webViewClient = WebViewClient()
+                            settings.javaScriptEnabled = true
+                            webChromeClient = object : WebChromeClient() {
+                                override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                                    progress = newProgress
+                                }
 
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun initWebView() {
-        toolbar = findViewById(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-
-        webView = findViewById(R.id.webView)
-        progressBar = findViewById(R.id.progressBar)
-
-        val url = intent.getStringExtra("url") as String
-        val embeddedValuesList = intent.getStringArrayListExtra("embedded_data") as? ArrayList<String> ?: arrayListOf()
-        mStopID = intent.getStringExtra("stop_id")
-        mRouteIDList  = intent.getStringArrayListExtra("route_ids") as? ArrayList<String> ?: arrayListOf()
-        Log.d("Routes",mRouteIDList.toString())
-        val newURl = getEmbeddedLink(url, embeddedValuesList)
-
-        Log.d("ExternalSurveyData", embeddedValuesList.toString())
-        Log.d("ExternalSurveyURL", newURl)
-
-        webView.webViewClient = WebViewClient()
-        webView.settings.javaScriptEnabled = true
-
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                if (newProgress == 100) {
-                    progressBar.visibility = View.GONE
-                } else {
-                    progressBar.visibility = View.VISIBLE
-                    progressBar.progress = newProgress
+                                override fun onReceivedTitle(view: WebView?, t: String?) {
+                                    super.onReceivedTitle(view, t)
+                                    title = t.orEmpty()
+                                }
+                            }
+                            loadUrl(url)
+                        }
+                    }
+                )
+                // The former Activity showed a centered indeterminate spinner (LoadingProgress style is
+                // an indeterminate AppCompat ProgressBar) until the page hit 100%.
+                if (progress < 100) {
+                    CircularProgressIndicator()
                 }
             }
-
-            override fun onReceivedTitle(view: WebView?, title: String?) {
-                super.onReceivedTitle(view, title)
-                supportActionBar?.title = title
-            }
-        }
-
-        webView.loadUrl(url)
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            android.R.id.home -> {
-                finish()
-                true
-            }
-
-            else -> super.onOptionsItemSelected(item)
         }
     }
-
-    /**
-     * Constructs an embedded URL by appending key-value pairs from `embeddedValueList` to the base `url`.
-     *
-     * For example, given:
-     * - `url` = "https://example.com?"
-     * - `embeddedValueList` = ["user_id=1"]
-     *
-     * The function will produce: "https://example.com?user_id=1getEmbeddedDataValue(user_id=1)"
-     *
-     * @param url The base URL to which data will be appended.
-     * @param embeddedValueList A list of strings representing key-value pairs to be added to the URL.
-     * @return A new URL string with the appended key-value pairs and their corresponding embedded data values.
-     */
-    private fun getEmbeddedLink(url: String, embeddedValueList: ArrayList<String>): String {
-        var newUrl = "$url?"
-        val size = embeddedValueList.size
-        for (index in 0..<size) {
-            newUrl += embeddedValueList[index]
-            newUrl += "="
-            newUrl += getEmbeddedDataValue(embeddedValueList[index])
-            if (index + 1 != size) newUrl += "&"
-        }
-        newUrl+="&os=android"
-        newUrl+=getAppVersionCode()
-        newUrl+=getAndroidVersionCode()
-        return newUrl
-    }
-
-    /**
-     * Retrieves the value for the specified embedded data key.
-     *
-     * Valid keys:
-     * - USER_ID: User UUID.
-     * - REGION_ID: Current region ID.
-     * - ROUTE_ID: Current route ID, or "NA" if unavailable.
-     * - STOP_ID: Current stop ID, or "NA" if unavailable.
-     * - CURRENT_LOCATION: Latitude,Longitude of current location.
-     *
-     * @param key The embedded data key.
-     * @return The corresponding value, or an empty string if the key is invalid.
-     */
-    private fun getEmbeddedDataValue(key : String): String {
-        return when (key) {
-            SurveyUtils.USER_ID -> SurveyPreferences.getUserUUID(this@SurveyWebViewActivity)
-            SurveyUtils.REGION_ID -> Application.get().currentRegion.id.toString()
-            SurveyUtils.ROUTE_ID -> getRouteID()
-            SurveyUtils.STOP_ID -> getStopID()
-            SurveyUtils.CURRENT_LOCATION -> getCurrentLocation()
-            SurveyUtils.RECENT_STOP_IDS -> getRecentStops()
-            else -> ""
-        }
-    }
-
-    private fun getCurrentLocation(): String {
-        val location =
-            Application.getLastKnownLocation(this@SurveyWebViewActivity)
-        return if (location != null) {
-            "${location.latitude},${location.longitude}"
-        } else {
-            "NA"
-        }
-    }
-
-    private fun getStopID(): String {
-        return mStopID ?: "NA"
-    }
-
-    /**
-     * Retrieves a comma-separated string of route IDs from the list.
-     *
-     * If `mRouteIDList` is not null and contains elements, it converts the list
-     * to a comma-separated.
-     *
-     * @return A comma-separated string of route IDs or "NA" if the list is null or empty.
-     */
-    private fun getRouteID(): String {
-        return mRouteIDList?.takeIf { it.isNotEmpty() }
-            ?.joinToString(separator = ",")
-            ?: "NA"
-    }
-
-
-    /**
-     * Retrieves a comma-separated string of recent stop IDs.
-     *
-     * If the list is not empty, it concatenates the stop IDs into a single string with each ID separated by a comma.
-     * If the list is empty, it returns "NA" as a placeholder.
-     *
-     * @return A comma-separated string of recent stop IDs if available, otherwise "NA".
-     */
-
-    private fun getRecentStops(): String {
-        val recentStops = RecentStopsManager.getRecentStops(this)
-        return recentStops.takeIf { it.isNotEmpty() }
-            ?.joinToString(separator = ",")
-            ?: "NA"
-    }
-
-    // Return app version code
-    private fun getAppVersionCode(): String {
-        val packageInfo = try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
-            } else {
-                packageManager.getPackageInfo(packageName, 0)
-            }
-        } catch (e: PackageManager.NameNotFoundException) {
-            e.printStackTrace()
-            return "&app_version=NA"
-        }
-
-        val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.longVersionCode
-        } else {
-            @Suppress("DEPRECATION")
-            packageInfo.versionCode.toLong()
-        }
-
-        return "&app_version=$versionCode"
-    }
-
-
-    // Return the version as a string, e.g., "9.1"
-    private fun getAndroidVersionCode():String{
-        val androidVersion = Build.VERSION.RELEASE
-        val versionInfo = "&os_version=$androidVersion"
-        return versionInfo
-    }
-
-
-
 }

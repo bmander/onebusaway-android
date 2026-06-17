@@ -52,6 +52,18 @@ internal fun persistedNavItem(name: String?, legacyPosition: Int): HomeNavItem =
         }
 
 /**
+ * The initial nav tab for a fresh launch: a deep link into a route/stop forces [HomeNavItem.NEARBY] (so
+ * the map shows it); otherwise the remembered tab via [persistedNavItem]. (Process-death restore uses
+ * the ViewModel's SavedStateHandle instead — this is the cross-session / deep-link path.)
+ */
+internal fun initialNavItem(
+    persistedName: String?,
+    legacyPosition: Int,
+    deepLinksToMap: Boolean,
+): HomeNavItem =
+    if (deepLinksToMap) HomeNavItem.NEARBY else persistedNavItem(persistedName, legacyPosition)
+
+/**
  * The stop the user tapped on the map, decoupled from the io/elements `ObaStop`. Carries lat/lon so
  * the host can recenter the map and launch feedback without holding the `ObaStop` object, and so the
  * focus survives process death via the ViewModel's `SavedStateHandle`.
@@ -65,12 +77,21 @@ data class FocusedStop(
 )
 
 /**
- * The current weather forecast, decoupled from the io/elements response. The raw icon string and
- * Fahrenheit temperature are kept so the WeatherCard can map them to a drawable + formatted string
- * (via [org.onebusaway.android.ui.weather.WeatherUtils]) at render time, leaving the ViewModel free
- * of resource/preference lookups and unit-testable.
+ * Builds a [FocusedStop] from launch-intent extras, or null when they don't carry a usable stop — a
+ * stop id plus a real (non-zero) location. Mirrors HomeActivity.makeIntent's STOP_ID + CENTER_LAT/LON.
  */
-data class WeatherData(val icon: String, val temperatureF: Double, val summary: String?)
+internal fun focusedStopFromExtras(
+    stopId: String?,
+    stopName: String?,
+    stopCode: String?,
+    lat: Double,
+    lon: Double,
+): FocusedStop? =
+    if (stopId != null && lat != 0.0 && lon != 0.0) {
+        FocusedStop(stopId, stopName, stopCode, lat, lon)
+    } else {
+        null
+    }
 
 /**
  * The non-reactive environment the host snapshots (preferences + app-global flags) so the ViewModel
@@ -81,8 +102,6 @@ data class HomeEnvironment(
     val bikeshareActive: Boolean = false,
     val zoomControlsPref: Boolean = false,
     val leftHandMode: Boolean = false,
-    val weatherHidden: Boolean = false,
-    val donationAvailable: Boolean = false,
 )
 
 /**
@@ -103,6 +122,12 @@ data class HomeUiState(
     // arrivals sheet peek size inputs (the screen maps these to a peek height)
     val peekArrivalCount: Int = 0,
     val routeFiltering: Boolean = false,
+    // Whether the map has been shown at least once (NEARBY selected). A latch: once true it stays so,
+    // so list tabs draw over a still-composed map rather than tearing it down (defers SDK init).
+    val mapComposed: Boolean = false,
+    // Whether a region has resolved (so currentRegion is available). The survey needs a region to build
+    // its study URL, so SurveyFeature self-triggers its request once this + NEARBY are both true.
+    val regionReady: Boolean = false,
     // chrome — derived from selectedItem + environment
     val mapLoading: Boolean = false,
     val fabsVisible: Boolean = true,
@@ -110,12 +135,14 @@ data class HomeUiState(
     val leftHandMode: Boolean = false,
     val layersFabVisible: Boolean = false,
     val bikeshareActive: Boolean = false,
-    // overlays
-    val weather: WeatherData? = null,
-    val donationVisible: Boolean = false,
     // dialogs (HomeDialog lives in HomeDialogs.kt)
     val dialog: HomeDialog = HomeDialog.None,
-    val helpShowContactUs: Boolean = true,
+    // A region-wide GTFS alert to surface in a (non-dismissible) dialog; null when none is showing.
+    // Concurrent alerts collapse to the most recent — they're rare (usually zero or one per region).
+    val wideAlert: WideAlert? = null,
+    // The just-auto-selected region's name, to announce once in a snackbar (the old "Found X region"
+    // toast), or null. Cleared by the VM once the snackbar has been shown (onRegionFoundShown).
+    val regionFoundName: String? = null,
     // toolbar menu groups — derived from selectedItem. Sort shows on any list tab; clear only on the
     // two starred tabs (recents/reminders aren't user-clearable from here).
     val showListSortMenu: Boolean = false,
@@ -126,15 +153,13 @@ data class HomeUiState(
 enum class ArrivalsSheetState { Hidden, Collapsed, Expanded }
 
 /**
- * One-shot effects driven from the ViewModel. [ShowWideAlert] is handled by the activity; the sheet
+ * One-shot effects driven from the ViewModel. [RegionResolved] is handled by the activity; the sheet
  * commands are handled by [HomeScreen] (which alone holds the live `SheetState`). Both subscribe to
  * the same multicast `events` flow and ignore the others. (The drawer is opened directly by
- * [HomeTopBar]'s hamburger, so it needs no event.)
+ * [org.onebusaway.android.ui.home.chrome.HomeTopBar]'s hamburger, so it needs no event. The region-wide GTFS alert is plain state now —
+ * [HomeUiState.wideAlert], rendered as a Compose dialog — not a one-shot event.)
  */
 sealed interface HomeEvent {
-    /** A region-wide GTFS alert arrived; the activity shows it in a dialog. */
-    data class ShowWideAlert(val alert: WideAlert) : HomeEvent
-
     /**
      * Region resolved (replaces ObaRegionsTask's callback). [changed] is the old
      * `currentRegionChanged`; [regionName] is non-null only for an auto-selected change (the
@@ -149,22 +174,6 @@ sealed interface HomeEvent {
     /** Collapse the sheet to its peek (e.g. after "show vehicles on map"). */
     object CollapseSheet : HomeEvent
 
-    /** Apply the arrivals sheet's resting height as the map's bottom padding. */
-    data class SetMapPadding(val bottomPx: Int) : HomeEvent
-
-    /** Recenter the map on the focused stop (the sheet expanded over it). */
-    data class RecenterOnFocusedStop(val lat: Double, val lon: Double) : HomeEvent
-
-    /**
-     * A restored / deep-linked focus's arrivals just loaded — recenter the map + add the focus marker.
-     * The io/elements stop + routes payload is held by the activity (the VM is decoupled from them);
-     * this only carries the VM-owned [animateRecenter] decision.
-     */
-    data class CompletePendingMapFocus(val animateRecenter: Boolean) : HomeEvent
-
-    /** Show a route's stops/vehicles on the map (route mode). */
-    data class ShowRouteOnMap(val routeId: String) : HomeEvent
-
-    /** Clear the map's focused stop (back-press from a peeking sheet; the sheet then hides). */
-    object ClearMapFocus : HomeEvent
+    /** An experimental-regions toggle changed the region: reset the OTP API version. */
+    object RegionToggleChanged : HomeEvent
 }

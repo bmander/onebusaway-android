@@ -642,9 +642,7 @@
     <string name="rt_no">NO</string>
 
     <!-- Tutorial Fragment -->
-    <string name="pager_button_prev">Indietro</string>
     <string name="pager_button_next">Avanti</string>
-    <string name="pager_button_done">Fatto</string>
 
     <!-- Trip Details -->
     <string name="trip_details_vehicle">Mezzo: %1$s</string>

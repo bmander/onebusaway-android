@@ -193,11 +193,6 @@
         <item>@drawable/ic_app_feedback</item>
     </array>
 
-    <string-array name="report_stop_issue_tutorial_desc">
-        <item>Click on the bus stop, that you want to report.</item>
-        <item>Then select report problem section from options.</item>
-        <item>Submit your bus stop related problem.</item>
-    </string-array>
 
     <string-array name="report_stop_transit_category_keywords">
         <item>transit</item>

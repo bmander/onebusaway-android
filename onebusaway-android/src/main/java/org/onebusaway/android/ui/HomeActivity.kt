@@ -21,142 +21,192 @@ import android.Manifest
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.location.Location
 import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
-import android.util.Log
-import android.view.View
-import android.view.ViewGroup
 import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
+import androidx.core.app.ActivityCompat
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.fragment.app.Fragment
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import com.google.firebase.analytics.FirebaseAnalytics
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.donations.DonationsManager
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
-import org.onebusaway.android.io.elements.ObaRoute
+import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
-import org.onebusaway.android.io.request.survey.SurveyListener
-import org.onebusaway.android.io.request.survey.model.StudyResponse
-import org.onebusaway.android.io.request.survey.model.SubmitSurveyResponse
-import org.onebusaway.android.map.LayerActivationListener
-import org.onebusaway.android.map.MapHostDeps
-import org.onebusaway.android.map.LayerInfo
+import org.onebusaway.android.location.LocationRepository
+import org.onebusaway.android.map.MapCameraSeed
 import org.onebusaway.android.map.MapParams
-import org.onebusaway.android.map.ObaMapFragment
-import org.onebusaway.android.map.ObaMapHost
-import org.onebusaway.android.region.ObaRegionsTask
+import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.mapModeToParams
+import org.onebusaway.android.map.resolveMapMode
+import org.onebusaway.android.map.resolveMapSeed
+import org.onebusaway.android.preferences.PreferencesRepository
+import org.onebusaway.android.provider.ObaContract
+import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.report.ui.InfrastructureIssueDestination
 import org.onebusaway.android.report.ui.ReportActivity
+import org.onebusaway.android.report.ui.ReportDestination
+import org.onebusaway.android.report.ui.CustomerServiceDestination
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
+import org.onebusaway.android.ui.about.AboutScreen
+import org.onebusaway.android.ui.about.buildVersionText
+import org.onebusaway.android.ui.agencies.AgenciesRoute
+import org.onebusaway.android.ui.arrivals.ArrivalsIntents
+import org.onebusaway.android.ui.arrivals.createArrivalActionHandler
+import org.onebusaway.android.ui.feedback.FeedbackLauncher
+import org.onebusaway.android.ui.feedback.FeedbackScreen
+import org.onebusaway.android.ui.feedback.FeedbackSubmitter
+import org.onebusaway.android.ui.home.donation.DonationLearnMoreScreen
+import org.onebusaway.android.ui.mylists.editReminder
+import org.onebusaway.android.ui.mylists.reminderActions
+import org.onebusaway.android.ui.nav.NavHelp
+import org.onebusaway.android.ui.nightlight.NightLightRoute
+import org.onebusaway.android.ui.settings.SettingsRoute
+import org.onebusaway.android.ui.settings.SettingsSupport
+import org.onebusaway.android.ui.tripdetails.TripDetailsLauncher
+import org.onebusaway.android.ui.tripinfo.confirmDeleteReminder
+import org.onebusaway.android.ui.arrivals.ArrivalsRoute
+import org.onebusaway.android.ui.arrivals.ArrivalsUiState
+import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
+import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.home.ArrivalsSheetState
-import org.onebusaway.android.ui.home.DefaultRegionStatusRepository
-import org.onebusaway.android.ui.home.DefaultStartupPreferencesRepository
-import org.onebusaway.android.ui.home.DefaultWeatherRepository
-import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
-import org.onebusaway.android.ui.home.FocusedStop
-import org.onebusaway.android.ui.home.HelpAction
+import org.onebusaway.android.ui.home.donation.DonationViewModel
+import org.onebusaway.android.ui.home.weather.WeatherViewModel
+import org.onebusaway.android.ui.home.focusedStopFromExtras
+import org.onebusaway.android.ui.home.help.HelpAction
+import org.onebusaway.android.ui.home.help.HelpViewModel
 import org.onebusaway.android.ui.home.HomeEnvironment
+import org.onebusaway.android.ui.home.HomeCallbacks
 import org.onebusaway.android.ui.home.HomeEvent
 import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
-import org.onebusaway.android.ui.home.persistedNavItem
+import org.onebusaway.android.ui.home.initialNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
+import org.onebusaway.android.ui.home.chrome.analyticsLabelRes
+import org.onebusaway.android.ui.compose.components.ObaTopAppBar
+import org.onebusaway.android.ui.compose.components.OptOutInfoDialog
+import org.onebusaway.android.ui.mylists.MyRecentDestination
+import org.onebusaway.android.ui.mylists.MyRoutesDestination
+import org.onebusaway.android.ui.mylists.MyStopsDestination
+import org.onebusaway.android.ui.mylists.MyTabs
+import org.onebusaway.android.ui.mylists.ReminderListDestination
 import org.onebusaway.android.ui.mylists.RemindersRepository
 import org.onebusaway.android.ui.mylists.StarredRoutesRepository
 import org.onebusaway.android.ui.mylists.StarredStopsRepository
+import org.onebusaway.android.ui.mylists.rememberListVm
+import org.onebusaway.android.ui.nav.NavRoutes
+import org.onebusaway.android.ui.settings.AdvancedSettingsRoute
+import org.onebusaway.android.ui.regions.RegionsRoute
+import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
+import org.onebusaway.android.ui.searchresults.SearchResultsRoute
+import org.onebusaway.android.ui.searchresults.SearchResultsViewModel
+import org.onebusaway.android.ui.tripdetails.TripDetailsRoute
+import org.onebusaway.android.ui.tripdetails.TripDetailsViewModel
+import org.onebusaway.android.ui.tripdetails.rememberDestinationReminderAction
+import org.onebusaway.android.ui.tripinfo.TripInfoEvent
+import org.onebusaway.android.ui.tripinfo.TripInfoRoute
+import org.onebusaway.android.ui.tripinfo.TripInfoViewModel
+import org.onebusaway.android.ui.tripplan.TripPlanDestination
+import org.onebusaway.android.ui.tripplan.TripPlanLocationPickerDestination
 import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
-import org.onebusaway.android.ui.survey.SurveyManager
-import org.onebusaway.android.ui.survey.utils.SurveyViewUtils
-import org.onebusaway.android.ui.weather.RegionCallback
-import org.onebusaway.android.ui.weather.WeatherUtils
+import org.onebusaway.android.ui.survey.SurveyViewModel
+import org.onebusaway.android.ui.survey.activities.SurveyWebViewScreen
+import org.onebusaway.android.util.DBUtil
+import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.LayerUtils
-import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.ShowcaseViewUtils
-import org.onebusaway.android.util.UIUtils
-import org.onebusaway.android.widealerts.GtfsAlertsHelper
-import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
-class HomeActivity : AppCompatActivity(),
-    ObaMapFragment.OnFocusChangedListener,
-    ObaMapFragment.OnProgressBarChangedListener,
-    RegionCallback {
+@AndroidEntryPoint
+class HomeActivity : AppCompatActivity() {
 
-    private val viewModel: HomeViewModel by viewModels {
-        viewModelFactory {
-            initializer {
-                HomeViewModel(
-                    createSavedStateHandle(),
-                    DefaultWeatherRepository(),
-                    DefaultWideAlertsRepository(),
-                    DefaultRegionStatusRepository(applicationContext),
-                    DefaultStartupPreferencesRepository()
-                )
-            }
-        }
-    }
+    // HomeActivity's own preference reads (what's-new opt-out, zoom/left-hand chrome flags, the
+    // remembered nav item). HomeViewModel is now a plain @HiltViewModel — no hand-built factory.
+    @Inject
+    lateinit var prefsRepository: PreferencesRepository
 
-    private var mSurveyView: View? = null
+    // Builds the per-stop ArrivalsViewModel for the home bottom-sheet host (and, in C-b.3, the
+    // arrivals NavHost destination). Assisted because the sheet's stop id is runtime-dynamic.
+    @Inject
+    lateinit var arrivalsViewModelFactory: ArrivalsViewModel.Factory
 
+    // The observable current region (Campaign A): the activity's region-dependent reads (region-found
+    // toast, the region's Twitter URL) collect this instead of Application.get().currentRegion.
+    @Inject
+    lateinit var regionRepository: RegionRepository
 
-    // The inflated map content + toolbar are hosted by the Compose HomeScreen
-    // (ModalNavigationDrawer + BottomSheetScaffold) via AndroidView; the arrivals sheet content is a
-    // composable keyed per focused stop (ArrivalsSheetHost), no longer a hosted fragment View.
-    private lateinit var mMapContent: View
+    // The last-known location (Campaign A, B1): the send-feedback fallback reads it from here instead
+    // of Application.getLastKnownLocation.
+    @Inject
+    lateinit var locationRepository: LocationRepository
 
-    /**
-     * Whether the deferred first nav selection has run. Gates [setupSurvey] (called synchronously in
-     * onCreate, before the posted selection) so the out-of-scope survey stays dormant, preserving the
-     * legacy `mCurrentNavDrawerPosition == -1` behavior. The selected tab itself lives in the VM.
-     */
-    private var navSelectionApplied = false
+    private val viewModel: HomeViewModel by viewModels()
 
-    // The native map is hosted directly (no FragmentManager): its view is added into
-    // R.id.main_fragment_container and its lifecycle/permission/state are forwarded from this activity.
-    // See showMap(). The three other map screens still use the thin Fragment wrapper.
-    private var mMapHost: ObaMapHost? = null
+    // The map view model — the single source of truth for the map. MapFeature (in HomeScreen) renders it
+    // and self-wires the callbacks/collectors/effects/lifecycle; the activity only obtains it here (Hilt-
+    // injected, shared with HomeViewModel) and reads its mode/camera in onSaveInstanceState + sets the mode/seed.
+    private val mapViewModel: MapViewModel by viewModels()
 
-    // The activity's saved bundle (map center/zoom/focus/mode live here via onSaveInstanceState),
-    // passed to the host when it's (re)created so rotation/process-death restore the map.
-    private var mSavedMapState: Bundle? = null
+    // The map survey (Compose), shown over the map on NEARBY. Activity-scoped.
+    private val surveyViewModel: SurveyViewModel by viewModels()
 
-    // The host can't call requestPermissions() itself (it's neither Activity nor Fragment), so it asks
-    // through MapHostDeps and we drive the real launcher, delivering the outcome back to the host.
-    private val mPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { result ->
-        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        mMapHost?.onLocationPermissionResult(
-            if (granted) PackageManager.PERMISSION_GRANTED else PackageManager.PERMISSION_DENIED
-        )
-    }
+    // The donation card feature module (Compose), shown over the map on NEARBY. Activity-scoped.
+    private val donationViewModel: DonationViewModel by viewModels()
 
-    private val mMapDeps = MapHostDeps {
-        mPermissionLauncher.launch(PermissionUtils.LOCATION_PERMISSIONS)
-    }
+    // The weather chip feature module (Compose), shown over the map on NEARBY. Activity-scoped;
+    // Hilt injects its weather + region dependencies.
+    private val weatherViewModel: WeatherViewModel by viewModels()
+
+    // The help / what's-new / legend dialogs feature module. Activity-scoped.
+    private val helpViewModel: HelpViewModel by viewModels()
 
     // The three home list destinations (starred stops/routes, reminders) render as Compose overlays
     // over the map (HomeListDestinations) rather than swapped-in fragments. Their MyListViewModels are
@@ -170,66 +220,777 @@ class HomeActivity : AppCompatActivity(),
         )
     }
 
-    // A one-frame courier for the io/elements arrivals response the VM is decoupled from: stashed when
-    // the VM reports a pending focus, consumed by the CompletePendingMapFocus event to recenter + mark.
-    private var pendingFocusResponse: ObaArrivalInfoResponse? = null
+    private lateinit var firebaseAnalytics: FirebaseAnalytics
 
-    private lateinit var mFirebaseAnalytics: FirebaseAnalytics
+    // A NavHost route to navigate to once the NavHost has composed, set from an incoming external
+    // intent (FCM, a pinned shortcut / legacy class name resolved via an activity-alias, an in-app
+    // launch from non-NavHost code). The navController is created inside setContent, so onCreate /
+    // onNewIntent can't navigate directly — they stage the route here and a LaunchedEffect consumes it.
+    private val pendingDeepLinkRoute = MutableStateFlow<String?>(null)
 
-    private var surveyManager: SurveyManager? = null
+    // Re-homed from the former SettingsActivity: the AdvancedSettingsFragment sets this (via
+    // setOtpCustomAPIUrlChanged) when the user edits the custom OTP API URL; the settings destination's
+    // onDispose reads it to decide whether to re-home (NavHelp.goHome). Kept on the host activity so the
+    // fragment can reach it through its host (now HomeActivity instead of SettingsActivity).
+    var otpCustomAPIUrlChanged: Boolean = false
+        private set
+
+    /**
+     * Set by the advanced settings screen ([org.onebusaway.android.ui.settings.AdvancedSettingsRoute])
+     * when the user changes the custom OTP API URL; read on leaving the settings subtree to decide
+     * whether to re-home (so the change takes effect).
+     */
+    fun setOtpCustomAPIUrlChanged(changed: Boolean) {
+        otpCustomAPIUrlChanged = changed
+    }
+
+    // Set true by the report chooser's region-validate dialog (ReportDestination) when the user
+    // confirms their region; the chooser observes it to swap the validate dialog for the type list.
+    val reportRegionValidated = MutableStateFlow(false)
+
+    // The region whose fare-payment warning to show (former imperative payment_warning_dialog). Set by
+    // the PAY_FARE menu action when a warning is needed; the Compose dialog in setContent renders it.
+    private val paymentWarningRegion = MutableStateFlow<ObaRegion?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Stashed for showMap(): the map's center/zoom/focus/mode were written here by
-        // onSaveInstanceState, so the host restores them when it's (re)created on the first Nearby selection.
-        mSavedMapState = savedInstanceState
-
-        mFirebaseAnalytics = FirebaseAnalytics.getInstance(this)
+        // The map's center/zoom/mode are restored from the saved bundle via initMapMode()/resolveMapSeed()
+        // below (the focus is restored by HomeViewModel's SavedStateHandle); the seed avoids a map flash.
+        firebaseAnalytics = FirebaseAnalytics.getInstance(this)
 
         // Host the map content inside a Compose ModalNavigationDrawer + HomeTopBar + BottomSheetScaffold,
         // replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome, the hosted
         // MaterialToolbar + options menu, and the third-party SlidingUpPanelLayout. The arrivals panel
-        // is the scaffold's bottom sheet, rendered per focused stop by ArrivalsSheetHost.
-        mMapContent = layoutInflater.inflate(R.layout.home_map_content, null)
+        // is the scaffold's bottom sheet, rendered per focused stop by ArrivalsSheetHost. The map, the
+        // route-mode header, and the survey are all Compose now — no map-related View seam remains.
+
+        // The map is driven by mapViewModel; the seed (saved state → intent → last-saved view) just
+        // avoids an initial flash before the loaders/region center it.
+        val mapSeed = readMapSeed(savedInstanceState)
+
+        val homeCallbacks = HomeCallbacks(
+            onNavItemSelected = ::onHomeNavItemSelected,
+            onSearch = ::onSearch,
+            onRecentStopsRoutes = ::onRecentStopsRoutes,
+            onListSort = ::onListSortSelected,
+            onListClear = ::onListClearSelected,
+            onBikeshareToggled = ::pushEnvironment,
+            onHelpAction = ::onHelpAction,
+            onShowWelcomeTutorial = {
+                ShowcaseViewUtils.showTutorial(
+                    ShowcaseViewUtils.TUTORIAL_WELCOME, this@HomeActivity, null, false
+                )
+            },
+            onRegionChosen = viewModel::onRegionChosen,
+            onSheetSettled = viewModel::onSheetSettled,
+            onClearFocus = viewModel::requestClearMapFocus,
+            onArrivalsLoaded = ::onArrivalsLoaded,
+            onShowRouteOnMap = viewModel::requestShowRouteOnMap,
+            onToggleSheet = viewModel::requestToggleSheet,
+            onPreferredHeight = viewModel::onPreferredHeight,
+            onCancelRouteMode = ::onCancelRouteMode,
+            onRouteHeaderHeight = ::onRouteHeaderHeight,
+        )
+
+        // Stage any external "open this screen" intent (set before setContent so the NavHost's
+        // LaunchedEffect observes it once composed). MapParams.* focus / route-mode launches return
+        // null here and stay on the map path below. Only on a fresh launch (not a config change).
+        if (savedInstanceState == null) {
+            pendingDeepLinkRoute.value = routeForIntent(intent)
+        }
+
         setContent {
-            val state by viewModel.uiState.collectAsStateWithLifecycle()
-            HomeScreen(
-                state = state,
-                events = viewModel.events,
-                mapContent = mMapContent,
-                listVms = listVms,
-                onNavItemSelected = ::onHomeNavItemSelected,
-                onSearch = ::onSearch,
-                onRecentStopsRoutes = ::onRecentStopsRoutes,
-                onListSort = ::onListSortSelected,
-                onListClear = ::onListClearSelected,
-                onMyLocation = ::onMyLocation,
-                onZoomIn = ::onZoomIn,
-                onZoomOut = ::onZoomOut,
-                onToggleBikeshare = ::onToggleBikeshare,
-                onWeatherClick = ::onWeatherClick,
-                onDonationClose = ::onDonationClose,
-                onDonationLearnMore = ::onDonationLearnMore,
-                onDonationDonate = ::onDonationDonate,
-                onDonationDismissForever = ::onDonationDismissForever,
-                onDonationRemindLater = ::onDonationRemindLater,
-                onHelpAction = ::onHelpAction,
-                onWhatsNewDismissed = ::onWhatsNewDismissed,
-                onRegionChosen = viewModel::onRegionChosen,
-                onDismissDialog = viewModel::dismissDialog,
-                onSheetSettled = viewModel::onSheetSettled,
-                onClearFocus = viewModel::requestClearMapFocus,
-                onArrivalsLoaded = ::onArrivalsLoaded,
-                onShowRouteOnMap = viewModel::requestShowRouteOnMap,
-                onToggleSheet = viewModel::requestToggleSheet,
-                onPreferredHeight = viewModel::onPreferredHeight,
-            )
+            // Campaign C0: the single-Activity Navigation-Compose backbone. HomeActivity hosts every
+            // screen as a NavHost destination; external intents (FCM, pinned shortcuts, legacy class
+            // names via activity-aliases) land here and are routed by [routeForIntent].
+            val navController = rememberNavController()
+            // Consume a staged deep-link route once the NavHost is ready (and on each onNewIntent).
+            val pending by pendingDeepLinkRoute.collectAsStateWithLifecycle()
+            LaunchedEffect(pending) {
+                pending?.let { route ->
+                    navController.navigate(route) {
+                        popUpTo(NavRoutes.HOME) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                    pendingDeepLinkRoute.value = null
+                }
+            }
+            // Re-home when leaving the settings subtree if the user re-enabled auto-select-region or
+            // changed the custom OTP URL (ported from the former SettingsActivity.onDestroy). The
+            // auto-select baseline is captured on entry and compared on exit, so a re-home fires only
+            // when it was turned back on during this settings visit.
+            DisposableEffect(navController) {
+                val settingsRoutes = setOf(NavRoutes.SETTINGS, NavRoutes.SETTINGS_ADVANCED)
+                val autoSelectKey = getString(R.string.preference_key_auto_select_region)
+                var autoSelectInitial: Boolean? = null
+                val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+                    if (destination.route in settingsRoutes) {
+                        if (autoSelectInitial == null) {
+                            autoSelectInitial = PreferenceUtils.getBoolean(autoSelectKey, true)
+                        }
+                    } else if (autoSelectInitial != null) {
+                        val reEnabledAutoSelect =
+                            PreferenceUtils.getBoolean(autoSelectKey, true) && autoSelectInitial == false
+                        autoSelectInitial = null
+                        if (reEnabledAutoSelect) {
+                            NavHelp.goHome(this@HomeActivity, false)
+                        } else if (otpCustomAPIUrlChanged) {
+                            setOtpCustomAPIUrlChanged(false)
+                            NavHelp.goHome(this@HomeActivity, false)
+                        }
+                    }
+                }
+                navController.addOnDestinationChangedListener(listener)
+                onDispose { navController.removeOnDestinationChangedListener(listener) }
+            }
+            NavHost(navController = navController, startDestination = NavRoutes.HOME) {
+                composable(NavRoutes.HOME) {
+                    val state by viewModel.uiState.collectAsStateWithLifecycle()
+                    val routeHeader by mapViewModel.routeHeader.collectAsStateWithLifecycle()
+                    HomeScreen(
+                        state = state,
+                        events = viewModel.events,
+                        homeViewModel = viewModel,
+                        mapViewModel = mapViewModel,
+                        mapSeedLat = mapSeed.lat,
+                        mapSeedLon = mapSeed.lon,
+                        mapSeedZoom = mapSeed.zoom,
+                        mapSavedInstanceState = savedInstanceState,
+                        routeHeader = routeHeader,
+                        surveyViewModel = surveyViewModel,
+                        donationViewModel = donationViewModel,
+                        weatherViewModel = weatherViewModel,
+                        helpViewModel = helpViewModel,
+                        listVms = listVms,
+                        arrivalsViewModelFactory = arrivalsViewModelFactory,
+                        callbacks = homeCallbacks,
+                        onShowRouteInfo = { routeId ->
+                            navController.navigate(NavRoutes.routeInfo(routeId))
+                        },
+                        onShowArrivals = { stopId, stopName ->
+                            navController.navigate(NavRoutes.arrivals(stopId, stopName))
+                        },
+                    )
+                }
+                // RouteInfo destination (Campaign C-a): a route's stops grouped by direction. Reached
+                // in-app from the home reminders overlay's "show route"; RouteInfoActivity still hosts
+                // the same RouteInfoRoute for the standalone/external launch paths (collapsed to an
+                // activity-alias in C-c). The VM reads routeId from SavedStateHandle (the nav-arg).
+                composable(
+                    NavRoutes.ROUTE_INFO,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_ROUTE_ID) { type = NavType.StringType }
+                    ),
+                ) { backStackEntry ->
+                    val routeId =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_ROUTE_ID).orEmpty()
+                    ObaTheme {
+                        RouteInfoRoute(
+                            viewModel = hiltViewModel(),
+                            onBack = { navController.popBackStack() },
+                            onShowRouteOnMap = { HomeActivity.start(this@HomeActivity, routeId) },
+                            onStopClick = { stop ->
+                                navController.navigate(NavRoutes.arrivals(stop.id, stop.name))
+                            },
+                            onStopShowOnMap = { stop ->
+                                HomeActivity.start(
+                                    this@HomeActivity, stop.id, stop.latitude, stop.longitude
+                                )
+                            },
+                        )
+                    }
+                }
+                // Arrivals destination (Campaign C-b): real-time arrivals for a stop. Reached in-app
+                // from RouteInfo's stop tap and the home overlays' stop taps; ArrivalsListActivity
+                // still hosts the same ArrivalsRoute for the standalone/FCM/external paths (collapsed
+                // to an activity-alias in C-c). The VM is built from the assisted factory with the
+                // nav-arg stop id (process-death safe — it's re-read from the back-stack arg).
+                composable(
+                    NavRoutes.ARRIVALS,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_STOP_ID) { type = NavType.StringType },
+                        navArgument(NavRoutes.ARG_STOP_NAME) {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val stopId =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_ID).orEmpty()
+                    val stopName =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_NAME).orEmpty()
+                    val arrivalsVm: ArrivalsViewModel = viewModel(
+                        factory = viewModelFactory {
+                            initializer {
+                                arrivalsViewModelFactory.create(stopId, ignorePersistedFilter = false)
+                            }
+                        }
+                    )
+                    val snackbarHostState = remember { SnackbarHostState() }
+                    val scope = rememberCoroutineScope()
+                    val context = LocalContext.current
+                    val handler = remember(arrivalsVm) {
+                        createArrivalActionHandler(
+                            activity = this@HomeActivity,
+                            viewModel = arrivalsVm,
+                            currentContent = { arrivalsVm.state.value as? ArrivalsUiState.Content },
+                            onShowRouteOnMap = { routeId ->
+                                HomeActivity.start(this@HomeActivity, routeId)
+                            },
+                            showUndoSnackbar = { messageRes, actionRes, onAction ->
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = context.getString(messageRes),
+                                        actionLabel = actionRes?.let { context.getString(it) },
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) onAction?.invoke()
+                                }
+                            },
+                            onShowTrip = { tripId, sid ->
+                                navController.navigate(
+                                    NavRoutes.tripDetails(tripId, sid, TripDetailsLauncher.SCROLL_MODE_STOP)
+                                )
+                            },
+                        )
+                    }
+                    ObaTheme {
+                        ArrivalsRoute(
+                            viewModel = arrivalsVm,
+                            initialTitle = stopName,
+                            handler = handler,
+                            onBack = { navController.popBackStack() },
+                            snackbarHostState = snackbarHostState,
+                        )
+                    }
+                }
+                // TripDetails destination (Campaign C-d): a trip's stops + live vehicle position.
+                // Reached in-app from the arrivals destination's "show trip"; TripDetailsActivity still
+                // hosts the same TripDetailsRoute for standalone/map/NavigationService launches
+                // (collapsed to an activity-alias in C-c). The destination-reminder flow is the shared
+                // rememberDestinationReminderAction controller; the VM reads its args from the nav-args.
+                composable(
+                    NavRoutes.TRIP_DETAILS,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_TRIP_ID) { type = NavType.StringType },
+                        navArgument(NavRoutes.ARG_STOP_ID) {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_SCROLL_MODE) {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val tripId =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_TRIP_ID).orEmpty()
+                    val tripStopId = backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_ID)
+                    val tripVm: TripDetailsViewModel = hiltViewModel()
+                    ObaTheme {
+                        TripDetailsRoute(
+                            viewModel = tripVm,
+                            onBack = { navController.popBackStack() },
+                            onShowOnMap = { routeId -> HomeActivity.start(this@HomeActivity, routeId) },
+                            onStopClick = { sid, name, _ ->
+                                navController.navigate(NavRoutes.arrivals(sid, name))
+                            },
+                            onSetDestinationReminder = rememberDestinationReminderAction(
+                                viewModel = tripVm,
+                                prefsRepository = prefsRepository,
+                                tripId = tripId,
+                                stopId = tripStopId,
+                            ),
+                        )
+                    }
+                }
+                // TripInfo destination (reminder editor). Reached in-app from the home reminders
+                // overlay's edit-tap and the arrivals "set reminder" action (both via the
+                // TripInfoActivity facade → HomeActivity → translator). Non-exported; no alias.
+                composable(
+                    NavRoutes.TRIP_INFO,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_TRIP_ID) { type = NavType.StringType },
+                        navArgument(NavRoutes.ARG_STOP_ID) { type = NavType.StringType },
+                        navArgument(NavRoutes.ARG_ROUTE_ID) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_ROUTE_NAME) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_STOP_NAME) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_HEADSIGN) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_DEPART_TIME) {
+                            type = NavType.LongType; defaultValue = 0L
+                        },
+                        navArgument(NavRoutes.ARG_STOP_SEQUENCE) {
+                            type = NavType.IntType; defaultValue = 0
+                        },
+                        navArgument(NavRoutes.ARG_SERVICE_DATE) {
+                            type = NavType.LongType; defaultValue = 0L
+                        },
+                        navArgument(NavRoutes.ARG_VEHICLE_ID) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val infoTripId =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_TRIP_ID).orEmpty()
+                    val infoStopId =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_ID).orEmpty()
+                    val infoVm: TripInfoViewModel = hiltViewModel()
+                    LaunchedEffect(infoVm) {
+                        infoVm.events.collect { event ->
+                            when (event) {
+                                TripInfoEvent.Saved -> {
+                                    Toast.makeText(
+                                        this@HomeActivity, R.string.trip_info_saved, Toast.LENGTH_SHORT
+                                    ).show()
+                                    navController.popBackStack()
+                                }
+                                TripInfoEvent.SaveFailed -> Toast.makeText(
+                                    this@HomeActivity, R.string.failed_to_set_reminder, Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    }
+                    ObaTheme {
+                        TripInfoRoute(
+                            viewModel = infoVm,
+                            onBack = { navController.popBackStack() },
+                            onSave = {
+                                ActivityCompat.requestPermissions(
+                                    this@HomeActivity,
+                                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                                    PermissionUtils.NOTIFICATION_PERMISSION_REQUEST
+                                )
+                                infoVm.save()
+                            },
+                            onDelete = {
+                                confirmDeleteReminder(this@HomeActivity) {
+                                    ReminderUtils.requestDeleteAlarm(
+                                        this@HomeActivity,
+                                        ObaContract.Trips.buildUri(infoTripId, infoStopId)
+                                    )
+                                    navController.popBackStack()
+                                }
+                            },
+                            onShowRoute = {
+                                infoVm.routeId()?.let { navController.navigate(NavRoutes.routeInfo(it)) }
+                            },
+                            onShowStop = {
+                                navController.navigate(NavRoutes.arrivals(infoStopId, infoVm.stopName()))
+                            },
+                        )
+                    }
+                }
+                // Agencies destination (Campaign C): the transit agencies in the current region.
+                // Reached in-app from the help menu (HelpAction.AGENCIES navigates here via a
+                // navIntent route). State lives in the Hilt AgenciesViewModel. Non-exported.
+                composable(NavRoutes.AGENCIES) {
+                    ObaTheme {
+                        AgenciesRoute(
+                            viewModel = hiltViewModel(),
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
+                // Regions destination (Campaign C): the manual OBA region (server) picker. Reached
+                // in-app from Settings (navController.navigate(NavRoutes.REGIONS)). Selecting
+                // a region is terminal; on selection (which may disable auto-select, surfaced via the
+                // toast) we pop back, matching the legacy "set region, return home" behavior.
+                composable(NavRoutes.REGIONS) {
+                    ObaTheme {
+                        RegionsRoute(
+                            viewModel = hiltViewModel(),
+                            onBack = { navController.popBackStack() },
+                            onRegionSelected = { autoSelectDisabled ->
+                                if (autoSelectDisabled) {
+                                    Toast.makeText(
+                                        this@HomeActivity,
+                                        R.string.region_disabled_auto_selection,
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                navController.popBackStack()
+                            },
+                        )
+                    }
+                }
+                // About destination (Campaign C): version / license / contributor info. Reached in-app
+                // from Settings (navController.navigate(NavRoutes.ABOUT)). No VM; the version
+                // line is computed from the package info via buildVersionText. Non-exported.
+                composable(NavRoutes.ABOUT) {
+                    ObaTheme {
+                        AboutScreen(
+                            versionText = buildVersionText(LocalContext.current),
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
+                // Donation "learn more" destination (Campaign C): the why-donate explainer. Reached
+                // in-app from the home donation card (a navIntent route → translator). The donate
+                // button reproduces the former Activity's behavior: dismiss any
+                // pending donation requests, open the donations page, then pop back. Non-exported.
+                composable(NavRoutes.DONATION_LEARN_MORE) {
+                    ObaTheme {
+                        DonationLearnMoreScreen(
+                            onBack = { navController.popBackStack() },
+                            onDonate = {
+                                Application.getDonationsManager().dismissDonationRequests()
+                                startActivity(
+                                    Application.getDonationsManager().buildOpenDonationsPageIntent()
+                                )
+                                navController.popBackStack()
+                            },
+                        )
+                    }
+                }
+                // Settings destination (Campaign C; former SettingsActivity): a pure-Compose settings
+                // screen ([SettingsRoute]). Reached in-app from the home drawer's Settings item and from
+                // the report flow (region-validate dialog, with the EXTRA_SHOW_CHECK_REGION_DIALOG extra on the
+                // HomeActivity intent). Host-bound actions (theme recreate, go-home, donate/browser) are
+                // passed as lambdas; the Advanced sub-screen is its own destination below.
+                composable(NavRoutes.SETTINGS) {
+                    ObaTheme {
+                        SettingsRoute(
+                            onNavigateToRegions = { navController.navigate(NavRoutes.REGIONS) },
+                            onNavigateToAbout = { navController.navigate(NavRoutes.ABOUT) },
+                            onNavigateToAdvanced = {
+                                navController.navigate(NavRoutes.SETTINGS_ADVANCED)
+                            },
+                            onBack = { navController.popBackStack() },
+                            onRecreate = { recreate() },
+                            onGoHomeResetTutorial = { NavHelp.goHome(this@HomeActivity, true) },
+                            onOpenDonate = {
+                                startActivity(
+                                    Application.getDonationsManager().buildOpenDonationsPageIntent()
+                                )
+                            },
+                            onOpenPoweredByOba = {
+                                startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse(getString(R.string.powered_by_oba_url))
+                                    )
+                                )
+                            },
+                        )
+                    }
+                }
+                composable(NavRoutes.SETTINGS_ADVANCED) {
+                    ObaTheme {
+                        AdvancedSettingsRoute(
+                            onBack = { navController.popBackStack() },
+                            onRefreshRegions = { viewModel.onExperimentalRegionsToggled() },
+                            onOtpUrlChanged = { setOtpCustomAPIUrlChanged(true) },
+                            onGoHome = { NavHelp.goHome(this@HomeActivity, false) },
+                        )
+                    }
+                }
+                // Report flow (Campaign C; former ReportActivity / CustomerServiceActivity /
+                // InfrastructureIssueActivity). The chooser ([REPORT]) shows the region-validate dialog
+                // (if needed) then the type list; a tapped type navigates in-NavHost to customer service
+                // or the infrastructure-issue screen, so back returns to the chooser (today's behavior).
+                // The stop/location context rides on this activity's intent (from the launch facade) and
+                // is read by the issue destination. Non-exported; no aliases.
+                composable(NavRoutes.REPORT) {
+                    ObaTheme {
+                        ReportDestination(navController = navController)
+                    }
+                }
+                composable(NavRoutes.CUSTOMER_SERVICE) {
+                    ObaTheme {
+                        CustomerServiceDestination(navController = navController)
+                    }
+                }
+                composable(
+                    NavRoutes.INFRASTRUCTURE_ISSUE,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_SELECTED_SERVICE) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val selectedService =
+                        backStackEntry.arguments?.getString(NavRoutes.ARG_SELECTED_SERVICE)
+                    ObaTheme {
+                        InfrastructureIssueDestination(
+                            navController = navController,
+                            selectedService = selectedService,
+                        )
+                    }
+                }
+                // Survey web view destination (Campaign C): the external-survey WebView. Reached in-app
+                // from the home survey overlay (SurveyWebViewActivity facade → HomeActivity → translator).
+                // The survey URL is the nav-arg. Non-exported; no alias.
+                composable(
+                    NavRoutes.SURVEY_WEB_VIEW,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_URL) { type = NavType.StringType },
+                    ),
+                ) { backStackEntry ->
+                    val url = backStackEntry.arguments?.getString(NavRoutes.ARG_URL).orEmpty()
+                    ObaTheme {
+                        SurveyWebViewScreen(
+                            url = url,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
+                // Feedback destination (Campaign C): the post-trip destination-reminder feedback screen.
+                // Reached only from the post-trip notification's Yes/No actions (NavigationService →
+                // FeedbackActivity facade → HomeActivity → translator). On send it runs the submit/log
+                // glue (FeedbackSubmitter) then pops back. Non-exported; no alias.
+                composable(
+                    NavRoutes.FEEDBACK,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_FEEDBACK_RESPONSE) {
+                            type = NavType.IntType; defaultValue = 0
+                        },
+                        navArgument(NavRoutes.ARG_LOG_FILE) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_TRIP_ID) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_NOTIFICATION_ID) {
+                            type = NavType.IntType; defaultValue = 0
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val response =
+                        backStackEntry.arguments?.getInt(NavRoutes.ARG_FEEDBACK_RESPONSE) ?: 0
+                    val logFile = backStackEntry.arguments?.getString(NavRoutes.ARG_LOG_FILE)
+                    val context = LocalContext.current
+                    val submitter = remember(logFile) {
+                        FeedbackSubmitter(context.applicationContext, prefsRepository, logFile)
+                    }
+                    ObaTheme {
+                        FeedbackScreen(
+                            initialLiked = response == FeedbackLauncher.FEEDBACK_YES,
+                            initialSendLogs = submitter.shareLogsPref(),
+                            onBack = { navController.popBackStack() },
+                            onSendLogsChanged = submitter::setShareLogs,
+                            onSend = { liked, text ->
+                                submitter.submit(liked, text)
+                                navController.popBackStack()
+                            },
+                        )
+                    }
+                }
+                // Search results (system ACTION_SEARCH + the home top-bar search field). The query is a
+                // nav-arg; result taps route to the in-NavHost destinations (route info / arrivals) or
+                // the map. Re-search when the query arg changes (a fresh search reuses this entry).
+                composable(
+                    NavRoutes.SEARCH,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_QUERY) {
+                            type = NavType.StringType
+                            defaultValue = ""
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val query = backStackEntry.arguments?.getString(NavRoutes.ARG_QUERY).orEmpty()
+                    val searchVm: SearchResultsViewModel = hiltViewModel()
+                    LaunchedEffect(query) {
+                        ObaAnalytics.reportSearchEvent(
+                            Application.get().plausibleInstance, firebaseAnalytics, query
+                        )
+                        searchVm.search(query)
+                    }
+                    ObaTheme {
+                        SearchResultsRoute(
+                            viewModel = searchVm,
+                            onBack = { navController.popBackStack() },
+                            onRouteListStops = { route ->
+                                DBUtil.addRouteToDB(
+                                    this@HomeActivity, route.id, route.shortName, route.longName, route.url
+                                )
+                                navController.navigate(NavRoutes.routeInfo(route.id))
+                            },
+                            onRouteShowOnMap = { route ->
+                                DBUtil.addRouteToDB(
+                                    this@HomeActivity, route.id, route.shortName, route.longName, route.url
+                                )
+                                HomeActivity.start(this@HomeActivity, route.id)
+                            },
+                            onStopArrivals = { stop ->
+                                navController.navigate(NavRoutes.arrivals(stop.id))
+                            },
+                            onStopShowOnMap = { stop ->
+                                HomeActivity.start(
+                                    this@HomeActivity, stop.id, stop.latitude, stop.longitude
+                                )
+                            },
+                        )
+                    }
+                }
+                // The three "My*" tabbed list destinations (Campaign C). Reached from static app
+                // shortcuts + old pinned tab:// shortcuts (the translator maps the tag to the route) and,
+                // for Recent, the toolbar overflow. Tab wiring lives in MyListScreens.kt; the per-tab VMs
+                // are scoped to the back-stack entry. The legacy CREATE_SHORTCUT picker mode is dropped.
+                val tabArg = listOf(
+                    navArgument(NavRoutes.ARG_TAB) {
+                        type = NavType.StringType; nullable = true; defaultValue = null
+                    },
+                )
+                composable(NavRoutes.MY_STOPS, arguments = tabArg) { entry ->
+                    ObaTheme {
+                        MyStopsDestination(
+                            initialTag = entry.arguments?.getString(NavRoutes.ARG_TAB),
+                            prefsRepository = prefsRepository,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
+                composable(NavRoutes.MY_ROUTES, arguments = tabArg) { entry ->
+                    ObaTheme {
+                        MyRoutesDestination(
+                            initialTag = entry.arguments?.getString(NavRoutes.ARG_TAB),
+                            prefsRepository = prefsRepository,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
+                composable(NavRoutes.MY_RECENT, arguments = tabArg) { entry ->
+                    ObaTheme {
+                        MyRecentDestination(
+                            initialTag = entry.arguments?.getString(NavRoutes.ARG_TAB),
+                            prefsRepository = prefsRepository,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
+                // "My Reminders" destination (Campaign C): the standalone saved-trip-reminders list.
+                // A single ReminderListDestination in a Scaffold (not MyTabsScreen) with a sort action.
+                // Entry-scoped VM. The home drawer embeds the same destination separately.
+                composable(NavRoutes.MY_REMINDERS) {
+                    val reminders = rememberListVm("reminders") {
+                        RemindersRepository(applicationContext)
+                    }
+                    ObaTheme {
+                        Scaffold(
+                            topBar = {
+                                ObaTopAppBar(
+                                    title = stringResource(R.string.app_name),
+                                    onBack = { navController.popBackStack() }
+                                ) {
+                                    IconButton(onClick = {
+                                        chooseSortOrder(
+                                            PreferenceUtils.getReminderSortOrderFromPreferences(),
+                                            R.array.sort_reminders
+                                        ) { reminders.setSort(it) }
+                                    }) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_action_content_sort),
+                                            contentDescription = stringResource(R.string.menu_option_sort_by)
+                                        )
+                                    }
+                                }
+                            }
+                        ) { padding ->
+                            Box(Modifier.fillMaxSize().padding(padding)) {
+                                ReminderListDestination(
+                                    reminders,
+                                    emptyText = R.string.trip_list_notrips,
+                                    onClick = { editReminder(it) },
+                                    actions = { reminderActions(it) }
+                                )
+                            }
+                        }
+                    }
+                }
+                // Night light (Campaign C): the flashing screen riders show to flag drivers. Reached
+                // from the arrivals overflow and old pinned launcher shortcuts (frozen NightLightActivity
+                // name → alias → HomeActivity, routed by component name). Window/brightness/orientation
+                // concerns live in NightLightRoute for as long as it's on the back stack.
+                composable(NavRoutes.NIGHT_LIGHT) {
+                    ObaTheme {
+                        NightLightRoute(onBack = { navController.popBackStack() })
+                    }
+                }
+                // Trip plan destination (Campaign C): the trip-planning form + results sheet. Reached
+                // in-app from the home drawer's "Plan a trip"; re-entered from a RealtimeService trip-
+                // update notification (RealtimeService tags the open intent with the TRIP_PLAN route).
+                // The destination ports the former TripPlanActivity's Android glue. Non-exported.
+                composable(NavRoutes.TRIP_PLAN) {
+                    ObaTheme {
+                        TripPlanDestination(
+                            navController = navController,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
+                // Trip plan "pick a point on the map" sub-screen (Campaign C; former
+                // TripPlanLocationPickerActivity). Reached only from the trip-plan destination's
+                // from/to "pick on map"; hands the chosen point back via this entry's previous
+                // back-stack SavedStateHandle. The initial center arrives as decimal-string lat/lon.
+                composable(
+                    NavRoutes.TRIP_PLAN_PICK_LOCATION,
+                    arguments = listOf(
+                        navArgument(NavRoutes.ARG_PICK_LAT) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                        navArgument(NavRoutes.ARG_PICK_LON) {
+                            type = NavType.StringType; nullable = true; defaultValue = null
+                        },
+                    ),
+                ) { entry ->
+                    ObaTheme {
+                        TripPlanLocationPickerDestination(
+                            navController = navController,
+                            lat = entry.arguments?.getString(NavRoutes.ARG_PICK_LAT)?.toDoubleOrNull(),
+                            lon = entry.arguments?.getString(NavRoutes.ARG_PICK_LON)?.toDoubleOrNull(),
+                        )
+                    }
+                }
+            }
+
+            // Fare-payment warning (former imperative payment_warning_dialog): shown over any
+            // destination when the PAY_FARE menu item needs a region's warning before launching.
+            val warnRegion by paymentWarningRegion.collectAsStateWithLifecycle()
+            warnRegion?.let { region ->
+                ObaTheme {
+                    OptOutInfoDialog(
+                        title = region.paymentWarningTitle.orEmpty(),
+                        icon = painterResource(android.R.drawable.ic_dialog_alert),
+                        iconTint = colorResource(R.color.alert_icon_error),
+                        body = region.paymentWarningBody.orEmpty(),
+                        optOutLabel = stringResource(R.string.main_never_ask_again),
+                        onOptOut = {
+                            PreferenceUtils.saveBoolean(
+                                getString(R.string.preference_key_never_show_payment_warning_dialog), it
+                            )
+                        },
+                        confirmText = stringResource(R.string.ok),
+                        onConfirm = {
+                            paymentWarningRegion.value = null
+                            ExternalIntents.startPaymentIntent(this@HomeActivity, region)
+                        },
+                        onDismissRequest = { paymentWarningRegion.value = null },
+                    )
+                }
+            }
         }
 
         setupNavigationDrawer()
 
         setupMapState()
+
+        // Initialize the map mode from the intent (route deep link vs nearby stops), unless the view
+        // model already has a mode (it survives a configuration change).
+        if (mapViewModel.currentMapMode == null) {
+            initMapMode(savedInstanceState)
+        }
 
         pushEnvironment()
 
@@ -250,57 +1011,132 @@ class HomeActivity : AppCompatActivity(),
             }
         }
 
-        // Handle deep link from background FCM notification tap (only on fresh launch, not config change)
-        if (savedInstanceState == null) {
-            handleFcmNotificationIntent(intent)
-        }
-        setupSurvey()
+        observeRegionResolved()
+    }
 
-        // Carry out one-shot effects from the ViewModel (currently the GTFS wide-alert dialog).
+    /**
+     * A warm re-launch (singleTop) carrying an external screen intent — FCM CLEAR_TOP, the
+     * NavigationService reminder PendingIntent, a pinned shortcut. Stage its route; the NavHost's
+     * LaunchedEffect navigates. (Cold launches are handled in onCreate.)
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingDeepLinkRoute.value = routeForIntent(intent)
+    }
+
+    /**
+     * Translates an incoming external intent into the NavHost route it should open, or null to leave
+     * the home/map path untouched. Handles the FCM `arrival_and_departure` payload (delete the
+     * reminder, then open arrivals) and the explicit-component screen intents that carry a
+     * `content://<authority>/<path>/{id}` data URI (read by path segment, since the authority is
+     * flavor-specific). MapParams.* focus / route-mode launches have no data URI and return null —
+     * they stay map behavior (initMapMode / setupMapState).
+     */
+    private fun routeForIntent(intent: Intent?): String? {
+        if (intent == null) return null
+        // In-app / cross-screen launches carry their destination route verbatim (see [navIntent]).
+        intent.getStringExtra(EXTRA_NAV_ROUTE)?.let { return it }
+        // The exported `onebusaway://add-region?oba-url=…&otp-url=…` deep link (former SettingsActivity
+        // VIEW filter). Apply the custom API URL(s), clear the current region, and stay on the home/map
+        // path (the legacy handler immediately went Home), so return null after processing.
+        val data = intent.data
+        if (data?.scheme == "onebusaway" && data.host == "add-region") {
+            applyAddRegionDeepLink(data)
+            return null
+        }
+        // System search (HomeActivity is the default_searchable target): open the search destination.
+        if (intent.action == Intent.ACTION_SEARCH) {
+            return NavRoutes.search(intent.getStringExtra(SearchManager.QUERY).orEmpty())
+        }
+        intent.getStringExtra("arrival_and_departure")?.let { arrivalJson ->
+            ReminderUtils.handleArrivalPayload(applicationContext, arrivalJson)
+            return ReminderUtils.getStopIdFromPayload(arrivalJson)?.let { NavRoutes.arrivals(it, null) }
+        }
+        // Trip details carries its args as extras (no data URI) — e.g. the arrivals "show trip" / map
+        // vehicle tap / NavigationService reminder notification.
+        intent.getStringExtra(NavRoutes.ARG_TRIP_ID)?.let { tripId ->
+            return NavRoutes.tripDetails(
+                tripId,
+                intent.getStringExtra(NavRoutes.ARG_STOP_ID),
+                intent.getStringExtra(NavRoutes.ARG_SCROLL_MODE),
+            )
+        }
+        // Old pinned night-light launcher shortcuts target the frozen NightLightActivity component
+        // (now an alias → HomeActivity) with no data URI; the alias name is preserved in the launched
+        // intent's component, so route by class name. (New pins use the NAV_ROUTE extra above.)
+        if (intent.component?.className?.endsWith("NightLightActivity") == true) {
+            return NavRoutes.NIGHT_LIGHT
+        }
+        // Old pinned launcher shortcuts (the deleted My* shells/aliases) carry a `tab://<tag>` data URI.
+        // Map the tag to the matching My* list route so they keep opening the right screen.
+        if (intent.data?.scheme == "tab") {
+            val tag = intent.data?.let { MyTabs.defaultTabFromUri(it) }
+            return when (tag) {
+                MyTabs.RECENT_ROUTES -> NavRoutes.myRoutes(MyTabs.RECENT_ROUTES)
+                else -> NavRoutes.myStops(tag)
+            }
+        }
+        val segments = intent.data?.pathSegments ?: return null
+        return when (segments.firstOrNull()) {
+            ObaContract.Stops.PATH -> intent.data?.lastPathSegment?.let { stopId ->
+                NavRoutes.arrivals(stopId, intent.getStringExtra(ArrivalsIntents.STOP_NAME))
+            }
+            ObaContract.Routes.PATH -> intent.data?.lastPathSegment?.let { routeId ->
+                NavRoutes.routeInfo(routeId)
+            }
+            // Trip reminder editor: ids in the data URI path; the create path adds the trip context
+            // as extras (edit path omits them). content://…/trips/{tripId}/{stopId}.
+            ObaContract.Trips.PATH -> if (segments.size >= 3) {
+                NavRoutes.tripInfo(
+                    tripId = segments[1],
+                    stopId = segments[2],
+                    routeId = intent.getStringExtra(NavRoutes.ARG_ROUTE_ID),
+                    routeName = intent.getStringExtra(NavRoutes.ARG_ROUTE_NAME),
+                    stopName = intent.getStringExtra(NavRoutes.ARG_STOP_NAME),
+                    headsign = intent.getStringExtra(NavRoutes.ARG_HEADSIGN),
+                    departTime = intent.getLongExtra(NavRoutes.ARG_DEPART_TIME, 0L),
+                    stopSequence = intent.getIntExtra(NavRoutes.ARG_STOP_SEQUENCE, 0),
+                    serviceDate = intent.getLongExtra(NavRoutes.ARG_SERVICE_DATE, 0L),
+                    vehicleId = intent.getStringExtra(NavRoutes.ARG_VEHICLE_ID),
+                )
+            } else null
+            else -> null
+        }
+    }
+
+    /**
+     * Applies the `onebusaway://add-region` deep link (ported from SettingsActivity.onAddCustomRegion):
+     * set the custom OBA / OTP API URLs from the query params (validating each), clearing the current
+     * region when a valid OBA URL is supplied. The legacy handler then went Home + finished; here the
+     * caller ([routeForIntent]) returns null so we simply stay on the home/map path.
+     */
+    private fun applyAddRegionDeepLink(deepLink: Uri) {
+        val obaCustomUrl = deepLink.getQueryParameter("oba-url")
+        val otpCustomUrl = deepLink.getQueryParameter("otp-url")
+
+        if (obaCustomUrl != null && SettingsSupport.validateUrl(obaCustomUrl)) {
+            Application.get().setCustomApiUrl(obaCustomUrl)
+            regionRepository.clear()
+        }
+        if (otpCustomUrl != null && SettingsSupport.validateUrl(otpCustomUrl)) {
+            Application.get().setCustomOtpApiUrl(otpCustomUrl)
+        }
+    }
+
+    /**
+     * Subscribes to the region [HomeEvent]s the activity (as opposed to [HomeScreen]) handles:
+     * [HomeEvent.RegionResolved] and [HomeEvent.RegionToggleChanged]. The sheet/drawer commands on the
+     * same multicast flow are consumed by HomeScreen, so they fall through the `else` here.
+     */
+    private fun observeRegionResolved() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.events.collect { event ->
                     when (event) {
-                        is HomeEvent.ShowWideAlert -> GtfsAlertsHelper.showWideAlertDialog(
-                            this@HomeActivity, event.alert.title, event.alert.message, event.alert.url
-                        )
-                        is HomeEvent.RegionResolved -> {
-                            // The map host re-zooms to the new region (was a registered task callback);
-                            // it may be null until the first Nearby show, matching the legacy null-skip.
-                            (mMapHost as? ObaRegionsTask.Callback)?.onRegionTaskFinished(event.changed)
-                            if (event.changed && event.regionName != null) {
-                                ObaAnalytics.setRegion(
-                                    Application.get().plausibleInstance,
-                                    mFirebaseAnalytics,
-                                    event.regionName
-                                )
-                            }
-                            onRegionResolved(event.changed)
-                        }
-                        is HomeEvent.SetMapPadding ->
-                            mMapHost?.mapView?.setPadding(null, null, null, event.bottomPx)
-                        is HomeEvent.RecenterOnFocusedStop ->
-                            mMapHost?.setMapCenter(
-                                LocationUtils.makeLocation(event.lat, event.lon), true, true
-                            )
-                        is HomeEvent.CompletePendingMapFocus -> {
-                            // The VM owns the latch + animate decision; we courier the io/elements payload.
-                            val r = pendingFocusResponse
-                            pendingFocusResponse = null
-                            r?.stop?.let { stop ->
-                                mMapHost?.setMapCenter(stop.location, false, event.animateRecenter)
-                                mMapHost?.setFocusStop(stop, r.routes)
-                            }
-                        }
-                        is HomeEvent.ShowRouteOnMap -> {
-                            val bundle = Bundle()
-                            bundle.putBoolean(MapParams.ZOOM_TO_ROUTE, false)
-                            bundle.putBoolean(MapParams.ZOOM_INCLUDE_CLOSEST_VEHICLE, true)
-                            bundle.putString(MapParams.ROUTE_ID, event.routeId)
-                            mMapHost?.setMapMode(MapParams.MODE_ROUTE, bundle)
-                        }
-                        HomeEvent.ClearMapFocus -> mMapHost?.setFocusStop(null, null)
-                        // Sheet / drawer commands are carried out by HomeScreen.
+                        is HomeEvent.RegionResolved -> onRegionResolved(event)
+                        HomeEvent.RegionToggleChanged -> onRegionToggleChanged()
+                        // Sheet commands are consumed by HomeScreen.
                         else -> Unit
                     }
                 }
@@ -309,67 +1145,112 @@ class HomeActivity : AppCompatActivity(),
     }
 
     /**
-     * If this activity was launched by tapping an FCM notification (background delivery),
-     * the data payload is in the intent extras. Extract stop_id and deep-link to ArrivalsListActivity.
+     * The host-only effects of a region resolve. The map re-zoom (VM onRegionChanged), nav items (VM
+     * refreshNavItems), the region-found snackbar (HomeUiState.regionFoundName), what's-new (HelpFeature)
+     * and the survey (SurveyFeature) are all self-wired elsewhere; what remains here is analytics plus a
+     * chrome-environment refresh (a region change can flip bikeshare availability).
      */
-    private fun handleFcmNotificationIntent(intent: Intent?) {
-        if (intent == null || intent.extras == null) {
-            return
+    private fun onRegionResolved(event: HomeEvent.RegionResolved) {
+        reportRegionToAnalytics(event)
+        pushEnvironment()
+    }
+
+    /** Reports an auto-selected region change to analytics (a manual pick passes a null name, so none). */
+    private fun reportRegionToAnalytics(event: HomeEvent.RegionResolved) {
+        if (event.changed && event.regionName != null) {
+            ObaAnalytics.setRegion(
+                Application.get().plausibleInstance,
+                firebaseAnalytics,
+                event.regionName
+            )
         }
-        val arrivalJson = intent.getStringExtra("arrival_and_departure")
-        val stopId = ReminderUtils.getStopIdFromPayload(arrivalJson)
-        if (stopId != null) {
-            ReminderUtils.handleArrivalPayload(applicationContext, arrivalJson)
-            val arrivalsIntent = ArrivalsListActivity.Builder(this, stopId).intent
-            arrivalsIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            startActivity(arrivalsIntent)
-        }
+    }
+
+    // --- Settings preference-screen host glue (re-homed from the former SettingsActivity) ------------
+
+    /**
+     * An experimental-regions toggle changed the region (the [HomeEvent.RegionToggleChanged] effect;
+     * ported from SettingsActivity.onRegionTaskFinished): reset the OTP API version. The "found region"
+     * announcement is the shared region-found snackbar, and the new region propagates reactively, so no
+     * re-home is needed.
+     */
+    private fun onRegionToggleChanged() {
+        Application.get().setUseOldOtpApiUrlVersion(false)
+    }
+
+    /** Re-resolves the region after a backup restore (called from SettingsScreen's restore launcher),
+     *  in case the restored data implies a different region — raising the picker if it's ambiguous. */
+    fun refreshRegionsAfterRestore() {
+        viewModel.refreshRegions()
+    }
+
+    /** Sets the initial map mode from the launch sources (route deep link, else nearby stops). */
+    private fun initMapMode(savedInstanceState: Bundle?) {
+        val src = savedInstanceState ?: intent.extras
+        mapViewModel.setMode(
+            resolveMapMode(
+                mode = src?.getString(MapParams.MODE),
+                routeId = src?.getString(MapParams.ROUTE_ID),
+                zoomToRoute = src?.getBoolean(MapParams.ZOOM_TO_ROUTE, false) ?: false,
+            )
+        )
+    }
+
+    /**
+     * Reads the initial map camera candidates from the launch sources — the primary seed (saved state,
+     * else the intent) and the persisted last view — and hands them to the pure [resolveMapSeed] for the
+     * precedence decision (so the map opens where you left it). Replaces ObaMapHost.resolveInitialCamera.
+     */
+    private fun readMapSeed(savedInstanceState: Bundle?): MapCameraSeed {
+        val src = savedInstanceState ?: intent.extras
+        val primary = MapCameraSeed(
+            lat = src?.getDouble(MapParams.CENTER_LAT, 0.0) ?: 0.0,
+            lon = src?.getDouble(MapParams.CENTER_LON, 0.0) ?: 0.0,
+            zoom = src?.getFloat(MapParams.ZOOM, MAP_DEFAULT_ZOOM) ?: MAP_DEFAULT_ZOOM,
+        )
+        val restored = Bundle().also { PreferenceUtils.maybeRestoreMapViewToBundle(it) }
+        val persisted = MapCameraSeed(
+            lat = restored.getDouble(MapParams.CENTER_LAT, 0.0),
+            lon = restored.getDouble(MapParams.CENTER_LON, 0.0),
+            // The persisted zoom defaults to the primary zoom (so an empty persisted view keeps it).
+            zoom = restored.getFloat(MapParams.ZOOM, primary.zoom),
+        )
+        return resolveMapSeed(primary, persisted)
     }
 
     override fun onStart() {
         super.onStart()
         val am = getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
         val isTalkBackEnabled = am.isTouchExplorationEnabled
-        ObaAnalytics.setAccessibility(mFirebaseAnalytics, isTalkBackEnabled)
-        mMapHost?.onStart()
+        ObaAnalytics.setAccessibility(firebaseAnalytics, isTalkBackEnabled)
     }
 
     override fun onResume() {
         super.onResume()
-        mMapHost?.onResume()
-
         // Re-snapshot preferences + app-global flags so the ViewModel recomputes the chrome/overlay
-        // visibility gates (zoom controls, left-hand mode, layers FAB, weather, donation card).
-        // (The arrivals panel's collapsed state is derived live from the sheet in HomeScreen now.)
+        // visibility gates (zoom controls, left-hand mode, layers FAB, weather). The map's own
+        // resume/pause is handled by MapFeature; the survey/donation/weather modules self-wire theirs.
         pushEnvironment()
     }
 
     override fun onPause() {
         ShowcaseViewUtils.hideShowcaseView()
-        mMapHost?.onPause()
         super.onPause()
-    }
-
-    override fun onStop() {
-        mMapHost?.onStop()
-        super.onStop()
-    }
-
-    override fun onDestroy() {
-        mMapHost?.onDestroy()
-        super.onDestroy()
-    }
-
-    override fun onLowMemory() {
-        super.onLowMemory()
-        mMapHost?.onLowMemory()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        // The host writes the map's center/zoom/focus/mode into our bundle (replacing the free state
-        // survival the FragmentManager used to provide); showMap() feeds it back on recreation.
-        mMapHost?.onSaveInstanceState(outState)
+        // Persist the map's mode + camera so a process-death restore re-enters the same mode/viewport
+        // (the focused stop is persisted by HomeViewModel's SavedStateHandle). Config changes survive
+        // in the view model itself; these feed initMapMode()/readMapSeed() on recreation.
+        val (modeString, routeId) = mapModeToParams(mapViewModel.currentMapMode)
+        outState.putString(MapParams.MODE, modeString)
+        routeId?.let { outState.putString(MapParams.ROUTE_ID, it) }
+        mapViewModel.camera.value?.let {
+            outState.putDouble(MapParams.CENTER_LAT, it.center.latitude)
+            outState.putDouble(MapParams.CENTER_LON, it.center.longitude)
+            outState.putFloat(MapParams.ZOOM, it.zoom.toFloat())
+        }
     }
 
     private fun goToNavDrawerItem(item: HomeNavItem, reselect: Boolean) {
@@ -383,41 +1264,29 @@ class HomeActivity : AppCompatActivity(),
             HomeNavItem.STARRED_ROUTES,
             HomeNavItem.MY_REMINDERS -> Unit
             HomeNavItem.PLAN_TRIP ->
-                startActivity(Intent(this@HomeActivity, TripPlanActivity::class.java))
-            HomeNavItem.PAY_FARE -> UIUtils.launchPayMyFareApp(this)
+                pendingDeepLinkRoute.value = NavRoutes.TRIP_PLAN
+            HomeNavItem.PAY_FARE ->
+                ExternalIntents.payFareOrWarningRegion(this)?.let { paymentWarningRegion.value = it }
             HomeNavItem.SETTINGS ->
-                startActivity(Intent(this@HomeActivity, SettingsActivity::class.java))
+                pendingDeepLinkRoute.value = NavRoutes.SETTINGS
             // Hide "Contact Us" when a custom API URL is set (no contact email to use).
-            HomeNavItem.HELP -> viewModel.showHelp(TextUtils.isEmpty(Application.get().customApiUrl))
+            HomeNavItem.HELP -> helpViewModel.showMenu(TextUtils.isEmpty(Application.get().customApiUrl))
             HomeNavItem.SEND_FEEDBACK -> goToSendFeedBack()
             HomeNavItem.OPEN_SOURCE ->
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.open_source_github))))
         }
         if (!reselect) reportNavAnalytics(item)
-        if (viewModel.uiState.value.selectedItem != HomeNavItem.NEARBY) {
-            // Hide survey view unless it's on the map (survey visibility isn't ViewModel state yet)
-            SurveyViewUtils.hideSurveyView(mSurveyView)
-        }
+        // The survey is a Compose overlay in the map Box; a list tab's opaque destination covers it,
+        // so it hides itself off NEARBY with no imperative work here.
         // Recompute the donation / weather / layers gates for the new selection.
         pushEnvironment()
     }
 
     /** Per-item menu analytics, preserving the legacy labels (PAY_FARE intentionally reports none). */
     private fun reportNavAnalytics(item: HomeNavItem) {
-        val label = when (item) {
-            HomeNavItem.NEARBY -> R.string.analytics_label_button_press_nearby
-            HomeNavItem.STARRED_STOPS, HomeNavItem.STARRED_ROUTES ->
-                R.string.analytics_label_button_press_star
-            HomeNavItem.MY_REMINDERS -> R.string.analytics_label_button_press_reminders
-            HomeNavItem.PLAN_TRIP -> R.string.analytics_label_button_press_trip_plan
-            HomeNavItem.SETTINGS -> R.string.analytics_label_button_press_settings
-            HomeNavItem.HELP -> R.string.analytics_label_button_press_help
-            HomeNavItem.SEND_FEEDBACK -> R.string.analytics_label_button_press_feedback
-            HomeNavItem.OPEN_SOURCE -> R.string.analytics_label_button_press_open_source
-            HomeNavItem.PAY_FARE -> return
-        }
+        val label = item.analyticsLabelRes ?: return
         ObaAnalytics.reportUiEvent(
-            mFirebaseAnalytics,
+            firebaseAnalytics,
             Application.get().plausibleInstance,
             PlausibleAnalytics.REPORT_MENU_EVENT_URL,
             getString(label),
@@ -426,57 +1295,43 @@ class HomeActivity : AppCompatActivity(),
     }
 
     private fun showMap() {
-        // The list destinations are Compose overlays over the map, so there's nothing to hide — the map
-        // host stays mounted once created. Create it on the first NEARBY selection.
-        if (mMapHost != null) {
-            return
-        }
-        Log.d(TAG, "Creating new ObaMapHost")
-        val host = ObaMapHost.newInstance(this, mMapDeps, mSavedMapState)
-        (mMapContent.findViewById<View>(R.id.main_fragment_container) as ViewGroup).addView(
-            host.view,
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        )
+        // Latch the map shown (in the VM) so MapFeature composes ObaMap() — deferring the map SDK init
+        // to the first NEARBY selection, then staying composed (list tabs draw an opaque destination
+        // over it rather than tearing it down), so this is idempotent. (MapFeature does the eager
+        // location-permission prompt once the map shows.)
+        viewModel.onMapShown()
+        // The survey self-triggers when NEARBY is shown (SurveyFeature reads selectedItem + regionReady).
+    }
 
-        // Register listeners for map focus / progress / region / permission callbacks
-        host.setOnFocusChangeListener(this)
-        host.setOnProgressBarChangedListener(this)
-        host.setRegionCallback(this)
-        // First-launch permission result (granted or denied): the VM completes the deferred region check.
-        host.setOnLocationPermissionResultListener { viewModel.onLocationPermissionResult() }
-        mMapHost = host
+    // Keeps vehicle markers from being hidden under the route-mode header (was RoutePopup's logic).
+    private val routeHeaderMarkerPaddingPx by lazy {
+        resources.getDimensionPixelSize(R.dimen.map_route_vehicle_markers_padding)
+    }
 
-        // The host is created lazily (first Nearby selection, after onResume), so bring it up to the
-        // activity's current lifecycle state; subsequent onStart/onResume/... forward normally.
-        val current = lifecycle.currentState
-        if (current.isAtLeast(Lifecycle.State.STARTED)) {
-            host.onStart()
-        }
-        if (current.isAtLeast(Lifecycle.State.RESUMED)) {
-            host.onResume()
-        }
+    /** The Compose route header reports its measured height; set the map's top padding accordingly. */
+    private fun onRouteHeaderHeight(heightPx: Int) {
+        val top = if (heightPx > 0) heightPx + routeHeaderMarkerPaddingPx else 0
+        mapViewModel.setTopPadding(top)
+    }
 
-        // The map-loading bar + arrivals sheet are now derived from state (mapLoading; focusedStop +
-        // the NEARBY tab), and the title comes from selectedItem (HomeTopBar), so no imperative work here.
+    /** The route header's cancel button: return to stop mode, preserving the current zoom + center. */
+    private fun onCancelRouteMode() {
+        mapViewModel.exitRouteMode()
     }
 
     /**
-     * Runs the global search for [query] (from [HomeTopBar]'s search field) by firing the legacy
-     * `ACTION_SEARCH` flow — `SearchActivity` (the app's `default_searchable`) shows the results.
+     * Runs the global search for [query] (from [HomeTopBar]'s search field) by navigating to the
+     * search destination (staged through [pendingDeepLinkRoute] since the navController lives in the
+     * NavHost composition, not here).
      */
     private fun onSearch(query: String) {
-        startActivity(
-            Intent(this, SearchActivity::class.java)
-                .setAction(Intent.ACTION_SEARCH)
-                .putExtra(SearchManager.QUERY, query)
-        )
+        pendingDeepLinkRoute.value = NavRoutes.search(query)
     }
 
-    /** Opens the recent stops/routes screen (the toolbar overflow item). */
+    /** Opens the recent stops/routes screen (the toolbar overflow item) — the MY_RECENT destination. */
     private fun onRecentStopsRoutes() {
-        ShowcaseViewUtils.doNotShowTutorial(ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES)
-        startActivity(Intent(this, MyRecentStopsAndRoutesActivity::class.java))
+        ShowcaseViewUtils.doNotShowTutorial(this, ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES)
+        pendingDeepLinkRoute.value = NavRoutes.myRecent()
     }
 
     /** Sort the visible list tab (the dialog + persisted order live with the shared list helpers). */
@@ -511,7 +1366,7 @@ class HomeActivity : AppCompatActivity(),
         else -> Unit
     }
 
-    // --- Help / What's-New dialog actions (passed to HomeScreen as lambdas) ---
+    // --- Help-menu actions that are Activity operations (the dialog-opening ones live in HelpFeature) ---
 
     private fun onHelpAction(action: HelpAction) {
         when (action) {
@@ -519,19 +1374,16 @@ class HomeActivity : AppCompatActivity(),
                 ShowcaseViewUtils.resetAllTutorials(this)
                 NavHelp.goHome(this, true)
             }
-            HelpAction.LEGEND -> viewModel.showLegend()
-            HelpAction.WHATS_NEW -> viewModel.showWhatsNew()
-            HelpAction.AGENCIES -> AgenciesActivity.start(this)
+            HelpAction.AGENCIES -> startActivity(navIntent(this, NavRoutes.AGENCIES))
             HelpAction.TWITTER -> {
                 var twitterUrl = TWITTER_URL
-                if (Application.get().currentRegion != null &&
-                    !TextUtils.isEmpty(Application.get().currentRegion.twitterUrl)
-                ) {
-                    twitterUrl = Application.get().currentRegion.twitterUrl
+                val region = regionRepository.region.value
+                if (region != null && !TextUtils.isEmpty(region.twitterUrl)) {
+                    twitterUrl = region.twitterUrl
                 }
-                UIUtils.goToUrl(this, twitterUrl)
+                ExternalIntents.goToUrl(this, twitterUrl)
                 ObaAnalytics.reportUiEvent(
-                    mFirebaseAnalytics,
+                    firebaseAnalytics,
                     Application.get().plausibleInstance,
                     PlausibleAnalytics.REPORT_MENU_EVENT_URL,
                     getString(R.string.analytics_label_twitter),
@@ -539,118 +1391,21 @@ class HomeActivity : AppCompatActivity(),
                 )
             }
             HelpAction.CONTACT_US -> goToSendFeedBack()
+            // LEGEND / WHATS_NEW open dialogs — handled by HelpFeature against HelpViewModel.
+            HelpAction.LEGEND, HelpAction.WHATS_NEW -> Unit
         }
-    }
-
-    private fun onWhatsNewDismissed() {
-        val showOptOut = Application.getPrefs()
-            .getBoolean(ShowcaseViewUtils.TUTORIAL_OPT_OUT_DIALOG, true)
-        if (showOptOut) {
-            ShowcaseViewUtils.showOptOutDialog(this)
-        }
-    }
-
-    /**
-     * Show the "What's New" message if a new version was just installed
-     *
-     * @return true if a new version was just installed, false if not
-     */
-    @Suppress("DEPRECATION")
-    private fun autoShowWhatsNew(): Boolean {
-        val settings = Application.getPrefs()
-
-        // Get the current app version.
-        val pm = packageManager
-        val appInfo = try {
-            pm.getPackageInfo(packageName, PackageManager.GET_META_DATA)
-        } catch (e: PackageManager.NameNotFoundException) {
-            // Do nothing, perhaps we'll get to show it again? Or never.
-            return false
-        }
-
-        val oldVer = settings.getInt(WHATS_NEW_VER, 0)
-        val newVer = appInfo.versionCode
-
-        if (oldVer < newVer && !isFinishing) {
-            viewModel.showWhatsNew()
-            PreferenceUtils.saveInt(WHATS_NEW_VER, appInfo.versionCode)
-            return true
-        }
-        return false
-    }
-
-    /**
-     * Called by the map fragment when a stop obtains focus, or no stops have focus
-     */
-    override fun onFocusChanged(
-        stop: ObaStop?,
-        routes: HashMap<String, ObaRoute>?,
-        location: Location?
-    ) {
-        // Check to see if we're already focused on this same stop - if so, we shouldn't do anything
-        val focusedId = viewModel.uiState.value.focusedStop?.id
-        if (focusedId != null && stop != null && focusedId.equals(stop.id, ignoreCase = true)) {
-            return
-        }
-        // Ignore focus callbacks that arrive while we're stopped (state already saved) — updating the
-        // ViewModel then would be lost on the way down.
-        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-            return
-        }
-
-        if (stop != null) {
-            // A stop on the map was just tapped; the arrivals sheet shows itself from focusedStop.
-            viewModel.onStopFocused(
-                FocusedStop(stop.id, stop.name, stop.stopCode, stop.latitude, stop.longitude)
-            )
-
-            ObaAnalytics.reportUiEvent(
-                mFirebaseAnalytics,
-                Application.get().plausibleInstance,
-                PlausibleAnalytics.REPORT_MAP_EVENT_URL,
-                getString(R.string.analytics_label_button_press_map_icon),
-                null
-            )
-        } else {
-            // No stop is in focus (e.g., user tapped on the map), so clear the focus; the sheet (and
-            // its per-stop arrivals panel) hides + tears down once focusedStop is null.
-            viewModel.onStopFocused(null)
-        }
-    }
-
-    /**
-     * Called from the map fragment when a BikeRentalStation is clicked.
-     */
-    override fun onFocusChanged(bikeRentalStation: BikeRentalStation?) {
-        Log.d(TAG, "Bike Station Clicked on map")
-
-        // Check to see if we're already focused on this same bike rental station
-        val bikeId = viewModel.uiState.value.focusedBikeStationId
-        if (bikeId != null && bikeRentalStation != null &&
-            bikeId.equals(bikeRentalStation.id, ignoreCase = true)
-        ) {
-            return
-        }
-
-        viewModel.onBikeStationFocused(bikeRentalStation?.id)
-    }
-
-    override fun onProgressBarChanged(showProgressBar: Boolean) {
-        viewModel.onMapLoading(showProgressBar)
     }
 
     /**
      * Called (from ArrivalsSheetHost's responses collector) when the panel has new arrival info. The
-     * VM owns the pending-focus latch + the animate decision; when it reports a pending focus we hand
-     * over the response so the [HomeEvent.CompletePendingMapFocus] collector can recenter + add the
-     * marker (it needs the response's raw io/elements stop + routes, which the VM is decoupled from).
+     * HomeViewModel owns the pending-focus latch + the overlay-expanded decision; when it reports a
+     * pending focus we call [MapViewModel.focusStop] with the response's raw io/elements stop + routes,
+     * which recenters the map + render-focuses the stop.
      */
     private fun onArrivalsLoaded(response: ObaArrivalInfoResponse) {
-        if (response.stop == null) {
-            return
-        }
-        if (viewModel.onArrivalsLoaded()) {
-            pendingFocusResponse = response
+        val stop = response.stop ?: return
+        viewModel.onArrivalsLoaded()?.let { overlayExpanded ->
+            mapViewModel.focusStop(stop, response.routes, overlayExpanded)
         }
         // Show arrival info related tutorials
         showArrivalInfoTutorials(response)
@@ -666,8 +1421,11 @@ class HomeActivity : AppCompatActivity(),
         }
 
         // If we can't see the map or arrivals sheet, we can't see the arrival info, so return. The map
-        // host stays mounted once created (lists overlay it), so its presence == "map shown".
-        if (mMapHost == null || viewModel.lastSettledSheet == ArrivalsSheetState.Hidden) {
+        // is composed (and stays so — lists overlay it) once NEARBY is first selected, so mapComposed
+        // == "map shown".
+        if (!viewModel.uiState.value.mapComposed ||
+            viewModel.lastSettledSheet == ArrivalsSheetState.Hidden
+        ) {
             return
         }
 
@@ -679,14 +1437,6 @@ class HomeActivity : AppCompatActivity(),
         )
     }
 
-    /**
-     * Redraw navigation drawer. This is necessary because we do not know whether to draw the
-     * "Plan A Trip" option until a region is selected.
-     */
-    private fun redrawNavigationDrawerFragment() {
-        refreshDrawerItems()
-    }
-
     private fun goToSendFeedBack() {
         val focusedStop = viewModel.uiState.value.focusedStop
         if (focusedStop != null) {
@@ -695,7 +1445,7 @@ class HomeActivity : AppCompatActivity(),
                 focusedStop.lat, focusedStop.lon
             )
         } else {
-            val loc = Application.getLastKnownLocation(this)
+            val loc = locationRepository.lastKnownLocation()
             if (loc != null) {
                 ReportActivity.start(this, loc.latitude, loc.longitude)
             } else {
@@ -709,165 +1459,54 @@ class HomeActivity : AppCompatActivity(),
      * re-zoom is done by the caller; this handles What's-New, the nav-drawer redraw, and the
      * region-found toast. Body preserved verbatim from the legacy callback.
      */
-    private fun onRegionResolved(currentRegionChanged: Boolean) {
-        // Show "What's New" (which might need refreshed Regions API contents)
-        val update = autoShowWhatsNew()
-
-        // Redraw nav drawer if the region changed, or if we just installed a new version
-        if (currentRegionChanged || update) {
-            redrawNavigationDrawerFragment()
-        }
-
-        // If region changed and was auto-selected, show user what region we're using
-        if (currentRegionChanged &&
-            Application.getPrefs()
-                .getBoolean(getString(R.string.preference_key_auto_select_region), true) &&
-            Application.get().currentRegion != null &&
-            UIUtils.canManageDialog(this)
-        ) {
-            Toast.makeText(
-                applicationContext,
-                getString(R.string.region_region_found, Application.get().currentRegion.name),
-                Toast.LENGTH_LONG
-            ).show()
-        }
-        pushEnvironment()
-    }
-
     /**
      * Snapshots the non-reactive environment (preferences + app-global flags) and feeds it to the
-     * ViewModel, which recomputes the gated chrome/overlay visibility (zoom controls, left-hand
-     * mode, layers FAB, weather chip, donation card). Called whenever those inputs may have changed:
-     * onResume, after a nav selection, after a region update, and after toggling the bikeshare layer.
+     * ViewModel, which recomputes the gated chrome visibility (zoom controls, left-hand mode, layers
+     * FAB). Called whenever those inputs may have changed: onResume, after a nav selection, after a
+     * region update, and after toggling the bikeshare layer. (The weather + donation feature modules
+     * read their own prefs.)
      */
     private fun pushEnvironment() {
-        val prefs = Application.getPrefs()
         viewModel.onEnvironmentRefreshed(
             HomeEnvironment(
                 bikeshareEnabled = Application.isBikeshareEnabled(),
-                bikeshareActive = LayerUtils.isBikeshareLayerVisible(),
-                zoomControlsPref = prefs.getBoolean(
-                    getString(R.string.preference_key_show_zoom_controls), false
-                ),
-                leftHandMode = prefs.getBoolean(
-                    getString(R.string.preference_key_left_hand_mode), false
-                ),
-                weatherHidden = WeatherUtils.isWeatherViewHiddenPref(),
-                donationAvailable = Application.getDonationsManager().shouldShowDonationUI()
+                bikeshareActive = LayerUtils.isBikeshareLayerVisible(this),
+                zoomControlsPref =
+                    prefsRepository.getBoolean(R.string.preference_key_show_zoom_controls, false),
+                leftHandMode =
+                    prefsRepository.getBoolean(R.string.preference_key_left_hand_mode, false),
             )
         )
     }
 
-    // --- Map-chrome FAB actions (passed to HomeScreen as lambdas) ---
-
-    private fun onMyLocation() {
-        val host = mMapHost ?: return
-        // Reset the preference to ask user to enable location
-        PreferenceUtils.saveBoolean(
-            getString(R.string.preference_key_never_show_location_dialog), false
-        )
-        PreferenceUtils.setUserDeniedLocationPermissions(false)
-
-        host.setMyLocation(true, true)
-        ObaAnalytics.reportUiEvent(
-            mFirebaseAnalytics,
-            Application.get().plausibleInstance,
-            PlausibleAnalytics.REPORT_MAP_EVENT_URL,
-            getString(R.string.analytics_label_button_press_location),
-            null
-        )
-    }
-
-    private fun onZoomIn() {
-        mMapHost?.zoomIn()
-    }
-
-    private fun onZoomOut() {
-        mMapHost?.zoomOut()
-    }
-
-    private fun onToggleBikeshare() {
-        val host = mMapHost ?: return
-        val active = LayerUtils.isBikeshareLayerVisible()
-        val layer: LayerInfo = LayerUtils.bikeshareLayerInfo
-        val mapLayers = host as LayerActivationListener
-        if (active) {
-            mapLayers.onDeactivateLayer(layer)
-        } else {
-            mapLayers.onActivateLayer(layer)
-        }
-        // Persist the toggled state (mirrors the legacy LayersSpeedDialAdapter), then re-snapshot the
-        // environment so the ViewModel reflects the new bikeshare-active tint.
-        Application.getPrefs().edit()
-            .putBoolean(layer.sharedPreferenceKey, !active).apply()
-        pushEnvironment()
-    }
-
     private fun setupNavigationDrawer() {
-        refreshDrawerItems()
-
-        // Determine the initial selection: NEARBY if launched to show a route/stop, else the last
-        // remembered tab (mirrors NavigationDrawerFragment's saved-position behavior). Read the
-        // enum-name pref, falling back to the legacy int position for installs from before P16.
-        val prefs = Application.getPrefs()
-        var initial = persistedNavItem(
-            prefs.getString(STATE_SELECTED_NAV_ITEM, null),
-            prefs.getInt(STATE_SELECTED_POSITION, 0)
-        )
+        // The nav items themselves are built by the ViewModel (init + on region resolve); here we only
+        // determine and apply the initial selection. The deep-link-vs-remembered-tab decision is the pure
+        // initialNavItem() (the enum-name pref falls back to the legacy int position for pre-P16 installs;
+        // process-death restore uses the VM's SavedStateHandle).
         val bundle = intent.extras
-        if (bundle != null &&
-            (bundle.getString(MapParams.ROUTE_ID) != null ||
-                bundle.getString(MapParams.STOP_ID) != null)
-        ) {
-            initial = HomeNavItem.NEARBY
-        }
-        val item = initial
-        // Defer the first content selection until the island is attached (the AndroidView host
-        // attaches it during composition, after onCreate), so the fragment commit finds its container.
-        mMapContent.post { onHomeNavItemSelected(item) }
-    }
-
-    /** Rebuilds the region-gated drawer item list (mirrors NavigationDrawerFragment.populateNavDrawer). */
-    private fun refreshDrawerItems() {
-        val region = Application.get().currentRegion
-        val items = mutableListOf<HomeNavItem>()
-        items.add(HomeNavItem.NEARBY)
-        items.add(HomeNavItem.STARRED_STOPS)
-        items.add(HomeNavItem.STARRED_ROUTES)
-        if (ReminderUtils.shouldShowReminders()) {
-            items.add(HomeNavItem.MY_REMINDERS)
-        }
-        if (region != null) {
-            if (!TextUtils.isEmpty(region.otpBaseUrl) ||
-                !TextUtils.isEmpty(Application.get().customOtpApiUrl)
-            ) {
-                items.add(HomeNavItem.PLAN_TRIP)
-            }
-            if (!TextUtils.isEmpty(region.paymentAndroidAppId)) {
-                items.add(HomeNavItem.PAY_FARE)
-            }
-        }
-        items.add(HomeNavItem.OPEN_SOURCE)
-        items.add(HomeNavItem.SETTINGS)
-        items.add(HomeNavItem.HELP)
-        items.add(HomeNavItem.SEND_FEEDBACK)
-        viewModel.setNavItems(items)
+        val deepLinksToMap = bundle != null &&
+            (bundle.getString(MapParams.ROUTE_ID) != null || bundle.getString(MapParams.STOP_ID) != null)
+        val item = initialNavItem(
+            persistedName = prefsRepository.getString(STATE_SELECTED_NAV_ITEM, null),
+            legacyPosition = prefsRepository.getInt(STATE_SELECTED_POSITION, 0),
+            deepLinksToMap = deepLinksToMap,
+        )
+        // Defer the first content selection until after onCreate (so the Compose content has composed
+        // and lazy map/survey gating reads the applied selection).
+        window.decorView.post { onHomeNavItemSelected(item) }
     }
 
     /** Routes a Compose-drawer selection to the ViewModel selection + the imperative per-item work. */
     private fun onHomeNavItemSelected(item: HomeNavItem) {
-        // Capture before the VM update so re-tapping the active in-place tab suppresses redundant work.
-        // navSelectionApplied gates the *first* selection (the legacy -1 sentinel) so startup always
-        // runs showMap(), even when the restored tab is NEARBY (the VM's default).
-        val reselect = navSelectionApplied &&
-            !item.launchesActivity && viewModel.uiState.value.selectedItem == item
+        // The VM owns the fresh-vs-re-tap decision (and the first-selection bookkeeping); a re-tap of
+        // the active in-place tab returns false to suppress the redundant showMap()/analytics.
+        val fresh = viewModel.selectNav(item)
         if (!item.launchesActivity) {
-            viewModel.onNavItemSelected(item)
-            // Remember the tab across sessions, keyed by enum name (mirrors the legacy pref).
+            // Remember the tab across sessions, keyed by enum name (the cross-session pref boundary).
             PreferenceUtils.saveString(STATE_SELECTED_NAV_ITEM, item.name)
         }
-        navSelectionApplied = true
-        goToNavDrawerItem(item, reselect)
+        goToNavDrawerItem(item, reselect = !fresh)
     }
 
     /**
@@ -875,128 +1514,44 @@ class HomeActivity : AppCompatActivity(),
      * via SavedStateHandle) or from an Intent that deep-links into a specific stop.
      */
     private fun setupMapState() {
-        // The restored focus (SavedStateHandle) already drives the arrivals sheet via HomeScreen; we
-        // only need to flag the map to recenter + add the marker once arrivals load.
-        val restored = viewModel.uiState.value.focusedStop
-        if (restored != null) {
-            viewModel.markPendingMapFocus()
-        } else {
-            // Check the intent for a deep link into a specific stop (via makeIntent()).
-            val bundle = intent.extras
-            if (bundle != null) {
-                val stopId = bundle.getString(MapParams.STOP_ID)
-                val stopName = bundle.getString(MapParams.STOP_NAME)
-                val stopCode = bundle.getString(MapParams.STOP_CODE)
-                val lat = bundle.getDouble(MapParams.CENTER_LAT)
-                val lon = bundle.getDouble(MapParams.CENTER_LON)
-
-                if (stopId != null && lat != 0.0 && lon != 0.0) {
-                    viewModel.onStopFocused(FocusedStop(stopId, stopName, stopCode, lat, lon))
-                    viewModel.markPendingMapFocus()
-                }
-            }
-        }
-    }
-
-    // Getting a callback from the map fragment to check if we are in a valid region or not. The
-    // ViewModel fetches the weather + streams GTFS wide alerts for a valid region (null clears them).
-    override fun onValidRegion(isValid: Boolean) {
-        viewModel.onRegionValid(if (isValid) Application.get().currentRegion.id else null)
-    }
-
-    private fun onWeatherClick() {
-        val summary = viewModel.uiState.value.weather?.summary
-        if (summary != null) {
-            Toast.makeText(applicationContext, summary.trim(), Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    // --- Donation-card actions (passed to HomeScreen as lambdas) ---
-
-    /** The donation card's close (X) asks for confirmation via the Compose dismiss dialog. */
-    private fun onDonationClose() {
-        viewModel.showDismissDonation()
-    }
-
-    private fun onDonationLearnMore() {
-        startActivity(Intent(this, DonationLearnMoreActivity::class.java))
-    }
-
-    private fun onDonationDonate() {
-        val donationsManager = Application.getDonationsManager()
-        donationsManager.dismissDonationRequests()
-        startActivity(donationsManager.buildOpenDonationsPageIntent())
-    }
-
-    /** "I don't want to help" — stop asking, then re-snapshot so the card's gate recomputes. */
-    private fun onDonationDismissForever() {
-        Application.getDonationsManager().dismissDonationRequests()
-        pushEnvironment()
-    }
-
-    /** "Remind me later" — snooze the donation card, then re-snapshot its visibility gate. */
-    private fun onDonationRemindLater() {
-        Application.getDonationsManager().remindUserLater()
-        pushEnvironment()
-    }
-
-    private fun initSurveyView() {
-        mSurveyView = mMapContent.findViewById(R.id.surveyView)
-    }
-
-    private fun setupSurvey() {
-        if (Application.get().currentRegion == null ||
-            !navSelectionApplied ||
-            viewModel.uiState.value.selectedItem != HomeNavItem.NEARBY
-        ) {
-            return
-        }
-        initSurveyView()
-        initSurveyManager(mSurveyView)
-    }
-
-    private fun initSurveyManager(surveyView: View?) {
-        val manager = SurveyManager(this, surveyView, false, object : SurveyListener {
-            override fun onSurveyResponseReceived(response: StudyResponse?) {
-                surveyManager?.onSurveyResponseReceived(response)
-            }
-
-            override fun onSurveyResponseFail() {
-                surveyManager?.onSurveyResponseFail()
-            }
-
-            override fun onSubmitSurveyResponseReceived(response: SubmitSurveyResponse?) {
-                surveyManager?.onSubmitSurveyResponseReceived(response)
-            }
-
-            override fun onSubmitSurveyFail() {
-                surveyManager?.onSubmitSurveyFail()
-            }
-
-            override fun onSkipSurvey() {
-                surveyManager?.onSkipSurvey()
-            }
-
-            override fun onRemindMeLater() {
-                surveyManager?.onRemindMeLater()
-            }
-
-            override fun onCancelSurvey() {
-                surveyManager?.onCancelSurvey()
-            }
-        })
-        surveyManager = manager
-        manager.requestSurveyData()
+        // A restored focus (SavedStateHandle) already drives the arrivals sheet via HomeScreen; otherwise
+        // adopt a stop deep-linked through the intent (makeIntent). The VM decides which applies + marks
+        // the focus pending so the map recenters + adds the marker once arrivals load.
+        val b = intent.extras
+        viewModel.applyInitialFocus(
+            focusedStopFromExtras(
+                stopId = b?.getString(MapParams.STOP_ID),
+                stopName = b?.getString(MapParams.STOP_NAME),
+                stopCode = b?.getString(MapParams.STOP_CODE),
+                lat = b?.getDouble(MapParams.CENTER_LAT) ?: 0.0,
+                lon = b?.getDouble(MapParams.CENTER_LON) ?: 0.0,
+            )
+        )
     }
 
     companion object {
         const val TWITTER_URL = "http://mobile.twitter.com/onebusaway"
 
-        private const val WHATS_NEW_VER = "whatsNewVer"
+        // Generic in-app entry point: a launcher facade builds an explicit HomeActivity intent
+        // carrying the NavHost route to open (see [navIntent]); the translator (routeForIntent)
+        // navigates there. Lets former screen Activities become thin facade objects with no
+        // per-screen intent contract. (External contracts — shortcuts/FCM — use the data-URI branches.)
+        const val EXTRA_NAV_ROUTE = "org.onebusaway.android.ui.HomeActivity.NAV_ROUTE"
 
-        private const val TAG = "HomeActivity"
+        /**
+         * Extra on the [navIntent] SETTINGS intent requesting the settings destination show the
+         * "check your region" dialog on first composition. Set by the report flow's region-validate
+         * dialog when the user opts to change their region.
+         */
+        const val EXTRA_SHOW_CHECK_REGION_DIALOG = ".checkRegionDialog"
 
-        const val BATTERY_OPTIMIZATIONS_PERMISSION_REQUEST = 111
+        /** An intent that opens HomeActivity and navigates its NavHost to [route]. */
+        @JvmStatic
+        fun navIntent(context: Context, route: String): Intent =
+            Intent(context, HomeActivity::class.java).putExtra(EXTRA_NAV_ROUTE, route)
+
+        // The seed-camera default zoom (matches the former ObaMapHost.CAMERA_DEFAULT_ZOOM).
+        private const val MAP_DEFAULT_ZOOM = 16f
 
         // The remembered nav tab, keyed by HomeNavItem.name. STATE_SELECTED_POSITION is the legacy
         // int key (NavigationDrawerFragment's), read once as a migration fallback for old installs.
@@ -1004,7 +1559,7 @@ class HomeActivity : AppCompatActivity(),
         private const val STATE_SELECTED_POSITION = "selected_navigation_drawer_position"
 
         /**
-         * Starts the MapActivity with a particular stop focused with the center of
+         * Starts HomeActivity with a particular stop focused with the center of
          * the map at a particular point.
          */
         @JvmStatic
@@ -1013,7 +1568,7 @@ class HomeActivity : AppCompatActivity(),
         }
 
         /**
-         * Starts the MapActivity with a particular stop focused with the center of
+         * Starts HomeActivity with a particular stop focused with the center of
          * the map at a particular point.
          */
         @JvmStatic
@@ -1022,7 +1577,7 @@ class HomeActivity : AppCompatActivity(),
         }
 
         /**
-         * Starts the MapActivity in "RouteMode", which shows stops along a route,
+         * Starts HomeActivity in "RouteMode", which shows stops along a route,
          * and does not get new stops when the user pans the map.
          */
         @JvmStatic
@@ -1031,7 +1586,7 @@ class HomeActivity : AppCompatActivity(),
         }
 
         /**
-         * Returns an intent that will start the MapActivity with a particular stop
+         * Returns an intent that will start HomeActivity with a particular stop
          * focused with the center of the map at a particular point.
          */
         @JvmStatic
@@ -1044,7 +1599,7 @@ class HomeActivity : AppCompatActivity(),
         }
 
         /**
-         * Returns an intent that will start the MapActivity with a particular stop
+         * Returns an intent that will start HomeActivity with a particular stop
          * focused with the center of the map at a particular point.
          */
         @JvmStatic
@@ -1059,7 +1614,7 @@ class HomeActivity : AppCompatActivity(),
         }
 
         /**
-         * Returns an intent that starts the MapActivity in "RouteMode", which shows
+         * Returns an intent that starts HomeActivity in "RouteMode", which shows
          * stops along a route, and does not get new stops when the user pans the map.
          */
         @JvmStatic

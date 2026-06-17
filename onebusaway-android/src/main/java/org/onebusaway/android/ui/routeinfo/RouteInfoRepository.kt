@@ -17,12 +17,13 @@ package org.onebusaway.android.ui.routeinfo
 
 import android.content.ContentValues
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaRouteRequest
@@ -30,7 +31,9 @@ import org.onebusaway.android.io.request.ObaRouteResponse
 import org.onebusaway.android.io.request.ObaStopsForRouteRequest
 import org.onebusaway.android.io.request.ObaStopsForRouteResponse
 import org.onebusaway.android.provider.ObaContract
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.util.MyTextUtils
+import org.onebusaway.android.util.ObaRequestErrors
 import org.onebusaway.android.util.routeDisplayNames
 
 /** Loads a route's metadata and its stops grouped by direction. */
@@ -45,7 +48,10 @@ interface RouteInfoRepository {
  * provider on success. All Android statics are quarantined here so [RouteInfoViewModel] stays
  * JVM-testable.
  */
-class DefaultRouteInfoRepository(private val context: Context) : RouteInfoRepository {
+class DefaultRouteInfoRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val regionRepository: RegionRepository,
+) : RouteInfoRepository {
 
     override suspend fun loadRouteInfo(routeId: String): Result<RouteInfo> =
         withContext(Dispatchers.IO) {
@@ -69,7 +75,7 @@ class DefaultRouteInfoRepository(private val context: Context) : RouteInfoReposi
             if (routeCode != ObaApi.OBA_OK || stopsCode != ObaApi.OBA_OK) {
                 val failedCode = if (routeCode != ObaApi.OBA_OK) routeCode else stopsCode
                 return@withContext Result.failure(
-                    IOException(UIUtils.getRouteErrorString(context, failedCode))
+                    IOException(ObaRequestErrors.getRouteErrorString(context, failedCode))
                 )
             }
 
@@ -83,7 +89,7 @@ class DefaultRouteInfoRepository(private val context: Context) : RouteInfoReposi
         values.put(ObaContract.Routes.SHORTNAME, route.shortName)
         values.put(ObaContract.Routes.LONGNAME, route.longName)
         values.put(ObaContract.Routes.URL, route.url)
-        Application.get().currentRegion?.let {
+        regionRepository.region.value?.let {
             values.put(ObaContract.Routes.REGION_ID, it.id)
         }
         ObaContract.Routes.insertOrUpdate(context, route.id, values, true)
@@ -106,7 +112,7 @@ class DefaultRouteInfoRepository(private val context: Context) : RouteInfoReposi
         return stops.stopGroupings.flatMap { grouping ->
             grouping.stopGroups.map { group ->
                 RouteDirection(
-                    name = UIUtils.formatDisplayText(group.name).orEmpty(),
+                    name = MyTextUtils.formatDisplayText(group.name).orEmpty(),
                     stops = group.stopIds.mapNotNull { stopsById[it]?.let(::toStopItem) }
                 )
             }
@@ -115,7 +121,7 @@ class DefaultRouteInfoRepository(private val context: Context) : RouteInfoReposi
 
     private fun toStopItem(stop: ObaStop) = RouteStopItem(
         id = stop.id,
-        name = UIUtils.formatDisplayText(stop.name).orEmpty(),
+        name = MyTextUtils.formatDisplayText(stop.name).orEmpty(),
         direction = stop.direction.orEmpty(),
         latitude = stop.latitude,
         longitude = stop.longitude

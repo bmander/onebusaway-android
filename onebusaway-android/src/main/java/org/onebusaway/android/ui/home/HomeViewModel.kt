@@ -18,7 +18,14 @@ package org.onebusaway.android.ui.home
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.map.MapCommand
+import org.onebusaway.android.map.MapInteractionBus
+import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.region.RegionStatus
+import org.onebusaway.android.ui.home.chrome.homeNavItems
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +33,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
 
 /**
@@ -39,12 +47,21 @@ import kotlinx.coroutines.launch
  * `onSaveInstanceState`). The arrivals sheet, drawer-open command, and fragment management remain
  * imperative in the activity until the map + arrivals fragments are dissolved (P10b/P11).
  */
-class HomeViewModel(
+@HiltViewModel
+class HomeViewModel @Inject constructor(
     private val savedState: SavedStateHandle,
-    private val weatherRepo: WeatherRepository,
     private val wideAlertsRepo: WideAlertsRepository,
-    private val regionRepo: RegionStatusRepository,
     private val startupRepo: StartupPreferencesRepository,
+    // Supplies the region/preference-derived gating inputs for the drawer items, so the VM rebuilds its
+    // own (region-gated) nav list rather than the host pushing it in.
+    private val navItemsRepo: NavItemsRepository,
+    // The observable current region + its resolution action (refresh / manual-pick). The VM
+    // self-subscribes to [region] for alerts / regionReady / nav items, and drives [refresh]/[choose]
+    // for the resolve action (Campaign A: resolution moved into the repository).
+    private val regionRepo: RegionRepository,
+    // The shared Home->Map command bus (sheet padding, recenter, route mode, clear focus). Replaces the
+    // old HomeMapController VM-on-VM reference, so this is a plain @HiltViewModel; faked in tests.
+    private val bus: MapInteractionBus,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -58,10 +75,21 @@ class HomeViewModel(
     // Restored from SavedStateHandle so the tab survives process death (config change survives via the
     // ViewModel itself); the cross-session remembered tab is the activity's enum-name preference.
     private var selectedItem: HomeNavItem = readNavItem(savedState) ?: HomeNavItem.NEARBY
+    // Whether the first nav selection has been applied — so [selectNav] reports the first selection as
+    // fresh even when it matches the default/restored tab (the host posts it after onCreate).
+    private var navApplied = false
+    // Whether the map has been shown at least once (a latch; see HomeUiState.mapComposed). Survives a
+    // configuration change in the ViewModel, so the map doesn't flash off + back on across rotation.
+    private var mapComposed = false
+    // Whether a region has resolved (currentRegion available); see HomeUiState.regionReady. A latch
+    // surfaced as state so SurveyFeature self-triggers its (region-gated) request when NEARBY is shown.
+    private var regionReady = false
     private var environment = HomeEnvironment()
-    private var weatherData: WeatherData? = null
     private var dialog: HomeDialog = HomeDialog.None
-    private var helpShowContactUs: Boolean = true
+
+    /** True while a refresh kicked off by the experimental-regions toggle is in flight, so its
+     *  completion (and only its completion) raises the OTP-reset host effect. */
+    private var settingsTogglePending = false
     private var mapLoading: Boolean = false
     // The sheet's last resting position, reported up from the screen; drives the map padding/recenter
     // side-effects + the tutorial gate. Pure coordination state (no Compose reads it), so it's a plain
@@ -82,27 +110,73 @@ class HomeViewModel(
     private var focusedStop: FocusedStop? = readFocusedStop(savedState)
     private var focusedBikeStationId: String? = savedState[KEY_BIKE_STATION]
 
-    // Guards so weather + alerts are fetched once per region (not on every region-valid callback).
-    private var weatherRegionId: Long? = null
+    // The wide-alert stream for the current region (cancelled + restarted when the region changes).
     private var alertsJob: Job? = null
+    // The region-wide GTFS alert currently surfaced to the user (rendered as a Compose dialog by
+    // HomeScreen), or null when none. Plain state rather than a one-shot event so the dialog survives
+    // recomposition / config change and is driven declaratively.
+    private var wideAlert: WideAlert? = null
+    // The just-auto-selected region's name to announce in a snackbar (the old "Found X region" toast),
+    // or null. Set on an auto-select resolve; cleared by [onRegionFoundShown] once HomeScreen shows it.
+    private var regionFoundName: String? = null
 
     init {
-        // Reflect any SavedStateHandle-restored focus in the initial rendered state.
+        // Build the initial (region-gated) drawer items + reflect any SavedStateHandle-restored focus.
+        refreshNavItems()
+        // Self-subscribe to the current region (keyed on id; the StateFlow replays its seed): drive the
+        // wide-alert stream, the survey/help gate (regionReady), and the region-gated nav items —
+        // replacing the host's onRegionValid push + the regionReady/refreshNavItems in resolvedRegion.
+        viewModelScope.launch {
+            regionRepo.region.distinctUntilChangedBy { it?.id }.collect(::applyRegion)
+        }
+    }
+
+    /** A region became current (or null): refresh the region-derived state the VM owns. */
+    private fun applyRegion(region: ObaRegion?) {
+        regionReady = region != null
+        streamWideAlerts(region?.id)
+        refreshNavItems() // recomputes with the new regionReady + nav items
+    }
+
+    /**
+     * Rebuilds the region-gated drawer item list from the current environment (region capabilities +
+     * the reminder preference), via the pure [homeNavItems] policy. Called at init and on every region
+     * resolve (region capabilities may have changed). Idempotent: an unchanged list is deduped by the
+     * StateFlow.
+     */
+    fun refreshNavItems() {
+        val availability = navItemsRepo.availability()
+        navItems = homeNavItems(
+            showReminders = availability.showReminders,
+            planTripAvailable = availability.planTripAvailable,
+            payFareAvailable = availability.payFareAvailable,
+        )
         recompute()
     }
 
-    /** Updates the (already region-gated) drawer item list. */
-    fun setNavItems(items: List<HomeNavItem>) {
-        navItems = items
-        recompute()
+    /**
+     * A drawer item was selected. Updates the in-place selection (launcher items don't change it) and
+     * returns whether this is a *fresh* selection — the host should run the per-item work (showMap /
+     * analytics) — vs. a re-tap of the already-active in-place tab, which suppresses the redundant
+     * work. The first selection is always fresh, even when it matches the default/restored tab.
+     */
+    fun selectNav(item: HomeNavItem): Boolean {
+        val reselect = navApplied && !item.launchesActivity && selectedItem == item
+        navApplied = true
+        if (!item.launchesActivity) {
+            selectedItem = item
+            savedState[KEY_SELECTED_ITEM] = item.name
+            recompute()
+        }
+        return !reselect
     }
 
-    /** A selectable (in-place) nav item became the current destination. */
-    fun onNavItemSelected(item: HomeNavItem) {
-        if (item.launchesActivity) return
-        selectedItem = item
-        savedState[KEY_SELECTED_ITEM] = item.name
-        recompute()
+    /** The map was shown (NEARBY first selected). Latches [HomeUiState.mapComposed] true so it stays composed. */
+    fun onMapShown() {
+        if (!mapComposed) {
+            mapComposed = true
+            recompute()
+        }
     }
 
     /** A map stop gained focus (non-null) or focus was cleared (null). Persists across process death. */
@@ -155,11 +229,11 @@ class HomeViewModel(
         }
         when (state) {
             ArrivalsSheetState.Expanded -> {
-                emit(HomeEvent.SetMapPadding(peekPx))
-                focusedStop?.let { emit(HomeEvent.RecenterOnFocusedStop(it.lat, it.lon)) }
+                bus.setBottomPadding(peekPx)
+                focusedStop?.let { bus.send(MapCommand.RecenterOnFocusedStop(it.lat, it.lon)) }
             }
-            ArrivalsSheetState.Collapsed -> emit(HomeEvent.SetMapPadding(peekPx))
-            ArrivalsSheetState.Hidden -> emit(HomeEvent.SetMapPadding(0))
+            ArrivalsSheetState.Collapsed -> bus.setBottomPadding(peekPx)
+            ArrivalsSheetState.Hidden -> bus.setBottomPadding(0)
         }
     }
 
@@ -176,27 +250,49 @@ class HomeViewModel(
     }
 
     /**
-     * Arrivals loaded for the focused stop. If a restore/deep-link focus is pending, consume the latch
-     * and ask the host to recenter + add the marker (animated only if the sheet is expanded). Returns
-     * whether it was pending, so the host knows to hand over the (io/elements) response payload.
+     * Establishes the map's initial focus on create. A restored focus (SavedStateHandle) is kept as-is;
+     * otherwise the deep-linked [intentFocus] (if any) is adopted. Either way, if there's now a focus it
+     * is marked pending so the map recenters + adds the marker once arrivals load. No focus → nothing.
      */
-    fun onArrivalsLoaded(): Boolean {
+    fun applyInitialFocus(intentFocus: FocusedStop?) {
+        if (focusedStop == null) {
+            intentFocus?.let { onStopFocused(it) }
+        }
+        if (focusedStop != null) {
+            markPendingMapFocus()
+        }
+    }
+
+    /**
+     * Arrivals loaded for the focused stop. If a restore/deep-link focus is pending, consume the latch
+     * and return the overlay-expanded flag (true iff the sheet settled expanded) so the activity can
+     * call MapViewModel.focusStop with the io/elements payload it holds; null if not pending.
+     */
+    fun onArrivalsLoaded(): Boolean? {
         if (!pendingMapFocus) {
-            return false
+            return null
         }
         pendingMapFocus = false
-        emit(HomeEvent.CompletePendingMapFocus(animateRecenter = settledSheet == ArrivalsSheetState.Expanded))
-        return true
+        return settledSheet == ArrivalsSheetState.Expanded
     }
 
-    /** "Show vehicles on map" — collapse the sheet, then switch the map to route mode (ordered pair). */
+    /** "Show vehicles on map" — collapse the sheet (screen), then switch the map to route mode. */
     fun requestShowRouteOnMap(routeId: String) {
         emit(HomeEvent.CollapseSheet)
-        emit(HomeEvent.ShowRouteOnMap(routeId))
+        bus.send(MapCommand.ShowRoute(routeId))
     }
 
-    /** Back-press from a peeking sheet — clear the map focus (the sheet then hides). */
-    fun requestClearMapFocus() = emit(HomeEvent.ClearMapFocus)
+    /**
+     * Back-press from a peeking sheet — clear the focus. The VM owns the focused stop, so clearing it
+     * here hides the sheet (recompute); the bus's ClearFocus clears the map's render focus. (The old path
+     * only told the map, relying on a focus-listener round-trip the host's setFocusStop(null) doesn't
+     * make — so the sheet never hid; clearing the VM state directly is both correct and the
+     * declarative source of truth.)
+     */
+    fun requestClearMapFocus() {
+        onStopFocused(null)
+        bus.send(MapCommand.ClearFocus)
+    }
 
     private fun emit(event: HomeEvent) {
         viewModelScope.launch { _events.emit(event) }
@@ -205,34 +301,6 @@ class HomeViewModel(
     /** The host re-snapshotted preferences / app-global flags (onResume, nav change, layer toggle). */
     fun onEnvironmentRefreshed(env: HomeEnvironment) {
         environment = env
-        recompute()
-    }
-
-    fun showHelp(showContactUs: Boolean) {
-        helpShowContactUs = showContactUs
-        dialog = HomeDialog.Help
-        recompute()
-    }
-
-    fun showWhatsNew() {
-        dialog = HomeDialog.WhatsNew
-        recompute()
-    }
-
-    /** The arrival-color legend (Help menu). */
-    fun showLegend() {
-        dialog = HomeDialog.Legend
-        recompute()
-    }
-
-    /** The "are you sure?" confirmation when the user closes the donation card. */
-    fun showDismissDonation() {
-        dialog = HomeDialog.DismissDonation
-        recompute()
-    }
-
-    fun dismissDialog() {
-        dialog = HomeDialog.None
         recompute()
     }
 
@@ -245,17 +313,45 @@ class HomeViewModel(
      */
     fun refreshRegions() {
         viewModelScope.launch {
-            when (val status = regionRepo.refreshRegions()) {
-                is RegionStatus.Changed -> emit(HomeEvent.RegionResolved(true, status.region.name))
-                RegionStatus.Unchanged -> emit(HomeEvent.RegionResolved(false, null))
+            when (val status = regionRepo.refresh()) {
+                is RegionStatus.Changed -> {
+                    resolvedRegion(true, status.region.name)
+                    fireToggleEffect()
+                }
+                RegionStatus.Unchanged -> {
+                    resolvedRegion(false, null)
+                    settingsTogglePending = false
+                }
                 is RegionStatus.NeedsManualSelection -> {
                     dialog = HomeDialog.ChooseRegion(status.regions)
                     recompute()
+                    // Leave settingsTogglePending set; onRegionChosen fires the effect after the pick.
                 }
-                // Parity: the legacy callback did nothing further in these cases.
-                RegionStatus.Skipped, is RegionStatus.Fixed, RegionStatus.Failed -> Unit
+                // No region change: just clear the toggle flag (the legacy callback did nothing more on
+                // Skipped/Fixed, and nothing at all on a catastrophic Failed load).
+                RegionStatus.Skipped, is RegionStatus.Fixed, RegionStatus.Failed ->
+                    settingsTogglePending = false
             }
         }
+    }
+
+    /**
+     * The Advanced-settings "experimental regions" toggle: re-resolve, then on a real change have the
+     * host reset the OTP API version ([HomeEvent.RegionToggleChanged]). The region-found announcement is
+     * the shared [HomeUiState.regionFoundName] snackbar.
+     */
+    fun onExperimentalRegionsToggled() {
+        settingsTogglePending = true
+        refreshRegions()
+    }
+
+    /** When a toggle-initiated refresh actually changed the region, raise the OTP-reset effect; then
+     *  clear the flag. */
+    private fun fireToggleEffect() {
+        if (settingsTogglePending) {
+            emit(HomeEvent.RegionToggleChanged)
+        }
+        settingsTogglePending = false
     }
 
     /**
@@ -285,51 +381,65 @@ class HomeViewModel(
     /** The user picked a region in the forced-choice dialog (old haveUserChooseRegion onClick). */
     fun onRegionChosen(region: ObaRegion) {
         viewModelScope.launch {
-            regionRepo.selectRegion(region)
+            regionRepo.choose(region)
             dialog = HomeDialog.None
             recompute()
             // regionName null: the legacy manual-pick path logged no analytics.
-            emit(HomeEvent.RegionResolved(true, null))
+            resolvedRegion(true, null)
+            fireToggleEffect()
         }
     }
 
     /**
-     * The map fragment reported region validity. A non-null [regionId] fetches the weather forecast
-     * and starts streaming wide alerts (once per region); null clears the weather.
+     * A region *resolve action* completed. The region-derived *state* (alerts, regionReady, nav items)
+     * is driven reactively by the region collector ([applyRegion]), and the map re-zoom by the map's own
+     * region collector; this handles only the remaining resolve-action outcomes: announce an
+     * auto-selected region via a snackbar ([name] is non-null only for an auto-select change), and raise
+     * the activity's analytics event.
      */
-    fun onRegionValid(regionId: Long?) {
-        if (regionId == null) {
-            weatherData = null
-            weatherRegionId = null
-            alertsJob?.cancel()
-            alertsJob = null
-            recompute()
-            return
-        }
-        if (weatherRegionId == regionId) {
-            return
-        }
-        weatherRegionId = regionId
+    private fun resolvedRegion(changed: Boolean, name: String?) {
+        // The map re-zoom is now driven by the map's own region collector (it observes RegionRepository).
+        regionFoundName = name
+        recompute() // surface regionFoundName for the snackbar
+        emit(HomeEvent.RegionResolved(changed, name))
+    }
 
-        viewModelScope.launch {
-            weatherRepo.currentForecast(regionId).onSuccess { data ->
-                weatherData = data
-                recompute()
-            }
-        }
+    /** HomeScreen has shown the region-found snackbar; clear it so it isn't re-shown on recomposition. */
+    fun onRegionFoundShown() {
+        regionFoundName = null
+        recompute()
+    }
 
+    /**
+     * (Re)starts the wide-alert stream for [regionId] (cancelling the prior region's), or stops it when
+     * null. Driven by the region collector, which already dedups by id. (Weather is its own feature
+     * module — see WeatherViewModel.)
+     */
+    private fun streamWideAlerts(regionId: Long?) {
         alertsJob?.cancel()
-        alertsJob = viewModelScope.launch {
-            wideAlertsRepo.wideAlerts(regionId.toString()).collect { alert ->
-                _events.emit(HomeEvent.ShowWideAlert(alert))
+        alertsJob = if (regionId == null) {
+            null
+        } else {
+            viewModelScope.launch {
+                wideAlertsRepo.wideAlerts(regionId.toString()).collect { alert ->
+                    wideAlert = alert
+                    recompute()
+                }
             }
         }
     }
 
+    /** The user dismissed the region-wide alert dialog (Dismiss, or after following "More info"). */
+    fun dismissWideAlert() {
+        wideAlert = null
+        recompute()
+    }
+
     private fun recompute() {
         _uiState.value = buildState(
-            selectedItem, navItems, environment, weatherData, dialog, helpShowContactUs,
-            focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering
+            selectedItem, navItems, environment, dialog,
+            focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering, mapComposed,
+            wideAlert, regionReady, regionFoundName
         )
     }
 
@@ -360,21 +470,24 @@ class HomeViewModel(
 /**
  * Pure projection of the raw inputs onto the rendered [HomeUiState] — the home screen's
  * visibility-gating rules, lifted out of HomeActivity so they can be unit-tested. Mirrors the legacy
- * gates: chrome shows only on NEARBY; the layers FAB additionally needs bikeshare; the weather chip
- * needs data and a non-hidden preference; the donation card needs the DonationsManager flag.
+ * gates: chrome shows only on NEARBY; the layers FAB additionally needs bikeshare. (The weather chip
+ * and the donation card are their own feature modules — see WeatherViewModel / DonationViewModel — so
+ * their gates are no longer here.)
  */
 internal fun buildState(
     selectedItem: HomeNavItem,
     navItems: List<HomeNavItem>,
     environment: HomeEnvironment,
-    weatherData: WeatherData?,
     dialog: HomeDialog,
-    helpShowContactUs: Boolean,
     focusedStop: FocusedStop? = null,
     focusedBikeStationId: String? = null,
     mapLoading: Boolean = false,
     peekArrivalCount: Int = 0,
     routeFiltering: Boolean = false,
+    mapComposed: Boolean = false,
+    wideAlert: WideAlert? = null,
+    regionReady: Boolean = false,
+    regionFoundName: String? = null,
 ): HomeUiState {
     val nearby = selectedItem == HomeNavItem.NEARBY
     val starredTab = selectedItem == HomeNavItem.STARRED_STOPS ||
@@ -387,16 +500,17 @@ internal fun buildState(
         focusedBikeStationId = focusedBikeStationId,
         peekArrivalCount = peekArrivalCount,
         routeFiltering = routeFiltering,
+        mapComposed = mapComposed,
+        regionReady = regionReady,
         mapLoading = nearby && mapLoading,
         fabsVisible = nearby,
         zoomControlsVisible = nearby && environment.zoomControlsPref,
         leftHandMode = environment.leftHandMode,
         layersFabVisible = nearby && environment.bikeshareEnabled,
         bikeshareActive = environment.bikeshareActive,
-        weather = if (nearby && !environment.weatherHidden) weatherData else null,
-        donationVisible = nearby && environment.donationAvailable,
         dialog = dialog,
-        helpShowContactUs = helpShowContactUs,
+        wideAlert = wideAlert,
+        regionFoundName = regionFoundName,
         showListSortMenu = listTab,
         showListClearMenu = starredTab,
     )

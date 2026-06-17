@@ -41,12 +41,14 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -56,9 +58,26 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import android.app.Activity
+import android.app.NotificationManager
+import android.content.Context
+import android.os.Build
+import android.os.Bundle
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
+import org.onebusaway.android.app.Application
+import org.onebusaway.android.app.di.PreferencesEntryPoint
+import org.onebusaway.android.directions.realtime.RealtimeService
+import org.onebusaway.android.directions.util.OTPConstants
+import org.onebusaway.android.map.MapMode
+import org.onebusaway.android.map.MapViewModel
+import org.onebusaway.android.map.compose.NoOpObaMapCallbacks
+import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.ui.compose.components.LoadingContent
+import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.opentripplanner.api.model.Itinerary
 
 /**
  * The results header: the (1–3) itinerary option cards plus the list/map tab row. Rendered in its
@@ -173,6 +192,109 @@ fun TripResultsList(state: TripResultsUiState) {
                 }
             }
         }
+    }
+}
+
+/**
+ * Stateful trip-results entry hosted inline in the trip-plan bottom sheet (Tier 1: replaces the former
+ * `TripResultsFragment`). Owns the [TripResultsViewModel] (option cards + directions) and a
+ * directions-mode [MapViewModel]; renders the header plus either the directions list or the declarative
+ * [ObaMap] per the list/map tab, frames the selected itinerary once the map settles, and starts the
+ * background trip-update poller when the user has trip-update notifications enabled.
+ */
+@Composable
+fun TripResults(
+    itineraries: List<Itinerary>,
+    modifier: Modifier = Modifier,
+) {
+    val resultsViewModel: TripResultsViewModel = hiltViewModel()
+    val mapViewModel: MapViewModel = hiltViewModel(key = "tripResultsMap")
+    val state by resultsViewModel.state.collectAsStateWithLifecycle()
+    val activity = LocalContext.current.findActivity()
+
+    // Re-frame the selected itinerary on the next camera idle (set on itinerary / map-shown change).
+    var needsFraming by remember { mutableStateOf(false) }
+
+    // Seed from the completed plan + point the map at the first itinerary (the old bindResults).
+    LaunchedEffect(itineraries) {
+        resultsViewModel.setItineraries(itineraries, initialIndex = 0, showMap = false)
+        itineraries.firstOrNull()?.let {
+            mapViewModel.setMode(MapMode.Directions(it))
+            needsFraming = true
+        }
+        maybeStartTripUpdates(activity, itineraries, index = 0)
+    }
+
+    // Follow the selected option onto the map (the old observeSelection).
+    LaunchedEffect(resultsViewModel) {
+        resultsViewModel.selectedItinerary.collect { (index, itinerary) ->
+            mapViewModel.setMode(MapMode.Directions(itinerary))
+            needsFraming = true
+            maybeStartTripUpdates(activity, itineraries, index)
+        }
+    }
+
+    val showMap = (state as? TripResultsUiState.Success)?.showMap == true
+
+    // Frame the itinerary once the map is shown + settled (the old observeMapReady): the map VM
+    // publishes its camera on each idle, so the first non-null camera while shown is "map ready".
+    LaunchedEffect(resultsViewModel, showMap) {
+        mapViewModel.camera.collect { camera ->
+            if (camera != null && needsFraming && showMap) {
+                needsFraming = false
+                mapViewModel.frameDirections()
+            }
+        }
+    }
+
+    Column(modifier) {
+        TripResultsHeader(
+            state = state,
+            onSelectOption = resultsViewModel::selectOption,
+            onTabSelected = { show ->
+                resultsViewModel.toggleMap(show)
+                if (show) needsFraming = true
+            },
+        )
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            if (showMap) {
+                ObaMap(
+                    renderState = mapViewModel.renderState,
+                    callbacks = NoOpObaMapCallbacks,
+                    mapViewModel = mapViewModel,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                TripResultsList(state)
+            }
+        }
+    }
+}
+
+/**
+ * Starts the background trip-update poller for the selected itinerary when trip-update notifications are
+ * enabled — ported verbatim from the former `TripResultsFragment.maybeStartRealtimeUpdates`.
+ */
+private fun maybeStartTripUpdates(activity: Activity, itineraries: List<Itinerary>, index: Int) {
+    val bundle = Bundle().apply {
+        putSerializable(OTPConstants.ITINERARIES, ArrayList(itineraries))
+        putInt(OTPConstants.SELECTED_ITINERARY, index)
+    }
+    val context = activity.applicationContext
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channel = manager.getNotificationChannel(Application.CHANNEL_TRIP_PLAN_UPDATES_ID)
+        if (channel != null && channel.importance != NotificationManager.IMPORTANCE_NONE) {
+            RealtimeService.start(activity, bundle)
+        }
+    } else if (PreferencesEntryPoint.get(context)
+            .getBoolean(R.string.preference_key_trip_plan_notifications, true)
+    ) {
+        RealtimeService.start(activity, bundle)
     }
 }
 

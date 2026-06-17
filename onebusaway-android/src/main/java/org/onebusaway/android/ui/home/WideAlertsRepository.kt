@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.ui.home
 
+import javax.inject.Inject
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -37,7 +38,7 @@ interface WideAlertsRepository {
  * [kotlinx.coroutines.Dispatchers.IO] is needed because the fetcher already threads itself; the
  * collector's context decides where emissions are observed.
  */
-class DefaultWideAlertsRepository : WideAlertsRepository {
+class DefaultWideAlertsRepository @Inject constructor() : WideAlertsRepository {
 
     override fun wideAlerts(regionId: String): Flow<WideAlert> = callbackFlow {
         Application.getGtfsAlerts().fetchAlerts(regionId) { title, message, url ->

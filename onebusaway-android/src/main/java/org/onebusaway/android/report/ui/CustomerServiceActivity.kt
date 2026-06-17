@@ -16,99 +16,63 @@
  */
 package org.onebusaway.android.report.ui
 
-import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import androidx.activity.compose.setContent
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.google.firebase.analytics.FirebaseAnalytics
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
-import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.ui.report.customerservice.AgencyContact
+import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.report.customerservice.CustomerServiceRoute
-import org.onebusaway.android.ui.report.customerservice.CustomerServiceViewModel
-import org.onebusaway.android.ui.report.customerservice.DefaultCustomerServiceRepository
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.ExternalIntents
 
 /**
- * Lists the region's transit agencies with email/web/phone contact options. Compose + MVVM host:
- * state lives in [CustomerServiceViewModel]; the Activity owns the platform contact intents and
- * analytics. Replaces the legacy AgenciesLoader-backed Activity.
+ * The customer-service NavHost destination (former CustomerServiceActivity content). Hosts the
+ * Hilt-scoped [CustomerServiceRoute]; the email/web/phone handlers issue the platform contact intents
+ * and analytics here (reading the optional location string off the host activity intent).
  */
-class CustomerServiceActivity : AppCompatActivity() {
+@Composable
+fun CustomerServiceDestination(navController: NavController) {
+    val activity = LocalContext.current.findActivity()
+    val firebaseAnalytics = remember { FirebaseAnalytics.getInstance(activity) }
 
-    private val viewModel: CustomerServiceViewModel by viewModels {
-        viewModelFactory {
-            initializer { CustomerServiceViewModel(DefaultCustomerServiceRepository(applicationContext)) }
-        }
-    }
-
-    private lateinit var firebaseAnalytics: FirebaseAnalytics
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        firebaseAnalytics = FirebaseAnalytics.getInstance(this)
-        setContent {
-            ObaTheme {
-                CustomerServiceRoute(
-                    viewModel = viewModel,
-                    onBack = { finish() },
-                    onEmail = ::emailAgency,
-                    onWeb = ::openAgencyWeb,
-                    onPhone = ::callAgency
-                )
-            }
-        }
-    }
-
-    private fun emailAgency(agency: AgencyContact) {
-        val email = agency.email ?: return
-        val locationString = intent.getStringExtra(BaseReportActivity.LOCATION_STRING)
-        UIUtils.sendEmail(this, email, locationString)
-        reportContactEvent(agency.name, R.string.analytics_label_customer_service_email)
-        if (locationString == null) {
-            reportContactEvent(agency.name, R.string.analytics_label_customer_service_email_without_location)
-        }
-    }
-
-    private fun openAgencyWeb(agency: AgencyContact) {
-        val url = agency.url ?: return
-        UIUtils.goToUrl(this, url)
-        reportContactEvent(agency.name, R.string.analytics_label_customer_service_web)
-    }
-
-    private fun callAgency(agency: AgencyContact) {
-        val phone = agency.phone ?: return
-        UIUtils.goToPhoneDialer(this, "tel:$phone")
-        reportContactEvent(agency.name, R.string.analytics_label_customer_service_phone)
-    }
-
-    private fun reportContactEvent(agencyName: String, labelRes: Int) {
+    fun reportContactEvent(agencyName: String, labelRes: Int) {
         ObaAnalytics.reportUiEvent(
             firebaseAnalytics,
             Application.get().plausibleInstance,
             PlausibleAnalytics.REPORT_MORE_EVENT_URL,
-            agencyName + "_" + getString(R.string.analytics_customer_service),
-            getString(labelRes)
+            agencyName + "_" + activity.getString(R.string.analytics_customer_service),
+            activity.getString(labelRes)
         )
     }
 
-    companion object {
-
-        /** Launches the screen, forwarding the optional location string used in email reports. */
-        @JvmStatic
-        fun start(context: Context, sourceIntent: Intent?) {
-            val intent = Intent(context, CustomerServiceActivity::class.java)
-            sourceIntent?.getStringExtra(BaseReportActivity.LOCATION_STRING)?.let {
-                intent.putExtra(BaseReportActivity.LOCATION_STRING, it)
+    CustomerServiceRoute(
+        viewModel = hiltViewModel(),
+        onBack = { navController.popBackStack() },
+        onEmail = { agency ->
+            val email = agency.email ?: return@CustomerServiceRoute
+            val locationString = activity.intent.getStringExtra(ReportActivity.LOCATION_STRING)
+            ExternalIntents.sendEmail(activity, email, locationString)
+            reportContactEvent(agency.name, R.string.analytics_label_customer_service_email)
+            if (locationString == null) {
+                reportContactEvent(
+                    agency.name, R.string.analytics_label_customer_service_email_without_location
+                )
             }
-            context.startActivity(intent)
+        },
+        onWeb = { agency ->
+            val url = agency.url ?: return@CustomerServiceRoute
+            ExternalIntents.goToUrl(activity, url)
+            reportContactEvent(agency.name, R.string.analytics_label_customer_service_web)
+        },
+        onPhone = { agency ->
+            val phone = agency.phone ?: return@CustomerServiceRoute
+            ExternalIntents.goToPhoneDialer(activity, "tel:$phone")
+            reportContactEvent(agency.name, R.string.analytics_label_customer_service_phone)
         }
-    }
+    )
 }

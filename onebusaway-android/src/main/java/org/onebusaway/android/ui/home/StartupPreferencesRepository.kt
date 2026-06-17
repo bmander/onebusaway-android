@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.ui.home
 
+import javax.inject.Inject
 import org.onebusaway.android.util.PreferenceUtils
 
 /**
@@ -32,7 +33,7 @@ interface StartupPreferencesRepository {
     fun clearInitialStartup()
 }
 
-class DefaultStartupPreferencesRepository : StartupPreferencesRepository {
+class DefaultStartupPreferencesRepository @Inject constructor() : StartupPreferencesRepository {
 
     override fun isInitialStartup(): Boolean = PreferenceUtils.getBoolean(KEY_INITIAL_STARTUP, true)
 

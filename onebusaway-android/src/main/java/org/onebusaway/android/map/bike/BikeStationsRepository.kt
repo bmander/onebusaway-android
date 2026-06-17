@@ -16,6 +16,8 @@
 package org.onebusaway.android.map.bike
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import android.location.Location
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -33,7 +35,7 @@ interface BikeStationsRepository {
             Result<List<BikeRentalStation>>
 }
 
-class DefaultBikeStationsRepository(private val context: Context) : BikeStationsRepository {
+class DefaultBikeStationsRepository @Inject constructor(@ApplicationContext private val context: Context) : BikeStationsRepository {
 
     override suspend fun getStations(southWest: Location, northEast: Location):
             Result<List<BikeRentalStation>> = withContext(Dispatchers.IO) {
@@ -58,4 +60,40 @@ internal fun filterStations(
     selectedIds == null -> all
     selectedIds.isEmpty() -> null
     else -> all.filter { selectedIds.contains(it.id) }
+}
+
+/** What the bike loader should do with the overlay for the current viewport. */
+internal enum class BikeAction {
+    /** Load stations for the viewport and show the [filterStations] result. */
+    SHOW,
+
+    /** Clear the bike overlay (layer toggled off, and not directions-with-stations). */
+    CLEAR,
+
+    /** Leave the overlay untouched (directions mode before its station filter is known). */
+    LEAVE,
+}
+
+/**
+ * The pure layer/mode gate from the legacy `BikeshareMapController.updateData` + `showBikes`,
+ * extracted so it can be unit-tested on the JVM (the bikeshare-enabled check stays at the call site
+ * since it reads `Application`). Bikes always show in directions mode once the itinerary's stations
+ * are known; otherwise they follow the layer toggle.
+ *
+ * @param isDirections whether the map is in directions mode
+ * @param selectedIds the itinerary's bike-station filter: null = not a directions itinerary (show
+ * all per the toggle), empty = a directions itinerary with no bike stations, non-empty = those ids
+ * @param layerVisible the bikeshare layer toggle
+ */
+internal fun bikeAction(
+    isDirections: Boolean,
+    selectedIds: List<String>?,
+    layerVisible: Boolean,
+): BikeAction {
+    val show = if (isDirections && !selectedIds.isNullOrEmpty()) true else layerVisible
+    return when {
+        !show -> BikeAction.CLEAR
+        isDirections && selectedIds == null -> BikeAction.LEAVE
+        else -> BikeAction.SHOW
+    }
 }

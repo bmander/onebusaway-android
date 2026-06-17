@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.ui.tripdetails
 
+import androidx.lifecycle.SavedStateHandle
 import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -26,6 +27,7 @@ import org.junit.Test
 import org.onebusaway.android.R
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.testing.MainDispatcherRule
+import org.onebusaway.android.ui.nav.NavRoutes
 
 private class FakeTripDetailsRepository(
     var result: Result<TripDetailsData>
@@ -52,6 +54,10 @@ class TripDetailsViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
+    // The VM reads its launch args from SavedStateHandle (seeded from intent extras in production).
+    private fun handle(tripId: String = "t") =
+        SavedStateHandle(mapOf(NavRoutes.ARG_TRIP_ID to tripId))
+
     private fun data(routeId: String = "1_8") = TripDetailsData(
         header = TripHeader(
             routeShortName = "8",
@@ -71,14 +77,14 @@ class TripDetailsViewModelTest {
 
     @Test
     fun `initial state is Loading`() = runTest {
-        val viewModel = TripDetailsViewModel("t", null, null, FakeTripDetailsRepository(Result.success(data())))
+        val viewModel = TripDetailsViewModel(handle(), FakeTripDetailsRepository(Result.success(data())))
 
         assertEquals(TripDetailsUiState.Loading, viewModel.state.value)
     }
 
     @Test
     fun `refresh emits Content on success`() = runTest {
-        val viewModel = TripDetailsViewModel("t", null, null, FakeTripDetailsRepository(Result.success(data())))
+        val viewModel = TripDetailsViewModel(handle(), FakeTripDetailsRepository(Result.success(data())))
 
         viewModel.refresh()
 
@@ -90,7 +96,7 @@ class TripDetailsViewModelTest {
     @Test
     fun `refresh emits Error when there is no content and the load fails`() = runTest {
         val viewModel = TripDetailsViewModel(
-            "t", null, null, FakeTripDetailsRepository(Result.failure(IOException("No network")))
+            handle(), FakeTripDetailsRepository(Result.failure(IOException("No network")))
         )
 
         viewModel.refresh()
@@ -101,7 +107,7 @@ class TripDetailsViewModelTest {
     @Test
     fun `a failed refresh keeps existing content instead of showing Error`() = runTest {
         val repository = FakeTripDetailsRepository(Result.success(data()))
-        val viewModel = TripDetailsViewModel("t", null, null, repository)
+        val viewModel = TripDetailsViewModel(handle(), repository)
         viewModel.refresh()
         assertTrue(viewModel.state.value is TripDetailsUiState.Content)
 
@@ -114,7 +120,7 @@ class TripDetailsViewModelTest {
     @Test
     fun `setDestinationId reloads with the new destination id`() = runTest {
         val repository = FakeTripDetailsRepository(Result.success(data()))
-        val viewModel = TripDetailsViewModel("t", null, null, repository, initialDestinationId = null)
+        val viewModel = TripDetailsViewModel(handle(), repository)
         viewModel.refresh()
 
         viewModel.setDestinationId("1_99")

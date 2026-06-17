@@ -32,9 +32,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
-import org.onebusaway.android.ui.ArrivalInfo
-import org.onebusaway.android.ui.arrivals.ArrivalCard
-import org.onebusaway.android.ui.arrivals.ArrivalRowContent
+import org.onebusaway.android.ui.arrivals.ArrivalInfo
+import org.onebusaway.android.ui.arrivals.components.ArrivalCard
+import org.onebusaway.android.ui.arrivals.components.ArrivalRowContent
 import org.onebusaway.android.ui.arrivals.ArrivalsUiState
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.compose.components.LoadingContent

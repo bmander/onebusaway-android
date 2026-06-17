@@ -16,6 +16,8 @@
 package org.onebusaway.android.ui.searchresults
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import android.location.Location
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
@@ -46,7 +48,7 @@ interface SearchResultsRepository {
  * parallel (matching the legacy screen's single combined loader) and merges them routes-first.
  * All Android statics are quarantined here so [SearchResultsViewModel] stays JVM-testable.
  */
-class DefaultSearchResultsRepository(private val context: Context) : SearchResultsRepository {
+class DefaultSearchResultsRepository @Inject constructor(@ApplicationContext private val context: Context) : SearchResultsRepository {
 
     override suspend fun search(query: String): Result<List<SearchResultItem>> =
         withContext(Dispatchers.IO) {
@@ -87,7 +89,7 @@ class DefaultSearchResultsRepository(private val context: Context) : SearchResul
         ) {
             return response
         }
-        val defaultCenter = LocationUtils.getDefaultSearchCenter() ?: return response
+        val defaultCenter = LocationUtils.getDefaultSearchCenter(context) ?: return response
         return ObaRoutesForLocationRequest.Builder(context, defaultCenter)
             .setRadius(LocationUtils.DEFAULT_SEARCH_RADIUS)
             .setQuery(query)

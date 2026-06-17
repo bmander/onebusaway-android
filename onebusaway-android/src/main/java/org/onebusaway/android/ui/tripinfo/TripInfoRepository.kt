@@ -20,6 +20,8 @@ import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.text.format.DateUtils
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -29,9 +31,10 @@ import org.onebusaway.android.io.request.reminders.ObaReminderRequest
 import org.onebusaway.android.io.request.reminders.ReminderRequestListener
 import org.onebusaway.android.io.request.reminders.model.ReminderResponse
 import org.onebusaway.android.provider.ObaContract
+import org.onebusaway.android.provider.ProviderQueries
 import org.onebusaway.android.util.PreferenceUtils
+import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.ReminderUtils
-import org.onebusaway.android.util.UIUtils
 import kotlin.coroutines.resume
 
 /** The reminder lead times (minutes) backing each spinner position, as stored in the Trips table. */
@@ -93,7 +96,9 @@ interface TripInfoRepository {
     suspend fun save(args: TripInfoArgs, data: TripInfoData, reminderMinutes: Int, tripName: String): Boolean
 }
 
-class DefaultTripInfoRepository(private val context: Context) : TripInfoRepository {
+class DefaultTripInfoRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) : TripInfoRepository {
 
     override suspend fun load(args: TripInfoArgs): TripInfoData = withContext(Dispatchers.IO) {
         // If the launcher passed a route name, refresh it in the Routes table (legacy behavior).
@@ -116,7 +121,7 @@ class DefaultTripInfoRepository(private val context: Context) : TripInfoReposito
             ObaContract.Trips.convertDBToTime(getInt(COL_DEPARTURE))
         }
         val routeName = args.routeName ?: ReminderUtils.getRouteShortName(context, routeId)
-        val stopName = args.stopName ?: UIUtils.stringForQuery(
+        val stopName = args.stopName ?: ProviderQueries.stringForQuery(
             context,
             Uri.withAppendedPath(ObaContract.Stops.CONTENT_URI, args.stopId),
             ObaContract.Stops.NAME
@@ -174,9 +179,9 @@ class DefaultTripInfoRepository(private val context: Context) : TripInfoReposito
         tripName = tripName,
         reminderMinutes = reminderMinutes,
         isNewTrip = isNewTrip,
-        stopNameText = UIUtils.formatDisplayText(stopName.orEmpty()),
-        routeText = UIUtils.formatDisplayText(context.getString(R.string.trip_info_route, routeName.orEmpty())),
-        headsignText = UIUtils.formatDisplayText(headsign.orEmpty()),
+        stopNameText = MyTextUtils.formatDisplayText(stopName.orEmpty())!!,
+        routeText = MyTextUtils.formatDisplayText(context.getString(R.string.trip_info_route, routeName.orEmpty()))!!,
+        headsignText = MyTextUtils.formatDisplayText(headsign.orEmpty())!!,
         departureText = context.getString(
             R.string.trip_info_depart,
             DateUtils.formatDateTime(
@@ -184,7 +189,7 @@ class DefaultTripInfoRepository(private val context: Context) : TripInfoReposito
                 DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_NO_NOON or DateUtils.FORMAT_NO_MIDNIGHT
             )
         ),
-        reminderOptions = ReminderUtils.getReminderTimes(departTime).toList()
+        reminderOptions = ReminderUtils.getReminderTimes(context, departTime).toList()
     )
 
     override suspend fun save(

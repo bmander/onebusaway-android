@@ -18,7 +18,9 @@ package org.onebusaway.android.ui.arrivals
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.ObaApi
@@ -26,12 +28,17 @@ import org.onebusaway.android.io.elements.ObaSituation
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoRequest
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
+import org.onebusaway.android.io.request.ObaRouteRequest
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.provider.loadStopUserInfo
-import org.onebusaway.android.ui.ArrivalInfo
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.BuildFlavorUtils
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.DBUtil
+import org.onebusaway.android.util.MyTextUtils
+import org.onebusaway.android.util.ObaRequestErrors
+import org.onebusaway.android.util.SituationUtils
+import org.onebusaway.android.util.getRouteDisplayName
 
 /** A loaded snapshot of a stop's arrivals plus the header, actions, alerts, and filter data. */
 data class ArrivalsData(
@@ -69,6 +76,20 @@ interface ArrivalsRepository {
     /** Marks (or unmarks) the stop as a favorite in the provider. */
     suspend fun setStopFavorite(stopId: String, favorite: Boolean)
 
+    /**
+     * Stars (or unstars) a route/headsign favorite, then backfills the route's full details
+     * (short/long name, URL) from the API so the long name can be shown later. [stopId] null means
+     * "all stops". Replaces the legacy QueryUtils write + AsyncTaskLoader route-info fetch.
+     */
+    suspend fun favoriteRoute(
+        routeId: String,
+        headsign: String?,
+        stopId: String?,
+        shortName: String?,
+        longName: String?,
+        favorite: Boolean
+    )
+
     /** Persists the per-stop route filter (empty == show all). */
     suspend fun setRouteFilter(stopId: String, filter: Set<String>)
 
@@ -95,12 +116,24 @@ interface ArrivalsRepository {
  * model plus the per-arrival actions, service alerts, and route-filter options on the IO thread
  * (their constructors read ContentProviders). All Android statics are quarantined here so
  * [ArrivalsViewModel] stays JVM-testable.
+ *
+ * Note: this repo is **stateful** ([lastGood]/[situation]/[lastResponse]) and 1:1 with its
+ * [ArrivalsViewModel], so its `@Binds` is intentionally **unscoped** (a fresh instance per VM) — do
+ * NOT make it `@Singleton`, which would share `lastGood` across stops and corrupt per-stop state.
  */
-class DefaultArrivalsRepository(private val context: Context) : ArrivalsRepository {
+class DefaultArrivalsRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val regionRepository: RegionRepository
+) : ArrivalsRepository {
 
     private var lastGood: ObaArrivalInfoResponse? = null
 
     private var lastGoodMinutesAfter: Int = MINUTES_AFTER_DEFAULT
+
+    // Whether the viewed stop has been recorded in the Stops table this session. Recording (a) creates
+    // the row so the favorite toggle's UPDATE actually persists, and (b) marks it used so it appears in
+    // Recent stops. markAsUsed bumps USE_COUNT, so this is done once — not on every 60s poll/refresh.
+    private var stopRecorded = false
 
     override suspend fun getArrivals(
         stopId: String,
@@ -124,6 +157,14 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
             response.code == ObaApi.OBA_OK -> {
                 lastGood = response
                 lastGoodMinutesAfter = minutes
+                // Record the stop once per session so favoriting persists (markAsFavorite is an
+                // UPDATE — it needs the row to exist) and the stop shows in Recent stops.
+                if (!stopRecorded) {
+                    response.stop?.let {
+                        DBUtil.addToDB(it)
+                        stopRecorded = true
+                    }
+                }
                 Result.success(toData(stopId, response, minutes, filter, isStale = false, now))
             }
             // Refresh failed but we have prior data — keep showing it (legacy stale fallback)
@@ -132,7 +173,7 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
                     toData(stopId, lastGood!!, lastGoodMinutesAfter, filter, isStale = true, now)
                 )
 
-            else -> Result.failure(IOException(UIUtils.getStopErrorString(context, response.code)))
+            else -> Result.failure(IOException(ObaRequestErrors.getStopErrorString(context, response.code)))
         }
     }
 
@@ -144,7 +185,7 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
         isStale: Boolean,
         now: Long
     ): ArrivalsData {
-        val style = BuildFlavorUtils.getArrivalInfoStyleFromPreferences()
+        val style = BuildFlavorUtils.getArrivalInfoStyleFromPreferences(context)
         // Style B includes the arrival/departure word in the status label; Style A does not
         val includeArrivalDepartureLabel = style == BuildFlavorUtils.ARRIVAL_INFO_STYLE_B
         val arrivals = ArrivalInfoUtils.convertObaArrivalInfo(
@@ -158,7 +199,7 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
         val userInfo = loadStopUserInfo(context, stopId)
         val header = StopHeader(
             stopId = stopId,
-            name = UIUtils.formatDisplayText(stop?.name).orEmpty(),
+            name = MyTextUtils.formatDisplayText(stop?.name).orEmpty(),
             direction = stop?.direction,
             isFavorite = userInfo?.isFavorite ?: false,
             routeCount = stop?.routeIds?.size ?: 0
@@ -211,7 +252,7 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
         routeFilter: Set<String>,
         now: Long
     ): Pair<List<AlertItem>, Int> {
-        val situations = UIUtils.getAllSituations(response, ArrayList(routeFilter))
+        val situations = SituationUtils.getAllSituations(response, ArrayList(routeFilter))
         if (situations.isEmpty()) return emptyList<AlertItem>() to 0
         val active = mutableListOf<AlertItem>()
         var hiddenCount = 0
@@ -219,7 +260,7 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
             // Make sure this situation is recorded so read/hidden state can be tracked
             ObaContract.ServiceAlerts.insertOrUpdate(situation.id, ContentValues(), false, null)
             val isHidden = ObaContract.ServiceAlerts.isHidden(situation.id)
-            if (UIUtils.isActiveWindowForSituation(situation, now) && !isHidden) {
+            if (SituationUtils.isActiveWindowForSituation(situation, now) && !isHidden) {
                 active.add(AlertItem(situation.id, situation.summary.orEmpty(), severityOf(situation.severity)))
             }
             if (isHidden) hiddenCount++
@@ -236,7 +277,7 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
         return response.getRoutes(routeIds).map { route ->
             RouteFilterOption(
                 routeId = route.id,
-                displayName = UIUtils.getRouteDisplayName(route),
+                displayName = getRouteDisplayName(route),
                 checked = routeFilter.contains(route.id)
             )
         }
@@ -249,6 +290,51 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
         }
     }
 
+    override suspend fun favoriteRoute(
+        routeId: String,
+        headsign: String?,
+        stopId: String?,
+        shortName: String?,
+        longName: String?,
+        favorite: Boolean
+    ) = withContext(Dispatchers.IO) {
+        val regionId = regionRepository.region.value?.id
+        // Ensure the route row exists (stamped with the current region) before marking the favorite.
+        val values = ContentValues().apply {
+            put(ObaContract.Routes.SHORTNAME, shortName)
+            put(ObaContract.Routes.LONGNAME, longName)
+            regionId?.let { put(ObaContract.Routes.REGION_ID, it) }
+        }
+        ObaContract.Routes.insertOrUpdate(context, routeId, values, true)
+        ObaContract.RouteHeadsignFavorites.markAsFavorite(context, routeId, headsign, stopId, favorite)
+
+        // Backfill the full route details so the long name can be shown later (was an AsyncTaskLoader).
+        fetchAndStoreRouteDetails(routeId, regionId)
+    }
+
+    /** Blocking route-details fetch (already on IO via [favoriteRoute]); writes name/url back. */
+    private fun fetchAndStoreRouteDetails(routeId: String, regionId: Long?) {
+        val response = ObaRouteRequest.newRequest(context, routeId).call() ?: return
+        if (response.code != ObaApi.OBA_OK) return
+
+        var shortName = response.shortName
+        var longName = response.longName
+        if (shortName.isNullOrEmpty()) {
+            shortName = longName
+        }
+        if (longName.isNullOrEmpty() || shortName == longName) {
+            longName = response.description
+        }
+
+        val values = ContentValues().apply {
+            put(ObaContract.Routes.SHORTNAME, shortName)
+            put(ObaContract.Routes.LONGNAME, longName)
+            put(ObaContract.Routes.URL, response.url)
+            regionId?.let { put(ObaContract.Routes.REGION_ID, it) }
+        }
+        ObaContract.Routes.insertOrUpdate(context, response.id, values, true)
+    }
+
     override suspend fun setRouteFilter(stopId: String, filter: Set<String>) {
         withContext(Dispatchers.IO) {
             ObaContract.StopRouteFilters.set(context, stopId, ArrayList(filter))
@@ -257,7 +343,7 @@ class DefaultArrivalsRepository(private val context: Context) : ArrivalsReposito
 
     override suspend fun setArrivalStyle(style: Int) {
         withContext(Dispatchers.IO) {
-            BuildFlavorUtils.setArrivalInfoStyle(style)
+            BuildFlavorUtils.setArrivalInfoStyle(context, style)
         }
     }
 

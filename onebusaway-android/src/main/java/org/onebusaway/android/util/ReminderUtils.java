@@ -21,6 +21,7 @@ import org.onebusaway.android.io.elements.ObaArrivalInfo;
 import org.onebusaway.android.io.request.reminders.DeleteRequestListener;
 import org.onebusaway.android.io.request.reminders.ObaReminderDeleteRequest;
 import org.onebusaway.android.provider.ObaContract;
+import org.onebusaway.android.provider.ProviderQueries;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -49,7 +50,7 @@ public class ReminderUtils {
      * @return the short name of the route
      */
     public static String getRouteShortName(Context context, String id) {
-        return UIUtils.stringForQuery(context, Uri.withAppendedPath(ObaContract.Routes.CONTENT_URI, id), ObaContract.Routes.SHORTNAME);
+        return ProviderQueries.stringForQuery(context, Uri.withAppendedPath(ObaContract.Routes.CONTENT_URI, id), ObaContract.Routes.SHORTNAME);
     }
 
     /**
@@ -175,21 +176,23 @@ public class ReminderUtils {
      * Returns false if the token has not yet been fetched or registration failed.
      */
     public static boolean shouldShowReminders(){
+        // TODO(D4): inject
         String pushId = Application.getUserPushID();
         return pushId != null && !pushId.isEmpty();
     }
 
     /**
      * Returns the valid reminder times based on the provided departure time.
+     * @param context the application context
      * @param departTime the departure time in milliseconds
      * @return the valid reminder times
      */
 
-    public static String[] getReminderTimes(long departTime) {
+    public static String[] getReminderTimes(Context context, long departTime) {
         Integer[] times = {3,5,10,15,20,25,30};
         // Convert milliseconds to minutes and calculate the time until departure
         long departTimeInMinutes = (long) Math.ceil((departTime - System.currentTimeMillis()) / 60000.0);
-        String[] allTimes = Application.get().getResources().getStringArray(R.array.reminder_time);
+        String[] allTimes = context.getResources().getStringArray(R.array.reminder_time);
         List<String> validTimes = new ArrayList<>();
 
         // Add at least 1 minute to the list of valid times

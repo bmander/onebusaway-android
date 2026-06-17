@@ -17,9 +17,11 @@ package org.onebusaway.android.ui.tripplan
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,22 +33,27 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.onebusaway.android.util.TimeProvider
 import org.opentripplanner.api.model.Itinerary
 
 /**
  * Owns the trip-plan form ([formState]) and plan submission ([planState]). Address autocomplete runs
  * through two debounced query pipelines (one per endpoint), mirroring the SearchViewModel pattern.
  * Like the legacy form, completing a field auto-submits when both endpoints have coordinates. The
- * initial date/time and advanced options are injected so the ViewModel stays JVM-testable (the host
- * reads "now" and the saved preferences).
+ * initial date/time and advanced options come from injected collaborators (a [TimeProvider] for "now"
+ * and an [AdvancedSettingsRepository] for the saved preferences) so the ViewModel stays JVM-testable.
  */
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-class TripPlanViewModel(
+@HiltViewModel
+class TripPlanViewModel @Inject constructor(
     private val geocode: GeocodeRepository,
     private val planRepository: TripPlanRepository,
-    initialDateTimeMillis: Long,
-    initialSettings: AdvancedSettings
+    timeProvider: TimeProvider,
+    settingsRepository: AdvancedSettingsRepository,
 ) : ViewModel() {
+
+    private val initialDateTimeMillis = timeProvider.now()
+    private val initialSettings = settingsRepository.load()
 
     private val _formState = MutableStateFlow(
         TripPlanFormState(

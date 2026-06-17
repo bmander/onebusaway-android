@@ -182,11 +182,6 @@
         <item>@drawable/ic_app_feedback</item>
     </array>
 
-    <string-array name="report_stop_issue_tutorial_desc">
-        <item>Clicca sulla fermata che desideri segnalare.</item>
-        <item>Poi seleziona la sezione &quot;segnala problema&quot; dalle opzioni.</item>
-        <item>Invia il problema riguardante la fermata.</item>
-    </string-array>
 
     <string-array name="report_stop_transit_category_keywords">
         <item>trasporto pubblico</item>

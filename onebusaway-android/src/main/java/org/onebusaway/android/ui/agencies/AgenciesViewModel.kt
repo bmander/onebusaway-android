@@ -15,10 +15,13 @@
  */
 package org.onebusaway.android.ui.agencies
 
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import org.onebusaway.android.ui.compose.ListLoadingViewModel
 
 /** ViewModel for the supported agencies screen. */
-class AgenciesViewModel(private val repository: AgenciesRepository) :
+@HiltViewModel
+class AgenciesViewModel @Inject constructor(private val repository: AgenciesRepository) :
     ListLoadingViewModel<AgencyItem>() {
 
     init {

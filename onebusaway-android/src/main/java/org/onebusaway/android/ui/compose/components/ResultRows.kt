@@ -35,7 +35,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.DisplayFormat
 
 /**
  * Header text for a result row's DropdownMenu (the route description or stop name).
@@ -75,7 +75,7 @@ fun StopRowContent(
         }
         Column {
             Text(name, style = MaterialTheme.typography.bodyLarge)
-            val directionText = stringResource(UIUtils.getStopDirectionText(direction))
+            val directionText = stringResource(DisplayFormat.getStopDirectionText(direction))
             if (directionText.isNotEmpty()) {
                 Text(
                     text = directionText,

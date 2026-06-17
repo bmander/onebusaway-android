@@ -16,10 +16,12 @@
 package org.onebusaway.android.ui.tripdetails
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import java.util.Calendar
 import java.util.GregorianCalendar
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -29,9 +31,10 @@ import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
-import org.onebusaway.android.ui.TripDetailsActivity
 import org.onebusaway.android.util.ArrivalInfoUtils
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.DisplayFormat
+import org.onebusaway.android.util.MyTextUtils
+import org.onebusaway.android.util.ObaRequestErrors
 
 /** A loaded snapshot of a trip's header + ordered stops, ready for the UI. */
 data class TripDetailsData(
@@ -47,7 +50,7 @@ interface TripDetailsRepository {
 
     /**
      * @param stopId the stop to focus/scroll to (from the launching intent), or null
-     * @param scrollMode [TripDetailsActivity.SCROLL_MODE_VEHICLE]/`_STOP`, or null for no auto-scroll
+     * @param scrollMode [TripDetailsLauncher.SCROLL_MODE_VEHICLE]/`_STOP`, or null for no auto-scroll
      * @param destinationId the destination-reminder stop to flag, or null
      */
     suspend fun getTripDetails(
@@ -68,7 +71,9 @@ interface TripDetailsRepository {
  * All Android statics (resources, time formatting, color resolution) are quarantined here so
  * [TripDetailsViewModel] stays JVM-testable. Occupancy is deferred (as in the Compose arrivals rows).
  */
-class DefaultTripDetailsRepository(private val context: Context) : TripDetailsRepository {
+class DefaultTripDetailsRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) : TripDetailsRepository {
 
     private var lastGood: ObaTripDetailsResponse? = null
 
@@ -87,7 +92,7 @@ class DefaultTripDetailsRepository(private val context: Context) : TripDetailsRe
             lastGood != null ->
                 Result.success(toData(lastGood!!, stopId, scrollMode, destinationId))
 
-            else -> Result.failure(IOException(UIUtils.getRouteErrorString(context, response.code)))
+            else -> Result.failure(IOException(ObaRequestErrors.getRouteErrorString(context, response.code)))
         }
     }
 
@@ -123,9 +128,9 @@ class DefaultTripDetailsRepository(private val context: Context) : TripDetailsRe
             val millis = serviceDate + stopTime.arrivalTime * 1000 + deviation * 1000
             TripStopItem(
                 stopId = stopTime.stopId,
-                name = UIUtils.formatDisplayText(stop.name),
+                name = MyTextUtils.formatDisplayText(stop.name)!!,
                 direction = stop.direction,
-                timeText = UIUtils.formatTime(context, millis),
+                timeText = DisplayFormat.formatTime(context, millis),
                 canceled = canceled,
                 isPassed = nextStopIndex != null && i < nextStopIndex,
                 linePosition = when (i) {
@@ -192,7 +197,7 @@ class DefaultTripDetailsRepository(private val context: Context) : TripDetailsRe
         else -> {
             val minutes = abs(deviation) / 60
             val seconds = abs(deviation) % 60
-            val lastUpdate = UIUtils.formatTime(context, status.lastUpdateTime)
+            val lastUpdate = DisplayFormat.formatTime(context, status.lastUpdateTime)
             when {
                 deviation >= 0 && deviation < 60 ->
                     context.getString(R.string.trip_details_real_time_sec_late, seconds, lastUpdate)
@@ -216,7 +221,7 @@ class DefaultTripDetailsRepository(private val context: Context) : TripDetailsRe
         destinationIndex?.let { return it }
         val vehicleIndex = nextStopIndex?.let { it - 1 }
         return when (scrollMode) {
-            TripDetailsActivity.SCROLL_MODE_VEHICLE -> vehicleIndex ?: stopIndex ?: -1
+            TripDetailsLauncher.SCROLL_MODE_VEHICLE -> vehicleIndex ?: stopIndex ?: -1
             else -> stopIndex ?: vehicleIndex ?: -1
         }
     }

@@ -55,6 +55,6 @@ sealed interface RouteInfoUiState {
 
     data class Success(val route: RouteInfo) : RouteInfoUiState
 
-    /** [message] is the route-specific error from UIUtils.getRouteErrorString. */
+    /** [message] is the route-specific error from ObaRequestErrors.getRouteErrorString. */
     data class Error(val message: String) : RouteInfoUiState
 }

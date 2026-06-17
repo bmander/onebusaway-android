@@ -28,7 +28,8 @@ import android.util.Log;
 
 import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
-import org.onebusaway.android.app.Application;
+import org.onebusaway.android.app.di.LocationEntryPoint;
+import org.onebusaway.android.app.di.RegionEntryPoint;
 import org.onebusaway.android.directions.util.CustomAddress;
 import org.onebusaway.android.io.elements.ObaRegion;
 
@@ -64,8 +65,8 @@ public class LocationUtils {
     private static final int GEOCODING_MAX_ERROR = 100;
 
 
-    public static Location getDefaultSearchCenter() {
-        ObaRegion region = Application.get().getCurrentRegion();
+    public static Location getDefaultSearchCenter(Context context) {
+        ObaRegion region = RegionEntryPoint.get(context).getRegion().getValue();
         if (region != null) {
             double[] results = new double[4];
             RegionUtils.getRegionSpan(region, results);
@@ -80,9 +81,9 @@ public class LocationUtils {
      * current region's center, or null when neither is available.
      */
     public static Location getSearchCenter(Context context) {
-        Location location = Application.getLastKnownLocation(context);
+        Location location = LocationEntryPoint.get(context).lastKnownLocation();
         if (location == null) {
-            location = getDefaultSearchCenter();
+            location = getDefaultSearchCenter(context);
         }
         return location;
     }
@@ -428,7 +429,7 @@ public class LocationUtils {
         try {
             String apiKey = BuildConfig.PELIAS_API_KEY;
             PeliasRequest.Builder requestBuilder = new AutocompleteRequest.Builder(apiKey, address)
-                    .setApiEndpoint(Application.get().getString(R.string.pelias_api_url));
+                    .setApiEndpoint(context.getString(R.string.pelias_api_url));
 
             if (region != null) {
                 double[] regionSpan = new double[4];

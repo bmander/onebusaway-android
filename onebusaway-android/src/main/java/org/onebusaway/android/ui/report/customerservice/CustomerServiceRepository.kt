@@ -16,6 +16,8 @@
 package org.onebusaway.android.ui.report.customerservice
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -45,7 +47,7 @@ interface CustomerServiceRepository {
  * RequestBase.call() never throws — errors surface as a non-OBA_OK code — so failures map to
  * [Result.failure] here.
  */
-class DefaultCustomerServiceRepository(private val context: Context) : CustomerServiceRepository {
+class DefaultCustomerServiceRepository @Inject constructor(@ApplicationContext private val context: Context) : CustomerServiceRepository {
 
     override suspend fun getAgencies(): Result<List<AgencyContact>> = withContext(Dispatchers.IO) {
         val response = ObaAgenciesWithCoverageRequest.newRequest(context).call()

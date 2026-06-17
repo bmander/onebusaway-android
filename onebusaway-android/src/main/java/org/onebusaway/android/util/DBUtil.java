@@ -4,7 +4,7 @@ import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaStop;
 import org.onebusaway.android.provider.ObaContract;
-import org.onebusaway.android.ui.ArrivalInfo;
+import org.onebusaway.android.ui.arrivals.ArrivalInfo;
 
 import android.content.ContentValues;
 import android.content.Context;
@@ -15,7 +15,7 @@ import android.text.TextUtils;
  */
 public class DBUtil {
     public static void addToDB(ObaStop stop) {
-        String name = UIUtils.formatDisplayText(stop.getName());
+        String name = MyTextUtils.formatDisplayText(stop.getName());
 
         // Update the database
         ContentValues values = new ContentValues();
@@ -39,7 +39,7 @@ public class DBUtil {
         String longName = arrivalInfo.getInfo().getRouteLongName();
 
         if (TextUtils.isEmpty(longName)) {
-            longName = UIUtils.formatDisplayText(arrivalInfo.getInfo().getHeadsign());
+            longName = MyTextUtils.formatDisplayText(arrivalInfo.getInfo().getHeadsign());
         }
 
         routeValues.put(ObaContract.Routes.SHORTNAME, shortName);

@@ -361,7 +361,7 @@ fun ArrivalCardStyleB(
     }
 }
 
-/** The dropdown of per-arrival actions, gated like the legacy `UIUtils.buildTripOptions` (minus occupancy). */
+/** The dropdown of per-arrival actions, gated like the legacy `buildTripOptions` (minus occupancy). */
 @Composable
 internal fun ArrivalActionsMenu(
     expanded: Boolean,

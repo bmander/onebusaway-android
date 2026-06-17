@@ -28,7 +28,7 @@ import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.report.customerservice.CustomerServiceRoute
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.ExternalIntents
 
 /**
  * The customer-service NavHost destination (former CustomerServiceActivity content). Hosts the
@@ -56,7 +56,7 @@ fun CustomerServiceDestination(navController: NavController) {
         onEmail = { agency ->
             val email = agency.email ?: return@CustomerServiceRoute
             val locationString = activity.intent.getStringExtra(ReportActivity.LOCATION_STRING)
-            UIUtils.sendEmail(activity, email, locationString)
+            ExternalIntents.sendEmail(activity, email, locationString)
             reportContactEvent(agency.name, R.string.analytics_label_customer_service_email)
             if (locationString == null) {
                 reportContactEvent(
@@ -66,12 +66,12 @@ fun CustomerServiceDestination(navController: NavController) {
         },
         onWeb = { agency ->
             val url = agency.url ?: return@CustomerServiceRoute
-            UIUtils.goToUrl(activity, url)
+            ExternalIntents.goToUrl(activity, url)
             reportContactEvent(agency.name, R.string.analytics_label_customer_service_web)
         },
         onPhone = { agency ->
             val phone = agency.phone ?: return@CustomerServiceRoute
-            UIUtils.goToPhoneDialer(activity, "tel:$phone")
+            ExternalIntents.goToPhoneDialer(activity, "tel:$phone")
             reportContactEvent(agency.name, R.string.analytics_label_customer_service_phone)
         }
     )

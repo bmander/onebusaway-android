@@ -27,8 +27,9 @@ import org.onebusaway.android.ui.search.RouteSearchContent
 import org.onebusaway.android.ui.search.RouteSearchResult
 import org.onebusaway.android.ui.search.SearchViewModel
 import org.onebusaway.android.ui.search.StopSearchContent
+import org.onebusaway.android.ui.common.Shortcuts
 import org.onebusaway.android.ui.search.StopSearchResult
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.ExternalIntents
 
 /**
  * The shared list/search "destinations": body composables hosted by both the Compose [MyTabsScreen]
@@ -100,7 +101,7 @@ fun RouteSearchDestination(viewModel: SearchViewModel<RouteSearchResult>, shortc
         shortcutMode = shortcutMode,
         onRouteClick = { host.openRouteSearchResult(it, shortcutMode) },
         onShowOnMap = { HomeActivity.start(host, it.id) },
-        onShowSchedule = { route -> route.url?.let { UIUtils.goToUrl(host, it) } },
-        onCreateShortcut = { UIUtils.createRouteShortcut(host, it.id, it.shortName) }
+        onShowSchedule = { route -> route.url?.let { ExternalIntents.goToUrl(host, it) } },
+        onCreateShortcut = { Shortcuts.createRouteShortcut(host, it.id, it.shortName) }
     )
 }

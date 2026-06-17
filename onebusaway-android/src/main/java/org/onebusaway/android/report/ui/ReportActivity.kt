@@ -48,9 +48,9 @@ import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.report.types.ReportAction
 import org.onebusaway.android.ui.report.types.ReportTypeListRoute
 import org.onebusaway.android.util.BuildFlavorUtils
+import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PreferenceUtils
-import org.onebusaway.android.util.UIUtils
 
 /**
  * Launcher facade for the report flow (Campaign C; former Activity). The screen is now the
@@ -210,7 +210,7 @@ private fun onReportActionSelected(
 
 private fun sendAppFeedback(activity: HomeActivity, firebaseAnalytics: FirebaseAnalytics) {
     val locationString = activity.intent.getStringExtra(ReportActivity.LOCATION_STRING)
-    UIUtils.sendEmail(activity, activity.getString(R.string.ri_app_feedback_email), locationString)
+    ExternalIntents.sendEmail(activity, activity.getString(R.string.ri_app_feedback_email), locationString)
     reportEvent(
         activity, firebaseAnalytics,
         PlausibleAnalytics.REPORT_MORE_EVENT_URL, R.string.analytics_label_app_feedback

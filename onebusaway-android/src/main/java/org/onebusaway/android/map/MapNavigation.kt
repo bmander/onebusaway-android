@@ -23,8 +23,8 @@ import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.ui.tripdetails.TripDetailsLauncher
+import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.RegionUtils
-import org.onebusaway.android.util.UIUtils
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 /**
@@ -69,6 +69,6 @@ object MapNavigation {
             ),
             null,
         )
-        UIUtils.launchTampaHoprApp(context)
+        ExternalIntents.launchTampaHoprApp(context)
     }
 }

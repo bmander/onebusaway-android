@@ -26,10 +26,11 @@ import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
 import org.onebusaway.android.R
 import org.onebusaway.android.provider.ObaContract
+import org.onebusaway.android.ui.common.Shortcuts
 import org.onebusaway.android.ui.search.RouteSearchResult
 import org.onebusaway.android.ui.search.StopSearchResult
+import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.ReminderUtils
-import org.onebusaway.android.util.UIUtils
 
 /**
  * Shared navigation and row-action wiring for the My-tab list destinations (recent/starred ×
@@ -49,7 +50,7 @@ private fun AppCompatActivity.stopArrivalsBuilder(stop: StopListItem) =
 internal fun AppCompatActivity.openStop(stop: StopListItem, shortcutMode: Boolean) {
     val builder = stopArrivalsBuilder(stop)
     if (shortcutMode) {
-        val shortcut = UIUtils.createStopShortcut(this, stop.name, builder)
+        val shortcut = Shortcuts.createStopShortcut(this, stop.name, builder)
         setResult(Activity.RESULT_OK, shortcut.intent)
         finish()
     } else {
@@ -71,7 +72,7 @@ internal fun AppCompatActivity.stopActions(
             HomeActivity.start(this, stop.id, stop.lat, stop.lon)
         },
         RowAction(getString(R.string.my_context_create_shortcut)) {
-            UIUtils.createStopShortcut(this, stop.name, stopArrivalsBuilder(stop))
+            Shortcuts.createStopShortcut(this, stop.name, stopArrivalsBuilder(stop))
         },
         RowAction(getString(removeLabel), onRemove)
     )
@@ -80,7 +81,7 @@ internal fun AppCompatActivity.stopActions(
 /** Opens a route on the map, or returns it as a launcher shortcut when [shortcutMode] is set. */
 internal fun AppCompatActivity.openRoute(route: RouteListItem, shortcutMode: Boolean) {
     if (shortcutMode) {
-        val shortcut = UIUtils.createRouteShortcut(this, route.id, route.shortName)
+        val shortcut = Shortcuts.createRouteShortcut(this, route.id, route.shortName)
         setResult(Activity.RESULT_OK, shortcut.intent)
         finish()
     } else {
@@ -102,11 +103,11 @@ internal fun AppCompatActivity.routeActions(
         })
         route.url?.let { url ->
             add(RowAction(getString(R.string.my_context_show_schedule)) {
-                UIUtils.goToUrl(this@routeActions, url)
+                ExternalIntents.goToUrl(this@routeActions, url)
             })
         }
         add(RowAction(getString(R.string.my_context_create_shortcut)) {
-            UIUtils.createRouteShortcut(this@routeActions, route.id, route.shortName)
+            Shortcuts.createRouteShortcut(this@routeActions, route.id, route.shortName)
         })
         add(RowAction(getString(removeLabel), onRemove))
     }
@@ -151,7 +152,7 @@ internal fun AppCompatActivity.openStopSearchResult(stop: StopSearchResult, shor
         .setStopName(stop.serverName)
         .setStopDirection(stop.direction)
     if (shortcutMode) {
-        val shortcut = UIUtils.createStopShortcut(this, stop.serverName, builder)
+        val shortcut = Shortcuts.createStopShortcut(this, stop.serverName, builder)
         setResult(Activity.RESULT_OK, shortcut.intent)
         finish()
     } else {
@@ -163,7 +164,7 @@ internal fun AppCompatActivity.openStopSearchResult(stop: StopSearchResult, shor
 /** Opens a search-result route, or returns it as a launcher shortcut in [shortcutMode]. */
 internal fun AppCompatActivity.openRouteSearchResult(route: RouteSearchResult, shortcutMode: Boolean) {
     if (shortcutMode) {
-        val shortcut = UIUtils.createRouteShortcut(this, route.id, route.shortName)
+        val shortcut = Shortcuts.createRouteShortcut(this, route.id, route.shortName)
         setResult(Activity.RESULT_OK, shortcut.intent)
         finish()
     } else {

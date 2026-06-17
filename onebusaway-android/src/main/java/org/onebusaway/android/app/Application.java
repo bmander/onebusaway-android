@@ -48,6 +48,7 @@ import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.BuildFlavorUtils;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.PreferenceUtils;
+import org.onebusaway.android.util.ThemeUtils;
 import org.onebusaway.android.widealerts.GtfsAlerts;
 
 import java.net.URI;
@@ -59,7 +60,6 @@ import edu.usf.cutr.open311client.Open311Manager;
 import edu.usf.cutr.open311client.models.Open311Option;
 
 import static com.google.android.gms.location.LocationServices.getFusedLocationProviderClient;
-import static org.onebusaway.android.util.UIUtils.setAppTheme;
 import java.nio.charset.StandardCharsets;
 
 import dagger.hilt.android.HiltAndroidApp;
@@ -448,7 +448,7 @@ public class Application extends android.app.Application {
                 .getString(R.string.preference_key_app_theme);
         String appThemePref = PreferenceUtils.getString(appThemePrefKey);
         if (appThemePref != null) {
-            setAppTheme(appThemePref);
+            ThemeUtils.setAppTheme(appThemePref);
         }
     }
 

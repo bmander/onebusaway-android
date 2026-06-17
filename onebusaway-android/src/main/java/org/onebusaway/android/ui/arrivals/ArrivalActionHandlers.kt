@@ -24,6 +24,7 @@ import androidx.appcompat.app.AppCompatActivity
 import org.onebusaway.android.R
 import org.onebusaway.android.report.ui.InfrastructureIssueActivity
 import org.onebusaway.android.util.DBUtil
+import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.UIUtils
 
@@ -90,7 +91,7 @@ fun createArrivalActionHandler(
     }
 
     override fun onShowRouteSchedule(scheduleUrl: String) {
-        UIUtils.goToUrl(activity, scheduleUrl)
+        ExternalIntents.goToUrl(activity, scheduleUrl)
     }
 
     override fun onReportArrivalProblem(actions: ArrivalActions) {

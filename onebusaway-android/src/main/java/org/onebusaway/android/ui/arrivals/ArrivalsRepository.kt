@@ -37,7 +37,7 @@ import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.ObaRequestErrors
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.SituationUtils
 import org.onebusaway.android.util.getRouteDisplayName
 
 /** A loaded snapshot of a stop's arrivals plus the header, actions, alerts, and filter data. */
@@ -252,7 +252,7 @@ class DefaultArrivalsRepository @Inject constructor(
         routeFilter: Set<String>,
         now: Long
     ): Pair<List<AlertItem>, Int> {
-        val situations = UIUtils.getAllSituations(response, ArrayList(routeFilter))
+        val situations = SituationUtils.getAllSituations(response, ArrayList(routeFilter))
         if (situations.isEmpty()) return emptyList<AlertItem>() to 0
         val active = mutableListOf<AlertItem>()
         var hiddenCount = 0
@@ -260,7 +260,7 @@ class DefaultArrivalsRepository @Inject constructor(
             // Make sure this situation is recorded so read/hidden state can be tracked
             ObaContract.ServiceAlerts.insertOrUpdate(situation.id, ContentValues(), false, null)
             val isHidden = ObaContract.ServiceAlerts.isHidden(situation.id)
-            if (UIUtils.isActiveWindowForSituation(situation, now) && !isHidden) {
+            if (SituationUtils.isActiveWindowForSituation(situation, now) && !isHidden) {
                 active.add(AlertItem(situation.id, situation.summary.orEmpty(), severityOf(situation.severity)))
             }
             if (isHidden) hiddenCount++

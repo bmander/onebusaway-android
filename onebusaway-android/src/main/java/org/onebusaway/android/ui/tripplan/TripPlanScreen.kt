@@ -91,9 +91,9 @@ import org.onebusaway.android.ui.compose.components.SwitchRow
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.tripresults.TripResults
+import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PreferenceUtils
-import org.onebusaway.android.util.UIUtils
 import org.opentripplanner.api.model.Itinerary
 
 
@@ -580,7 +580,7 @@ private fun reportProblem(
     }
     val location = LocationEntryPoint.get(activity.applicationContext).lastKnownLocation()
     val locationString = location?.let { LocationUtils.printLocationDetails(it) }
-    UIUtils.sendEmail(activity, email, locationString, null, true)
+    ExternalIntents.sendEmail(activity, email, locationString, null, true)
     ObaAnalytics.reportUiEvent(
         firebaseAnalytics, Application.get().plausibleInstance,
         PlausibleAnalytics.REPORT_TRIP_PLANNER_EVENT_URL,

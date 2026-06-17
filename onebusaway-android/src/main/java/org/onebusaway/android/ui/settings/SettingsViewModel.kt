@@ -41,7 +41,7 @@ import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.ShowcaseViewUtils
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.ThemeUtils
 
 /** One-shot actions the root settings screen can only perform with its host Activity. */
 sealed interface SettingsEffect {
@@ -192,7 +192,7 @@ class SettingsViewModel @Inject constructor(
 
     fun onAppThemeChanged(value: String) {
         prefs.setString(R.string.preference_key_app_theme, value)
-        UIUtils.setAppTheme(value)
+        ThemeUtils.setAppTheme(value)
         _effects.trySend(SettingsEffect.RecreateActivity)
     }
 

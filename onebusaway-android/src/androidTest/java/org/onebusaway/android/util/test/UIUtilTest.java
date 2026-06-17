@@ -21,7 +21,6 @@ import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.widget.TextView;
 
 import androidx.core.util.Pair;
 import androidx.test.runner.AndroidJUnit4;
@@ -46,11 +45,13 @@ import org.onebusaway.android.mock.MockObaStop;
 import org.onebusaway.android.mock.MockRegion;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.ui.arrivals.ArrivalInfo;
+import org.onebusaway.android.ui.arrivals.TripOptionsKt;
 import org.onebusaway.android.util.AndroidUtils;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.DisplayFormat;
 import org.onebusaway.android.util.MyTextUtils;
 import org.onebusaway.android.util.RouteDisplay;
+import org.onebusaway.android.util.SituationUtils;
 import org.onebusaway.android.util.UIUtils;
 
 import java.util.ArrayList;
@@ -217,7 +218,7 @@ public class UIUtilTest extends ObaTestCase {
 
         // HART has route schedule URLs in test data, so below options should allow the user to set
         // a reminder and view the route schedule
-        List<String> options = UIUtils
+        List<String> options = TripOptionsKt
                 .buildTripOptions(getTargetContext(), isRouteFavorite, hasUrl, isReminderVisible, hasRouteFilter, occupancy, occupancyState);
 
         assertEquals(7, options.size());
@@ -231,7 +232,7 @@ public class UIUtilTest extends ObaTestCase {
 
         // "Show only this route" should toggle to "Show all routes" when hasRouteFilter is true
         hasRouteFilter = true;
-        options = UIUtils
+        options = TripOptionsKt
                 .buildTripOptions(getTargetContext(), isRouteFavorite, hasUrl, isReminderVisible, hasRouteFilter, occupancy, occupancyState);
         assertEquals(7, options.size());
         assertEquals(options.get(0), "Add star to route");
@@ -247,7 +248,7 @@ public class UIUtilTest extends ObaTestCase {
         isReminderVisible = true;
 
         // Now we should see route schedules and *edit* the reminder
-        options = UIUtils
+        options = TripOptionsKt
                 .buildTripOptions(getTargetContext(), isRouteFavorite, hasUrl, isReminderVisible, hasRouteFilter, occupancy, occupancyState);
         assertEquals(7, options.size());
         assertEquals(options.get(0), "Add star to route");
@@ -283,7 +284,7 @@ public class UIUtilTest extends ObaTestCase {
 
         // PSTA does not have route schedule URLs in test data, so below options should allow the
         // user to set a reminder but NOT view the route schedule
-        options = UIUtils
+        options = TripOptionsKt
                 .buildTripOptions(getTargetContext(), isRouteFavorite, hasUrl2, isReminderVisible, hasRouteFilter, occupancy, occupancyState);
         assertEquals(6, options.size());
         assertEquals(options.get(0), "Add star to route");
@@ -296,7 +297,7 @@ public class UIUtilTest extends ObaTestCase {
         isReminderVisible = true;
 
         // Now we should see *edit* the reminder, and still no route schedule
-        options = UIUtils
+        options = TripOptionsKt
                 .buildTripOptions(getTargetContext(), isRouteFavorite, hasUrl2, isReminderVisible, hasRouteFilter, occupancy, occupancyState);
         assertEquals(6, options.size());
         assertEquals(options.get(0), "Add star to route");
@@ -314,7 +315,7 @@ public class UIUtilTest extends ObaTestCase {
 
         // HART has route schedule URLs in test data, so below options should allow the user to set
         // a reminder and view the route schedule
-        options = UIUtils
+        options = TripOptionsKt
                 .buildTripOptions(getTargetContext(), isRouteFavorite, hasUrl, isReminderVisible, hasRouteFilter, occupancy, occupancyState);
         assertEquals(7, options.size());
         assertEquals(options.get(0), "Remove star from route");
@@ -328,7 +329,7 @@ public class UIUtilTest extends ObaTestCase {
         isReminderVisible = true;
 
         // Now we should see route schedules and *edit* the reminder
-        options = UIUtils
+        options = TripOptionsKt
                 .buildTripOptions(getTargetContext(), isRouteFavorite, hasUrl, isReminderVisible, hasRouteFilter, occupancy, occupancyState);
         assertEquals(7, options.size());
         assertEquals(options.get(0), "Remove star from route");
@@ -344,7 +345,7 @@ public class UIUtilTest extends ObaTestCase {
 
         // PSTA does not have route schedule URLs in test data, so below options should allow the
         // user to set a reminder but NOT view the route schedule
-        options = UIUtils
+        options = TripOptionsKt
                 .buildTripOptions(getTargetContext(), isRouteFavorite, hasUrl2, isReminderVisible, hasRouteFilter, occupancy, occupancyState);
         assertEquals(6, options.size());
         assertEquals(options.get(0), "Remove star from route");
@@ -357,7 +358,7 @@ public class UIUtilTest extends ObaTestCase {
         isReminderVisible = true;
 
         // Now we should see *edit* the reminder, and still no route schedule
-        options = UIUtils
+        options = TripOptionsKt
                 .buildTripOptions(getTargetContext(), isRouteFavorite, hasUrl2, isReminderVisible, hasRouteFilter, occupancy, occupancyState);
         assertEquals(6, options.size());
         assertEquals(options.get(0), "Remove star from route");
@@ -374,7 +375,7 @@ public class UIUtilTest extends ObaTestCase {
         // HISTORICAL
         occupancy = Occupancy.EMPTY;
         occupancyState = OccupancyState.HISTORICAL;
-        options = UIUtils
+        options = TripOptionsKt
                 .buildTripOptions(getTargetContext(), isRouteFavorite, hasUrl2, isReminderVisible, hasRouteFilter, occupancy, occupancyState);
         assertEquals(7, options.size());
         assertEquals(options.get(0), "Remove star from route");
@@ -388,7 +389,7 @@ public class UIUtilTest extends ObaTestCase {
         // PREDICTED
         occupancy = Occupancy.EMPTY;
         occupancyState = OccupancyState.PREDICTED;
-        options = UIUtils
+        options = TripOptionsKt
                 .buildTripOptions(getTargetContext(), isRouteFavorite, hasUrl2, isReminderVisible, hasRouteFilter, occupancy, occupancyState);
         assertEquals(7, options.size());
         assertEquals(options.get(0), "Remove star from route");
@@ -402,7 +403,7 @@ public class UIUtilTest extends ObaTestCase {
         // REALTIME (should be same as PREDICTED)
         occupancy = Occupancy.EMPTY;
         occupancyState = OccupancyState.REALTIME;
-        options = UIUtils
+        options = TripOptionsKt
                 .buildTripOptions(getTargetContext(), isRouteFavorite, hasUrl2, isReminderVisible, hasRouteFilter, occupancy, occupancyState);
         assertEquals(7, options.size());
         assertEquals(options.get(0), "Remove star from route");
@@ -869,26 +870,6 @@ public class UIUtilTest extends ObaTestCase {
                 + " is departing in 35 min!", arrivalInfo.get(31).getNotifyText());
     }
 
-    @Test
-    public void testMaybeShrinkRouteName() {
-        TextView tv = new TextView(getTargetContext());
-
-        String routeShortName = "TST";
-        float textSize = tv.getTextSize();
-        UIUtils.maybeShrinkRouteName(getTargetContext(), tv, routeShortName);
-        assertEquals(textSize, tv.getTextSize());
-
-        routeShortName = "Test";
-        UIUtils.maybeShrinkRouteName(getTargetContext(), tv, routeShortName);
-        assertEquals(getTargetContext().getResources().getDimension(R.dimen.route_name_text_size_medium),
-                tv.getTextSize());
-
-        routeShortName = "Test2";
-        UIUtils.maybeShrinkRouteName(getTargetContext(), tv, routeShortName);
-        assertEquals(getTargetContext().getResources().getDimension(R.dimen.route_name_text_size_small),
-                tv.getTextSize());
-    }
-
     /**
      * Validates the ETAs and number of arrivals for Tampa's University Area Transit Center.  This
      * data is used for a few tests and we want to make sure it's valid.
@@ -1017,7 +998,7 @@ public class UIUtilTest extends ObaTestCase {
 
         // They do appear, however, in the references list and are referenced by each arrival info
         // Make sure we build a list of all situations
-        List<ObaSituation> allSituations = UIUtils.getAllSituations(response, null);
+        List<ObaSituation> allSituations = SituationUtils.getAllSituations(response, null);
 
         // Build a set of all IDs returned
         HashSet<String> situationIds = new HashSet<>();
@@ -1060,7 +1041,7 @@ public class UIUtilTest extends ObaTestCase {
 
         // They do appear, however, in the references list and are referenced by each arrival info
         // Make sure we build a list of all situations
-        allSituations = UIUtils.getAllSituations(response, null);
+        allSituations = SituationUtils.getAllSituations(response, null);
 
         // Build a set of all IDs returned
         situationIds = new HashSet<>();
@@ -1099,10 +1080,10 @@ public class UIUtilTest extends ObaTestCase {
         List<String> routeFilters = new ArrayList<>();
         routeFilters.add("MTS_1");
 
-        List<ObaSituation> filteredSituations = UIUtils.getAllSituations(response, routeFilters);
+        List<ObaSituation> filteredSituations = SituationUtils.getAllSituations(response, routeFilters);
 
         List<String> allIds = new ArrayList<>();
-        allSituations = UIUtils.getAllSituations(response, null);
+        allSituations = SituationUtils.getAllSituations(response, null);
         for (ObaSituation situation : allSituations) {
             allIds.add(situation.getId());
         }

@@ -55,11 +55,11 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.onebusaway.android.R
+import org.onebusaway.android.ui.common.Shortcuts
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.util.PreferenceUtils
-import org.onebusaway.android.util.UIUtils
 
 /** The dimmed "off" color between flashes (a dark scrim over the theme background). */
 private val COLOR_DARK = Color(0xCC000000)
@@ -131,7 +131,7 @@ fun NightLightRoute(onBack: () -> Unit) {
     }
 
     NightLightScreen(onBack = onBack, onCreateShortcut = {
-        val shortcut = UIUtils.makeShortcutInfo(
+        val shortcut = Shortcuts.makeShortcutInfo(
             activity,
             activity.getString(R.string.stop_info_option_night_light),
             HomeActivity.navIntent(activity, NavRoutes.NIGHT_LIGHT),

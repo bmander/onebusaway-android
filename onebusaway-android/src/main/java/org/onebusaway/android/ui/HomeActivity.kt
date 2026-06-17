@@ -160,12 +160,12 @@ import org.onebusaway.android.ui.mylists.hostListVm
 import org.onebusaway.android.ui.survey.SurveyViewModel
 import org.onebusaway.android.ui.survey.activities.SurveyWebViewScreen
 import org.onebusaway.android.util.DBUtil
+import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.ShowcaseViewUtils
-import org.onebusaway.android.util.UIUtils
 
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity() {
@@ -976,7 +976,7 @@ class HomeActivity : AppCompatActivity() {
                         confirmText = stringResource(R.string.ok),
                         onConfirm = {
                             paymentWarningRegion.value = null
-                            UIUtils.startPaymentIntent(this@HomeActivity, region)
+                            ExternalIntents.startPaymentIntent(this@HomeActivity, region)
                         },
                         onDismissRequest = { paymentWarningRegion.value = null },
                     )
@@ -1269,7 +1269,7 @@ class HomeActivity : AppCompatActivity() {
             HomeNavItem.PLAN_TRIP ->
                 pendingDeepLinkRoute.value = NavRoutes.TRIP_PLAN
             HomeNavItem.PAY_FARE ->
-                UIUtils.payFareOrWarningRegion(this)?.let { paymentWarningRegion.value = it }
+                ExternalIntents.payFareOrWarningRegion(this)?.let { paymentWarningRegion.value = it }
             HomeNavItem.SETTINGS ->
                 pendingDeepLinkRoute.value = NavRoutes.SETTINGS
             // Hide "Contact Us" when a custom API URL is set (no contact email to use).
@@ -1384,7 +1384,7 @@ class HomeActivity : AppCompatActivity() {
                 if (region != null && !TextUtils.isEmpty(region.twitterUrl)) {
                     twitterUrl = region.twitterUrl
                 }
-                UIUtils.goToUrl(this, twitterUrl)
+                ExternalIntents.goToUrl(this, twitterUrl)
                 ObaAnalytics.reportUiEvent(
                     firebaseAnalytics,
                     Application.get().plausibleInstance,

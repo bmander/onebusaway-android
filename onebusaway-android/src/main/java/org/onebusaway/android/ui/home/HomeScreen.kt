@@ -18,11 +18,13 @@ package org.onebusaway.android.ui.home
 import android.os.Bundle
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalNavigationDrawer
@@ -246,19 +248,11 @@ fun HomeScreen(
             }
         }
 
-        ModalNavigationDrawer(
+        HomeDrawer(
             drawerState = drawerState,
-            // Gestures only while open: a left-edge drag on the map must NOT open the drawer (it pans
-            // the map; the drawer opens via the toolbar hamburger), but once open a scrim tap or swipe
-            // should close it. Material3 gates both the open-swipe and the scrim tap-to-close on this
-            // one flag, so tie it to the open state.
-            gesturesEnabled = drawerState.isOpen,
-            drawerContent = {
-                HomeNavDrawerSheet(items = state.navItems, selected = state.selectedItem) { item ->
-                    scope.launch { drawerState.close() }
-                    onNavItemSelected(item)
-                }
-            }
+            navItems = state.navItems,
+            selectedItem = state.selectedItem,
+            onNavItemSelected = onNavItemSelected,
         ) {
             // The TopAppBar applies its own top window inset (status bar), so the Column doesn't.
             Column(Modifier.fillMaxSize()) {
@@ -330,94 +324,21 @@ fun HomeScreen(
                             onBikeshareToggled = onBikeshareToggled,
                             modifier = Modifier.fillMaxSize(),
                         )
-                        // The weather chip feature module: self-wiring from its ViewModel, NEARBY-gated.
-                        WeatherFeature(
-                            viewModel = weatherViewModel,
-                            onNearby = state.selectedItem == HomeNavItem.NEARBY,
-                            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+                        // The map chrome stack drawn over the map (weather/donation/route-header/survey)
+                        // plus the selected list tab's full-size destination. Extracted to keep this
+                        // scaffold body shallow; see [HomeMapOverlays].
+                        HomeMapOverlays(
+                            state = state,
+                            weatherViewModel = weatherViewModel,
+                            donationViewModel = donationViewModel,
+                            surveyViewModel = surveyViewModel,
+                            routeHeader = routeHeader,
+                            listVms = listVms,
+                            onCancelRouteMode = onCancelRouteMode,
+                            onRouteHeaderHeight = onRouteHeaderHeight,
+                            onShowRouteInfo = onShowRouteInfo,
+                            onShowArrivals = onShowArrivals,
                         )
-                        // The donation feature module: the card (NEARBY + DonationsManager-gated) plus
-                        // its dismiss dialog. Self-wiring from its ViewModel; NEARBY-gated like the
-                        // other chrome.
-                        DonationFeature(
-                            viewModel = donationViewModel,
-                            onNearby = state.selectedItem == HomeNavItem.NEARBY,
-                            cardModifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .fillMaxWidth()
-                                .padding(start = 16.dp, end = 16.dp, top = 62.dp)
-                        )
-                        // The route-mode header (Compose), top-aligned over the map — drawn above the
-                        // weather/donation cards so its opaque bar + cancel button own the top in route
-                        // mode. Reports its height for the map's top padding; clears it when dismissed.
-                        if (routeHeader != null) {
-                            RouteHeaderOverlay(
-                                header = routeHeader,
-                                onCancel = onCancelRouteMode,
-                                onHeight = onRouteHeaderHeight,
-                                modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
-                            )
-                        } else {
-                            LaunchedEffect(Unit) { onRouteHeaderHeight(0) }
-                        }
-                        // The map survey (Compose): hero card over the map + remaining-questions sheet.
-                        // Self-wiring from its ViewModel; self-triggers its request when NEARBY is shown
-                        // and a region has resolved.
-                        SurveyFeature(
-                            viewModel = surveyViewModel,
-                            onNearby = state.selectedItem == HomeNavItem.NEARBY,
-                            regionReady = state.regionReady,
-                            modifier = Modifier.align(Alignment.TopCenter),
-                        )
-                        // A selected list tab draws its destination over the map (an opaque, full-size
-                        // Surface), covering the map chrome; NEARBY shows the map through. These are thin
-                        // home-specific bindings to the shared My* list destinations (strings + actions,
-                        // shortcutMode = false — the home screen is never a launcher-shortcut picker).
-                        when (state.selectedItem) {
-                            HomeNavItem.STARRED_STOPS -> {
-                                val host = LocalContext.current.findActivity()
-                                StopListDestination(
-                                    listVms.starredStops,
-                                    emptyText = R.string.my_no_starred_stops,
-                                    onClick = { onShowArrivals(it.id, it.name) },
-                                    actions = {
-                                        host.stopActions(it, R.string.my_context_remove_star, shortcutMode = false) {
-                                            listVms.starredStops.remove(it.id)
-                                        }
-                                    },
-                                )
-                            }
-                            HomeNavItem.STARRED_ROUTES -> {
-                                val host = LocalContext.current.findActivity()
-                                RouteListDestination(
-                                    listVms.starredRoutes,
-                                    emptyText = R.string.my_no_starred_routes,
-                                    onClick = { host.openRoute(it, shortcutMode = false) },
-                                    actions = {
-                                        host.routeActions(it, R.string.my_context_remove_star, shortcutMode = false) {
-                                            listVms.starredRoutes.remove(it.id)
-                                        }
-                                    },
-                                )
-                            }
-                            HomeNavItem.MY_REMINDERS -> {
-                                val host = LocalContext.current.findActivity()
-                                ReminderListDestination(
-                                    listVms.reminders,
-                                    emptyText = R.string.trip_list_notrips,
-                                    onClick = { host.editReminder(it) },
-                                    // A reminder carries only a stop id (no cached name).
-                                    actions = {
-                                        host.reminderActions(
-                                            it,
-                                            onShowRoute = onShowRouteInfo,
-                                            onShowStop = { stopId -> onShowArrivals(stopId, null) },
-                                        )
-                                    },
-                                )
-                            }
-                            else -> {}
-                        }
                     }
                 }
             }
@@ -439,6 +360,160 @@ fun HomeScreen(
             onShowWelcomeTutorial = onShowWelcomeTutorial,
         )
     }
+    }
+}
+
+/**
+ * The home screen's `ModalNavigationDrawer`: the nav-drawer sheet ([HomeNavDrawerSheet]) wrapping the
+ * screen [content]. A tap closes the drawer and dispatches the selection up. The drawer is opened from
+ * the toolbar hamburger (via the host-owned [drawerState]), so gestures are enabled only while it's
+ * already open — a left-edge drag on the map must pan the map, not peel the drawer open.
+ */
+@Composable
+private fun HomeDrawer(
+    drawerState: DrawerState,
+    navItems: List<HomeNavItem>,
+    selectedItem: HomeNavItem,
+    onNavItemSelected: (HomeNavItem) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        // Material3 gates both the open-swipe and the scrim tap-to-close on this one flag, so tie it
+        // to the open state (see the KDoc above).
+        gesturesEnabled = drawerState.isOpen,
+        drawerContent = {
+            HomeNavDrawerSheet(items = navItems, selected = selectedItem) { item ->
+                scope.launch { drawerState.close() }
+                onNavItemSelected(item)
+            }
+        },
+        content = content,
+    )
+}
+
+/**
+ * The chrome drawn over the map inside the home scaffold's content [Box]: the weather chip, donation
+ * card, route-mode header, and survey hero — then, on a selected list tab, that tab's opaque full-size
+ * destination ([HomeListOverlay]). A [BoxScope] extension so the overlays keep their `align`/fill
+ * modifiers; NEARBY shows the map through.
+ */
+@Composable
+private fun BoxScope.HomeMapOverlays(
+    state: HomeUiState,
+    weatherViewModel: WeatherViewModel,
+    donationViewModel: DonationViewModel,
+    surveyViewModel: SurveyViewModel,
+    routeHeader: RouteHeader?,
+    listVms: HomeListViewModels,
+    onCancelRouteMode: () -> Unit,
+    onRouteHeaderHeight: (Int) -> Unit,
+    onShowRouteInfo: (routeId: String) -> Unit,
+    onShowArrivals: (stopId: String, stopName: String?) -> Unit,
+) {
+    // The weather chip feature module: self-wiring from its ViewModel, NEARBY-gated.
+    WeatherFeature(
+        viewModel = weatherViewModel,
+        onNearby = state.selectedItem == HomeNavItem.NEARBY,
+        modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+    )
+    // The donation feature module: the card (NEARBY + DonationsManager-gated) plus its dismiss dialog.
+    // Self-wiring from its ViewModel; NEARBY-gated like the other chrome.
+    DonationFeature(
+        viewModel = donationViewModel,
+        onNearby = state.selectedItem == HomeNavItem.NEARBY,
+        cardModifier = Modifier
+            .align(Alignment.TopCenter)
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 62.dp)
+    )
+    // The route-mode header (Compose), top-aligned over the map — drawn above the weather/donation
+    // cards so its opaque bar + cancel button own the top in route mode. Reports its height for the
+    // map's top padding; clears it when dismissed.
+    if (routeHeader != null) {
+        RouteHeaderOverlay(
+            header = routeHeader,
+            onCancel = onCancelRouteMode,
+            onHeight = onRouteHeaderHeight,
+            modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
+        )
+    } else {
+        LaunchedEffect(Unit) { onRouteHeaderHeight(0) }
+    }
+    // The map survey (Compose): hero card over the map + remaining-questions sheet. Self-wiring from
+    // its ViewModel; self-triggers its request when NEARBY is shown and a region has resolved.
+    SurveyFeature(
+        viewModel = surveyViewModel,
+        onNearby = state.selectedItem == HomeNavItem.NEARBY,
+        regionReady = state.regionReady,
+        modifier = Modifier.align(Alignment.TopCenter),
+    )
+    HomeListOverlay(
+        selectedItem = state.selectedItem,
+        listVms = listVms,
+        onShowRouteInfo = onShowRouteInfo,
+        onShowArrivals = onShowArrivals,
+    )
+}
+
+/**
+ * A selected list tab draws its destination over the map (an opaque, full-size Surface), covering the
+ * map chrome; NEARBY shows the map through. These are thin home-specific bindings to the shared My*
+ * list destinations (strings + actions, shortcutMode = false — the home screen is never a
+ * launcher-shortcut picker).
+ */
+@Composable
+private fun HomeListOverlay(
+    selectedItem: HomeNavItem,
+    listVms: HomeListViewModels,
+    onShowRouteInfo: (routeId: String) -> Unit,
+    onShowArrivals: (stopId: String, stopName: String?) -> Unit,
+) {
+    when (selectedItem) {
+        HomeNavItem.STARRED_STOPS -> {
+            val host = LocalContext.current.findActivity()
+            StopListDestination(
+                listVms.starredStops,
+                emptyText = R.string.my_no_starred_stops,
+                onClick = { onShowArrivals(it.id, it.name) },
+                actions = {
+                    host.stopActions(it, R.string.my_context_remove_star, shortcutMode = false) {
+                        listVms.starredStops.remove(it.id)
+                    }
+                },
+            )
+        }
+        HomeNavItem.STARRED_ROUTES -> {
+            val host = LocalContext.current.findActivity()
+            RouteListDestination(
+                listVms.starredRoutes,
+                emptyText = R.string.my_no_starred_routes,
+                onClick = { host.openRoute(it, shortcutMode = false) },
+                actions = {
+                    host.routeActions(it, R.string.my_context_remove_star, shortcutMode = false) {
+                        listVms.starredRoutes.remove(it.id)
+                    }
+                },
+            )
+        }
+        HomeNavItem.MY_REMINDERS -> {
+            val host = LocalContext.current.findActivity()
+            ReminderListDestination(
+                listVms.reminders,
+                emptyText = R.string.trip_list_notrips,
+                onClick = { host.editReminder(it) },
+                // A reminder carries only a stop id (no cached name).
+                actions = {
+                    host.reminderActions(
+                        it,
+                        onShowRoute = onShowRouteInfo,
+                        onShowStop = { stopId -> onShowArrivals(stopId, null) },
+                    )
+                },
+            )
+        }
+        else -> {}
     }
 }
 

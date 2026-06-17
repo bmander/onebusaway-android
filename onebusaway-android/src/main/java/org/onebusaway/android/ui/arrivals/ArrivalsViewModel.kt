@@ -74,6 +74,10 @@ class ArrivalsViewModel @AssistedInject constructor(
     private val _responses = MutableSharedFlow<ObaArrivalInfoResponse>(extraBufferCapacity = 1)
     val responses: SharedFlow<ObaArrivalInfoResponse> = _responses.asSharedFlow()
 
+    /** The pending route-favorite dialog request (the route the user tapped "favorite" on), or null. */
+    private val _favoriteRequest = MutableStateFlow<ArrivalActions?>(null)
+    val favoriteRequest: StateFlow<ArrivalActions?> = _favoriteRequest.asStateFlow()
+
     private var minutesAfter = DefaultArrivalsRepository.MINUTES_AFTER_DEFAULT
 
     private var routeFilter: Set<String> = emptySet()
@@ -130,6 +134,35 @@ class ArrivalsViewModel @AssistedInject constructor(
         val newValue = !content.header.isFavorite
         _state.value = content.copy(header = content.header.copy(isFavorite = newValue))
         viewModelScope.launch { repository.setStopFavorite(content.header.stopId, newValue) }
+    }
+
+    /** Opens the route-favorite dialog for [actions] (the per-arrival "favorite route" tap). */
+    fun requestRouteFavorite(actions: ArrivalActions) {
+        _favoriteRequest.value = actions
+    }
+
+    /** Dismisses the route-favorite dialog without changing anything. */
+    fun dismissRouteFavorite() {
+        _favoriteRequest.value = null
+    }
+
+    /**
+     * Applies the route-favorite choice: stars/unstars the route/headsign (scoped to this stop, or
+     * all stops when [allStops]), backfills the route details, then reloads. Closes the dialog.
+     */
+    fun favoriteRoute(actions: ArrivalActions, allStops: Boolean) {
+        _favoriteRequest.value = null
+        viewModelScope.launch {
+            repository.favoriteRoute(
+                routeId = actions.routeId,
+                headsign = actions.headsign,
+                stopId = if (allStops) null else actions.stopId,
+                shortName = actions.routeShortName,
+                longName = actions.routeLongName,
+                favorite = !actions.isRouteFavorite
+            )
+            refresh()
+        }
     }
 
     /** Switches the arrival-info display style (the legacy "sort by" view-mode toggle) and reloads. */

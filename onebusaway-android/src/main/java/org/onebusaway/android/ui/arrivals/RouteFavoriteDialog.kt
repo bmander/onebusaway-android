@@ -16,70 +16,73 @@
  */
 package org.onebusaway.android.ui.arrivals
 
-import org.onebusaway.android.ui.mylists.QueryUtils
-import android.content.ContentValues
-import android.net.Uri
-import androidx.fragment.app.FragmentActivity
-import androidx.loader.app.LoaderManager
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
-import org.onebusaway.android.provider.ObaContract
 
 // Selections need to match strings.xml "route_favorite_options"
 private const val SELECTION_THIS_STOP = 0
 
-private const val ROUTE_INFO_LOADER = 0
+/**
+ * Renders the route-favorite dialog when the [viewModel] has a pending request. Hosted by both the
+ * standalone arrivals screen and the map panel so the per-arrival "favorite route" action works in
+ * either. The favoriting write + route-details backfill live in [ArrivalsRepository]; this is pure UI.
+ */
+@Composable
+internal fun RouteFavoriteHost(viewModel: ArrivalsViewModel) {
+    val request by viewModel.favoriteRequest.collectAsStateWithLifecycle()
+    request?.let { actions ->
+        RouteFavoriteDialog(
+            actions = actions,
+            onDismiss = viewModel::dismissRouteFavorite,
+            onConfirm = { allStops -> viewModel.favoriteRoute(actions, allStops) }
+        )
+    }
+}
 
 /**
- * Asks the user if they want to save (or remove) a route/headsign favorite for all stops, or just
- * this stop, then updates the database with their choice. [onSelectionComplete] receives true when
- * a choice was saved, false if the dialog was cancelled.
+ * Asks whether to save (or remove) a route/headsign favorite for all stops, or just this stop.
+ * [onConfirm] receives true when "all stops" was chosen.
  */
-fun showRouteFavoriteDialog(
-    activity: FragmentActivity,
-    routeId: String,
-    routeShortName: String?,
-    routeLongName: String?,
-    headsign: String?,
-    stopId: String?,
-    favorite: Boolean,
-    onSelectionComplete: (savedFavorite: Boolean) -> Unit
+@Composable
+private fun RouteFavoriteDialog(
+    actions: ArrivalActions,
+    onDismiss: () -> Unit,
+    onConfirm: (allStops: Boolean) -> Unit
 ) {
-    val routeUri = Uri.withAppendedPath(ObaContract.Routes.CONTENT_URI, routeId)
-    val values = ContentValues().apply {
-        put(ObaContract.Routes.SHORTNAME, routeShortName)
-        put(ObaContract.Routes.LONGNAME, routeLongName)
-    }
-    val routeTitle = buildRouteTitle(routeShortName, headsign)
-    val title = activity.getString(
-        if (favorite) R.string.route_favorite_options_title_star
+    val starring = !actions.isRouteFavorite
+    val routeTitle = buildRouteTitle(actions.routeShortName, actions.headsign)
+    val title = stringResource(
+        if (starring) R.string.route_favorite_options_title_star
         else R.string.route_favorite_options_title_unstar,
         routeTitle
     )
-    var selected = SELECTION_THIS_STOP
-    MaterialAlertDialogBuilder(activity)
-        .setTitle(title)
-        .setCancelable(false)
-        .setSingleChoiceItems(R.array.route_favorite_options, selected) { _, which ->
-            selected = which
+    val options = stringArrayResource(R.array.route_favorite_options)
+    var selected by remember { mutableStateOf(SELECTION_THIS_STOP) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            RadioOptionList(options = options, selectedIndex = selected, onSelect = { selected = it })
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(selected != SELECTION_THIS_STOP) }) {
+                Text(stringResource(R.string.stop_info_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.stop_info_cancel)) }
         }
-        .setPositiveButton(R.string.stop_info_save) { _, _ ->
-            // "All stops" saves the favorite with a null stopId
-            val selectedStopId = if (selected == SELECTION_THIS_STOP) stopId else null
-            QueryUtils.setFavoriteRouteAndHeadsign(
-                activity, routeUri, headsign, selectedStopId, values, favorite
-            )
-            // Request the full details of the starred route, so the long name can be shown later
-            LoaderManager.getInstance(activity).restartLoader(
-                ROUTE_INFO_LOADER, null, QueryUtils.RouteLoaderCallback(activity, routeId)
-            )
-            onSelectionComplete(true)
-        }
-        .setNegativeButton(R.string.stop_info_cancel) { _, _ ->
-            // Nothing changed
-            onSelectionComplete(false)
-        }
-        .show()
+    )
 }
 
 /** The route short name and headsign, each truncated with an ellipsis, for the dialog title. */

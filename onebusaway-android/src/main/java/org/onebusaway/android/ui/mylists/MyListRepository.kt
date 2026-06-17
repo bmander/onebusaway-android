@@ -97,7 +97,7 @@ private fun recentSelection(accessTime: String, useCount: String, cutoffMs: Long
 
 private fun regionWhere(regionField: String): String {
     val region = Application.get().currentRegion ?: return ""
-    return " AND " + QueryUtils.getRegionWhere(regionField, region.id)
+    return " AND ($regionField=${region.id} OR $regionField IS NULL)"
 }
 
 private val STOP_PROJECTION = arrayOf(

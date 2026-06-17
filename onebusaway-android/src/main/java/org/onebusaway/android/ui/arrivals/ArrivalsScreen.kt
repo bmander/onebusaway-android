@@ -152,6 +152,7 @@ fun ArrivalsRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     ArrivalsPolling(viewModel)
+    RouteFavoriteHost(viewModel)
     val rowCallbacks = rememberArrivalRowCallbacks(handler, viewModel)
     ArrivalsScreen(
         state = state,
@@ -312,27 +313,35 @@ private fun SortByDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.menu_option_sort_by)) },
-        text = {
-            Column {
-                options.forEachIndexed { index, label ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(index) }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = index == selected, onClick = { onSelect(index) })
-                        Spacer(Modifier.width(8.dp))
-                        Text(label, style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
-        },
+        text = { RadioOptionList(options = options, selectedIndex = selected, onSelect = onSelect) },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
         }
     )
+}
+
+/** A single-choice radio list (one row per option), shared by the sort and route-favorite dialogs. */
+@Composable
+internal fun RadioOptionList(
+    options: Array<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit
+) {
+    Column {
+        options.forEachIndexed { index, label ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelect(index) }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(selected = index == selectedIndex, onClick = { onSelect(index) })
+                Spacer(Modifier.width(8.dp))
+                Text(label, style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+    }
 }
 
 @Composable

@@ -31,8 +31,7 @@ import org.onebusaway.android.util.UIUtils
  * Builds the [ArrivalActionHandler] shared by the standalone arrivals activity and the map panel.
  * The only behavioral difference is [onShowRouteOnMap]: the standalone launches HomeActivity in
  * route mode, while the panel drives the existing map. Everything else (favorite/alert dialogs,
- * navigation, report flow) is identical, so it lives here once. Kept in the `ui` package so it can
- * see the package-private QueryUtils helpers and the navigation activities.
+ * navigation, report flow) is identical, so it lives here once.
  */
 fun createArrivalActionHandler(
     activity: AppCompatActivity,
@@ -54,15 +53,9 @@ fun createArrivalActionHandler(
 ): ArrivalActionHandler = object : ArrivalActionHandler {
 
     override fun onRouteFavorite(actions: ArrivalActions) {
-        showRouteFavoriteDialog(
-            activity = activity,
-            routeId = actions.routeId,
-            routeShortName = actions.routeShortName,
-            routeLongName = actions.routeLongName,
-            headsign = actions.headsign,
-            stopId = actions.stopId,
-            favorite = !actions.isRouteFavorite
-        ) { saved -> if (saved) viewModel.manualRefresh() }
+        // Pure ViewModel operation now: the dialog is Compose ([RouteFavoriteHost]) and the
+        // favoriting write + route-details fetch live in the repository. We just raise the request.
+        viewModel.requestRouteFavorite(actions)
     }
 
     override fun onShowVehiclesOnMap(arrival: ArrivalInfo) {

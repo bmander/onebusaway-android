@@ -28,8 +28,10 @@ import org.onebusaway.android.io.elements.ObaSituation
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoRequest
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
+import org.onebusaway.android.io.request.ObaRouteRequest
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.provider.loadStopUserInfo
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.DBUtil
@@ -71,6 +73,20 @@ interface ArrivalsRepository {
     /** Marks (or unmarks) the stop as a favorite in the provider. */
     suspend fun setStopFavorite(stopId: String, favorite: Boolean)
 
+    /**
+     * Stars (or unstars) a route/headsign favorite, then backfills the route's full details
+     * (short/long name, URL) from the API so the long name can be shown later. [stopId] null means
+     * "all stops". Replaces the legacy QueryUtils write + AsyncTaskLoader route-info fetch.
+     */
+    suspend fun favoriteRoute(
+        routeId: String,
+        headsign: String?,
+        stopId: String?,
+        shortName: String?,
+        longName: String?,
+        favorite: Boolean
+    )
+
     /** Persists the per-stop route filter (empty == show all). */
     suspend fun setRouteFilter(stopId: String, filter: Set<String>)
 
@@ -103,7 +119,8 @@ interface ArrivalsRepository {
  * NOT make it `@Singleton`, which would share `lastGood` across stops and corrupt per-stop state.
  */
 class DefaultArrivalsRepository @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val regionRepository: RegionRepository
 ) : ArrivalsRepository {
 
     private var lastGood: ObaArrivalInfoResponse? = null
@@ -268,6 +285,51 @@ class DefaultArrivalsRepository @Inject constructor(
             val uri = Uri.withAppendedPath(ObaContract.Stops.CONTENT_URI, stopId)
             ObaContract.Stops.markAsFavorite(context, uri, favorite)
         }
+    }
+
+    override suspend fun favoriteRoute(
+        routeId: String,
+        headsign: String?,
+        stopId: String?,
+        shortName: String?,
+        longName: String?,
+        favorite: Boolean
+    ) = withContext(Dispatchers.IO) {
+        val regionId = regionRepository.region.value?.id
+        // Ensure the route row exists (stamped with the current region) before marking the favorite.
+        val values = ContentValues().apply {
+            put(ObaContract.Routes.SHORTNAME, shortName)
+            put(ObaContract.Routes.LONGNAME, longName)
+            regionId?.let { put(ObaContract.Routes.REGION_ID, it) }
+        }
+        ObaContract.Routes.insertOrUpdate(context, routeId, values, true)
+        ObaContract.RouteHeadsignFavorites.markAsFavorite(context, routeId, headsign, stopId, favorite)
+
+        // Backfill the full route details so the long name can be shown later (was an AsyncTaskLoader).
+        fetchAndStoreRouteDetails(routeId, regionId)
+    }
+
+    /** Blocking route-details fetch (already on IO via [favoriteRoute]); writes name/url back. */
+    private fun fetchAndStoreRouteDetails(routeId: String, regionId: Long?) {
+        val response = ObaRouteRequest.newRequest(context, routeId).call() ?: return
+        if (response.code != ObaApi.OBA_OK) return
+
+        var shortName = response.shortName
+        var longName = response.longName
+        if (shortName.isNullOrEmpty()) {
+            shortName = longName
+        }
+        if (longName.isNullOrEmpty() || shortName == longName) {
+            longName = response.description
+        }
+
+        val values = ContentValues().apply {
+            put(ObaContract.Routes.SHORTNAME, shortName)
+            put(ObaContract.Routes.LONGNAME, longName)
+            put(ObaContract.Routes.URL, response.url)
+            regionId?.let { put(ObaContract.Routes.REGION_ID, it) }
+        }
+        ObaContract.Routes.insertOrUpdate(context, response.id, values, true)
     }
 
     override suspend fun setRouteFilter(stopId: String, filter: Set<String>) {

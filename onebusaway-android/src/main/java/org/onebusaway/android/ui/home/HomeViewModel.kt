@@ -22,6 +22,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.map.MapCommand
 import org.onebusaway.android.map.MapInteractionBus
 import org.onebusaway.android.preferences.PreferencesRepository
@@ -70,6 +71,9 @@ class HomeViewModel @Inject constructor(
     // The shared Home->Map command bus (sheet padding, recenter, route mode, clear focus). Replaces the
     // old HomeMapController VM-on-VM reference, so this is a plain @HiltViewModel; faked in tests.
     private val bus: MapInteractionBus,
+    // The last-known device location (Campaign A/B1): the report-target fallback reads it here, so the
+    // focused-stop-vs-location decision lives with the focused stop instead of in the activity.
+    private val locationRepository: LocationRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -233,6 +237,18 @@ class HomeViewModel @Inject constructor(
             savedState[KEY_BIKE_STATION] = null
         }
         recompute()
+    }
+
+    /**
+     * The target for a "send feedback / report a problem" launch: the focused stop if one is focused,
+     * else the last-known device location, else nothing. Deciding the variant is VM logic; the host just
+     * opens `ReportActivity` for whichever [ReportTarget] it gets.
+     */
+    fun reportTarget(): ReportTarget {
+        focusedStop?.let { return ReportTarget.Stop(it) }
+        return locationRepository.lastKnownLocation()
+            ?.let { ReportTarget.Location(it.latitude, it.longitude) }
+            ?: ReportTarget.Generic
     }
 
     fun onBikeStationFocused(id: String?) {

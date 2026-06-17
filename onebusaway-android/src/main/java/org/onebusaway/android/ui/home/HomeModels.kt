@@ -94,6 +94,22 @@ internal fun focusedStopFromExtras(
     }
 
 /**
+ * The target of a "send feedback / report a problem" launch, derived by [HomeViewModel.reportTarget]:
+ * the focused stop, else the last-known location, else nothing. Choosing the variant is VM logic; the
+ * host just opens `ReportActivity` for whichever it gets.
+ */
+sealed interface ReportTarget {
+    /** Report against the currently focused stop. */
+    data class Stop(val stop: FocusedStop) : ReportTarget
+
+    /** No focused stop; report against the last-known device location. */
+    data class Location(val lat: Double, val lon: Double) : ReportTarget
+
+    /** No focused stop and no known location; open the generic report screen. */
+    object Generic : ReportTarget
+}
+
+/**
  * The chrome-gate inputs (preferences + region-derived flags) the ViewModel collects reactively from
  * the preference seam (see HomeViewModel's init{} combine collector), grouped so [buildState] can
  * compute the gated chrome/overlay visibility from a single named value.

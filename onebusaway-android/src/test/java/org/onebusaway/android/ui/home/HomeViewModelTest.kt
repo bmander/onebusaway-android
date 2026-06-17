@@ -39,6 +39,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.map.MapCommand
 import org.onebusaway.android.map.MapInteractionBus
+import org.onebusaway.android.location.FakeLocationRepository
 import org.onebusaway.android.region.FakeRegionRepository
 import org.onebusaway.android.region.RegionStatus
 import org.onebusaway.android.region.region
@@ -104,8 +105,10 @@ class HomeViewModelTest {
         prefsRepo: FakePreferencesRepository = FakePreferencesRepository(),
         savedState: SavedStateHandle = SavedStateHandle(),
         bus: MapInteractionBus = FakeMapInteractionBus(),
+        locationRepo: FakeLocationRepository = FakeLocationRepository(),
     ) = HomeViewModel(
-        savedState, FakeWideAlertsRepository(alerts), startupRepo, navItemsRepo, regionRepo, prefsRepo, bus
+        savedState, FakeWideAlertsRepository(alerts), startupRepo, navItemsRepo, regionRepo, prefsRepo,
+        bus, locationRepo
     )
 
     // --- map loading + peek inputs ---
@@ -488,6 +491,26 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertTrue(prefs.getBoolean(R.string.preference_key_otp_api_url_version, false))
+    }
+
+    // --- report-target derivation (send feedback / contact us) ---
+    // The "no stop, but a location is known" branch isn't unit-tested: android.location.Location can't be
+    // constructed in plain JVM tests (no Robolectric / mocking lib), so it's left to instrumented coverage.
+
+    @Test
+    fun `reportTarget is the focused stop when one is focused`() {
+        val vm = viewModel()
+        val stop = FocusedStop("1_123", "Main St & 1st", "123", 47.6, -122.3)
+        vm.onStopFocused(stop)
+
+        assertEquals(ReportTarget.Stop(stop), vm.reportTarget())
+    }
+
+    @Test
+    fun `reportTarget is Generic with no focused stop and no known location`() {
+        val vm = viewModel(locationRepo = FakeLocationRepository(last = null))
+
+        assertEquals(ReportTarget.Generic, vm.reportTarget())
     }
 
     // --- startup region-check gate ---

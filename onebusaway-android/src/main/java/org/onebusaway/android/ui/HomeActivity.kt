@@ -63,6 +63,7 @@ import org.onebusaway.android.ui.home.help.HelpAction
 import org.onebusaway.android.ui.home.help.HelpViewModel
 import org.onebusaway.android.ui.home.HomeCallbacks
 import org.onebusaway.android.ui.home.RegionEvent
+import org.onebusaway.android.ui.home.ReportTarget
 import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
 import org.onebusaway.android.ui.home.initialNavItem
@@ -102,13 +103,13 @@ class HomeActivity : AppCompatActivity() {
     @Inject
     lateinit var arrivalsViewModelFactory: ArrivalsViewModel.Factory
 
-    // The observable current region (Campaign A): the activity's region-dependent reads (region-found
-    // toast, the region's Twitter URL) collect this instead of Application.get().currentRegion.
+    // The current region (Campaign A): the add-region deep link applies custom API URLs through this
+    // instead of reaching into Application.get(). (The region-derived reads it once fed have moved to VMs.)
     @Inject
     lateinit var regionRepository: RegionRepository
 
-    // The last-known location (Campaign A, B1): the send-feedback fallback reads it from here instead
-    // of Application.getLastKnownLocation.
+    // The last-known location (Campaign A, B1). The send-feedback decision now lives in HomeViewModel;
+    // this remains because the infrastructure-issue report screen reads it off the host to submit.
     @Inject
     lateinit var locationRepository: LocationRepository
 
@@ -591,19 +592,13 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun goToSendFeedBack() {
-        val focusedStop = viewModel.uiState.value.focusedStop
-        if (focusedStop != null) {
-            ReportActivity.start(
-                this, focusedStop.id, focusedStop.name, focusedStop.code,
-                focusedStop.lat, focusedStop.lon
-            )
-        } else {
-            val loc = locationRepository.lastKnownLocation()
-            if (loc != null) {
-                ReportActivity.start(this, loc.latitude, loc.longitude)
-            } else {
-                ReportActivity.start(this)
+        // The VM picks the report target (focused stop → last location → nothing); the host just launches.
+        when (val target = viewModel.reportTarget()) {
+            is ReportTarget.Stop -> target.stop.let {
+                ReportActivity.start(this, it.id, it.name, it.code, it.lat, it.lon)
             }
+            is ReportTarget.Location -> ReportActivity.start(this, target.lat, target.lon)
+            ReportTarget.Generic -> ReportActivity.start(this)
         }
     }
 

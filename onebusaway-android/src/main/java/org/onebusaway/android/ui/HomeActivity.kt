@@ -93,8 +93,23 @@ import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.report.ui.ReportDestination
 import org.onebusaway.android.report.ui.CustomerServiceDestination
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
+import org.onebusaway.android.ui.about.AboutScreen
+import org.onebusaway.android.ui.about.buildVersionText
 import org.onebusaway.android.ui.agencies.AgenciesRoute
 import org.onebusaway.android.ui.arrivals.ArrivalsIntents
+import org.onebusaway.android.ui.arrivals.createArrivalActionHandler
+import org.onebusaway.android.ui.feedback.FeedbackLauncher
+import org.onebusaway.android.ui.feedback.FeedbackScreen
+import org.onebusaway.android.ui.feedback.FeedbackSubmitter
+import org.onebusaway.android.ui.home.DonationLearnMoreScreen
+import org.onebusaway.android.ui.mylists.editReminder
+import org.onebusaway.android.ui.mylists.reminderActions
+import org.onebusaway.android.ui.nav.NavHelp
+import org.onebusaway.android.ui.nightlight.NightLightRoute
+import org.onebusaway.android.ui.settings.SettingsRoute
+import org.onebusaway.android.ui.settings.SettingsSupport
+import org.onebusaway.android.ui.tripdetails.TripDetailsLauncher
+import org.onebusaway.android.ui.tripinfo.confirmDeleteReminder
 import org.onebusaway.android.ui.arrivals.ArrivalsRoute
 import org.onebusaway.android.ui.arrivals.ArrivalsUiState
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
@@ -434,7 +449,7 @@ class HomeActivity : AppCompatActivity() {
                             },
                             onShowTrip = { tripId, sid ->
                                 navController.navigate(
-                                    NavRoutes.tripDetails(tripId, sid, TripDetailsActivity.SCROLL_MODE_STOP)
+                                    NavRoutes.tripDetails(tripId, sid, TripDetailsLauncher.SCROLL_MODE_STOP)
                                 )
                             },
                         )
@@ -763,7 +778,7 @@ class HomeActivity : AppCompatActivity() {
                     }
                     ObaTheme {
                         FeedbackScreen(
-                            initialLiked = response == FeedbackActivity.FEEDBACK_YES,
+                            initialLiked = response == FeedbackLauncher.FEEDBACK_YES,
                             initialSendLogs = submitter.shareLogsPref(),
                             onBack = { navController.popBackStack() },
                             onSendLogsChanged = submitter::setShareLogs,

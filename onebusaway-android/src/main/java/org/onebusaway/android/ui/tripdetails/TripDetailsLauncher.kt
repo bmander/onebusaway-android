@@ -14,8 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui
+package org.onebusaway.android.ui.tripdetails
 
+import org.onebusaway.android.ui.nav.NavHelp
+import org.onebusaway.android.ui.HomeActivity
 import android.content.Context
 import android.content.Intent
 import org.onebusaway.android.ui.nav.NavRoutes
@@ -27,10 +29,10 @@ import org.onebusaway.android.ui.nav.NavRoutes
  * destination-reminder controller); this is no longer an Activity but a launcher facade that builds
  * an explicit [HomeActivity] intent carrying the trip args as extras (trip details has no data-URI
  * contract). HomeActivity's translator reads [NavRoutes.ARG_TRIP_ID] and navigates. An
- * `<activity-alias>` for the frozen `org.onebusaway.android.ui.TripDetailsActivity` name keeps any
+ * `<activity-alias>` for the frozen `org.onebusaway.android.ui.tripdetails.TripDetailsActivity` name keeps any
  * in-flight NavigationService ongoing-notification PendingIntent resolving to HomeActivity.
  */
-object TripDetailsActivity {
+object TripDetailsLauncher {
 
     // Scroll-mode *values* (read by TripDetailsRepository + the launch callers) and the broadcast
     // action the NavigationService sends when destroyed (observed by the reminder controller).

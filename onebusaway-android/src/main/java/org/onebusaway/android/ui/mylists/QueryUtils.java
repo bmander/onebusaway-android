@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui;
+package org.onebusaway.android.ui.mylists;
 
 import org.onebusaway.android.app.di.RegionEntryPoint;
 import org.onebusaway.android.io.ObaApi;
@@ -98,7 +98,7 @@ public final class QueryUtils {
         }
     }
 
-    final static class RouteLoaderCallback
+    public final static class RouteLoaderCallback
             implements LoaderManager.LoaderCallbacks<ObaRouteResponse> {
 
         private String mRouteId;

@@ -24,7 +24,7 @@ import android.util.Log;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.directions.tasks.TripRequest;
-import org.onebusaway.android.ui.TripModes;
+import org.onebusaway.android.ui.tripplan.TripModes;
 import org.onebusaway.android.util.RegionUtils;
 import org.opentripplanner.api.ws.Request;
 import org.opentripplanner.routing.core.OptimizeType;

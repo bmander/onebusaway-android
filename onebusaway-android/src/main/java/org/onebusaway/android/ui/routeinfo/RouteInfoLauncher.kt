@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui
+package org.onebusaway.android.ui.routeinfo
 
+import org.onebusaway.android.ui.HomeActivity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -30,7 +31,7 @@ import org.onebusaway.android.provider.ObaContract
  * `com.joulespersecond.seattlebusbot.RouteInfoActivity` keep resolving (old pinned route shortcuts)
  * via `<activity-alias>` → HomeActivity in the manifest.
  */
-object RouteInfoActivity {
+object RouteInfoLauncher {
 
     @JvmStatic
     fun start(context: Context, routeId: String) {

@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui
+package org.onebusaway.android.ui.feedback
 
+import org.onebusaway.android.ui.HomeActivity
 import android.content.Context
 import android.content.Intent
 import android.util.Log
@@ -74,7 +75,7 @@ import org.onebusaway.android.ui.nav.NavRoutes
  * feedback route (which HomeActivity's translator navigates to). Non-exported; reached only from the
  * post-trip notification's Yes/No PendingIntents.
  */
-object FeedbackActivity {
+object FeedbackLauncher {
 
     const val TAG = "FeedbackActivity"
 
@@ -88,7 +89,7 @@ object FeedbackActivity {
 
     /**
      * Builds the explicit [HomeActivity] intent that opens the feedback destination. Mirrors the former
-     * `new Intent(context, FeedbackActivity.class)` + extras; here the extras become the feedback route's
+     * `new Intent(context, FeedbackLauncher.class)` + extras; here the extras become the feedback route's
      * nav-args. RESPONSE is required; the rest are optional.
      */
     @JvmStatic
@@ -106,7 +107,7 @@ object FeedbackActivity {
 }
 
 /**
- * The submit/log glue formerly hosted by the FeedbackActivity. Re-hosted here so the feedback NavHost
+ * The submit/log glue formerly hosted by the FeedbackLauncher. Re-hosted here so the feedback NavHost
  * destination can run it on send: either append the feedback to the trip log and queue it for upload,
  * or delete the log and report the feedback to analytics only — matching the user's "share logs" choice.
  * Built with the application [Context], the [prefs] repository, and the trip's [logFile] (the
@@ -155,18 +156,18 @@ class FeedbackSubmitter(
             try {
                 FileUtils.moveFileToDirectory(file, destFolder, true)
             } catch (e: Exception) {
-                Log.e(FeedbackActivity.TAG, "File move failed")
+                Log.e(FeedbackLauncher.TAG, "File move failed")
             }
             setupLogUploadTask()
         } catch (e: IOException) {
-            Log.e(FeedbackActivity.TAG, "File write failed: $e")
+            Log.e(FeedbackLauncher.TAG, "File write failed: $e")
         }
     }
 
     private fun deleteLog() {
         val logFilePath = logFile ?: return
         val deleted = File(logFilePath).delete()
-        Log.d(FeedbackActivity.TAG, "Log deleted $deleted")
+        Log.d(FeedbackLauncher.TAG, "Log deleted $deleted")
     }
 
     private fun setupLogUploadTask() {

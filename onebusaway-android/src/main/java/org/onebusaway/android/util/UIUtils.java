@@ -112,9 +112,9 @@ import org.onebusaway.android.io.elements.OccupancyState;
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse;
 import org.onebusaway.android.map.MapParams;
 import org.onebusaway.android.provider.ObaContract;
-import org.onebusaway.android.ui.ArrivalsListActivity;
+import org.onebusaway.android.ui.arrivals.ArrivalsListLauncher;
 import org.onebusaway.android.ui.HomeActivity;
-import org.onebusaway.android.ui.RouteInfoActivity;
+import org.onebusaway.android.ui.routeinfo.RouteInfoLauncher;
 import org.onebusaway.util.comparators.AlphanumComparator;
 
 import java.io.File;
@@ -478,10 +478,10 @@ public final class UIUtils {
      * Creates a new shortcut for the provided stop, and returns the ShortcutInfo for that shortcut
      * @param context Context used to create the shortcut
      * @param shortcutName the shortcutName for the stop shortcut
-     * @param builder Instance of ArrivalsListActivity.Builder for the provided stop
+     * @param builder Instance of ArrivalsListLauncher.Builder for the provided stop
      * @return the ShortcutInfo for the created shortcut
      */
-    public static ShortcutInfoCompat createStopShortcut(Context context, String shortcutName, ArrivalsListActivity.Builder builder) {
+    public static ShortcutInfoCompat createStopShortcut(Context context, String shortcutName, ArrivalsListLauncher.Builder builder) {
         final ShortcutInfoCompat shortcut = UIUtils.makeShortcutInfo(context,
                 shortcutName,
                 builder.getIntent(),
@@ -500,7 +500,7 @@ public final class UIUtils {
     public static ShortcutInfoCompat createRouteShortcut(Context context, String routeId, String routeName) {
         final ShortcutInfoCompat shortcut = UIUtils.makeShortcutInfo(context,
                 routeName,
-                RouteInfoActivity.makeIntent(context, routeId),
+                RouteInfoLauncher.makeIntent(context, routeId),
                 R.drawable.ic_trip_details);
         ShortcutManagerCompat.requestPinShortcut(context, shortcut, null);
         return shortcut;

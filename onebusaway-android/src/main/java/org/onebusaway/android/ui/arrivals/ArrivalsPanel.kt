@@ -59,7 +59,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
-import org.onebusaway.android.ui.ArrivalInfo
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.util.ArrivalInfoUtils
 

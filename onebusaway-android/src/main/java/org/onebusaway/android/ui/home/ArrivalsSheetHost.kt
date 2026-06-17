@@ -35,7 +35,7 @@ import org.onebusaway.android.ui.arrivals.ArrivalsUiState
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.compose.rememberClearedViewModelStoreOwner
-import org.onebusaway.android.ui.createArrivalActionHandler
+import org.onebusaway.android.ui.arrivals.createArrivalActionHandler
 
 /**
  * Hosts the [ArrivalsPanel] for the currently focused stop directly in the home bottom sheet,

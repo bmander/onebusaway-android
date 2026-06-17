@@ -56,7 +56,6 @@ import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.nav.NavigationService
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
-import org.onebusaway.android.ui.TripDetailsActivity
 import org.onebusaway.android.ui.compose.components.OptOutInfoDialog
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.util.DBUtil
@@ -65,7 +64,7 @@ import org.onebusaway.android.util.PermissionUtils.NOTIFICATION_PERMISSION_REQUE
 
 /**
  * The destination-reminder flow (set a reminder to alight at a chosen stop), as a reusable Compose
- * action shared by [TripDetailsActivity] and the trip-details NavHost destination. Ported faithfully
+ * action shared by [TripDetailsLauncher] and the trip-details NavHost destination. Ported faithfully
  * from the legacy `TripDetailsActivity` methods, but using `ActivityResultContracts` for the
  * location-settings resolution (instead of `startActivityForResult`/`onActivityResult`) and a
  * [DisposableEffect] for the trip-end receiver, so it works in a NavHost destination that has no
@@ -254,12 +253,12 @@ internal fun rememberDestinationReminderAction(
     DisposableEffect(activity, viewModel) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
-                if (intent?.action == TripDetailsActivity.ACTION_SERVICE_DESTROYED) {
+                if (intent?.action == TripDetailsLauncher.ACTION_SERVICE_DESTROYED) {
                     viewModel.setDestinationId(null)
                 }
             }
         }
-        val filter = IntentFilter(TripDetailsActivity.ACTION_SERVICE_DESTROYED)
+        val filter = IntentFilter(TripDetailsLauncher.ACTION_SERVICE_DESTROYED)
         ContextCompat.registerReceiver(
             activity, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED
         )

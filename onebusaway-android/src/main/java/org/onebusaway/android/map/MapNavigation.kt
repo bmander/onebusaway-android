@@ -22,7 +22,7 @@ import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.ui.TripDetailsActivity
+import org.onebusaway.android.ui.tripdetails.TripDetailsLauncher
 import org.onebusaway.android.util.RegionUtils
 import org.onebusaway.android.util.UIUtils
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
@@ -38,8 +38,8 @@ object MapNavigation {
     /** Opens TripDetails for the tapped vehicle, scoped to the focused stop when there is one. */
     @JvmStatic
     fun openVehicleTripDetails(context: Context, status: ObaTripStatus, focusedStopId: String?) {
-        val builder = TripDetailsActivity.Builder(context, status.activeTripId)
-            .setScrollMode(TripDetailsActivity.SCROLL_MODE_VEHICLE)
+        val builder = TripDetailsLauncher.Builder(context, status.activeTripId)
+            .setScrollMode(TripDetailsLauncher.SCROLL_MODE_VEHICLE)
             .setUpMode("back")
         focusedStopId?.let { builder.setStopId(it) }
         builder.start()

@@ -13,17 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui
+package org.onebusaway.android.ui.mylists
 
+import org.onebusaway.android.ui.tripinfo.confirmDeleteReminder
+import org.onebusaway.android.ui.tripinfo.TripInfoLauncher
+import org.onebusaway.android.ui.routeinfo.RouteInfoLauncher
+import org.onebusaway.android.ui.nav.NavHelp
+import org.onebusaway.android.ui.arrivals.ArrivalsListLauncher
+import org.onebusaway.android.ui.HomeActivity
 import android.app.Activity
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
 import org.onebusaway.android.R
 import org.onebusaway.android.provider.ObaContract
-import org.onebusaway.android.ui.mylists.ReminderItem
-import org.onebusaway.android.ui.mylists.RouteListItem
-import org.onebusaway.android.ui.mylists.RowAction
-import org.onebusaway.android.ui.mylists.StopListItem
 import org.onebusaway.android.ui.search.RouteSearchResult
 import org.onebusaway.android.ui.search.StopSearchResult
 import org.onebusaway.android.util.ReminderUtils
@@ -39,7 +41,7 @@ import org.onebusaway.android.util.UIUtils
  */
 
 private fun AppCompatActivity.stopArrivalsBuilder(stop: StopListItem) =
-    ArrivalsListActivity.Builder(this, stop.id)
+    ArrivalsListLauncher.Builder(this, stop.id)
         .setStopName(stop.name)
         .setStopDirection(stop.rawDirection)
 
@@ -112,20 +114,20 @@ internal fun AppCompatActivity.routeActions(
 
 /** Opens the reminder editor for [reminder] (My Reminders has no shortcut mode). */
 internal fun AppCompatActivity.editReminder(reminder: ReminderItem) {
-    TripInfoActivity.start(this, reminder.tripId, reminder.stopId)
+    TripInfoLauncher.start(this, reminder.tripId, reminder.stopId)
 }
 
 /**
  * A reminder row's long-press actions: edit / delete (cancels the alarm) / show stop / show route.
  *
- * [onShowRoute]/[onShowStop] default to launching [RouteInfoActivity]/[ArrivalsListActivity] (the
+ * [onShowRoute]/[onShowStop] default to launching [RouteInfoLauncher]/[ArrivalsListLauncher] (the
  * standalone My-Reminders host has no NavHost), but the home overlay overrides them to navigate to
  * the in-app RouteInfo / Arrivals destinations.
  */
 internal fun AppCompatActivity.reminderActions(
     reminder: ReminderItem,
-    onShowRoute: (routeId: String) -> Unit = { RouteInfoActivity.start(this, it) },
-    onShowStop: (stopId: String) -> Unit = { ArrivalsListActivity.start(this, it) },
+    onShowRoute: (routeId: String) -> Unit = { RouteInfoLauncher.start(this, it) },
+    onShowStop: (stopId: String) -> Unit = { ArrivalsListLauncher.start(this, it) },
 ): List<RowAction> = listOf(
     RowAction(getString(R.string.trip_list_context_edit)) { editReminder(reminder) },
     RowAction(getString(R.string.trip_list_context_delete)) {
@@ -145,7 +147,7 @@ internal fun AppCompatActivity.reminderActions(
 
 /** Opens a search-result stop's arrivals, or returns it as a launcher shortcut in [shortcutMode]. */
 internal fun AppCompatActivity.openStopSearchResult(stop: StopSearchResult, shortcutMode: Boolean) {
-    val builder = ArrivalsListActivity.Builder(this, stop.id)
+    val builder = ArrivalsListLauncher.Builder(this, stop.id)
         .setStopName(stop.serverName)
         .setStopDirection(stop.direction)
     if (shortcutMode) {
@@ -165,6 +167,6 @@ internal fun AppCompatActivity.openRouteSearchResult(route: RouteSearchResult, s
         setResult(Activity.RESULT_OK, shortcut.intent)
         finish()
     } else {
-        RouteInfoActivity.start(this, route.id)
+        RouteInfoLauncher.start(this, route.id)
     }
 }

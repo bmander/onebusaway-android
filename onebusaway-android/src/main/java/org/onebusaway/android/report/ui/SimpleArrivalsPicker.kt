@@ -32,7 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
-import org.onebusaway.android.ui.ArrivalInfo
+import org.onebusaway.android.ui.arrivals.ArrivalInfo
 import org.onebusaway.android.ui.arrivals.ArrivalCard
 import org.onebusaway.android.ui.arrivals.ArrivalRowContent
 import org.onebusaway.android.ui.arrivals.ArrivalsUiState

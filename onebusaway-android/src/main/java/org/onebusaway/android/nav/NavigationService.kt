@@ -48,8 +48,8 @@ import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.nav.model.Path
 import org.onebusaway.android.nav.model.PathLink
 import org.onebusaway.android.provider.ObaContract
-import org.onebusaway.android.ui.FeedbackActivity
-import org.onebusaway.android.ui.TripDetailsActivity
+import org.onebusaway.android.ui.feedback.FeedbackLauncher
+import org.onebusaway.android.ui.tripdetails.TripDetailsLauncher
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PreferenceUtils
 import java.io.File
@@ -177,7 +177,7 @@ class NavigationService : Service() {
 
     /** Sends broadcast so that flag of destination alert is removed from trip detail screen. */
     private fun broadcastServiceDestroyed() {
-        sendBroadcast(Intent(TripDetailsActivity.ACTION_SERVICE_DESTROYED))
+        sendBroadcast(Intent(TripDetailsLauncher.ACTION_SERVICE_DESTROYED))
     }
 
     private fun handleLocation(location: Location) {
@@ -323,8 +323,8 @@ class NavigationService : Service() {
         ) {
             // Campaign C: feedback is now a HomeActivity NavHost destination; makeIntent builds the
             // explicit HomeActivity intent carrying the feedback route (with these args as nav-args).
-            var fdIntent = FeedbackActivity.makeIntent(
-                app.applicationContext, FeedbackActivity.FEEDBACK_NO, logFile!!.absolutePath, tripId,
+            var fdIntent = FeedbackLauncher.makeIntent(
+                app.applicationContext, FeedbackLauncher.FEEDBACK_NO, logFile!!.absolutePath, tripId,
                 NavigationServiceProvider.NOTIFICATION_ID + 1
             )
             fdIntent.action = FeedbackReceiver.ACTION_REPLY
@@ -338,8 +338,8 @@ class NavigationService : Service() {
             // Pending intent used to handle feedback when user taps on 'No'
             val fdPendingIntentNo = PendingIntent.getActivity(app.applicationContext, 1, fdIntent, flags)
 
-            fdIntent = FeedbackActivity.makeIntent(
-                app.applicationContext, FeedbackActivity.FEEDBACK_YES, logFile!!.absolutePath, tripId,
+            fdIntent = FeedbackLauncher.makeIntent(
+                app.applicationContext, FeedbackLauncher.FEEDBACK_YES, logFile!!.absolutePath, tripId,
                 NavigationServiceProvider.NOTIFICATION_ID + 1
             )
             fdIntent.action = FeedbackReceiver.ACTION_REPLY

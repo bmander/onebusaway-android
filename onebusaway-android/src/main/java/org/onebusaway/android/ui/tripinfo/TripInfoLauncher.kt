@@ -14,8 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui
+package org.onebusaway.android.ui.tripinfo
 
+import org.onebusaway.android.ui.HomeActivity
 import android.content.Context
 import android.content.Intent
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -33,7 +34,7 @@ import org.onebusaway.android.ui.nav.NavRoutes
  * intent that HomeActivity's translator turns into the [NavRoutes.TRIP_INFO] route. (Non-exported,
  * launched only in-app, so no activity-alias is needed.)
  */
-object TripInfoActivity {
+object TripInfoLauncher {
 
     /** Opens an existing reminder for editing — the data is read from the Trips table. */
     fun start(context: Context, tripId: String, stopId: String) {

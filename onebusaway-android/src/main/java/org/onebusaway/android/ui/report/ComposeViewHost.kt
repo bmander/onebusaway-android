@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.compose
+package org.onebusaway.android.ui.report
 
 import android.view.LayoutInflater
 import androidx.compose.runtime.Composable

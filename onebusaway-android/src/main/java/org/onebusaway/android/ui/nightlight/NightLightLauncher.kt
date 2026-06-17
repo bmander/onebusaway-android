@@ -14,8 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui
+package org.onebusaway.android.ui.nightlight
 
+import org.onebusaway.android.ui.HomeActivity
 import android.content.Context
 import org.onebusaway.android.ui.nav.NavRoutes
 
@@ -28,7 +29,7 @@ import org.onebusaway.android.ui.nav.NavRoutes
  * translator maps to the [NavRoutes.NIGHT_LIGHT] route by component name); in-app callers build an
  * explicit [HomeActivity] intent carrying the route.
  */
-object NightLightActivity {
+object NightLightLauncher {
 
     fun start(context: Context) {
         context.startActivity(HomeActivity.navIntent(context, NavRoutes.NIGHT_LIGHT))

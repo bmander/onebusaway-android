@@ -31,7 +31,6 @@ import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
-import org.onebusaway.android.ui.TripDetailsActivity
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.UIUtils
 
@@ -49,7 +48,7 @@ interface TripDetailsRepository {
 
     /**
      * @param stopId the stop to focus/scroll to (from the launching intent), or null
-     * @param scrollMode [TripDetailsActivity.SCROLL_MODE_VEHICLE]/`_STOP`, or null for no auto-scroll
+     * @param scrollMode [TripDetailsLauncher.SCROLL_MODE_VEHICLE]/`_STOP`, or null for no auto-scroll
      * @param destinationId the destination-reminder stop to flag, or null
      */
     suspend fun getTripDetails(
@@ -220,7 +219,7 @@ class DefaultTripDetailsRepository @Inject constructor(
         destinationIndex?.let { return it }
         val vehicleIndex = nextStopIndex?.let { it - 1 }
         return when (scrollMode) {
-            TripDetailsActivity.SCROLL_MODE_VEHICLE -> vehicleIndex ?: stopIndex ?: -1
+            TripDetailsLauncher.SCROLL_MODE_VEHICLE -> vehicleIndex ?: stopIndex ?: -1
             else -> stopIndex ?: vehicleIndex ?: -1
         }
     }

@@ -23,15 +23,11 @@ import androidx.compose.ui.platform.LocalContext
 import org.onebusaway.android.R
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.ui.compose.findActivity
-import org.onebusaway.android.ui.openRoute
-import org.onebusaway.android.ui.openStop
-import org.onebusaway.android.ui.routeActions
 import org.onebusaway.android.ui.search.DefaultRouteSearchRepository
 import org.onebusaway.android.ui.search.DefaultStopSearchRepository
 import org.onebusaway.android.ui.search.RouteSearchResult
 import org.onebusaway.android.ui.search.SearchViewModel
 import org.onebusaway.android.ui.search.StopSearchResult
-import org.onebusaway.android.ui.stopActions
 import org.onebusaway.android.util.PreferenceUtils
 
 /**

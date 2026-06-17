@@ -13,18 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui
+package org.onebusaway.android.ui.arrivals
 
+import org.onebusaway.android.ui.tripinfo.TripInfoLauncher
+import org.onebusaway.android.ui.tripdetails.TripDetailsLauncher
+import org.onebusaway.android.ui.nav.NavHelp
 import android.content.Intent
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import org.onebusaway.android.R
 import org.onebusaway.android.report.ui.InfrastructureIssueActivity
-import org.onebusaway.android.ui.arrivals.ArrivalActionHandler
-import org.onebusaway.android.ui.arrivals.ArrivalActions
-import org.onebusaway.android.ui.arrivals.ArrivalsIntents
-import org.onebusaway.android.ui.arrivals.ArrivalsUiState
-import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.UIUtils
@@ -47,9 +45,9 @@ fun createArrivalActionHandler(
     // How to open trip details — defaults to launching TripDetailsActivity (standalone/sheet hosts);
     // the in-NavHost arrivals destination overrides it to navigate to the trip-details destination.
     onShowTrip: (tripId: String, stopId: String) -> Unit = { tripId, stopId ->
-        TripDetailsActivity.Builder(activity, tripId)
+        TripDetailsLauncher.Builder(activity, tripId)
             .setStopId(stopId)
-            .setScrollMode(TripDetailsActivity.SCROLL_MODE_STOP)
+            .setScrollMode(TripDetailsLauncher.SCROLL_MODE_STOP)
             .setUpMode(NavHelp.UP_MODE_BACK)
             .start()
     }
@@ -83,7 +81,7 @@ fun createArrivalActionHandler(
             return
         }
         val info = arrival.info
-        TripInfoActivity.start(
+        TripInfoLauncher.start(
             activity,
             info.tripId,
             info.stopId,

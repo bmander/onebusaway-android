@@ -14,8 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui
+package org.onebusaway.android.ui.nightlight
 
+import org.onebusaway.android.ui.HomeActivity
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.view.WindowManager
@@ -73,7 +74,7 @@ private const val PREFERENCE_SHOWED_DIALOG = "showed_night_light_dialog"
 
 /**
  * The night-light NavHost destination (Campaign C): a flashing light riders show at night to flag
- * bus drivers. Re-hosts the former [NightLightActivity]'s window-level concerns — keep-screen-on,
+ * bus drivers. Re-hosts the former [NightLightLauncher]'s window-level concerns — keep-screen-on,
  * full brightness, portrait lock — on the single host activity for as long as this destination is on
  * screen (a [DisposableEffect] adds them on enter and restores them on exit), shows the one-time
  * epilepsy intro, and drives [NightLightScreen]. [onBack] pops the back stack.

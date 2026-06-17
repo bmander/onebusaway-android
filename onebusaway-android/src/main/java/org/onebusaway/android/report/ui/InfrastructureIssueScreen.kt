@@ -86,7 +86,7 @@ import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaArrivalInfo
-import org.onebusaway.android.ui.ArrivalInfo
+import org.onebusaway.android.ui.arrivals.ArrivalInfo
 import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar

@@ -4,7 +4,7 @@ import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaStop;
 import org.onebusaway.android.provider.ObaContract;
-import org.onebusaway.android.ui.ArrivalInfo;
+import org.onebusaway.android.ui.arrivals.ArrivalInfo;
 
 import android.content.ContentValues;
 import android.content.Context;

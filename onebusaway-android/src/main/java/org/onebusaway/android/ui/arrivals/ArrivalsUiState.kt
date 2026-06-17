@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.ui.arrivals
 
-import org.onebusaway.android.ui.ArrivalInfo
 
 /** The stop being viewed, for the arrivals screen header. */
 data class StopHeader(

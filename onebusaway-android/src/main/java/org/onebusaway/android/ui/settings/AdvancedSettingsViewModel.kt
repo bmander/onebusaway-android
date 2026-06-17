@@ -35,7 +35,6 @@ import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.travelbehavior.io.coroutines.FirebaseDataPusher
-import org.onebusaway.android.ui.SettingsSupport
 
 /** One-shot actions the advanced settings screen routes back to its host. */
 sealed interface AdvancedSettingsEffect {

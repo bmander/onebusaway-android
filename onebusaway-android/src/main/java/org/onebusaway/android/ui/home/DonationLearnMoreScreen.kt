@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui
+package org.onebusaway.android.ui.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box

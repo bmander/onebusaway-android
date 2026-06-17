@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui;
+package org.onebusaway.android.ui.nav;
+
+import org.onebusaway.android.ui.HomeActivity;
 
 import org.onebusaway.android.util.ShowcaseViewUtils;
 
@@ -21,7 +23,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 
-final class NavHelp {
+public final class NavHelp {
 
     //
     // Up mode. This controls whether or not the logo (Up) button

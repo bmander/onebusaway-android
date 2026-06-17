@@ -49,8 +49,7 @@ import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.request.ObaArrivalInfoRequest
 import org.onebusaway.android.provider.ObaContract
-import org.onebusaway.android.ui.ArrivalInfo
-import org.onebusaway.android.ui.QueryUtils
+import org.onebusaway.android.ui.arrivals.ArrivalInfo
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.ReminderUtils

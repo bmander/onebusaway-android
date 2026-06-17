@@ -14,15 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui
+package org.onebusaway.android.ui.arrivals
 
+import org.onebusaway.android.ui.nav.NavHelp
+import org.onebusaway.android.ui.HomeActivity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.provider.ObaContract
-import org.onebusaway.android.ui.arrivals.ArrivalsIntents
 import org.onebusaway.android.util.UIUtils
 import java.util.HashMap
 
@@ -33,10 +34,10 @@ import java.util.HashMap
  * Activity but a launcher facade that builds an explicit [HomeActivity] intent carrying the stop's
  * `content://…/stops/{id}` data URI (+ optional name/direction extras). HomeActivity's intent
  * translator reads the data URI and navigates to the arrivals destination. The frozen class name
- * `org.onebusaway.android.ui.ArrivalsListActivity` keeps resolving (for old pinned launcher
+ * `org.onebusaway.android.ui.arrivals.ArrivalsListActivity` keeps resolving (for old pinned launcher
  * shortcuts) via an `<activity-alias>` → HomeActivity in the manifest.
  */
-object ArrivalsListActivity {
+object ArrivalsListLauncher {
 
     class Builder {
 

@@ -16,8 +16,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui
+package org.onebusaway.android.ui.settings
 
+import org.onebusaway.android.ui.HomeActivity
 import android.app.Activity
 import android.content.Intent
 import android.media.RingtoneManager
@@ -44,9 +45,6 @@ import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 import org.onebusaway.android.ui.compose.findActivity
-import org.onebusaway.android.ui.settings.SettingsEffect
-import org.onebusaway.android.ui.settings.SettingsUiState
-import org.onebusaway.android.ui.settings.SettingsViewModel
 import org.onebusaway.android.ui.settings.components.ClickPreferenceItem
 import org.onebusaway.android.ui.settings.components.ListPreferenceItem
 import org.onebusaway.android.ui.settings.components.PreferenceCategory

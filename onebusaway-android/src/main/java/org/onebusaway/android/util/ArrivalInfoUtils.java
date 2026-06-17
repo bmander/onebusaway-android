@@ -22,7 +22,7 @@ import android.content.res.Resources;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.di.PreferencesEntryPoint;
 import org.onebusaway.android.io.elements.ObaArrivalInfo;
-import org.onebusaway.android.ui.ArrivalInfo;
+import org.onebusaway.android.ui.arrivals.ArrivalInfo;
 
 import java.util.ArrayList;
 import java.util.Collections;

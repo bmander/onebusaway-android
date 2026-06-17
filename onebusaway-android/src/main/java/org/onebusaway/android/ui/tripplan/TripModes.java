@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui;
+package org.onebusaway.android.ui.tripplan;
 
 import org.onebusaway.android.R;
 

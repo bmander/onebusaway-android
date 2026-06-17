@@ -25,7 +25,7 @@ import org.onebusaway.android.io.ObaAnalytics;
 import org.onebusaway.android.io.PlausibleAnalytics;
 import org.onebusaway.android.nav.model.Path;
 import org.onebusaway.android.nav.model.PathLink;
-import org.onebusaway.android.ui.TripDetailsActivity;
+import org.onebusaway.android.ui.tripdetails.TripDetailsLauncher;
 import org.onebusaway.android.util.PreferenceUtils;
 import org.onebusaway.android.util.RegionUtils;
 
@@ -571,7 +571,7 @@ public class NavigationServiceProvider implements TextToSpeech.OnInitListener {
      */
     private Notification updateUi(int eventType) {
         Application app = Application.get();
-        TripDetailsActivity.Builder bldr = new TripDetailsActivity.Builder(
+        TripDetailsLauncher.Builder bldr = new TripDetailsLauncher.Builder(
                 app.getApplicationContext(), mTripId);
 
         bldr = bldr.setDestinationId(mStopId);

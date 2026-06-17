@@ -23,8 +23,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.ui.compose.findActivity
-import org.onebusaway.android.ui.openRouteSearchResult
-import org.onebusaway.android.ui.openStopSearchResult
 import org.onebusaway.android.ui.search.RouteSearchContent
 import org.onebusaway.android.ui.search.RouteSearchResult
 import org.onebusaway.android.ui.search.SearchViewModel

@@ -30,7 +30,6 @@ import org.onebusaway.android.io.request.ObaArrivalInfoRequest
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.provider.loadStopUserInfo
-import org.onebusaway.android.ui.ArrivalInfo
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.DBUtil

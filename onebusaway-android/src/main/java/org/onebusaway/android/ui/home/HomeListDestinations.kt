@@ -19,7 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.findActivity
-import org.onebusaway.android.ui.editReminder
+import org.onebusaway.android.ui.mylists.editReminder
 import org.onebusaway.android.ui.mylists.MyListViewModel
 import org.onebusaway.android.ui.mylists.ReminderItem
 import org.onebusaway.android.ui.mylists.ReminderListDestination
@@ -27,11 +27,11 @@ import org.onebusaway.android.ui.mylists.RouteListDestination
 import org.onebusaway.android.ui.mylists.RouteListItem
 import org.onebusaway.android.ui.mylists.StopListDestination
 import org.onebusaway.android.ui.mylists.StopListItem
-import org.onebusaway.android.ui.openRoute
-import org.onebusaway.android.ui.openStop
-import org.onebusaway.android.ui.reminderActions
-import org.onebusaway.android.ui.routeActions
-import org.onebusaway.android.ui.stopActions
+import org.onebusaway.android.ui.mylists.openRoute
+import org.onebusaway.android.ui.mylists.openStop
+import org.onebusaway.android.ui.mylists.reminderActions
+import org.onebusaway.android.ui.mylists.routeActions
+import org.onebusaway.android.ui.mylists.stopActions
 
 /**
  * The three home list views (starred stops/routes, reminders) that [HomeScreen] draws over the map.

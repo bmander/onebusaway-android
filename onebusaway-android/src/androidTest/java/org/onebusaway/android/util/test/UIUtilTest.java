@@ -45,7 +45,7 @@ import org.onebusaway.android.map.MapParams;
 import org.onebusaway.android.mock.MockObaStop;
 import org.onebusaway.android.mock.MockRegion;
 import org.onebusaway.android.provider.ObaContract;
-import org.onebusaway.android.ui.ArrivalInfo;
+import org.onebusaway.android.ui.arrivals.ArrivalInfo;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.UIUtils;
 

@@ -75,7 +75,6 @@ class HomeDestinationDeps(
     val donationViewModel: DonationViewModel,
     val weatherViewModel: WeatherViewModel,
     val helpViewModel: HelpViewModel,
-    val listVms: HomeListViewModels,
     val arrivalsViewModelFactory: ArrivalsViewModel.Factory,
     val callbacks: HomeCallbacks,
 )
@@ -106,7 +105,6 @@ fun HomeNavHost(
                 donationViewModel = home.donationViewModel,
                 weatherViewModel = home.weatherViewModel,
                 helpViewModel = home.helpViewModel,
-                listVms = home.listVms,
                 arrivalsViewModelFactory = home.arrivalsViewModelFactory,
                 callbacks = home.callbacks,
                 onShowRouteInfo = { routeId ->

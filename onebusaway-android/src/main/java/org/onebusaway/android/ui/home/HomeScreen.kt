@@ -37,6 +37,8 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
@@ -73,18 +75,21 @@ import org.onebusaway.android.ui.home.map.RouteHeaderOverlay
 import org.onebusaway.android.ui.survey.SurveyFeature
 import org.onebusaway.android.ui.home.weather.WeatherFeature
 import org.onebusaway.android.ui.home.weather.WeatherViewModel
-import org.onebusaway.android.ui.mylists.MyListViewModel
-import org.onebusaway.android.ui.mylists.ReminderItem
 import org.onebusaway.android.ui.mylists.ReminderListDestination
+import org.onebusaway.android.ui.mylists.RemindersRepository
 import org.onebusaway.android.ui.mylists.RouteListDestination
-import org.onebusaway.android.ui.mylists.RouteListItem
+import org.onebusaway.android.ui.mylists.StarredRoutesRepository
+import org.onebusaway.android.ui.mylists.StarredStopsRepository
 import org.onebusaway.android.ui.mylists.StopListDestination
-import org.onebusaway.android.ui.mylists.StopListItem
+import org.onebusaway.android.ui.mylists.chooseSortOrder
+import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.editReminder
 import org.onebusaway.android.ui.mylists.openRoute
 import org.onebusaway.android.ui.mylists.reminderActions
+import org.onebusaway.android.ui.mylists.rememberListVm
 import org.onebusaway.android.ui.mylists.routeActions
 import org.onebusaway.android.ui.mylists.stopActions
+import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.ui.survey.SurveyViewModel
 
 /**
@@ -109,17 +114,6 @@ class HomeCallbacks(
     val onPreferredHeight: (previewCount: Int, filtering: Boolean) -> Unit,
     val onCancelRouteMode: () -> Unit,
     val onRouteHeaderHeight: (Int) -> Unit,
-)
-
-/**
- * The home list destinations' backing [MyListViewModel]s, owned by [org.onebusaway.android.ui.HomeActivity]
- * (so its options menu can sort/clear them) and handed to [HomeScreen]. They stay cheap until a
- * destination subscribes.
- */
-class HomeListViewModels(
-    val starredStops: MyListViewModel<StopListItem>,
-    val starredRoutes: MyListViewModel<RouteListItem>,
-    val reminders: MyListViewModel<ReminderItem>,
 )
 
 /**
@@ -149,7 +143,6 @@ fun HomeScreen(
     donationViewModel: DonationViewModel,
     weatherViewModel: WeatherViewModel,
     helpViewModel: HelpViewModel,
-    listVms: HomeListViewModels,
     // Builds the per-focused-stop ArrivalsViewModel for the bottom-sheet host (assisted-injected;
     // the sheet's stop id is runtime-dynamic, so it can't be a plain hiltViewModel). Injected into
     // HomeActivity and threaded down.
@@ -320,7 +313,7 @@ fun HomeScreen(
                             donationViewModel = donationViewModel,
                             surveyViewModel = surveyViewModel,
                             routeHeader = routeHeader,
-                            listVms = listVms,
+                            listMenuRequests = homeViewModel.listMenuRequests,
                             onCancelRouteMode = onCancelRouteMode,
                             onRouteHeaderHeight = onRouteHeaderHeight,
                             onShowRouteInfo = onShowRouteInfo,
@@ -393,7 +386,7 @@ private fun BoxScope.HomeMapOverlays(
     donationViewModel: DonationViewModel,
     surveyViewModel: SurveyViewModel,
     routeHeader: RouteHeader?,
-    listVms: HomeListViewModels,
+    listMenuRequests: SharedFlow<ListMenuRequest>,
     onCancelRouteMode: () -> Unit,
     onRouteHeaderHeight: (Int) -> Unit,
     onShowRouteInfo: (routeId: String) -> Unit,
@@ -438,7 +431,7 @@ private fun BoxScope.HomeMapOverlays(
     )
     HomeListOverlay(
         selectedItem = state.selectedItem,
-        listVms = listVms,
+        listMenuRequests = listMenuRequests,
         onShowRouteInfo = onShowRouteInfo,
         onShowArrivals = onShowArrivals,
     )
@@ -453,41 +446,82 @@ private fun BoxScope.HomeMapOverlays(
 @Composable
 private fun HomeListOverlay(
     selectedItem: HomeNavItem,
-    listVms: HomeListViewModels,
+    listMenuRequests: SharedFlow<ListMenuRequest>,
     onShowRouteInfo: (routeId: String) -> Unit,
     onShowArrivals: (stopId: String, stopName: String?) -> Unit,
 ) {
+    val host = LocalContext.current.findActivity()
     when (selectedItem) {
         HomeNavItem.STARRED_STOPS -> {
-            val host = LocalContext.current.findActivity()
+            // The overlay owns its list VM (entry-scoped) and handles the toolbar sort/clear against it,
+            // so the host no longer holds all three VMs or dispatches by selected tab.
+            val vm = rememberListVm("home.starredStops") { StarredStopsRepository(host.applicationContext) }
+            ListMenuRequestHandler(
+                requests = listMenuRequests,
+                onSort = {
+                    host.chooseSortOrder(
+                        PreferenceUtils.getStopSortOrderFromPreferences(), R.array.sort_stops
+                    ) { vm.setSort(it) }
+                },
+                onClear = {
+                    host.confirmClear(
+                        R.string.my_option_clear_starred_stops_title,
+                        R.string.my_option_clear_starred_stops_confirm,
+                    ) { vm.clearAll() }
+                },
+            )
             StopListDestination(
-                listVms.starredStops,
+                vm,
                 emptyText = R.string.my_no_starred_stops,
                 onClick = { onShowArrivals(it.id, it.name) },
                 actions = {
                     host.stopActions(it, R.string.my_context_remove_star, shortcutMode = false) {
-                        listVms.starredStops.remove(it.id)
+                        vm.remove(it.id)
                     }
                 },
             )
         }
         HomeNavItem.STARRED_ROUTES -> {
-            val host = LocalContext.current.findActivity()
+            val vm = rememberListVm("home.starredRoutes") { StarredRoutesRepository(host.applicationContext) }
+            ListMenuRequestHandler(
+                requests = listMenuRequests,
+                onSort = {
+                    host.chooseSortOrder(
+                        PreferenceUtils.getStopSortOrderFromPreferences(), R.array.sort_stops
+                    ) { vm.setSort(it) }
+                },
+                onClear = {
+                    host.confirmClear(
+                        R.string.my_option_clear_starred_routes_title,
+                        R.string.my_option_clear_starred_routes_confirm,
+                    ) { vm.clearAll() }
+                },
+            )
             RouteListDestination(
-                listVms.starredRoutes,
+                vm,
                 emptyText = R.string.my_no_starred_routes,
                 onClick = { host.openRoute(it, shortcutMode = false) },
                 actions = {
                     host.routeActions(it, R.string.my_context_remove_star, shortcutMode = false) {
-                        listVms.starredRoutes.remove(it.id)
+                        vm.remove(it.id)
                     }
                 },
             )
         }
         HomeNavItem.MY_REMINDERS -> {
-            val host = LocalContext.current.findActivity()
+            val vm = rememberListVm("home.reminders") { RemindersRepository(host.applicationContext) }
+            // Reminders aren't clearable from here (the toolbar shows no clear action on this tab).
+            ListMenuRequestHandler(
+                requests = listMenuRequests,
+                onSort = {
+                    host.chooseSortOrder(
+                        PreferenceUtils.getReminderSortOrderFromPreferences(), R.array.sort_reminders
+                    ) { vm.setSort(it) }
+                },
+                onClear = null,
+            )
             ReminderListDestination(
-                listVms.reminders,
+                vm,
                 emptyText = R.string.trip_list_notrips,
                 onClick = { host.editReminder(it) },
                 // A reminder carries only a stop id (no cached name).
@@ -501,6 +535,30 @@ private fun HomeListOverlay(
             )
         }
         else -> {}
+    }
+}
+
+/**
+ * Collects the host's toolbar list-menu [requests] for as long as the owning overlay is composed (only
+ * the active list tab is), invoking the current [onSort] / [onClear] handlers. [onClear] is null for
+ * lists with no clear action (reminders). [rememberUpdatedState] keeps the latched collector calling the
+ * latest handlers without restarting on every recomposition.
+ */
+@Composable
+private fun ListMenuRequestHandler(
+    requests: SharedFlow<ListMenuRequest>,
+    onSort: () -> Unit,
+    onClear: (() -> Unit)?,
+) {
+    val currentSort by rememberUpdatedState(onSort)
+    val currentClear by rememberUpdatedState(onClear)
+    LaunchedEffect(requests) {
+        requests.collect { request ->
+            when (request) {
+                ListMenuRequest.Sort -> currentSort()
+                ListMenuRequest.Clear -> currentClear?.invoke()
+            }
+        }
     }
 }
 

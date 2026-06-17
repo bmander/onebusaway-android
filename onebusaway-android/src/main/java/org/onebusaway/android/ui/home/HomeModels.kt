@@ -170,6 +170,13 @@ data class HomeUiState(
 enum class ArrivalsSheetState { Hidden, Collapsed, Expanded }
 
 /**
+ * A toolbar list-menu action the active list overlay should carry out against its own VM. The host's
+ * sort/clear menu items emit these (via [HomeViewModel]); only the active overlay collects them, so the
+ * action resolves against that destination's list rather than the host dispatching by selected tab.
+ */
+enum class ListMenuRequest { Sort, Clear }
+
+/**
  * One-shot region effects driven from the ViewModel, consumed by the host ([HomeActivity]) off its own
  * [HomeViewModel.regionEvents] flow. (The region-wide GTFS alert is plain state now —
  * [HomeUiState.wideAlert], rendered as a Compose dialog — not a one-shot event.)

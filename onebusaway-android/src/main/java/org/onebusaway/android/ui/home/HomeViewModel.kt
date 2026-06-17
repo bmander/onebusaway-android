@@ -90,6 +90,11 @@ class HomeViewModel @Inject constructor(
     private val _sheetCommands = MutableSharedFlow<SheetCommand>(extraBufferCapacity = 4)
     val sheetCommands: SharedFlow<SheetCommand> = _sheetCommands.asSharedFlow()
 
+    // Toolbar list-menu (sort/clear) requests: the active list overlay collects these and acts on its own
+    // VM, replacing the host's hold-all-three-VMs + dispatch-by-selectedItem switchboard.
+    private val _listMenuRequests = MutableSharedFlow<ListMenuRequest>(extraBufferCapacity = 1)
+    val listMenuRequests: SharedFlow<ListMenuRequest> = _listMenuRequests.asSharedFlow()
+
     // The region whose fare-payment warning dialog is showing (PAY_FARE), or null when none — dialog UI
     // state the host's PaymentWarningDialog observes; set by [showPaymentWarning], cleared by [dismissPaymentWarning].
     private val _paymentWarning = MutableStateFlow<ObaRegion?>(null)
@@ -343,6 +348,10 @@ class HomeViewModel @Inject constructor(
 
     /** Chevron tap — ask the screen to toggle the sheet (it holds the live SheetState). */
     fun requestToggleSheet() = emit(SheetCommand.ToggleSheet)
+
+    /** Toolbar "sort"/"clear" taps — relayed to whichever list overlay is active (see [listMenuRequests]). */
+    fun requestListSort() { _listMenuRequests.tryEmit(ListMenuRequest.Sort) }
+    fun requestListClear() { _listMenuRequests.tryEmit(ListMenuRequest.Clear) }
 
     /**
      * The host has a restored / deep-linked focus the imperative map hasn't been told about yet;

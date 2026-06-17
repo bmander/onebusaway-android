@@ -61,7 +61,6 @@ import org.onebusaway.android.ui.home.help.HelpViewModel
 import org.onebusaway.android.ui.home.HomeCallbacks
 import org.onebusaway.android.ui.home.RegionEvent
 import org.onebusaway.android.ui.home.ReportTarget
-import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
@@ -72,17 +71,10 @@ import org.onebusaway.android.ui.home.SettingsRehomeEffect
 import org.onebusaway.android.ui.home.PaymentWarningDialog
 import org.onebusaway.android.ui.home.chrome.analyticsLabelRes
 import org.onebusaway.android.ui.mylists.MyTabs
-import org.onebusaway.android.ui.mylists.RemindersRepository
-import org.onebusaway.android.ui.mylists.StarredRoutesRepository
-import org.onebusaway.android.ui.mylists.StarredStopsRepository
 import org.onebusaway.android.ui.nav.NavRoutes
-import org.onebusaway.android.ui.mylists.chooseSortOrder
-import org.onebusaway.android.ui.mylists.confirmClear
-import org.onebusaway.android.ui.mylists.hostListVm
 import org.onebusaway.android.ui.survey.SurveyViewModel
 import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.PermissionUtils
-import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.ReminderUtils
 import org.onebusaway.android.util.ShowcaseViewUtils
 
@@ -129,18 +121,6 @@ class HomeActivity : AppCompatActivity() {
     // The help / what's-new / legend dialogs feature module. Activity-scoped.
     private val helpViewModel: HelpViewModel by viewModels()
 
-    // The three home list destinations (starred stops/routes, reminders) render as Compose overlays
-    // over the map (HomeListDestinations) rather than swapped-in fragments. Their MyListViewModels are
-    // owned here (keyed in the activity's ViewModelStore) so the toolbar sort/clear menu can reach
-    // them; they stay cheap until a destination subscribes (WhileSubscribed). See HomeListViewModels.
-    private val listVms: HomeListViewModels by lazy {
-        HomeListViewModels(
-            hostListVm("home.starredStops") { StarredStopsRepository(applicationContext) },
-            hostListVm("home.starredRoutes") { StarredRoutesRepository(applicationContext) },
-            hostListVm("home.reminders") { RemindersRepository(applicationContext) },
-        )
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -174,7 +154,6 @@ class HomeActivity : AppCompatActivity() {
                     donationViewModel = donationViewModel,
                     weatherViewModel = weatherViewModel,
                     helpViewModel = helpViewModel,
-                    listVms = listVms,
                     arrivalsViewModelFactory = arrivalsViewModelFactory,
                     callbacks = homeCallbacks,
                 ),
@@ -214,8 +193,8 @@ class HomeActivity : AppCompatActivity() {
         onNavItemSelected = ::onHomeNavItemSelected,
         onSearch = ::onSearch,
         onRecentStopsRoutes = ::onRecentStopsRoutes,
-        onListSort = ::onListSortSelected,
-        onListClear = ::onListClearSelected,
+        onListSort = viewModel::requestListSort,
+        onListClear = viewModel::requestListClear,
         onHelpAction = ::onHelpAction,
         onShowWelcomeTutorial = {
             ShowcaseViewUtils.showTutorial(
@@ -486,38 +465,6 @@ class HomeActivity : AppCompatActivity() {
     private fun onRecentStopsRoutes() {
         ShowcaseViewUtils.doNotShowTutorial(this, ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES)
         viewModel.stageDeepLinkRoute(NavRoutes.myRecent())
-    }
-
-    /** Sort the visible list tab (the dialog + persisted order live with the shared list helpers). */
-    private fun onListSortSelected() = when (viewModel.uiState.value.selectedItem) {
-        HomeNavItem.STARRED_STOPS ->
-            chooseSortOrder(PreferenceUtils.getStopSortOrderFromPreferences(), R.array.sort_stops) {
-                listVms.starredStops.setSort(it)
-            }
-        HomeNavItem.STARRED_ROUTES ->
-            chooseSortOrder(PreferenceUtils.getStopSortOrderFromPreferences(), R.array.sort_stops) {
-                listVms.starredRoutes.setSort(it)
-            }
-        HomeNavItem.MY_REMINDERS ->
-            chooseSortOrder(PreferenceUtils.getReminderSortOrderFromPreferences(), R.array.sort_reminders) {
-                listVms.reminders.setSort(it)
-            }
-        else -> Unit
-    }
-
-    /** Clear-all confirmation for the visible starred tab (recents/reminders aren't clearable here). */
-    private fun onListClearSelected() = when (viewModel.uiState.value.selectedItem) {
-        HomeNavItem.STARRED_STOPS ->
-            confirmClear(
-                R.string.my_option_clear_starred_stops_title,
-                R.string.my_option_clear_starred_stops_confirm
-            ) { listVms.starredStops.clearAll() }
-        HomeNavItem.STARRED_ROUTES ->
-            confirmClear(
-                R.string.my_option_clear_starred_routes_title,
-                R.string.my_option_clear_starred_routes_confirm
-            ) { listVms.starredRoutes.clearAll() }
-        else -> Unit
     }
 
     // --- Help-menu actions that are Activity operations (the dialog-opening ones live in HelpFeature) ---

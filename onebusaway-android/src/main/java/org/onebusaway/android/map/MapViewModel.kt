@@ -637,9 +637,6 @@ class MapViewModel @Inject constructor(
 
     private val isRouteMode: Boolean get() = currentMode is MapMode.Route
 
-    /** The current mode, or null before the initial [setMode] in init{} has run. */
-    val currentMapMode: MapMode? get() = currentMode
-
     /**
      * The map's initial camera, read live from [savedStateHandle] each time the adapter (re)composes
      * (replacing the host's readMapSeed). A getter, not a cached val: on a config change the VM survives

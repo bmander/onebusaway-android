@@ -25,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -34,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import org.onebusaway.android.R
-import org.onebusaway.android.map.MapMode
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.NoOpObaMapCallbacks
 import org.onebusaway.android.map.compose.ObaMap
@@ -55,12 +53,9 @@ fun TripPlanLocationPickerDestination(
     lon: Double?
 ) {
     // Entry-scoped — distinct from HomeActivity's MapViewModel (this is a separate back-stack entry).
+    // Stop mode (so nearby stops load as the user pans) is seeded by MapViewModel.init from this
+    // entry's SavedStateHandle — no MapParams.MODE nav-arg means it resolves to Stop.
     val mapViewModel = hiltViewModel<MapViewModel>()
-
-    // Stop mode so nearby stops load as the user pans (the old view-owning host's default mode).
-    LaunchedEffect(Unit) {
-        if (mapViewModel.currentMapMode == null) mapViewModel.setMode(MapMode.Stop)
-    }
 
     Scaffold(
         topBar = {

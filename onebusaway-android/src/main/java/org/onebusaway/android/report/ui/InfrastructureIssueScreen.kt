@@ -68,7 +68,6 @@ import edu.usf.cutr.open311client.models.Service
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.elements.ObaStopElement
-import org.onebusaway.android.map.MapMode
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.ObaMap
@@ -141,11 +140,9 @@ fun InfrastructureIssueDestination(
     val activity = LocalContext.current.findActivity() as HomeActivity
 
     // Entry-scoped map view model (distinct from HomeActivity's own; this is a separate back-stack
-    // entry). Stop mode so nearby stops load + are tappable, matching the former view-owning host.
+    // entry). Stop mode (so nearby stops load + are tappable) is seeded by MapViewModel.init from this
+    // entry's SavedStateHandle — no MapParams.MODE nav-arg means it resolves to Stop.
     val mapViewModel = hiltViewModel<MapViewModel>()
-    LaunchedEffect(Unit) {
-        if (mapViewModel.currentMapMode == null) mapViewModel.setMode(MapMode.Stop)
-    }
 
     // Build the InfrastructureIssueViewModel once, scoped to this back-stack entry (so its
     // viewModelScope is cancelled when the destination leaves). Reads selectedService from the

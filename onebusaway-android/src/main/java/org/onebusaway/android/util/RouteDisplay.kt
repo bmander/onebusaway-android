@@ -81,25 +81,11 @@ fun getRouteDescription(route: ObaRoute): String? {
  *               the routes for the stop are referenced via stop.getRouteDisplayNames()
  * @return comma-delimited list of route display names that serve a stop
  */
-fun serializeRouteDisplayNames(stop: ObaStop, routes: HashMap<String, ObaRoute>?): String {
-    val sb = StringBuilder()
-    val routeIds = stop.routeIds
-    for (i in routeIds.indices) {
-        if (routes != null) {
-            val route = routes[routeIds[i]]!!
-            sb.append(getRouteDisplayName(route))
-        } else {
-            // We don't have route mappings - use routeIds
-            sb.append(routeIds[i])
-        }
-
-        if (i != routeIds.size - 1) {
-            sb.append(",")
-        }
+fun serializeRouteDisplayNames(stop: ObaStop, routes: HashMap<String, ObaRoute>?): String =
+    stop.routeIds.joinToString(",") { routeId ->
+        // Use the route's display name when we have the mapping, else fall back to the routeId.
+        if (routes != null) getRouteDisplayName(routes[routeId]!!) else routeId
     }
-
-    return sb.toString()
-}
 
 /**
  * Returns a list of route display names from a serialized list of route display names
@@ -109,10 +95,8 @@ fun serializeRouteDisplayNames(stop: ObaStop, routes: HashMap<String, ObaRoute>?
  * @param serializedRouteDisplayNames comma-separate list of routeIds from serializeRouteDisplayNames()
  * @return list of route display names
  */
-fun deserializeRouteDisplayNames(serializedRouteDisplayNames: String): List<String> {
-    val routes = serializedRouteDisplayNames.split(",").toTypedArray()
-    return routes.asList()
-}
+fun deserializeRouteDisplayNames(serializedRouteDisplayNames: String): List<String> =
+    serializedRouteDisplayNames.split(",")
 
 /**
  * Returns a formatted and sorted list of route display names for presentation in a single line
@@ -134,31 +118,7 @@ fun deserializeRouteDisplayNames(serializedRouteDisplayNames: String): List<Stri
 fun formatRouteDisplayNames(
     routeDisplayNames: List<String>,
     nextArrivalRouteShortNames: List<String>
-): String {
-    val sorted = routeDisplayNames.sortedWith(AlphanumComparator())
-    val sb = StringBuilder()
-
-    for (i in sorted.indices) {
-        var match = false
-
-        for (nextArrivalRouteShortName in nextArrivalRouteShortNames) {
-            if (sorted[i].equals(nextArrivalRouteShortName, ignoreCase = true)) {
-                match = true
-                break
-            }
-        }
-
-        if (match) {
-            // If this route name matches a route name for the next X arrivals that are the same, highlight this route in the text
-            sb.append(sorted[i] + "*")
-        } else {
-            // Just append the normally-formatted route name
-            sb.append(sorted[i])
-        }
-
-        if (i != sorted.size - 1) {
-            sb.append(", ")
-        }
-    }
-    return sb.toString()
+): String = routeDisplayNames.sortedWith(AlphanumComparator()).joinToString(", ") { name ->
+    // Highlight (with "*") names that match one of the next X identical arrivals.
+    if (nextArrivalRouteShortNames.any { it.equals(name, ignoreCase = true) }) "$name*" else name
 }

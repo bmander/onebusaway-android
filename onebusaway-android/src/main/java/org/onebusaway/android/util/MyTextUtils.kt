@@ -75,7 +75,7 @@ object MyTextUtils {
         if (inputVal == null)
             return null
 
-        if (inputVal.length == 0)
+        if (inputVal.isEmpty())
             return ""
 
         // Strings with only one character uppercased.

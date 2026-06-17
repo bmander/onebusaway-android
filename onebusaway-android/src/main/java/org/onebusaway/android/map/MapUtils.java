@@ -46,7 +46,7 @@ public class MapUtils {
         }
         if (AndroidUtils.canManageDialog(context)) {
             Toast.makeText(context,
-                    context.getString(ObaRequestErrors.getMapErrorString(context, code)),
+                    ObaRequestErrors.getMapErrorString(context, code),
                     Toast.LENGTH_LONG).show();
         }
     }

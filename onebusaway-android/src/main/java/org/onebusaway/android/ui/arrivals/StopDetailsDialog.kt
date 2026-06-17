@@ -19,12 +19,12 @@
 package org.onebusaway.android.ui.arrivals
 
 import android.content.Context
-import android.text.TextUtils
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.util.Pair
@@ -50,8 +50,8 @@ fun createStopDetailsDialogText(
     var title = ""
     val message = StringBuilder()
 
-    if (!TextUtils.isEmpty(stopUserName)) {
-        title = stopUserName!!
+    if (!stopUserName.isNullOrEmpty()) {
+        title = stopUserName
         if (stopName != null) {
             // Show official stop name in addition to user name
             message.append(context.getString(R.string.stop_info_official_stop_name_label, stopName))
@@ -62,7 +62,7 @@ fun createStopDetailsDialogText(
     }
 
     if (stopCode != null) {
-        message.append(context.getString(R.string.stop_details_code, stopCode) + newLine)
+        message.append(context.getString(R.string.stop_details_code, stopCode)).append(newLine)
     }
 
     // Routes that serve this stop
@@ -72,9 +72,9 @@ fun createStopDetailsDialogText(
         message.append(routes)
     }
 
-    if (!TextUtils.isEmpty(stopDirection)) {
+    if (!stopDirection.isNullOrEmpty()) {
         message.append(newLine)
-            .append(context.getString(DisplayFormat.getStopDirectionText(stopDirection!!)))
+            .append(context.getString(DisplayFormat.getStopDirectionText(stopDirection)))
     }
     return Pair(title, message.toString())
 }
@@ -90,14 +90,26 @@ internal fun StopDetailsHost(viewModel: ArrivalsViewModel) {
     val visible by viewModel.stopDetailsVisible.collectAsStateWithLifecycle()
     val content = state as? ArrivalsUiState.Content
     if (visible && content != null) {
-        val text = createStopDetailsDialogText(
-            LocalContext.current,
+        val context = LocalContext.current
+        // Only rebuild the dialog text when an input actually changes, not on every poll-driven
+        // state emission while the dialog is open.
+        val text = remember(
+            context,
             content.header.name,
             content.stopUserName,
             content.stopCode,
             content.header.direction,
-            content.routeFilterOptions.map { it.displayName }
-        )
+            content.routeFilterOptions
+        ) {
+            createStopDetailsDialogText(
+                context,
+                content.header.name,
+                content.stopUserName,
+                content.stopCode,
+                content.header.direction,
+                content.routeFilterOptions.map { it.displayName }
+            )
+        }
         AlertDialog(
             onDismissRequest = viewModel::dismissStopDetails,
             title = { Text(text.first) },

@@ -55,19 +55,11 @@ object SituationUtils {
         // Add agency-wide and stop-specific alerts
         allSituations.addAll(response.situations)
 
-        // Add all existing Ids to a HashSet for O(1) retrieval (vs. list)
-        val allIds = HashSet<String>()
-        for (s in allSituations) {
-            allIds.add(s.id)
-        }
+        // Track seen ids in a HashSet for O(1) retrieval (mutated below as route alerts are added).
+        val allIds = allSituations.mapTo(HashSet()) { it.id }
 
-        // Do the same for filtered routes
-        val filterIds = HashSet<String>()
-        if (filter != null && !filter.isEmpty()) {
-            for (routeId in filter) {
-                filterIds.add(routeId)
-            }
-        }
+        // The filter route-ids as a set (empty == no filter).
+        val filterIds = filter.orEmpty().toHashSet()
 
         // Scan through the routes, and if a route-specific situation hasn't been added yet, add it
         // If a filter list exists and a route_id is not included in the filter list, don't included

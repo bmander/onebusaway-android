@@ -72,7 +72,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.nightlight.NightLightLauncher
-import org.onebusaway.android.util.AndroidUtils
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.DisplayFormat
 import org.onebusaway.android.ui.compose.components.LoadingContent
@@ -389,8 +388,7 @@ internal fun ArrivalsList(
      *  avoid duplicating it as a list item. */
     showDirection: Boolean = true
 ) {
-    val useCards = content.style == BuildFlavorUtils.ARRIVAL_INFO_STYLE_B &&
-        AndroidUtils.canSupportArrivalInfoStyleB()
+    val useCards = content.style == BuildFlavorUtils.ARRIVAL_INFO_STYLE_B
     // Sorting/grouping is non-trivial; keep it off the recomposition path
     val groups = remember(content.arrivals, useCards) {
         if (useCards) groupForStyleB(content.arrivals) else emptyList()

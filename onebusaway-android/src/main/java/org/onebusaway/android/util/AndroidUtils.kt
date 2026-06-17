@@ -163,16 +163,4 @@ object AndroidUtils {
         }
         return ""
     }
-
-    /**
-     * Returns true if the API level supports our Arrival Info Style B (sort by route) views, false
-     * if it does not.  See #350 and #275.
-     *
-     * @return true if the API level supports our Arrival Info Style B (sort by route) views, false
-     * if it does not
-     */
-    @JvmStatic
-    fun canSupportArrivalInfoStyleB(): Boolean {
-        return android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.ICE_CREAM_SANDWICH
-    }
 }

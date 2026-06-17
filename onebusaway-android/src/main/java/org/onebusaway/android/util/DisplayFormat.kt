@@ -132,25 +132,15 @@ object DisplayFormat {
 
     @JvmStatic
     @StringRes
-    fun getStopDirectionText(direction: String): Int {
-        return if (direction == "N") {
-            R.string.direction_n
-        } else if (direction == "NW") {
-            R.string.direction_nw
-        } else if (direction == "W") {
-            R.string.direction_w
-        } else if (direction == "SW") {
-            R.string.direction_sw
-        } else if (direction == "S") {
-            R.string.direction_s
-        } else if (direction == "SE") {
-            R.string.direction_se
-        } else if (direction == "E") {
-            R.string.direction_e
-        } else if (direction == "NE") {
-            R.string.direction_ne
-        } else {
-            R.string.direction_none
-        }
+    fun getStopDirectionText(direction: String): Int = when (direction) {
+        "N" -> R.string.direction_n
+        "NW" -> R.string.direction_nw
+        "W" -> R.string.direction_w
+        "SW" -> R.string.direction_sw
+        "S" -> R.string.direction_s
+        "SE" -> R.string.direction_se
+        "E" -> R.string.direction_e
+        "NE" -> R.string.direction_ne
+        else -> R.string.direction_none
     }
 }

@@ -21,8 +21,6 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.provider.Settings
 
-import androidx.annotation.StringRes
-
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaApi
@@ -91,33 +89,29 @@ object ObaRequestErrors {
     }
 
     /**
-     * Returns the resource ID for a user-friendly error message based on device state (if a
-     * network
-     * connection is available or airplane mode is on) or an OBA REST API response code
+     * Returns a user-friendly error message based on device state (whether a network connection is
+     * available or airplane mode is on) or an OBA REST API response code.
      *
      * @param code The status code (one of the ObaApi.OBA_* constants)
-     * @return the resource ID for a user-friendly error message based on device state (if a network
-     * connection is available or airplane mode is on) or an OBA REST API response code
      */
     @JvmStatic
-    @StringRes
-    fun getMapErrorString(context: Context, code: Int): Int {
+    fun getMapErrorString(context: Context, code: Int): String {
         if (!isConnected(context)) {
             return if (isAirplaneMode(context)) {
-                R.string.airplane_mode_error
+                context.getString(R.string.airplane_mode_error)
             } else {
-                R.string.no_network_error
+                context.getString(R.string.no_network_error)
             }
         }
         return when (code) {
             ObaApi.OBA_INTERNAL_ERROR ->
-                R.string.internal_error
+                context.getString(R.string.internal_error)
             ObaApi.OBA_BAD_GATEWAY ->
-                R.string.bad_gateway_error
+                context.getString(R.string.bad_gateway_error)
             ObaApi.OBA_OUT_OF_MEMORY ->
-                R.string.out_of_memory_error
+                context.getString(R.string.out_of_memory_error)
             else ->
-                R.string.map_generic_error
+                context.getString(R.string.map_generic_error)
         }
     }
 

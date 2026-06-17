@@ -27,26 +27,26 @@ object ThemeUtils {
 
     @JvmStatic
     fun setAppTheme(themeValue: String) {
-        if (themeValue.equals(
-                Application.get().getString(R.string.preferences_app_theme_option_system_default),
+        val app = Application.get()
+        val mode = when {
+            themeValue.equals(
+                app.getString(R.string.preferences_app_theme_option_system_default),
                 ignoreCase = true
-            )
-        ) {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
-        }
-        if (themeValue.equals(
-                Application.get().getString(R.string.preferences_app_theme_option_dark),
+            ) -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+
+            themeValue.equals(
+                app.getString(R.string.preferences_app_theme_option_dark),
                 ignoreCase = true
-            )
-        ) {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-        }
-        if (themeValue.equals(
-                Application.get().getString(R.string.preferences_app_theme_option_light),
+            ) -> AppCompatDelegate.MODE_NIGHT_YES
+
+            themeValue.equals(
+                app.getString(R.string.preferences_app_theme_option_light),
                 ignoreCase = true
-            )
-        ) {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+            ) -> AppCompatDelegate.MODE_NIGHT_NO
+
+            // Unrecognized value: leave the current mode unchanged (matches legacy behavior).
+            else -> return
         }
+        AppCompatDelegate.setDefaultNightMode(mode)
     }
 }

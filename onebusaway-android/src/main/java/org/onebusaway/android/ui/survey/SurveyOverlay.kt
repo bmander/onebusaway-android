@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.home.survey
+package org.onebusaway.android.ui.survey
 
 import android.widget.Toast
 import androidx.compose.foundation.clickable
@@ -58,9 +58,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import org.onebusaway.android.R
 import org.onebusaway.android.io.request.survey.model.StudyResponse
-import org.onebusaway.android.ui.survey.SurveyEffect
-import org.onebusaway.android.ui.survey.SurveyUiState
-import org.onebusaway.android.ui.survey.SurveyViewModel
 import org.onebusaway.android.ui.survey.activities.SurveyWebViewActivity
 import org.onebusaway.android.ui.survey.utils.SurveyUtils
 

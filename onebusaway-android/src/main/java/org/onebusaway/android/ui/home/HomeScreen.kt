@@ -69,7 +69,7 @@ import org.onebusaway.android.ui.home.help.HelpViewModel
 import org.onebusaway.android.ui.home.map.MapChrome
 import org.onebusaway.android.ui.home.map.MapFeature
 import org.onebusaway.android.ui.home.map.RouteHeaderOverlay
-import org.onebusaway.android.ui.home.survey.SurveyFeature
+import org.onebusaway.android.ui.survey.SurveyFeature
 import org.onebusaway.android.ui.home.weather.WeatherFeature
 import org.onebusaway.android.ui.home.weather.WeatherViewModel
 import org.onebusaway.android.ui.mylists.MyListViewModel
@@ -87,7 +87,7 @@ import org.onebusaway.android.ui.mylists.stopActions
 import org.onebusaway.android.ui.survey.SurveyViewModel
 
 /**
- * The home screen's tap/UI callbacks, bundled into one holder (mirrors [org.onebusaway.android.ui.home.survey.SurveyCallbacks]) so
+ * The home screen's tap/UI callbacks, bundled into one holder (mirrors [org.onebusaway.android.ui.survey.SurveyCallbacks]) so
  * [HomeScreen]'s signature stays a handful of parameters — state + the map/survey plumbing + this —
  * instead of ~30 individual lambdas. Each is dispatched up to HomeActivity or a view model.
  */
@@ -133,7 +133,7 @@ class HomeListViewModels(
  * fights a user drag. **Expansion (peek<->full)** is the live `SheetState`, nudged by one-shot
  * [HomeEvent.ToggleSheet]/[HomeEvent.CollapseSheet] commands (the screen alone knows the live state),
  * plus [BackHandler]. The arrivals panel is hosted directly per focused stop (see [ArrivalsSheetHost]);
- * the map ([MapFeature]), the route-mode header ([RouteHeaderOverlay]), and the survey ([org.onebusaway.android.ui.home.survey.SurveyOverlay])
+ * the map ([MapFeature]), the route-mode header ([RouteHeaderOverlay]), and the survey ([org.onebusaway.android.ui.survey.SurveyOverlay])
  * are all composables now — no map-related `AndroidView` / View seam remains.
  */
 @OptIn(ExperimentalMaterial3Api::class)

@@ -35,7 +35,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.google.firebase.analytics.FirebaseAnalytics
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.onebusaway.android.R
 import org.onebusaway.android.io.ObaAnalytics
@@ -131,23 +130,24 @@ fun HomeNavHost(
 }
 
 /**
- * Consumes a staged deep-link route ([pendingDeepLinkRoute]) once the NavHost is ready (and on each
- * `onNewIntent`): navigates to it, popping up to HOME, then clears the latch. Lifted verbatim from the
- * former inline `onCreate` effect.
+ * Consumes a staged deep-link route (the [HomeViewModel.deepLinkRoute] latch) once the NavHost is ready
+ * (and on each `onNewIntent`): navigates to it, popping up to HOME, then clears the latch via
+ * [onConsumed]. Lifted verbatim from the former inline `onCreate` effect.
  */
 @Composable
 internal fun DeepLinkEffect(
     navController: NavHostController,
-    pendingDeepLinkRoute: MutableStateFlow<String?>,
+    deepLinkRoute: StateFlow<String?>,
+    onConsumed: () -> Unit,
 ) {
-    val pending by pendingDeepLinkRoute.collectAsStateWithLifecycle()
+    val pending by deepLinkRoute.collectAsStateWithLifecycle()
     LaunchedEffect(pending) {
         pending?.let { route ->
             navController.navigate(route) {
                 popUpTo(NavRoutes.HOME) { inclusive = false }
                 launchSingleTop = true
             }
-            pendingDeepLinkRoute.value = null
+            onConsumed()
         }
     }
 }

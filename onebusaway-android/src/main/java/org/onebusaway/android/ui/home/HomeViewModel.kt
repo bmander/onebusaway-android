@@ -93,6 +93,13 @@ class HomeViewModel @Inject constructor(
     private val _paymentWarning = MutableStateFlow<ObaRegion?>(null)
     val paymentWarning: StateFlow<ObaRegion?> = _paymentWarning.asStateFlow()
 
+    // A NavHost route staged from a non-composable entry point (an incoming intent, or the nav-drawer /
+    // search / recent-stops actions) for the host's DeepLinkEffect to navigate to once the NavHost is
+    // composed. A retained StateFlow (not a replay-0 event) so a route staged in onCreate before
+    // composition isn't lost; set via [stageDeepLinkRoute], cleared by [onDeepLinkRouteConsumed].
+    private val _deepLinkRoute = MutableStateFlow<String?>(null)
+    val deepLinkRoute: StateFlow<String?> = _deepLinkRoute.asStateFlow()
+
     // Raw inputs the gated [HomeUiState] is derived from.
     private var navItems: List<HomeNavItem> = emptyList()
     // Restored from SavedStateHandle so the tab survives process death (config change survives via the
@@ -265,6 +272,16 @@ class HomeViewModel @Inject constructor(
     /** The fare-payment warning dialog was confirmed or dismissed; clear the dialog state. */
     fun dismissPaymentWarning() {
         _paymentWarning.value = null
+    }
+
+    /** Stage [route] for the NavHost to open once composed (null stages nothing / stays on the map). */
+    fun stageDeepLinkRoute(route: String?) {
+        _deepLinkRoute.value = route
+    }
+
+    /** DeepLinkEffect navigated to the staged route; clear the latch so it isn't re-navigated. */
+    fun onDeepLinkRouteConsumed() {
+        _deepLinkRoute.value = null
     }
 
     fun onBikeStationFocused(id: String?) {

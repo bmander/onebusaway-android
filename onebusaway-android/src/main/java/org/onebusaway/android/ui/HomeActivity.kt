@@ -30,7 +30,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.rememberNavController
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import com.google.firebase.analytics.FirebaseAnalytics
 import dagger.hilt.android.AndroidEntryPoint
@@ -144,12 +143,6 @@ class HomeActivity : AppCompatActivity() {
         )
     }
 
-    // A NavHost route to navigate to once the NavHost has composed, set from an incoming external
-    // intent (FCM, a pinned shortcut / legacy class name resolved via an activity-alias, an in-app
-    // launch from non-NavHost code). The navController is created inside setContent, so onCreate /
-    // onNewIntent can't navigate directly — they stage the route here and a LaunchedEffect consumes it.
-    private val pendingDeepLinkRoute = MutableStateFlow<String?>(null)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -172,7 +165,7 @@ class HomeActivity : AppCompatActivity() {
         setContent {
             val navController = rememberNavController()
             AccessibilityAnalyticsEffect()
-            DeepLinkEffect(navController, pendingDeepLinkRoute)
+            DeepLinkEffect(navController, viewModel.deepLinkRoute, viewModel::onDeepLinkRouteConsumed)
             SettingsRehomeEffect(navController)
             HomeNavHost(
                 navController = navController,
@@ -260,7 +253,7 @@ class HomeActivity : AppCompatActivity() {
      */
     private fun handleIncomingIntent(intent: Intent?) {
         applyIntentSideEffects(intent)
-        pendingDeepLinkRoute.value = routeForIntent(intent)
+        viewModel.stageDeepLinkRoute(routeForIntent(intent))
     }
 
     /**
@@ -429,11 +422,11 @@ class HomeActivity : AppCompatActivity() {
             HomeNavItem.STARRED_ROUTES,
             HomeNavItem.MY_REMINDERS -> Unit
             HomeNavItem.PLAN_TRIP ->
-                pendingDeepLinkRoute.value = NavRoutes.TRIP_PLAN
+                viewModel.stageDeepLinkRoute(NavRoutes.TRIP_PLAN)
             HomeNavItem.PAY_FARE ->
                 ExternalIntents.payFareOrWarningRegion(this)?.let { viewModel.showPaymentWarning(it) }
             HomeNavItem.SETTINGS ->
-                pendingDeepLinkRoute.value = NavRoutes.SETTINGS
+                viewModel.stageDeepLinkRoute(NavRoutes.SETTINGS)
             // Hide "Contact Us" when a custom API URL is set (no contact email to use).
             HomeNavItem.HELP -> helpViewModel.showMenu(TextUtils.isEmpty(Application.get().customApiUrl))
             HomeNavItem.SEND_FEEDBACK -> goToSendFeedBack()
@@ -485,17 +478,17 @@ class HomeActivity : AppCompatActivity() {
 
     /**
      * Runs the global search for [query] (from [HomeTopBar]'s search field) by navigating to the
-     * search destination (staged through [pendingDeepLinkRoute] since the navController lives in the
+     * search destination (staged through the VM's deep-link route since the navController lives in the
      * NavHost composition, not here).
      */
     private fun onSearch(query: String) {
-        pendingDeepLinkRoute.value = NavRoutes.search(query)
+        viewModel.stageDeepLinkRoute(NavRoutes.search(query))
     }
 
     /** Opens the recent stops/routes screen (the toolbar overflow item) — the MY_RECENT destination. */
     private fun onRecentStopsRoutes() {
         ShowcaseViewUtils.doNotShowTutorial(this, ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES)
-        pendingDeepLinkRoute.value = NavRoutes.myRecent()
+        viewModel.stageDeepLinkRoute(NavRoutes.myRecent())
     }
 
     /** Sort the visible list tab (the dialog + persisted order live with the shared list helpers). */

@@ -315,20 +315,21 @@ class HomeViewModel @Inject constructor(
             when (val status = regionRepo.refresh()) {
                 is RegionStatus.Changed -> {
                     resolvedRegion(true, status.region.name)
-                    fireToggleEffect(changed = true)
+                    fireToggleEffect()
                 }
                 RegionStatus.Unchanged -> {
                     resolvedRegion(false, null)
-                    fireToggleEffect(changed = false)
+                    settingsTogglePending = false
                 }
                 is RegionStatus.NeedsManualSelection -> {
                     dialog = HomeDialog.ChooseRegion(status.regions)
                     recompute()
+                    // Leave settingsTogglePending set; onRegionChosen fires the effect after the pick.
                 }
-                // Parity: the legacy callback finished with no change on Skipped/Fixed, and did nothing
-                // at all on a catastrophic Failed load.
-                RegionStatus.Skipped, is RegionStatus.Fixed -> fireToggleEffect(changed = false)
-                RegionStatus.Failed -> settingsTogglePending = false
+                // No region change: just clear the toggle flag (the legacy callback did nothing more on
+                // Skipped/Fixed, and nothing at all on a catastrophic Failed load).
+                RegionStatus.Skipped, is RegionStatus.Fixed, RegionStatus.Failed ->
+                    settingsTogglePending = false
             }
         }
     }
@@ -343,9 +344,10 @@ class HomeViewModel @Inject constructor(
         refreshRegions()
     }
 
-    /** Raises the experimental-toggle's OTP-reset effect on a real change, then clears the flag. */
-    private fun fireToggleEffect(changed: Boolean) {
-        if (settingsTogglePending && changed) {
+    /** When a toggle-initiated refresh actually changed the region, raise the OTP-reset effect; then
+     *  clear the flag. */
+    private fun fireToggleEffect() {
+        if (settingsTogglePending) {
             emit(HomeEvent.RegionToggleChanged)
         }
         settingsTogglePending = false
@@ -383,7 +385,7 @@ class HomeViewModel @Inject constructor(
             recompute()
             // regionName null: the legacy manual-pick path logged no analytics.
             resolvedRegion(true, null)
-            fireToggleEffect(changed = true)
+            fireToggleEffect()
         }
     }
 

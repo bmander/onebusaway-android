@@ -1125,9 +1125,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
-     * Subscribes to the one [HomeEvent] the activity (as opposed to [HomeScreen]) cares about:
-     * [HomeEvent.RegionResolved]. The sheet/drawer commands on the same flow are consumed by HomeScreen,
-     * so this filters to just the region event rather than a `when` with an empty `else`.
+     * Subscribes to the region [HomeEvent]s the activity (as opposed to [HomeScreen]) handles:
+     * [HomeEvent.RegionResolved] and [HomeEvent.RegionToggleChanged]. The sheet/drawer commands on the
+     * same multicast flow are consumed by HomeScreen, so they fall through the `else` here.
      */
     private fun observeRegionResolved() {
         lifecycleScope.launch {

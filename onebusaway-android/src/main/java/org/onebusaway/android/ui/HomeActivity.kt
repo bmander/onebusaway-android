@@ -533,12 +533,8 @@ class HomeActivity : AppCompatActivity() {
             }
             HelpAction.AGENCIES -> startActivity(navIntent(this, NavRoutes.AGENCIES))
             HelpAction.TWITTER -> {
-                var twitterUrl = TWITTER_URL
-                val region = regionRepository.region.value
-                if (region != null && !TextUtils.isEmpty(region.twitterUrl)) {
-                    twitterUrl = region.twitterUrl
-                }
-                ExternalIntents.goToUrl(this, twitterUrl)
+                // The VM derives which URL fits the current region; the host just fires the ACTION_VIEW.
+                ExternalIntents.goToUrl(this, helpViewModel.twitterUrl())
                 ObaAnalytics.reportUiEvent(
                     FirebaseAnalytics.getInstance(this),
                     Application.get().plausibleInstance,
@@ -662,8 +658,6 @@ class HomeActivity : AppCompatActivity() {
     }
 
     companion object {
-        const val TWITTER_URL = "http://mobile.twitter.com/onebusaway"
-
         // Generic in-app entry point: a launcher facade builds an explicit HomeActivity intent
         // carrying the NavHost route to open (see [navIntent]); the translator (routeForIntent)
         // navigates there. Lets former screen Activities become thin facade objects with no

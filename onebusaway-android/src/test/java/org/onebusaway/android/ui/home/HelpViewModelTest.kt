@@ -18,20 +18,25 @@ package org.onebusaway.android.ui.home
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
+import org.onebusaway.android.region.FakeRegionRepository
+import org.onebusaway.android.region.region
 import org.onebusaway.android.testing.FakePreferencesRepository
 import org.onebusaway.android.ui.home.help.HelpDialog
 import org.onebusaway.android.ui.home.help.HelpViewModel
 
 /**
  * Unit tests for [HelpViewModel]'s dialog-state transitions (migrated from HomeViewModelTest when help
- * became its own feature module). `maybeAutoShowWhatsNew` still reads package info from Application, so
- * it's verified by equivalence rather than here.
+ * became its own feature module) and its region-derived Twitter URL. `maybeAutoShowWhatsNew` still reads
+ * package info from Application, so it's verified by equivalence rather than here.
  */
 class HelpViewModelTest {
 
+    private fun viewModel(regionRepo: FakeRegionRepository = FakeRegionRepository()) =
+        HelpViewModel(FakePreferencesRepository(), regionRepo)
+
     @Test
     fun `showing the menu sets the dialog and the contact-us flag`() {
-        val vm = HelpViewModel(FakePreferencesRepository())
+        val vm = viewModel()
         vm.showMenu(showContactUs = false)
         assertEquals(HelpDialog.Menu, vm.state.value.dialog)
         assertFalse(vm.state.value.showContactUs)
@@ -39,12 +44,30 @@ class HelpViewModelTest {
 
     @Test
     fun `legend and what's-new transition the dialog, dismiss clears it`() {
-        val vm = HelpViewModel(FakePreferencesRepository())
+        val vm = viewModel()
         vm.showLegend()
         assertEquals(HelpDialog.Legend, vm.state.value.dialog)
         vm.showWhatsNew()
         assertEquals(HelpDialog.WhatsNew, vm.state.value.dialog)
         vm.dismiss()
         assertEquals(HelpDialog.None, vm.state.value.dialog)
+    }
+
+    @Test
+    fun `twitterUrl uses the current region's url when it has one`() {
+        val vm = viewModel(FakeRegionRepository(region(1, twitterUrl = "https://x.com/sound_transit")))
+        assertEquals("https://x.com/sound_transit", vm.twitterUrl())
+    }
+
+    @Test
+    fun `twitterUrl falls back to the default when the region has none`() {
+        val vm = viewModel(FakeRegionRepository(region(1)))
+        assertEquals(HelpViewModel.TWITTER_URL, vm.twitterUrl())
+    }
+
+    @Test
+    fun `twitterUrl falls back to the default when no region is set`() {
+        val vm = viewModel(FakeRegionRepository(initial = null))
+        assertEquals(HelpViewModel.TWITTER_URL, vm.twitterUrl())
     }
 }

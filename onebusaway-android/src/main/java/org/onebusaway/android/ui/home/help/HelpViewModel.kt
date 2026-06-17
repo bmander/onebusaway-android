@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.update
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.preferences.PreferencesRepository
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.ShowcaseViewUtils
 
 /** Which help dialog is showing. Split out of the shared HomeDialog when help became a feature module. */
@@ -42,17 +43,27 @@ data class HelpUiState(val dialog: HelpDialog = HelpDialog.None, val showContact
 
 /**
  * Owns the help / what's-new / legend dialogs as a feature module (mirrors the other home feature
- * modules). Holds only the dialog state + the what's-new version check; the menu *actions* that do
- * things (reset tutorials, agencies, Twitter, contact us) are genuine Activity operations and stay in
- * HomeActivity, reached via the `onHelpAction` callback [HelpFeature] forwards.
+ * modules). Holds the dialog state, the what's-new version check, and the region-derived Twitter URL;
+ * the menu *actions* that do things (reset tutorials, agencies, open the Twitter URL, contact us) are
+ * genuine Activity operations and stay in HomeActivity, reached via the `onHelpAction` callback
+ * [HelpFeature] forwards.
  */
 @HiltViewModel
 class HelpViewModel @Inject constructor(
     private val prefs: PreferencesRepository,
+    private val regionRepository: RegionRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HelpUiState())
     val state: StateFlow<HelpUiState> = _state.asStateFlow()
+
+    /**
+     * The Twitter/X URL to open from the help menu: the current region's own Twitter URL when it has
+     * one, else the OneBusAway default. The host fires the ACTION_VIEW; choosing the URL is VM work, so
+     * it's resolved here rather than in the Activity.
+     */
+    fun twitterUrl(): String =
+        regionRepository.region.value?.twitterUrl?.takeUnless { it.isEmpty() } ?: TWITTER_URL
 
     /** Open the help menu (from the nav drawer's Help item). */
     fun showMenu(showContactUs: Boolean) =
@@ -102,7 +113,10 @@ class HelpViewModel @Inject constructor(
         return false
     }
 
-    private companion object {
-        const val WHATS_NEW_VER = "whatsNewVer"
+    companion object {
+        /** Fallback Twitter/X URL when the current region defines none (ported from HomeActivity). */
+        const val TWITTER_URL = "http://mobile.twitter.com/onebusaway"
+
+        private const val WHATS_NEW_VER = "whatsNewVer"
     }
 }

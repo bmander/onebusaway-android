@@ -42,7 +42,7 @@ import org.onebusaway.android.io.request.survey.submit.ObaSubmitSurveyRequest
 import org.onebusaway.android.io.request.survey.submit.SubmitSurveyRequestListener
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
-import org.onebusaway.android.ui.survey.utils.SurveyDbHelper
+import org.onebusaway.android.database.survey.SurveyDbHelper
 import org.onebusaway.android.ui.survey.utils.SurveyUtils
 
 /** The bottom-sheet state for the survey's remaining (non-hero) questions. */

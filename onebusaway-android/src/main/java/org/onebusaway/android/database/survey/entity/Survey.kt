@@ -1,4 +1,4 @@
-package org.onebusaway.android.ui.survey.entity
+package org.onebusaway.android.database.survey.entity
 
 import androidx.room.Entity
 import androidx.room.ForeignKey

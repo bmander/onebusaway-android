@@ -1,4 +1,4 @@
-package org.onebusaway.android.ui.survey.utils
+package org.onebusaway.android.database.survey
 
 import android.content.Context
 import android.util.Log
@@ -7,10 +7,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.onebusaway.android.database.survey.entity.Study
+import org.onebusaway.android.database.survey.entity.Survey
 import org.onebusaway.android.io.request.survey.model.StudyResponse
-import org.onebusaway.android.ui.survey.entity.Study
-import org.onebusaway.android.ui.survey.entity.Survey
-import org.onebusaway.android.ui.survey.repository.SurveyRepository
 
 /**
  * Utility class for handling operations related to surveys in the database.

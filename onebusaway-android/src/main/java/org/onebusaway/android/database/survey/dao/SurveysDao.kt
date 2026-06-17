@@ -1,7 +1,7 @@
-package org.onebusaway.android.ui.survey.dao
+package org.onebusaway.android.database.survey.dao
 
 import androidx.room.*
-import org.onebusaway.android.ui.survey.entity.Survey
+import org.onebusaway.android.database.survey.entity.Survey
 
 /**
  * DAO interface for managing database operations related to Survey entities

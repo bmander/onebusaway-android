@@ -1,10 +1,10 @@
-package org.onebusaway.android.ui.survey.repository
+package org.onebusaway.android.database.survey
 
 import android.content.Context
 import androidx.room.Room
 import org.onebusaway.android.database.AppDatabase
-import org.onebusaway.android.ui.survey.entity.Study
-import org.onebusaway.android.ui.survey.entity.Survey
+import org.onebusaway.android.database.survey.entity.Study
+import org.onebusaway.android.database.survey.entity.Survey
 
 /**
  * Repository class for managing Study and Survey data operations.

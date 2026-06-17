@@ -27,7 +27,7 @@ buildscript {
         classpath 'com.google.gms:google-services:4.4.4'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         // Compose compiler plugin; version == Kotlin version. The Kotlin 2.x compiler is
-        // backward-compatible with the Compose 1.7.x runtime pinned in the app module.
+        // backward-compatible with the Compose 1.10.x runtime used in the app module.
         classpath "org.jetbrains.kotlin:compose-compiler-gradle-plugin:$kotlin_version"
         classpath "com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:2.3.4"
         classpath 'com.google.dagger:hilt-android-gradle-plugin:2.59.2'

@@ -36,8 +36,9 @@ import com.google.maps.android.compose.GoogleMapComposable
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerInfoWindow
 import com.google.maps.android.compose.MarkerInfoWindowContent
+import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polyline
-import com.google.maps.android.compose.rememberMarkerState
+import com.google.maps.android.compose.rememberUpdatedMarkerState
 import org.onebusaway.android.R
 import org.onebusaway.android.map.compose.BikeInfoWindow
 import org.onebusaway.android.map.compose.ObaMapCallbacks
@@ -93,7 +94,7 @@ fun ObaMapContent(
     val focusedStopId = snapshot.focusedStopId
     snapshot.stops.forEach { stop ->
         key(stop.id) {
-            val markerState = rememberMarkerState(
+            val markerState = rememberUpdatedMarkerState(
                 position = LatLng(stop.point.latitude, stop.point.longitude)
             )
             val focused = stop.id == focusedStopId
@@ -121,7 +122,7 @@ fun ObaMapContent(
     // keeps its node across recompositions; a null hue renders the SDK's default marker.
     snapshot.genericMarkers.forEach { (id, marker) ->
         key(id) {
-            val markerState = rememberMarkerState(
+            val markerState = rememberUpdatedMarkerState(
                 position = LatLng(marker.point.latitude, marker.point.longitude)
             )
             Marker(
@@ -140,7 +141,9 @@ fun ObaMapContent(
         snapshot.vehicles.forEach { vehicle ->
             key(vehicle.activeTripId) {
                 val target = LatLng(vehicle.point.latitude, vehicle.point.longitude)
-                val markerState = rememberMarkerState(position = target)
+                // Manually-driven state (NOT rememberUpdatedMarkerState): the LaunchedEffect below
+                // animates markerState.position, which an auto-updating state would clobber.
+                val markerState = remember { MarkerState(position = target) }
                 LaunchedEffect(target) {
                     val start = markerState.position
                     if (start.latitude == target.latitude && start.longitude == target.longitude) {
@@ -187,7 +190,7 @@ fun ObaMapContent(
         }
         snapshot.bikeStations.forEach { bike ->
             key(bike.id) {
-                val markerState = rememberMarkerState(
+                val markerState = rememberUpdatedMarkerState(
                     position = LatLng(bike.point.latitude, bike.point.longitude)
                 )
                 val icon = when {

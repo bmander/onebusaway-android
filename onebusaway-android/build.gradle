@@ -153,9 +153,8 @@ android {
 
     buildFeatures {
         buildConfig = true
-        // Compose currently pinned to the 1.7.x line (BOM 2025.02.00). This was the last line on
-        // minSdk 21; now that minSdk is 23 the pin is eligible to be lifted as a follow-up.
-        // See the Compose dependency block below before changing any Compose-related version.
+        // Compose runtime is pinned to the 1.10.x line (BOM 2026.03.01); see the Compose dependency
+        // block below before changing any Compose-related version.
         compose = true
     }
 
@@ -235,7 +234,7 @@ dependencies {
     // Google Play Services Location
     implementation 'com.google.android.gms:play-services-location:21.3.0'
     // Support libraries
-    implementation 'androidx.activity:activity-ktx:1.9.3'
+    implementation 'androidx.activity:activity-ktx:1.13.0'
     implementation 'androidx.fragment:fragment-ktx:1.8.4'
     implementation 'androidx.cardview:cardview:1.0.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
@@ -258,11 +257,13 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.firebase:firebase-messaging:24.1.0'
     // Google Play Services Maps (only for Google flavor)
-    googleImplementation 'com.google.android.gms:play-services-maps:19.0.0'
-    // Jetpack Compose wrapper for the Maps SDK (Google flavor only). 4.4.1 was the last release on
-    // minSdk 21; now that minSdk is 23, maps-compose 6.x is eligible to be adopted as a follow-up.
-    // It was built against Compose 1.6 but runs on the app's Compose 1.7.8 runtime.
-    googleImplementation 'com.google.maps.android:maps-compose:4.4.1'
+    googleImplementation 'com.google.android.gms:play-services-maps:20.0.0'
+    // Jetpack Compose wrapper for the Maps SDK (Google flavor only), on 8.3.0 (latest), built against
+    // Compose 1.10 (matches the app's pinned 1.10.x runtime). 8.x requires Maps SDK 20, so
+    // play-services-maps above is bumped to 20.0.0. NOTE: maps-compose's info-window rendering is
+    // broken on compose-ui 1.11.x regardless of maps-compose version (#913) — that's why Compose is
+    // pinned to 1.10.x; see the Compose dependency block below.
+    googleImplementation 'com.google.maps.android:maps-compose:8.3.0'
     // MapLibre GL Native (only for MapLibre flavor)
     maplibreImplementation 'org.maplibre.gl:android-sdk:11.5.2'
     // Google Play Services Places is required by ProprietaryMapHelpV2 (only for Google flavor)
@@ -295,27 +296,31 @@ dependencies {
     implementation "org.mobilitydata:gtfs-realtime-bindings:0.0.8"
     implementation 'com.google.api.grpc:proto-google-common-protos:2.9.0'
 
-    // Jetpack Compose, currently pinned to the 1.7.x line. These versions were chosen as the last
-    // releases supporting minSdk 21 (Compose 1.8.0 / material3 1.4.0 / activity-compose 1.10.0 /
-    // lifecycle 2.9.0 each raised minSdk to 23). The project is now on minSdk 23, so this whole
-    // block is eligible to be bumped as a follow-up — it is left pinned here to keep the minSdk
-    // change focused. BOM 2025.02.00 is the last BOM on compose-ui 1.7.8 / material3 1.3.1.
-    def composeBom = platform('androidx.compose:compose-bom:2025.02.00')
+    // Jetpack Compose, PINNED to the 1.10.x line (BOM 2026.03.01 -> compose-ui 1.10.6, material3
+    // 1.4.0). 1.10.6 is the last line before compose-ui 1.11.x, which breaks android-maps-compose's
+    // info-window rendering (the bubble renders empty — googlemaps/android-maps-compose#913, open,
+    // fix unreleased). Do NOT move to 1.11.x until that ships — and note 1.11.x additionally requires
+    // compileSdk 37 + AGP 9.2 + Gradle 9.4.1 (this project stays on compileSdk 36 / AGP 9.1 for it).
+    // The BOM manages compose-ui + material3 (no explicit versions).
+    def composeBom = platform('androidx.compose:compose-bom:2026.03.01')
     implementation composeBom
     androidTestImplementation composeBom
-    implementation 'androidx.compose.ui:ui'                     // 1.7.8 via BOM
+    implementation 'androidx.compose.ui:ui'                     // 1.10.6 via BOM
     implementation 'androidx.compose.ui:ui-tooling-preview'     // @Preview support
     debugImplementation 'androidx.compose.ui:ui-tooling'        // preview renderer (debug only)
-    implementation 'androidx.compose.material3:material3:1.3.1' // last material3 on minSdk 21 (1.4.0 -> 23)
-    implementation 'androidx.activity:activity-compose:1.9.3'   // matches activity-ktx 1.9.3; 1.10.0 -> minSdk 23
-    // ViewModel + StateFlow for Compose screens; lifecycle 2.9.0 -> minSdk 23
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
-    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
-    // Navigation-Compose backbone (Campaign C). Pinned to the 2.8.x line — navigation 2.9.0 raised
-    // minSdk from 21 to 23 (the androidx-wide 2025 migration), matching the lifecycle 2.8.x ceiling
-    // above. hilt-navigation-compose bridges hiltViewModel() to @HiltViewModel + SavedStateHandle nav-args.
-    implementation 'androidx.navigation:navigation-compose:2.8.5'
+    implementation 'androidx.compose.material3:material3'      // 1.4.0 via BOM
+    // Material icons (Icons.Filled.*, AutoMirrored ArrowBack). Deprecated and frozen at 1.7.8, and
+    // no longer pulled transitively by material3 1.4.0, so pin explicitly. 1.7.8 runs fine on the
+    // 1.10.x Compose runtime; not managed by the BOM, hence the literal version.
+    implementation 'androidx.compose.material:material-icons-core:1.7.8'
+    implementation 'androidx.activity:activity-compose:1.13.0'  // matches activity-ktx 1.13.0
+    // ViewModel + StateFlow for Compose screens (lifecycle 2.10.0; minSdk 23)
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.10.0'
+    // Navigation-Compose backbone (Campaign C), on the 2.9.x line (minSdk 23).
+    // hilt-navigation-compose bridges hiltViewModel() to @HiltViewModel + SavedStateHandle nav-args.
+    implementation 'androidx.navigation:navigation-compose:2.9.8'
     implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
     // Make the (previously transitive) coroutines dependency explicit; matches lifecycle 2.8.x
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'

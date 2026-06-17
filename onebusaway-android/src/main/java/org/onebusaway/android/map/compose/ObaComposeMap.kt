@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.map.compose
 
-import android.os.Bundle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -41,7 +40,6 @@ interface ObaComposeMapAdapter {
         initialLatitude: Double,
         initialLongitude: Double,
         initialZoom: Float,
-        savedInstanceState: Bundle?,
     )
 
     companion object {
@@ -63,7 +61,6 @@ fun ObaMap(
     initialLatitude: Double = 0.0,
     initialLongitude: Double = 0.0,
     initialZoom: Float = 16f,
-    savedInstanceState: Bundle? = null,
 ) {
     val adapter = remember { ObaComposeMapAdapter.newInstance() }
     adapter.Content(
@@ -74,6 +71,5 @@ fun ObaMap(
         initialLatitude,
         initialLongitude,
         initialZoom,
-        savedInstanceState,
     )
 }

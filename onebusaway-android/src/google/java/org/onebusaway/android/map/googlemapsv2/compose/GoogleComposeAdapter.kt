@@ -17,7 +17,6 @@ package org.onebusaway.android.map.googlemapsv2.compose
 
 import android.content.Context
 import android.content.res.Configuration
-import android.os.Bundle
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
@@ -65,7 +64,6 @@ class GoogleComposeAdapter : ObaComposeMapAdapter {
         initialLatitude: Double,
         initialLongitude: Double,
         initialZoom: Float,
-        savedInstanceState: Bundle?,
     ) {
         val cb = requireNotNull(callbacks) { "GoogleComposeAdapter requires ObaMapCallbacks" }
         val cameraPositionState = rememberCameraPositionState {

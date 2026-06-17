@@ -17,7 +17,6 @@ package org.onebusaway.android.ui.home.map
 
 import android.Manifest
 import android.content.Intent
-import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -86,7 +85,6 @@ fun MapFeature(
     mapSeedLat: Double,
     mapSeedLon: Double,
     mapSeedZoom: Float,
-    mapSavedInstanceState: Bundle?,
     fabBottomInset: Dp,
     onBikeshareToggled: () -> Unit,
     modifier: Modifier = Modifier,
@@ -248,7 +246,6 @@ fun MapFeature(
             initialLatitude = mapSeedLat,
             initialLongitude = mapSeedLon,
             initialZoom = mapSeedZoom,
-            savedInstanceState = mapSavedInstanceState,
         )
     }
 

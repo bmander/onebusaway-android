@@ -217,7 +217,6 @@ class HomeActivity : AppCompatActivity() {
                     arrivalsViewModelFactory = arrivalsViewModelFactory,
                     callbacks = homeCallbacks,
                     mapSeed = mapSeed,
-                    savedInstanceState = savedInstanceState,
                 ),
             )
             PaymentWarningDialog(paymentWarningRegion)

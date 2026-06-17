@@ -20,7 +20,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.res.Configuration
-import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -98,7 +97,6 @@ class MapLibreComposeAdapter : ObaComposeMapAdapter {
         initialLatitude: Double,
         initialLongitude: Double,
         initialZoom: Float,
-        savedInstanceState: Bundle?,
     ) {
         val context = LocalContext.current
         val activity = remember(context) { context.findActivity() }
@@ -106,7 +104,9 @@ class MapLibreComposeAdapter : ObaComposeMapAdapter {
         // MapLibre must be initialized before any MapView usage.
         remember(activity) { MapLibre.getInstance(activity) }
 
-        val mapView = remember { MapView(activity).apply { onCreate(savedInstanceState) } }
+        // onCreate(null): MapView.onSaveInstanceState is never wired, so there's no saved MapView state
+        // to restore — the camera/focus come from MapViewModel + persisted prefs.
+        val mapView = remember { MapView(activity).apply { onCreate(null) } }
 
         val lifecycleOwner = LocalLifecycleOwner.current
         DisposableEffect(lifecycleOwner, mapView) {

@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.ui.home
 
-import android.os.Bundle
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -150,7 +149,6 @@ fun HomeScreen(
     mapSeedLat: Double,
     mapSeedLon: Double,
     mapSeedZoom: Float,
-    mapSavedInstanceState: Bundle?,
     routeHeader: RouteHeader?,
     surveyViewModel: SurveyViewModel,
     donationViewModel: DonationViewModel,
@@ -319,7 +317,6 @@ fun HomeScreen(
                             mapSeedLat = mapSeedLat,
                             mapSeedLon = mapSeedLon,
                             mapSeedZoom = mapSeedZoom,
-                            mapSavedInstanceState = mapSavedInstanceState,
                             fabBottomInset = fabInsetTarget,
                             onBikeshareToggled = onBikeshareToggled,
                             modifier = Modifier.fillMaxSize(),

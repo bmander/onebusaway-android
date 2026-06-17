@@ -18,7 +18,6 @@
 package org.onebusaway.android.ui.home
 
 import android.content.Context
-import android.os.Bundle
 import android.view.accessibility.AccessibilityManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -81,7 +80,6 @@ class HomeDestinationDeps(
     val arrivalsViewModelFactory: ArrivalsViewModel.Factory,
     val callbacks: HomeCallbacks,
     val mapSeed: MapCameraSeed,
-    val savedInstanceState: Bundle?,
 )
 
 /**
@@ -108,7 +106,6 @@ fun HomeNavHost(
                 mapSeedLat = home.mapSeed.lat,
                 mapSeedLon = home.mapSeed.lon,
                 mapSeedZoom = home.mapSeed.zoom,
-                mapSavedInstanceState = home.savedInstanceState,
                 routeHeader = routeHeader,
                 surveyViewModel = home.surveyViewModel,
                 donationViewModel = home.donationViewModel,

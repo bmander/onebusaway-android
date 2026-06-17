@@ -166,9 +166,6 @@ sealed interface RegionEvent {
      * logged none).
      */
     data class RegionResolved(val changed: Boolean, val regionName: String?) : RegionEvent
-
-    /** An experimental-regions toggle changed the region: reset the OTP API version. */
-    object RegionToggleChanged : RegionEvent
 }
 
 /**

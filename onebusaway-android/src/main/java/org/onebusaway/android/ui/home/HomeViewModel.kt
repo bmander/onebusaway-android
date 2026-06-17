@@ -362,7 +362,7 @@ class HomeViewModel @Inject constructor(
             when (val status = regionRepo.refresh()) {
                 is RegionStatus.Changed -> {
                     resolvedRegion(true, status.region.name)
-                    fireToggleEffect()
+                    resetOtpVersionIfToggled()
                 }
                 RegionStatus.Unchanged -> {
                     resolvedRegion(false, null)
@@ -382,20 +382,23 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * The Advanced-settings "experimental regions" toggle: re-resolve, then on a real change have the
-     * host reset the OTP API version ([RegionEvent.RegionToggleChanged]). The region-found announcement is
-     * the shared [HomeUiState.regionFoundName] snackbar.
+     * The Advanced-settings "experimental regions" toggle: re-resolve, then on a real change reset the
+     * OTP API version (see [resetOtpVersionIfToggled]). The region-found announcement is the shared
+     * [HomeUiState.regionFoundName] snackbar.
      */
     fun onExperimentalRegionsToggled() {
         settingsTogglePending = true
         refreshRegions()
     }
 
-    /** When a toggle-initiated refresh actually changed the region, raise the OTP-reset effect; then
-     *  clear the flag. */
-    private fun fireToggleEffect() {
+    /**
+     * When a toggle-initiated refresh actually changed the region, apply the domain rule that an
+     * experimental-region change resets the OTP API version to the current default; then clear the flag.
+     * (Formerly raised a RegionToggleChanged effect the host applied — the rule now fires here directly.)
+     */
+    private fun resetOtpVersionIfToggled() {
         if (settingsTogglePending) {
-            emit(RegionEvent.RegionToggleChanged)
+            prefsRepo.setBoolean(R.string.preference_key_otp_api_url_version, false)
         }
         settingsTogglePending = false
     }
@@ -432,7 +435,7 @@ class HomeViewModel @Inject constructor(
             recompute()
             // regionName null: the legacy manual-pick path logged no analytics.
             resolvedRegion(true, null)
-            fireToggleEffect()
+            resetOtpVersionIfToggled()
         }
     }
 

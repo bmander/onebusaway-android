@@ -358,9 +358,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
-     * Subscribes to the [RegionEvent]s the activity handles: [RegionEvent.RegionResolved] and
-     * [RegionEvent.RegionToggleChanged]. (Sheet commands ride a separate [HomeViewModel.sheetCommands]
-     * flow consumed by [HomeScreen], so this `when` is exhaustive with no discard arm.)
+     * Subscribes to the [RegionEvent]s the activity handles — currently just [RegionEvent.RegionResolved]
+     * (region analytics). (Sheet commands ride a separate [HomeViewModel.sheetCommands] flow consumed by
+     * [HomeScreen], so this `when` is exhaustive with no discard arm.)
      */
     private fun observeRegionEvents() {
         lifecycleScope.launch {
@@ -368,7 +368,6 @@ class HomeActivity : AppCompatActivity() {
                 viewModel.regionEvents.collect { event ->
                     when (event) {
                         is RegionEvent.RegionResolved -> onRegionResolved(event)
-                        RegionEvent.RegionToggleChanged -> onRegionToggleChanged()
                     }
                 }
             }
@@ -394,16 +393,6 @@ class HomeActivity : AppCompatActivity() {
     }
 
     // --- Settings preference-screen host glue (re-homed from the former SettingsActivity) ------------
-
-    /**
-     * An experimental-regions toggle changed the region (the [RegionEvent.RegionToggleChanged] effect;
-     * ported from SettingsActivity.onRegionTaskFinished): reset the OTP API version. The "found region"
-     * announcement is the shared region-found snackbar, and the new region propagates reactively, so no
-     * re-home is needed.
-     */
-    private fun onRegionToggleChanged() {
-        Application.get().setUseOldOtpApiUrlVersion(false)
-    }
 
     /** Re-resolves the region after a backup restore (called from SettingsScreen's restore launcher),
      *  in case the restored data implies a different region — raising the picker if it's ambiguous. */

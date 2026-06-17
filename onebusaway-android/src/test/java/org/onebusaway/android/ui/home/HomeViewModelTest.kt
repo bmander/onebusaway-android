@@ -463,31 +463,31 @@ class HomeViewModelTest {
     // --- experimental-regions toggle + restore completion effects ---
 
     @Test
-    fun `the experimental-regions toggle signals RegionToggleChanged on a real change`() = runTest {
-        val vm = viewModel(regionStatus = RegionStatus.Changed(region(1)))
-        val events = mutableListOf<RegionEvent>()
-        val job = launch { vm.regionEvents.collect { events.add(it) } }
+    fun `the experimental-regions toggle resets the OTP API version on a real change`() = runTest {
+        val prefs = FakePreferencesRepository().apply {
+            setBoolean(R.string.preference_key_otp_api_url_version, true)
+        }
+        val vm = viewModel(regionStatus = RegionStatus.Changed(region(1)), prefsRepo = prefs)
         advanceUntilIdle()
 
         vm.onExperimentalRegionsToggled()
         advanceUntilIdle()
 
-        assertTrue(events.contains(RegionEvent.RegionToggleChanged))
-        job.cancel()
+        assertFalse(prefs.getBoolean(R.string.preference_key_otp_api_url_version, true))
     }
 
     @Test
-    fun `the experimental-regions toggle signals nothing when the region is unchanged`() = runTest {
-        val vm = viewModel(regionStatus = RegionStatus.Unchanged)
-        val events = mutableListOf<RegionEvent>()
-        val job = launch { vm.regionEvents.collect { events.add(it) } }
+    fun `the experimental-regions toggle leaves the OTP API version untouched when unchanged`() = runTest {
+        val prefs = FakePreferencesRepository().apply {
+            setBoolean(R.string.preference_key_otp_api_url_version, true)
+        }
+        val vm = viewModel(regionStatus = RegionStatus.Unchanged, prefsRepo = prefs)
         advanceUntilIdle()
 
         vm.onExperimentalRegionsToggled()
         advanceUntilIdle()
 
-        assertFalse(events.contains(RegionEvent.RegionToggleChanged))
-        job.cancel()
+        assertTrue(prefs.getBoolean(R.string.preference_key_otp_api_url_version, false))
     }
 
     // --- startup region-check gate ---

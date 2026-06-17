@@ -15,35 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.settings;
+package org.onebusaway.android.ui.settings
 
-import android.util.Patterns;
-
-import java.net.MalformedURLException;
-import java.net.URL;
+import android.util.Patterns
+import java.net.MalformedURLException
+import java.net.URL
 
 /**
  * Shared, stateless settings helper: validates a user-entered custom API URL. Used by the advanced
- * settings screen ({@link org.onebusaway.android.ui.settings.AdvancedSettingsViewModel}) and by the
- * {@code add-region} deep link translator in {@link HomeActivity}.
+ * settings screen ([org.onebusaway.android.ui.settings.AdvancedSettingsViewModel]) and by the
+ * `add-region` deep link translator in `HomeActivity`.
  */
-public final class SettingsSupport {
+object SettingsSupport {
 
-    private SettingsSupport() {
-    }
-
-    public static boolean validateUrl(String apiUrl) {
-        if (!apiUrl.startsWith("http")) {
-            apiUrl = "https://" + apiUrl;
-        }
-        try {
-            URL url = new URL(apiUrl);
-            if (url.getHost().equals("localhost")) {
-                return true;
+    fun validateUrl(apiUrl: String): Boolean {
+        val url = if (!apiUrl.startsWith("http")) "https://$apiUrl" else apiUrl
+        return try {
+            if (URL(url).host == "localhost") {
+                true
+            } else {
+                Patterns.WEB_URL.matcher(url).matches()
             }
-            return Patterns.WEB_URL.matcher(apiUrl).matches();
-        } catch (MalformedURLException e) {
-            return false;
+        } catch (e: MalformedURLException) {
+            false
         }
     }
 }

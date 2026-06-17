@@ -13,34 +13,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.nav;
+package org.onebusaway.android.ui.nav
 
-import org.onebusaway.android.ui.HomeActivity;
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import org.onebusaway.android.ui.HomeActivity
+import org.onebusaway.android.util.ShowcaseViewUtils
 
-import org.onebusaway.android.util.ShowcaseViewUtils;
-
-import android.app.Activity;
-import android.content.Context;
-import android.content.Intent;
-
-public final class NavHelp {
+object NavHelp {
 
     //
     // Up mode. This controls whether or not the logo (Up) button
     // goes back or goes home. Activity support is required:
     // the only activity that supports it now is the ArrivalsList.
     //
-    public static final String UP_MODE = ".UpMode";
+    const val UP_MODE = ".UpMode"
 
-    //public static final String UP_MODE_HOME = "home";
-    public static final String UP_MODE_BACK = "back";
+    const val UP_MODE_BACK = "back"
 
-    public static void goUp(Activity activity) {
-        String mode = activity.getIntent().getStringExtra(UP_MODE);
-        if (UP_MODE_BACK.equals(mode)) {
-            activity.finish();
+    fun goUp(activity: Activity) {
+        val mode = activity.intent.getStringExtra(UP_MODE)
+        if (UP_MODE_BACK == mode) {
+            activity.finish()
         } else {
-            goHome(activity, false);
+            goHome(activity, false)
         }
     }
 
@@ -49,12 +46,12 @@ public final class NavHelp {
      *
      * @param showTutorial true if the welcome tutorial should be started, false if it should not
      */
-    public static void goHome(Context context, boolean showTutorial) {
-        Intent intent = new Intent(context, HomeActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+    fun goHome(context: Context, showTutorial: Boolean) {
+        val intent = Intent(context, HomeActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         if (showTutorial) {
-            intent.putExtra(ShowcaseViewUtils.TUTORIAL_WELCOME, true);
+            intent.putExtra(ShowcaseViewUtils.TUTORIAL_WELCOME, true)
         }
-        context.startActivity(intent);
+        context.startActivity(intent)
     }
 }

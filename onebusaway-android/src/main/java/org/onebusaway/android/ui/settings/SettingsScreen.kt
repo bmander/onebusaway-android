@@ -92,7 +92,13 @@ fun SettingsRoute(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.data?.let { BackupUtils.restore(activity, it) }
+            result.data?.data?.let { uri ->
+                // After the DB is restored, re-resolve the region on the home surface (progress dialog,
+                // forced picker if needed, "restored" toast) — replaces RegionRefresher's restore UX.
+                BackupUtils.restore(activity, uri) {
+                    (activity as? HomeActivity)?.refreshRegionsAfterRestore()
+                }
+            }
         }
     }
 

@@ -32,7 +32,6 @@ import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.ObaAnalytics;
 import org.onebusaway.android.io.PlausibleAnalytics;
 import org.onebusaway.android.io.backup.Backup;
-import org.onebusaway.android.region.RegionRefresher;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -48,7 +47,7 @@ public class BackupUtils {
      * @param uri URI to the backup file, as returned by the system UI picker. Following targeting
      *      Android 11 we can't access this directory and need to rely on the system UI picker.
      */
-    public static void restore(Context activityContext, Uri uri) {
+    public static void restore(Context activityContext, Uri uri, Runnable onRestored) {
         //
         // Because this is a destructive operation, we should warn the user.
         //
@@ -56,7 +55,7 @@ public class BackupUtils {
                 .setMessage(R.string.preferences_db_restore_warning)
                 .setPositiveButton(android.R.string.ok, (dialog12, which) -> {
                     dialog12.dismiss();
-                    doRestore(activityContext, uri);
+                    doRestore(activityContext, uri, onRestored);
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog1, which) -> dialog1.dismiss())
                 .create();
@@ -69,7 +68,7 @@ public class BackupUtils {
      * @param uri URI to the backup file, as returned by the system UI picker. Following targeting
      *      Android 11 we can't access this directory and need to rely on the system UI picker.
      */
-    static private void doRestore(Context activityContext, Uri uri) {
+    static private void doRestore(Context activityContext, Uri uri, Runnable onRestored) {
         final Context context = activityContext.getApplicationContext();
         ObaAnalytics.reportUiEvent(FirebaseAnalytics.getInstance(activityContext),
                 // TODO(D4): plausible is region-mutable; inject a Provider
@@ -80,14 +79,10 @@ public class BackupUtils {
         try {
             Backup.restore(context, uri);
 
-            if (activityContext != null) {
-                RegionRefresher.refresh(
-                        activityContext,
-                        context.getString(R.string.preferences_restore_loading),
-                        currentRegionChanged -> Toast.makeText(context,
-                                context.getString(R.string.preferences_db_restored,
-                                        context.getString(R.string.app_name)),
-                                Toast.LENGTH_LONG).show());
+            // The region re-resolve (progress dialog + "restored" toast) is driven on the Compose home
+            // surface by the caller once the database is in place.
+            if (onRestored != null) {
+                onRestored.run();
             }
         } catch (IOException e) {
             Toast.makeText(context,

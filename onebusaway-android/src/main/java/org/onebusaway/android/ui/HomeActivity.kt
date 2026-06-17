@@ -65,7 +65,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import com.google.firebase.analytics.FirebaseAnalytics
 import dagger.hilt.android.AndroidEntryPoint
@@ -86,7 +85,6 @@ import org.onebusaway.android.map.resolveMapMode
 import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
-import org.onebusaway.android.region.RegionRefresher
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.report.ui.InfrastructureIssueDestination
 import org.onebusaway.android.report.ui.ReportActivity
@@ -692,11 +690,7 @@ class HomeActivity : AppCompatActivity() {
                     ObaTheme {
                         AdvancedSettingsRoute(
                             onBack = { navController.popBackStack() },
-                            onRefreshRegions = {
-                                RegionRefresher.refresh(this@HomeActivity, null) { changed ->
-                                    this@HomeActivity.onRegionTaskFinished(changed)
-                                }
-                            },
+                            onRefreshRegions = { viewModel.onExperimentalRegionsToggled() },
                             onOtpUrlChanged = { setOtpCustomAPIUrlChanged(true) },
                             onGoHome = { NavHelp.goHome(this@HomeActivity, false) },
                         )
@@ -1138,9 +1132,15 @@ class HomeActivity : AppCompatActivity() {
     private fun observeRegionResolved() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.events
-                    .filterIsInstance<HomeEvent.RegionResolved>()
-                    .collect(::onRegionResolved)
+                viewModel.events.collect { event ->
+                    when (event) {
+                        is HomeEvent.RegionResolved -> onRegionResolved(event)
+                        HomeEvent.RegionToggleChanged -> onRegionToggleChanged()
+                        HomeEvent.RestoreComplete -> onRestoreComplete()
+                        // Sheet commands are consumed by HomeScreen.
+                        else -> Unit
+                    }
+                }
             }
         }
     }
@@ -1170,25 +1170,27 @@ class HomeActivity : AppCompatActivity() {
     // --- Settings preference-screen host glue (re-homed from the former SettingsActivity) ------------
 
     /**
-     * The experimental-regions region-refresh callback (invoked by [RegionRefresher] from the advanced
-     * settings screen; ported from SettingsActivity.onRegionTaskFinished): on a region change, reset the
-     * OTP API version, toast the newly found region (when auto-selecting), and re-home.
+     * An experimental-regions toggle changed the region (the [HomeEvent.RegionToggleChanged] effect;
+     * ported from SettingsActivity.onRegionTaskFinished): reset the OTP API version and re-home. The
+     * "found region" announcement is the shared region-found snackbar, so it isn't repeated here.
      */
-    fun onRegionTaskFinished(currentRegionChanged: Boolean) {
-        if (currentRegionChanged) {
-            Application.get().setUseOldOtpApiUrlVersion(false)
-            val region = regionRepository.region.value
-            if (PreferenceUtils.getBoolean(getString(R.string.preference_key_auto_select_region), true)
-                && region != null
-            ) {
-                Toast.makeText(
-                    this,
-                    getString(R.string.region_region_found, region.name),
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-            NavHelp.goHome(this, false)
-        }
+    private fun onRegionToggleChanged() {
+        Application.get().setUseOldOtpApiUrlVersion(false)
+        NavHelp.goHome(this, false)
+    }
+
+    /** A backup restore finished resolving its region: toast that the database was restored. */
+    private fun onRestoreComplete() {
+        Toast.makeText(
+            this,
+            getString(R.string.preferences_db_restored, getString(R.string.app_name)),
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
+    /** Re-resolves the region after a backup restore (called from SettingsScreen's restore launcher). */
+    fun refreshRegionsAfterRestore() {
+        viewModel.refreshRegionsAfterRestore()
     }
 
     /** Sets the initial map mode from the launch sources (route deep link, else nearby stops). */

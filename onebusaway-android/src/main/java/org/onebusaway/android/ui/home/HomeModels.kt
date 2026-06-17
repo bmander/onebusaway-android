@@ -181,4 +181,10 @@ sealed interface HomeEvent {
 
     /** Collapse the sheet to its peek (e.g. after "show vehicles on map"). */
     object CollapseSheet : HomeEvent
+
+    /** An experimental-regions toggle changed the region: reset the OTP API version + re-home. */
+    object RegionToggleChanged : HomeEvent
+
+    /** A backup restore finished resolving its region: toast that the database was restored. */
+    object RestoreComplete : HomeEvent
 }

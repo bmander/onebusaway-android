@@ -85,6 +85,11 @@ class HomeViewModel @Inject constructor(
     private var regionReady = false
     private var environment = HomeEnvironment()
     private var dialog: HomeDialog = HomeDialog.None
+
+    /** Distinguishes who initiated a region refresh, so its completion effect targets the right host. */
+    private enum class RegionRefreshIntent { NORMAL, SETTINGS_TOGGLE, RESTORE }
+
+    private var refreshIntent = RegionRefreshIntent.NORMAL
     private var mapLoading: Boolean = false
     // The sheet's last resting position, reported up from the screen; drives the map padding/recenter
     // side-effects + the tutorial gate. Pure coordination state (no Compose reads it), so it's a plain
@@ -306,19 +311,73 @@ class HomeViewModel @Inject constructor(
      * forced-choice picker when no region can be auto-selected. No 100ms callback delay is needed — the
      * region is already set inside the suspend call before we emit.
      */
-    fun refreshRegions() {
+    fun refreshRegions(showProgress: Boolean = false) {
         viewModelScope.launch {
+            if (showProgress) {
+                dialog = HomeDialog.RegionRefreshProgress
+                recompute()
+            }
             when (val status = regionRepo.refresh()) {
-                is RegionStatus.Changed -> resolvedRegion(true, status.region.name)
-                RegionStatus.Unchanged -> resolvedRegion(false, null)
+                is RegionStatus.Changed -> {
+                    clearRegionRefreshProgress()
+                    resolvedRegion(true, status.region.name)
+                    fireRefreshIntent(changed = true)
+                }
+                RegionStatus.Unchanged -> {
+                    clearRegionRefreshProgress()
+                    resolvedRegion(false, null)
+                    fireRefreshIntent(changed = false)
+                }
                 is RegionStatus.NeedsManualSelection -> {
                     dialog = HomeDialog.ChooseRegion(status.regions)
                     recompute()
                 }
-                // Parity: the legacy callback did nothing further in these cases.
-                RegionStatus.Skipped, is RegionStatus.Fixed, RegionStatus.Failed -> Unit
+                // Parity: the legacy callback finished with no change on Skipped/Fixed, and did nothing
+                // at all on a catastrophic Failed load.
+                RegionStatus.Skipped, is RegionStatus.Fixed -> {
+                    clearRegionRefreshProgress()
+                    fireRefreshIntent(changed = false)
+                }
+                RegionStatus.Failed -> {
+                    clearRegionRefreshProgress()
+                    refreshIntent = RegionRefreshIntent.NORMAL
+                }
             }
         }
+    }
+
+    /**
+     * The Advanced-settings "experimental regions" toggle: re-resolve, then on a real change have the
+     * host reset the OTP API version and re-home (the legacy onRegionTaskFinished effects). The
+     * region-found announcement is the shared [HomeUiState.regionFoundName] snackbar.
+     */
+    fun onExperimentalRegionsToggled() {
+        refreshIntent = RegionRefreshIntent.SETTINGS_TOGGLE
+        refreshRegions()
+    }
+
+    /** Re-resolve the region after a DB restore: shows the progress dialog and asks the host to toast on
+     *  completion (replaces RegionRefresher's restore progress + onFinished toast). */
+    fun refreshRegionsAfterRestore() {
+        refreshIntent = RegionRefreshIntent.RESTORE
+        refreshRegions(showProgress = true)
+    }
+
+    private fun clearRegionRefreshProgress() {
+        if (dialog is HomeDialog.RegionRefreshProgress) {
+            dialog = HomeDialog.None
+            recompute()
+        }
+    }
+
+    /** Fires the completion effect for the initiating action (if any), then resets to the default. */
+    private fun fireRefreshIntent(changed: Boolean) {
+        when (refreshIntent) {
+            RegionRefreshIntent.RESTORE -> emit(HomeEvent.RestoreComplete)
+            RegionRefreshIntent.SETTINGS_TOGGLE -> if (changed) emit(HomeEvent.RegionToggleChanged)
+            RegionRefreshIntent.NORMAL -> Unit
+        }
+        refreshIntent = RegionRefreshIntent.NORMAL
     }
 
     /**
@@ -353,6 +412,7 @@ class HomeViewModel @Inject constructor(
             recompute()
             // regionName null: the legacy manual-pick path logged no analytics.
             resolvedRegion(true, null)
+            fireRefreshIntent(changed = true)
         }
     }
 

@@ -19,15 +19,20 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -46,15 +51,37 @@ sealed interface HomeDialog {
 
     /** The forced-choice region picker (old ObaRegionsTask.haveUserChooseRegion), keyed by [regions]. */
     data class ChooseRegion(val regions: List<ObaRegion>) : HomeDialog
+
+    /** A blocking indeterminate spinner while a region refresh runs (old ObaRegionsTask ProgressDialog). */
+    object RegionRefreshProgress : HomeDialog
 }
 
-/** Renders the shared Home dialogs, keyed by [HomeUiState.dialog] — just the region picker. */
+/** Renders the shared Home dialogs, keyed by [HomeUiState.dialog] — the region picker + refresh spinner. */
 @Composable
 fun HomeDialogs(dialog: HomeDialog, onRegionChosen: (ObaRegion) -> Unit) {
     when (dialog) {
         is HomeDialog.ChooseRegion -> RegionChooserDialog(dialog.regions, onRegionChosen)
+        HomeDialog.RegionRefreshProgress -> RegionRefreshProgressDialog()
         HomeDialog.None -> Unit
     }
+}
+
+/** A non-dismissible indeterminate progress dialog shown while a region refresh resolves (the restore
+ *  flow's old ProgressDialog). Back/scrim do nothing, mirroring the legacy `setCancelable(false)`. */
+@Composable
+private fun RegionRefreshProgressDialog() {
+    AlertDialog(
+        onDismissRequest = { },
+        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator()
+                Spacer(Modifier.width(16.dp))
+                Text(stringResource(R.string.preferences_restore_loading))
+            }
+        },
+        confirmButton = { },
+    )
 }
 
 /**

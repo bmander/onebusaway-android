@@ -17,7 +17,6 @@
  */
 package org.onebusaway.android.ui
 
-import android.Manifest
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
@@ -25,45 +24,13 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.accessibility.AccessibilityManager
-import android.widget.Toast
-import androidx.core.app.ActivityCompat
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.colorResource
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.fragment.app.Fragment
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -86,32 +53,13 @@ import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
-import org.onebusaway.android.report.ui.InfrastructureIssueDestination
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.report.ui.ReportDestination
-import org.onebusaway.android.report.ui.CustomerServiceDestination
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
-import org.onebusaway.android.ui.about.AboutScreen
-import org.onebusaway.android.ui.about.buildVersionText
-import org.onebusaway.android.ui.agencies.AgenciesRoute
 import org.onebusaway.android.ui.arrivals.ArrivalsIntents
-import org.onebusaway.android.ui.arrivals.createArrivalActionHandler
-import org.onebusaway.android.ui.feedback.FeedbackLauncher
-import org.onebusaway.android.ui.feedback.FeedbackScreen
-import org.onebusaway.android.ui.feedback.FeedbackSubmitter
-import org.onebusaway.android.ui.home.donation.DonationLearnMoreScreen
-import org.onebusaway.android.ui.mylists.editReminder
-import org.onebusaway.android.ui.mylists.reminderActions
 import org.onebusaway.android.ui.nav.NavHelp
-import org.onebusaway.android.ui.nightlight.NightLightRoute
-import org.onebusaway.android.ui.settings.SettingsRoute
 import org.onebusaway.android.ui.settings.SettingsSupport
-import org.onebusaway.android.ui.tripdetails.TripDetailsLauncher
-import org.onebusaway.android.ui.tripinfo.confirmDeleteReminder
-import org.onebusaway.android.ui.arrivals.ArrivalsRoute
-import org.onebusaway.android.ui.arrivals.ArrivalsUiState
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
-import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.donation.DonationViewModel
 import org.onebusaway.android.ui.home.weather.WeatherViewModel
@@ -126,38 +74,21 @@ import org.onebusaway.android.ui.home.HomeNavItem
 import org.onebusaway.android.ui.home.initialNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
+import org.onebusaway.android.ui.home.HomeNavHost
+import org.onebusaway.android.ui.home.HomeDestinationDeps
+import org.onebusaway.android.ui.home.DeepLinkEffect
+import org.onebusaway.android.ui.home.SettingsRehomeEffect
+import org.onebusaway.android.ui.home.PaymentWarningDialog
 import org.onebusaway.android.ui.home.chrome.analyticsLabelRes
-import org.onebusaway.android.ui.compose.components.ObaTopAppBar
-import org.onebusaway.android.ui.compose.components.OptOutInfoDialog
-import org.onebusaway.android.ui.mylists.MyRecentDestination
-import org.onebusaway.android.ui.mylists.MyRoutesDestination
-import org.onebusaway.android.ui.mylists.MyStopsDestination
 import org.onebusaway.android.ui.mylists.MyTabs
-import org.onebusaway.android.ui.mylists.ReminderListDestination
 import org.onebusaway.android.ui.mylists.RemindersRepository
 import org.onebusaway.android.ui.mylists.StarredRoutesRepository
 import org.onebusaway.android.ui.mylists.StarredStopsRepository
-import org.onebusaway.android.ui.mylists.rememberListVm
 import org.onebusaway.android.ui.nav.NavRoutes
-import org.onebusaway.android.ui.settings.AdvancedSettingsRoute
-import org.onebusaway.android.ui.regions.RegionsRoute
-import org.onebusaway.android.ui.routeinfo.RouteInfoRoute
-import org.onebusaway.android.ui.searchresults.SearchResultsRoute
-import org.onebusaway.android.ui.searchresults.SearchResultsViewModel
-import org.onebusaway.android.ui.tripdetails.TripDetailsRoute
-import org.onebusaway.android.ui.tripdetails.TripDetailsViewModel
-import org.onebusaway.android.ui.tripdetails.rememberDestinationReminderAction
-import org.onebusaway.android.ui.tripinfo.TripInfoEvent
-import org.onebusaway.android.ui.tripinfo.TripInfoRoute
-import org.onebusaway.android.ui.tripinfo.TripInfoViewModel
-import org.onebusaway.android.ui.tripplan.TripPlanDestination
-import org.onebusaway.android.ui.tripplan.TripPlanLocationPickerDestination
 import org.onebusaway.android.ui.mylists.chooseSortOrder
 import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
 import org.onebusaway.android.ui.survey.SurveyViewModel
-import org.onebusaway.android.ui.survey.activities.SurveyWebViewScreen
-import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.PermissionUtils
@@ -269,717 +200,36 @@ class HomeActivity : AppCompatActivity() {
         // avoids an initial flash before the loaders/region center it.
         val mapSeed = readMapSeed(savedInstanceState)
 
-        val homeCallbacks = HomeCallbacks(
-            onNavItemSelected = ::onHomeNavItemSelected,
-            onSearch = ::onSearch,
-            onRecentStopsRoutes = ::onRecentStopsRoutes,
-            onListSort = ::onListSortSelected,
-            onListClear = ::onListClearSelected,
-            onBikeshareToggled = ::pushEnvironment,
-            onHelpAction = ::onHelpAction,
-            onShowWelcomeTutorial = {
-                ShowcaseViewUtils.showTutorial(
-                    ShowcaseViewUtils.TUTORIAL_WELCOME, this@HomeActivity, null, false
-                )
-            },
-            onRegionChosen = viewModel::onRegionChosen,
-            onSheetSettled = viewModel::onSheetSettled,
-            onClearFocus = viewModel::requestClearMapFocus,
-            onArrivalsLoaded = ::onArrivalsLoaded,
-            onShowRouteOnMap = viewModel::requestShowRouteOnMap,
-            onToggleSheet = viewModel::requestToggleSheet,
-            onPreferredHeight = viewModel::onPreferredHeight,
-            onCancelRouteMode = ::onCancelRouteMode,
-            onRouteHeaderHeight = ::onRouteHeaderHeight,
-        )
+        val homeCallbacks = buildHomeCallbacks()
 
-        // Stage any external "open this screen" intent (set before setContent so the NavHost's
-        // LaunchedEffect observes it once composed). MapParams.* focus / route-mode launches return
+        // Stage any external "open this screen" intent (set before setContent so [DeepLinkEffect]
+        // observes it once the NavHost composes). MapParams.* focus / route-mode launches return
         // null here and stay on the map path below. Only on a fresh launch (not a config change).
         if (savedInstanceState == null) {
             pendingDeepLinkRoute.value = routeForIntent(intent)
         }
 
         setContent {
-            // Campaign C0: the single-Activity Navigation-Compose backbone. HomeActivity hosts every
-            // screen as a NavHost destination; external intents (FCM, pinned shortcuts, legacy class
-            // names via activity-aliases) land here and are routed by [routeForIntent].
             val navController = rememberNavController()
-            // Consume a staged deep-link route once the NavHost is ready (and on each onNewIntent).
-            val pending by pendingDeepLinkRoute.collectAsStateWithLifecycle()
-            LaunchedEffect(pending) {
-                pending?.let { route ->
-                    navController.navigate(route) {
-                        popUpTo(NavRoutes.HOME) { inclusive = false }
-                        launchSingleTop = true
-                    }
-                    pendingDeepLinkRoute.value = null
-                }
-            }
-            // Re-home when leaving the settings subtree if the user re-enabled auto-select-region or
-            // changed the custom OTP URL (ported from the former SettingsActivity.onDestroy). The
-            // auto-select baseline is captured on entry and compared on exit, so a re-home fires only
-            // when it was turned back on during this settings visit.
-            DisposableEffect(navController) {
-                val settingsRoutes = setOf(NavRoutes.SETTINGS, NavRoutes.SETTINGS_ADVANCED)
-                val autoSelectKey = getString(R.string.preference_key_auto_select_region)
-                var autoSelectInitial: Boolean? = null
-                val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
-                    if (destination.route in settingsRoutes) {
-                        if (autoSelectInitial == null) {
-                            autoSelectInitial = PreferenceUtils.getBoolean(autoSelectKey, true)
-                        }
-                    } else if (autoSelectInitial != null) {
-                        val reEnabledAutoSelect =
-                            PreferenceUtils.getBoolean(autoSelectKey, true) && autoSelectInitial == false
-                        autoSelectInitial = null
-                        if (reEnabledAutoSelect) {
-                            NavHelp.goHome(this@HomeActivity, false)
-                        } else if (otpCustomAPIUrlChanged) {
-                            setOtpCustomAPIUrlChanged(false)
-                            NavHelp.goHome(this@HomeActivity, false)
-                        }
-                    }
-                }
-                navController.addOnDestinationChangedListener(listener)
-                onDispose { navController.removeOnDestinationChangedListener(listener) }
-            }
-            NavHost(navController = navController, startDestination = NavRoutes.HOME) {
-                composable(NavRoutes.HOME) {
-                    val state by viewModel.uiState.collectAsStateWithLifecycle()
-                    val routeHeader by mapViewModel.routeHeader.collectAsStateWithLifecycle()
-                    HomeScreen(
-                        state = state,
-                        events = viewModel.events,
-                        homeViewModel = viewModel,
-                        mapViewModel = mapViewModel,
-                        mapSeedLat = mapSeed.lat,
-                        mapSeedLon = mapSeed.lon,
-                        mapSeedZoom = mapSeed.zoom,
-                        mapSavedInstanceState = savedInstanceState,
-                        routeHeader = routeHeader,
-                        surveyViewModel = surveyViewModel,
-                        donationViewModel = donationViewModel,
-                        weatherViewModel = weatherViewModel,
-                        helpViewModel = helpViewModel,
-                        listVms = listVms,
-                        arrivalsViewModelFactory = arrivalsViewModelFactory,
-                        callbacks = homeCallbacks,
-                        onShowRouteInfo = { routeId ->
-                            navController.navigate(NavRoutes.routeInfo(routeId))
-                        },
-                        onShowArrivals = { stopId, stopName ->
-                            navController.navigate(NavRoutes.arrivals(stopId, stopName))
-                        },
-                    )
-                }
-                // RouteInfo destination (Campaign C-a): a route's stops grouped by direction. Reached
-                // in-app from the home reminders overlay's "show route"; RouteInfoActivity still hosts
-                // the same RouteInfoRoute for the standalone/external launch paths (collapsed to an
-                // activity-alias in C-c). The VM reads routeId from SavedStateHandle (the nav-arg).
-                composable(
-                    NavRoutes.ROUTE_INFO,
-                    arguments = listOf(
-                        navArgument(NavRoutes.ARG_ROUTE_ID) { type = NavType.StringType }
-                    ),
-                ) { backStackEntry ->
-                    val routeId =
-                        backStackEntry.arguments?.getString(NavRoutes.ARG_ROUTE_ID).orEmpty()
-                    ObaTheme {
-                        RouteInfoRoute(
-                            viewModel = hiltViewModel(),
-                            onBack = { navController.popBackStack() },
-                            onShowRouteOnMap = { HomeActivity.start(this@HomeActivity, routeId) },
-                            onStopClick = { stop ->
-                                navController.navigate(NavRoutes.arrivals(stop.id, stop.name))
-                            },
-                            onStopShowOnMap = { stop ->
-                                HomeActivity.start(
-                                    this@HomeActivity, stop.id, stop.latitude, stop.longitude
-                                )
-                            },
-                        )
-                    }
-                }
-                // Arrivals destination (Campaign C-b): real-time arrivals for a stop. Reached in-app
-                // from RouteInfo's stop tap and the home overlays' stop taps; ArrivalsListActivity
-                // still hosts the same ArrivalsRoute for the standalone/FCM/external paths (collapsed
-                // to an activity-alias in C-c). The VM is built from the assisted factory with the
-                // nav-arg stop id (process-death safe — it's re-read from the back-stack arg).
-                composable(
-                    NavRoutes.ARRIVALS,
-                    arguments = listOf(
-                        navArgument(NavRoutes.ARG_STOP_ID) { type = NavType.StringType },
-                        navArgument(NavRoutes.ARG_STOP_NAME) {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                    ),
-                ) { backStackEntry ->
-                    val stopId =
-                        backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_ID).orEmpty()
-                    val stopName =
-                        backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_NAME).orEmpty()
-                    val arrivalsVm: ArrivalsViewModel = viewModel(
-                        factory = viewModelFactory {
-                            initializer {
-                                arrivalsViewModelFactory.create(stopId, ignorePersistedFilter = false)
-                            }
-                        }
-                    )
-                    val snackbarHostState = remember { SnackbarHostState() }
-                    val scope = rememberCoroutineScope()
-                    val context = LocalContext.current
-                    val handler = remember(arrivalsVm) {
-                        createArrivalActionHandler(
-                            activity = this@HomeActivity,
-                            viewModel = arrivalsVm,
-                            currentContent = { arrivalsVm.state.value as? ArrivalsUiState.Content },
-                            onShowRouteOnMap = { routeId ->
-                                HomeActivity.start(this@HomeActivity, routeId)
-                            },
-                            showUndoSnackbar = { messageRes, actionRes, onAction ->
-                                scope.launch {
-                                    val result = snackbarHostState.showSnackbar(
-                                        message = context.getString(messageRes),
-                                        actionLabel = actionRes?.let { context.getString(it) },
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) onAction?.invoke()
-                                }
-                            },
-                            onShowTrip = { tripId, sid ->
-                                navController.navigate(
-                                    NavRoutes.tripDetails(tripId, sid, TripDetailsLauncher.SCROLL_MODE_STOP)
-                                )
-                            },
-                        )
-                    }
-                    ObaTheme {
-                        ArrivalsRoute(
-                            viewModel = arrivalsVm,
-                            initialTitle = stopName,
-                            handler = handler,
-                            onBack = { navController.popBackStack() },
-                            snackbarHostState = snackbarHostState,
-                        )
-                    }
-                }
-                // TripDetails destination (Campaign C-d): a trip's stops + live vehicle position.
-                // Reached in-app from the arrivals destination's "show trip"; TripDetailsActivity still
-                // hosts the same TripDetailsRoute for standalone/map/NavigationService launches
-                // (collapsed to an activity-alias in C-c). The destination-reminder flow is the shared
-                // rememberDestinationReminderAction controller; the VM reads its args from the nav-args.
-                composable(
-                    NavRoutes.TRIP_DETAILS,
-                    arguments = listOf(
-                        navArgument(NavRoutes.ARG_TRIP_ID) { type = NavType.StringType },
-                        navArgument(NavRoutes.ARG_STOP_ID) {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                        navArgument(NavRoutes.ARG_SCROLL_MODE) {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                    ),
-                ) { backStackEntry ->
-                    val tripId =
-                        backStackEntry.arguments?.getString(NavRoutes.ARG_TRIP_ID).orEmpty()
-                    val tripStopId = backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_ID)
-                    val tripVm: TripDetailsViewModel = hiltViewModel()
-                    ObaTheme {
-                        TripDetailsRoute(
-                            viewModel = tripVm,
-                            onBack = { navController.popBackStack() },
-                            onShowOnMap = { routeId -> HomeActivity.start(this@HomeActivity, routeId) },
-                            onStopClick = { sid, name, _ ->
-                                navController.navigate(NavRoutes.arrivals(sid, name))
-                            },
-                            onSetDestinationReminder = rememberDestinationReminderAction(
-                                viewModel = tripVm,
-                                prefsRepository = prefsRepository,
-                                tripId = tripId,
-                                stopId = tripStopId,
-                            ),
-                        )
-                    }
-                }
-                // TripInfo destination (reminder editor). Reached in-app from the home reminders
-                // overlay's edit-tap and the arrivals "set reminder" action (both via the
-                // TripInfoActivity facade → HomeActivity → translator). Non-exported; no alias.
-                composable(
-                    NavRoutes.TRIP_INFO,
-                    arguments = listOf(
-                        navArgument(NavRoutes.ARG_TRIP_ID) { type = NavType.StringType },
-                        navArgument(NavRoutes.ARG_STOP_ID) { type = NavType.StringType },
-                        navArgument(NavRoutes.ARG_ROUTE_ID) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                        navArgument(NavRoutes.ARG_ROUTE_NAME) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                        navArgument(NavRoutes.ARG_STOP_NAME) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                        navArgument(NavRoutes.ARG_HEADSIGN) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                        navArgument(NavRoutes.ARG_DEPART_TIME) {
-                            type = NavType.LongType; defaultValue = 0L
-                        },
-                        navArgument(NavRoutes.ARG_STOP_SEQUENCE) {
-                            type = NavType.IntType; defaultValue = 0
-                        },
-                        navArgument(NavRoutes.ARG_SERVICE_DATE) {
-                            type = NavType.LongType; defaultValue = 0L
-                        },
-                        navArgument(NavRoutes.ARG_VEHICLE_ID) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                    ),
-                ) { backStackEntry ->
-                    val infoTripId =
-                        backStackEntry.arguments?.getString(NavRoutes.ARG_TRIP_ID).orEmpty()
-                    val infoStopId =
-                        backStackEntry.arguments?.getString(NavRoutes.ARG_STOP_ID).orEmpty()
-                    val infoVm: TripInfoViewModel = hiltViewModel()
-                    LaunchedEffect(infoVm) {
-                        infoVm.events.collect { event ->
-                            when (event) {
-                                TripInfoEvent.Saved -> {
-                                    Toast.makeText(
-                                        this@HomeActivity, R.string.trip_info_saved, Toast.LENGTH_SHORT
-                                    ).show()
-                                    navController.popBackStack()
-                                }
-                                TripInfoEvent.SaveFailed -> Toast.makeText(
-                                    this@HomeActivity, R.string.failed_to_set_reminder, Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
-                    }
-                    ObaTheme {
-                        TripInfoRoute(
-                            viewModel = infoVm,
-                            onBack = { navController.popBackStack() },
-                            onSave = {
-                                ActivityCompat.requestPermissions(
-                                    this@HomeActivity,
-                                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                                    PermissionUtils.NOTIFICATION_PERMISSION_REQUEST
-                                )
-                                infoVm.save()
-                            },
-                            onDelete = {
-                                confirmDeleteReminder(this@HomeActivity) {
-                                    ReminderUtils.requestDeleteAlarm(
-                                        this@HomeActivity,
-                                        ObaContract.Trips.buildUri(infoTripId, infoStopId)
-                                    )
-                                    navController.popBackStack()
-                                }
-                            },
-                            onShowRoute = {
-                                infoVm.routeId()?.let { navController.navigate(NavRoutes.routeInfo(it)) }
-                            },
-                            onShowStop = {
-                                navController.navigate(NavRoutes.arrivals(infoStopId, infoVm.stopName()))
-                            },
-                        )
-                    }
-                }
-                // Agencies destination (Campaign C): the transit agencies in the current region.
-                // Reached in-app from the help menu (HelpAction.AGENCIES navigates here via a
-                // navIntent route). State lives in the Hilt AgenciesViewModel. Non-exported.
-                composable(NavRoutes.AGENCIES) {
-                    ObaTheme {
-                        AgenciesRoute(
-                            viewModel = hiltViewModel(),
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
-                }
-                // Regions destination (Campaign C): the manual OBA region (server) picker. Reached
-                // in-app from Settings (navController.navigate(NavRoutes.REGIONS)). Selecting
-                // a region is terminal; on selection (which may disable auto-select, surfaced via the
-                // toast) we pop back, matching the legacy "set region, return home" behavior.
-                composable(NavRoutes.REGIONS) {
-                    ObaTheme {
-                        RegionsRoute(
-                            viewModel = hiltViewModel(),
-                            onBack = { navController.popBackStack() },
-                            onRegionSelected = { autoSelectDisabled ->
-                                if (autoSelectDisabled) {
-                                    Toast.makeText(
-                                        this@HomeActivity,
-                                        R.string.region_disabled_auto_selection,
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                                navController.popBackStack()
-                            },
-                        )
-                    }
-                }
-                // About destination (Campaign C): version / license / contributor info. Reached in-app
-                // from Settings (navController.navigate(NavRoutes.ABOUT)). No VM; the version
-                // line is computed from the package info via buildVersionText. Non-exported.
-                composable(NavRoutes.ABOUT) {
-                    ObaTheme {
-                        AboutScreen(
-                            versionText = buildVersionText(LocalContext.current),
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
-                }
-                // Donation "learn more" destination (Campaign C): the why-donate explainer. Reached
-                // in-app from the home donation card (a navIntent route → translator). The donate
-                // button reproduces the former Activity's behavior: dismiss any
-                // pending donation requests, open the donations page, then pop back. Non-exported.
-                composable(NavRoutes.DONATION_LEARN_MORE) {
-                    ObaTheme {
-                        DonationLearnMoreScreen(
-                            onBack = { navController.popBackStack() },
-                            onDonate = {
-                                Application.getDonationsManager().dismissDonationRequests()
-                                startActivity(
-                                    Application.getDonationsManager().buildOpenDonationsPageIntent()
-                                )
-                                navController.popBackStack()
-                            },
-                        )
-                    }
-                }
-                // Settings destination (Campaign C; former SettingsActivity): a pure-Compose settings
-                // screen ([SettingsRoute]). Reached in-app from the home drawer's Settings item and from
-                // the report flow (region-validate dialog, with the EXTRA_SHOW_CHECK_REGION_DIALOG extra on the
-                // HomeActivity intent). Host-bound actions (theme recreate, go-home, donate/browser) are
-                // passed as lambdas; the Advanced sub-screen is its own destination below.
-                composable(NavRoutes.SETTINGS) {
-                    ObaTheme {
-                        SettingsRoute(
-                            onNavigateToRegions = { navController.navigate(NavRoutes.REGIONS) },
-                            onNavigateToAbout = { navController.navigate(NavRoutes.ABOUT) },
-                            onNavigateToAdvanced = {
-                                navController.navigate(NavRoutes.SETTINGS_ADVANCED)
-                            },
-                            onBack = { navController.popBackStack() },
-                            onRecreate = { recreate() },
-                            onGoHomeResetTutorial = { NavHelp.goHome(this@HomeActivity, true) },
-                            onOpenDonate = {
-                                startActivity(
-                                    Application.getDonationsManager().buildOpenDonationsPageIntent()
-                                )
-                            },
-                            onOpenPoweredByOba = {
-                                startActivity(
-                                    Intent(
-                                        Intent.ACTION_VIEW,
-                                        Uri.parse(getString(R.string.powered_by_oba_url))
-                                    )
-                                )
-                            },
-                        )
-                    }
-                }
-                composable(NavRoutes.SETTINGS_ADVANCED) {
-                    ObaTheme {
-                        AdvancedSettingsRoute(
-                            onBack = { navController.popBackStack() },
-                            onRefreshRegions = { viewModel.onExperimentalRegionsToggled() },
-                            onOtpUrlChanged = { setOtpCustomAPIUrlChanged(true) },
-                            onGoHome = { NavHelp.goHome(this@HomeActivity, false) },
-                        )
-                    }
-                }
-                // Report flow (Campaign C; former ReportActivity / CustomerServiceActivity /
-                // InfrastructureIssueActivity). The chooser ([REPORT]) shows the region-validate dialog
-                // (if needed) then the type list; a tapped type navigates in-NavHost to customer service
-                // or the infrastructure-issue screen, so back returns to the chooser (today's behavior).
-                // The stop/location context rides on this activity's intent (from the launch facade) and
-                // is read by the issue destination. Non-exported; no aliases.
-                composable(NavRoutes.REPORT) {
-                    ObaTheme {
-                        ReportDestination(navController = navController)
-                    }
-                }
-                composable(NavRoutes.CUSTOMER_SERVICE) {
-                    ObaTheme {
-                        CustomerServiceDestination(navController = navController)
-                    }
-                }
-                composable(
-                    NavRoutes.INFRASTRUCTURE_ISSUE,
-                    arguments = listOf(
-                        navArgument(NavRoutes.ARG_SELECTED_SERVICE) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                    ),
-                ) { backStackEntry ->
-                    val selectedService =
-                        backStackEntry.arguments?.getString(NavRoutes.ARG_SELECTED_SERVICE)
-                    ObaTheme {
-                        InfrastructureIssueDestination(
-                            navController = navController,
-                            selectedService = selectedService,
-                        )
-                    }
-                }
-                // Survey web view destination (Campaign C): the external-survey WebView. Reached in-app
-                // from the home survey overlay (SurveyWebViewActivity facade → HomeActivity → translator).
-                // The survey URL is the nav-arg. Non-exported; no alias.
-                composable(
-                    NavRoutes.SURVEY_WEB_VIEW,
-                    arguments = listOf(
-                        navArgument(NavRoutes.ARG_URL) { type = NavType.StringType },
-                    ),
-                ) { backStackEntry ->
-                    val url = backStackEntry.arguments?.getString(NavRoutes.ARG_URL).orEmpty()
-                    ObaTheme {
-                        SurveyWebViewScreen(
-                            url = url,
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
-                }
-                // Feedback destination (Campaign C): the post-trip destination-reminder feedback screen.
-                // Reached only from the post-trip notification's Yes/No actions (NavigationService →
-                // FeedbackActivity facade → HomeActivity → translator). On send it runs the submit/log
-                // glue (FeedbackSubmitter) then pops back. Non-exported; no alias.
-                composable(
-                    NavRoutes.FEEDBACK,
-                    arguments = listOf(
-                        navArgument(NavRoutes.ARG_FEEDBACK_RESPONSE) {
-                            type = NavType.IntType; defaultValue = 0
-                        },
-                        navArgument(NavRoutes.ARG_LOG_FILE) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                        navArgument(NavRoutes.ARG_TRIP_ID) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                        navArgument(NavRoutes.ARG_NOTIFICATION_ID) {
-                            type = NavType.IntType; defaultValue = 0
-                        },
-                    ),
-                ) { backStackEntry ->
-                    val response =
-                        backStackEntry.arguments?.getInt(NavRoutes.ARG_FEEDBACK_RESPONSE) ?: 0
-                    val logFile = backStackEntry.arguments?.getString(NavRoutes.ARG_LOG_FILE)
-                    val context = LocalContext.current
-                    val submitter = remember(logFile) {
-                        FeedbackSubmitter(context.applicationContext, prefsRepository, logFile)
-                    }
-                    ObaTheme {
-                        FeedbackScreen(
-                            initialLiked = response == FeedbackLauncher.FEEDBACK_YES,
-                            initialSendLogs = submitter.shareLogsPref(),
-                            onBack = { navController.popBackStack() },
-                            onSendLogsChanged = submitter::setShareLogs,
-                            onSend = { liked, text ->
-                                submitter.submit(liked, text)
-                                navController.popBackStack()
-                            },
-                        )
-                    }
-                }
-                // Search results (system ACTION_SEARCH + the home top-bar search field). The query is a
-                // nav-arg; result taps route to the in-NavHost destinations (route info / arrivals) or
-                // the map. Re-search when the query arg changes (a fresh search reuses this entry).
-                composable(
-                    NavRoutes.SEARCH,
-                    arguments = listOf(
-                        navArgument(NavRoutes.ARG_QUERY) {
-                            type = NavType.StringType
-                            defaultValue = ""
-                        },
-                    ),
-                ) { backStackEntry ->
-                    val query = backStackEntry.arguments?.getString(NavRoutes.ARG_QUERY).orEmpty()
-                    val searchVm: SearchResultsViewModel = hiltViewModel()
-                    LaunchedEffect(query) {
-                        ObaAnalytics.reportSearchEvent(
-                            Application.get().plausibleInstance, firebaseAnalytics, query
-                        )
-                        searchVm.search(query)
-                    }
-                    ObaTheme {
-                        SearchResultsRoute(
-                            viewModel = searchVm,
-                            onBack = { navController.popBackStack() },
-                            onRouteListStops = { route ->
-                                DBUtil.addRouteToDB(
-                                    this@HomeActivity, route.id, route.shortName, route.longName, route.url
-                                )
-                                navController.navigate(NavRoutes.routeInfo(route.id))
-                            },
-                            onRouteShowOnMap = { route ->
-                                DBUtil.addRouteToDB(
-                                    this@HomeActivity, route.id, route.shortName, route.longName, route.url
-                                )
-                                HomeActivity.start(this@HomeActivity, route.id)
-                            },
-                            onStopArrivals = { stop ->
-                                navController.navigate(NavRoutes.arrivals(stop.id))
-                            },
-                            onStopShowOnMap = { stop ->
-                                HomeActivity.start(
-                                    this@HomeActivity, stop.id, stop.latitude, stop.longitude
-                                )
-                            },
-                        )
-                    }
-                }
-                // The three "My*" tabbed list destinations (Campaign C). Reached from static app
-                // shortcuts + old pinned tab:// shortcuts (the translator maps the tag to the route) and,
-                // for Recent, the toolbar overflow. Tab wiring lives in MyListScreens.kt; the per-tab VMs
-                // are scoped to the back-stack entry. The legacy CREATE_SHORTCUT picker mode is dropped.
-                val tabArg = listOf(
-                    navArgument(NavRoutes.ARG_TAB) {
-                        type = NavType.StringType; nullable = true; defaultValue = null
-                    },
-                )
-                composable(NavRoutes.MY_STOPS, arguments = tabArg) { entry ->
-                    ObaTheme {
-                        MyStopsDestination(
-                            initialTag = entry.arguments?.getString(NavRoutes.ARG_TAB),
-                            prefsRepository = prefsRepository,
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
-                }
-                composable(NavRoutes.MY_ROUTES, arguments = tabArg) { entry ->
-                    ObaTheme {
-                        MyRoutesDestination(
-                            initialTag = entry.arguments?.getString(NavRoutes.ARG_TAB),
-                            prefsRepository = prefsRepository,
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
-                }
-                composable(NavRoutes.MY_RECENT, arguments = tabArg) { entry ->
-                    ObaTheme {
-                        MyRecentDestination(
-                            initialTag = entry.arguments?.getString(NavRoutes.ARG_TAB),
-                            prefsRepository = prefsRepository,
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
-                }
-                // "My Reminders" destination (Campaign C): the standalone saved-trip-reminders list.
-                // A single ReminderListDestination in a Scaffold (not MyTabsScreen) with a sort action.
-                // Entry-scoped VM. The home drawer embeds the same destination separately.
-                composable(NavRoutes.MY_REMINDERS) {
-                    val reminders = rememberListVm("reminders") {
-                        RemindersRepository(applicationContext)
-                    }
-                    ObaTheme {
-                        Scaffold(
-                            topBar = {
-                                ObaTopAppBar(
-                                    title = stringResource(R.string.app_name),
-                                    onBack = { navController.popBackStack() }
-                                ) {
-                                    IconButton(onClick = {
-                                        chooseSortOrder(
-                                            PreferenceUtils.getReminderSortOrderFromPreferences(),
-                                            R.array.sort_reminders
-                                        ) { reminders.setSort(it) }
-                                    }) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.ic_action_content_sort),
-                                            contentDescription = stringResource(R.string.menu_option_sort_by)
-                                        )
-                                    }
-                                }
-                            }
-                        ) { padding ->
-                            Box(Modifier.fillMaxSize().padding(padding)) {
-                                ReminderListDestination(
-                                    reminders,
-                                    emptyText = R.string.trip_list_notrips,
-                                    onClick = { editReminder(it) },
-                                    actions = { reminderActions(it) }
-                                )
-                            }
-                        }
-                    }
-                }
-                // Night light (Campaign C): the flashing screen riders show to flag drivers. Reached
-                // from the arrivals overflow and old pinned launcher shortcuts (frozen NightLightActivity
-                // name → alias → HomeActivity, routed by component name). Window/brightness/orientation
-                // concerns live in NightLightRoute for as long as it's on the back stack.
-                composable(NavRoutes.NIGHT_LIGHT) {
-                    ObaTheme {
-                        NightLightRoute(onBack = { navController.popBackStack() })
-                    }
-                }
-                // Trip plan destination (Campaign C): the trip-planning form + results sheet. Reached
-                // in-app from the home drawer's "Plan a trip"; re-entered from a RealtimeService trip-
-                // update notification (RealtimeService tags the open intent with the TRIP_PLAN route).
-                // The destination ports the former TripPlanActivity's Android glue. Non-exported.
-                composable(NavRoutes.TRIP_PLAN) {
-                    ObaTheme {
-                        TripPlanDestination(
-                            navController = navController,
-                            onBack = { navController.popBackStack() },
-                        )
-                    }
-                }
-                // Trip plan "pick a point on the map" sub-screen (Campaign C; former
-                // TripPlanLocationPickerActivity). Reached only from the trip-plan destination's
-                // from/to "pick on map"; hands the chosen point back via this entry's previous
-                // back-stack SavedStateHandle. The initial center arrives as decimal-string lat/lon.
-                composable(
-                    NavRoutes.TRIP_PLAN_PICK_LOCATION,
-                    arguments = listOf(
-                        navArgument(NavRoutes.ARG_PICK_LAT) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                        navArgument(NavRoutes.ARG_PICK_LON) {
-                            type = NavType.StringType; nullable = true; defaultValue = null
-                        },
-                    ),
-                ) { entry ->
-                    ObaTheme {
-                        TripPlanLocationPickerDestination(
-                            navController = navController,
-                            lat = entry.arguments?.getString(NavRoutes.ARG_PICK_LAT)?.toDoubleOrNull(),
-                            lon = entry.arguments?.getString(NavRoutes.ARG_PICK_LON)?.toDoubleOrNull(),
-                        )
-                    }
-                }
-            }
-
-            // Fare-payment warning (former imperative payment_warning_dialog): shown over any
-            // destination when the PAY_FARE menu item needs a region's warning before launching.
-            val warnRegion by paymentWarningRegion.collectAsStateWithLifecycle()
-            warnRegion?.let { region ->
-                ObaTheme {
-                    OptOutInfoDialog(
-                        title = region.paymentWarningTitle.orEmpty(),
-                        icon = painterResource(android.R.drawable.ic_dialog_alert),
-                        iconTint = colorResource(R.color.alert_icon_error),
-                        body = region.paymentWarningBody.orEmpty(),
-                        optOutLabel = stringResource(R.string.main_never_ask_again),
-                        onOptOut = {
-                            PreferenceUtils.saveBoolean(
-                                getString(R.string.preference_key_never_show_payment_warning_dialog), it
-                            )
-                        },
-                        confirmText = stringResource(R.string.ok),
-                        onConfirm = {
-                            paymentWarningRegion.value = null
-                            ExternalIntents.startPaymentIntent(this@HomeActivity, region)
-                        },
-                        onDismissRequest = { paymentWarningRegion.value = null },
-                    )
-                }
-            }
+            DeepLinkEffect(navController, pendingDeepLinkRoute)
+            SettingsRehomeEffect(navController)
+            HomeNavHost(
+                navController = navController,
+                home = HomeDestinationDeps(
+                    homeViewModel = viewModel,
+                    mapViewModel = mapViewModel,
+                    surveyViewModel = surveyViewModel,
+                    donationViewModel = donationViewModel,
+                    weatherViewModel = weatherViewModel,
+                    helpViewModel = helpViewModel,
+                    listVms = listVms,
+                    arrivalsViewModelFactory = arrivalsViewModelFactory,
+                    callbacks = homeCallbacks,
+                    mapSeed = mapSeed,
+                    savedInstanceState = savedInstanceState,
+                ),
+            )
+            PaymentWarningDialog(paymentWarningRegion)
         }
 
         setupNavigationDrawer()
@@ -1013,6 +263,34 @@ class HomeActivity : AppCompatActivity() {
 
         observeRegionResolved()
     }
+
+    /**
+     * Bundles the home screen's tap/UI lambdas ([HomeCallbacks]) — a mix of activity-method references
+     * and [HomeViewModel] method references — passed down to [HomeScreen] via the HOME destination.
+     */
+    private fun buildHomeCallbacks(): HomeCallbacks = HomeCallbacks(
+        onNavItemSelected = ::onHomeNavItemSelected,
+        onSearch = ::onSearch,
+        onRecentStopsRoutes = ::onRecentStopsRoutes,
+        onListSort = ::onListSortSelected,
+        onListClear = ::onListClearSelected,
+        onBikeshareToggled = ::pushEnvironment,
+        onHelpAction = ::onHelpAction,
+        onShowWelcomeTutorial = {
+            ShowcaseViewUtils.showTutorial(
+                ShowcaseViewUtils.TUTORIAL_WELCOME, this@HomeActivity, null, false
+            )
+        },
+        onRegionChosen = viewModel::onRegionChosen,
+        onSheetSettled = viewModel::onSheetSettled,
+        onClearFocus = viewModel::requestClearMapFocus,
+        onArrivalsLoaded = ::onArrivalsLoaded,
+        onShowRouteOnMap = viewModel::requestShowRouteOnMap,
+        onToggleSheet = viewModel::requestToggleSheet,
+        onPreferredHeight = viewModel::onPreferredHeight,
+        onCancelRouteMode = ::onCancelRouteMode,
+        onRouteHeaderHeight = ::onRouteHeaderHeight,
+    )
 
     /**
      * A warm re-launch (singleTop) carrying an external screen intent — FCM CLEAR_TOP, the
@@ -1182,6 +460,12 @@ class HomeActivity : AppCompatActivity() {
      *  in case the restored data implies a different region — raising the picker if it's ambiguous. */
     fun refreshRegionsAfterRestore() {
         viewModel.refreshRegions()
+    }
+
+    /** The advanced-settings "refresh regions" (experimental-regions toggle) action, forwarded to the
+     *  VM. Public so the (extracted) SETTINGS_ADVANCED destination can reach it off the host. */
+    fun onExperimentalRegionsToggled() {
+        viewModel.onExperimentalRegionsToggled()
     }
 
     /** Sets the initial map mode from the launch sources (route deep link, else nearby stops). */

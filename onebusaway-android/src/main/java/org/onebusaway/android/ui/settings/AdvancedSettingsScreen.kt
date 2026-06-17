@@ -48,7 +48,6 @@ import org.onebusaway.android.ui.settings.components.SwitchPreferenceItem
 fun AdvancedSettingsRoute(
     onBack: () -> Unit,
     onRefreshRegions: () -> Unit,
-    onOtpUrlChanged: () -> Unit,
     onGoHome: () -> Unit,
     viewModel: AdvancedSettingsViewModel = hiltViewModel(),
 ) {
@@ -60,7 +59,6 @@ fun AdvancedSettingsRoute(
         viewModel.effects.collect { effect ->
             when (effect) {
                 AdvancedSettingsEffect.RefreshRegions -> onRefreshRegions()
-                AdvancedSettingsEffect.OtpUrlChanged -> onOtpUrlChanged()
                 AdvancedSettingsEffect.GoHome -> onGoHome()
             }
         }

@@ -127,7 +127,6 @@ fun NavGraphBuilder.settingsGraph(navController: NavHostController) {
             AdvancedSettingsRoute(
                 onBack = { navController.popBackStack() },
                 onRefreshRegions = { activity.onExperimentalRegionsToggled() },
-                onOtpUrlChanged = { activity.setOtpCustomAPIUrlChanged(true) },
                 onGoHome = { NavHelp.goHome(activity, false) },
             )
         }

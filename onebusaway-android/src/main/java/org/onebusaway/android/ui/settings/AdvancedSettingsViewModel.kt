@@ -42,9 +42,6 @@ sealed interface AdvancedSettingsEffect {
     /** An experimental-regions toggle was applied: kick off a region refresh via the host. */
     object RefreshRegions : AdvancedSettingsEffect
 
-    /** The custom OTP URL changed: the host must re-home so the change takes effect. */
-    object OtpUrlChanged : AdvancedSettingsEffect
-
     /** The custom OBA URL was cleared: re-initialize regions by returning home. */
     object GoHome : AdvancedSettingsEffect
 }
@@ -134,14 +131,17 @@ class AdvancedSettingsViewModel @Inject constructor(
         }
     }
 
-    /** Apply an edit to the custom OTP API URL. Returns the outcome (see [onCustomObaApiUrlChanged]). */
+    /**
+     * Apply an edit to the custom OTP API URL. Returns the outcome (see [onCustomObaApiUrlChanged]).
+     * No host re-home effect is emitted: the settings subtree compares this persisted URL on entry vs.
+     * exit (see SettingsRehomeEffect) and re-homes if it changed.
+     */
     fun onCustomOtpApiUrlChanged(url: String): UrlChangeResult {
         val trimmed = url.trim()
         if (trimmed.isNotEmpty() && !ApiUrlValidator.validateUrl(trimmed)) {
             return UrlChangeResult.InvalidOtpUrl
         }
         prefs.setString(R.string.preference_key_otp_api_url, trimmed)
-        _effects.trySend(AdvancedSettingsEffect.OtpUrlChanged)
         return UrlChangeResult.Accepted
     }
 

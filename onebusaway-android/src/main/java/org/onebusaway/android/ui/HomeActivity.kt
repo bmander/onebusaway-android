@@ -151,22 +151,6 @@ class HomeActivity : AppCompatActivity() {
     // onNewIntent can't navigate directly — they stage the route here and a LaunchedEffect consumes it.
     private val pendingDeepLinkRoute = MutableStateFlow<String?>(null)
 
-    // Re-homed from the former SettingsActivity: the AdvancedSettingsFragment sets this (via
-    // setOtpCustomAPIUrlChanged) when the user edits the custom OTP API URL; the settings destination's
-    // onDispose reads it to decide whether to re-home (NavHelp.goHome). Kept on the host activity so the
-    // fragment can reach it through its host (now HomeActivity instead of SettingsActivity).
-    var otpCustomAPIUrlChanged: Boolean = false
-        private set
-
-    /**
-     * Set by the advanced settings screen ([org.onebusaway.android.ui.settings.AdvancedSettingsRoute])
-     * when the user changes the custom OTP API URL; read on leaving the settings subtree to decide
-     * whether to re-home (so the change takes effect).
-     */
-    fun setOtpCustomAPIUrlChanged(changed: Boolean) {
-        otpCustomAPIUrlChanged = changed
-    }
-
     // The region whose fare-payment warning to show (former imperative payment_warning_dialog). Set by
     // the PAY_FARE menu action when a warning is needed; the Compose dialog in setContent renders it.
     private val paymentWarningRegion = MutableStateFlow<ObaRegion?>(null)

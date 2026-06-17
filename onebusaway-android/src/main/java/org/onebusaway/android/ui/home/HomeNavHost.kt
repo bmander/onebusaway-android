@@ -171,10 +171,9 @@ internal fun AccessibilityAnalyticsEffect() {
 
 /**
  * Re-home when leaving the settings subtree if the user re-enabled auto-select-region or changed the
- * custom OTP URL (ported from the former SettingsActivity.onDestroy). The auto-select baseline is
- * captured on entry and compared on exit, so a re-home fires only when it was turned back on during this
- * settings visit. Lifted verbatim from the former inline `onCreate` effect; recovers the host to reach
- * the OTP-URL flag and the go-home helper.
+ * custom OTP URL (ported from the former SettingsActivity.onDestroy). Both baselines (the auto-select
+ * pref and the OTP URL pref) are captured on entry and compared on exit, so a re-home fires only when
+ * one actually changed during this settings visit. Recovers the host only for the go-home helper.
  */
 @Composable
 internal fun SettingsRehomeEffect(navController: NavHostController) {
@@ -182,20 +181,24 @@ internal fun SettingsRehomeEffect(navController: NavHostController) {
     DisposableEffect(navController) {
         val settingsRoutes = setOf(NavRoutes.SETTINGS, NavRoutes.SETTINGS_ADVANCED)
         val autoSelectKey = activity.getString(R.string.preference_key_auto_select_region)
+        val otpUrlKey = activity.getString(R.string.preference_key_otp_api_url)
         var autoSelectInitial: Boolean? = null
+        var otpUrlInitial: String? = null
         val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
             if (destination.route in settingsRoutes) {
                 if (autoSelectInitial == null) {
                     autoSelectInitial = PreferenceUtils.getBoolean(autoSelectKey, true)
+                    otpUrlInitial = PreferenceUtils.getString(otpUrlKey)
                 }
             } else if (autoSelectInitial != null) {
                 val reEnabledAutoSelect =
                     PreferenceUtils.getBoolean(autoSelectKey, true) && autoSelectInitial == false
+                // Compare the persisted OTP URL itself (entry vs exit) rather than a host-held "changed"
+                // flag — same idiom as auto-select above, so no blackboard state lives on the activity.
+                val otpUrlChanged = PreferenceUtils.getString(otpUrlKey) != otpUrlInitial
                 autoSelectInitial = null
-                if (reEnabledAutoSelect) {
-                    NavHelp.goHome(activity, false)
-                } else if (activity.otpCustomAPIUrlChanged) {
-                    activity.setOtpCustomAPIUrlChanged(false)
+                otpUrlInitial = null
+                if (reEnabledAutoSelect || otpUrlChanged) {
                     NavHelp.goHome(activity, false)
                 }
             }

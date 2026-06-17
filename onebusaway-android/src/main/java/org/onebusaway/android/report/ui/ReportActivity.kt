@@ -22,14 +22,15 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.google.firebase.analytics.FirebaseAnalytics
 import org.onebusaway.android.BuildConfig
@@ -120,14 +121,10 @@ fun ReportDestination(navController: NavController) {
     // Whether the region needs validating: false → show the type list straight away. Computed once.
     val needsValidation = remember { showValidateRegionDialog(activity) }
 
-    // The region-validate gate flips this when confirmed.
-    val regionValidated by activity.reportRegionValidated.collectAsStateWithLifecycle()
+    // The region-validate gate flips this when confirmed; destination-local since both the writer (the
+    // dialog's Yes button) and reader live here. A fresh report entry starts false, so no reset is needed.
+    var regionValidated by rememberSaveable { mutableStateOf(false) }
     val showTypeList = !needsValidation || regionValidated
-
-    // Reset the latch on leave so a fresh entry re-validates.
-    DisposableEffect(Unit) {
-        onDispose { activity.reportRegionValidated.value = false }
-    }
 
     // "Is this your region?" gate (Tier 1: was RegionValidateDialog, a DialogFragment). Not cancelable
     // on outside touch; back leaves the report flow.
@@ -142,7 +139,7 @@ fun ReportDestination(navController: NavController) {
                     region?.id?.let {
                         PreferenceUtils.saveLong(ReportConstants.PREF_VALIDATED_REGION_ID, it)
                     }
-                    activity.reportRegionValidated.value = true
+                    regionValidated = true
                 }) { Text(stringResource(R.string.rt_yes)) }
             },
             dismissButton = {

@@ -173,10 +173,6 @@ class HomeActivity : AppCompatActivity() {
         otpCustomAPIUrlChanged = changed
     }
 
-    // Set true by the report chooser's region-validate dialog (ReportDestination) when the user
-    // confirms their region; the chooser observes it to swap the validate dialog for the type list.
-    val reportRegionValidated = MutableStateFlow(false)
-
     // The region whose fare-payment warning to show (former imperative payment_warning_dialog). Set by
     // the PAY_FARE menu action when a warning is needed; the Compose dialog in setContent renders it.
     private val paymentWarningRegion = MutableStateFlow<ObaRegion?>(null)

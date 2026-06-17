@@ -154,6 +154,7 @@ fun ArrivalsRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     ArrivalsPolling(viewModel)
     RouteFavoriteHost(viewModel)
+    StopDetailsHost(viewModel)
     val rowCallbacks = rememberArrivalRowCallbacks(handler, viewModel)
     ArrivalsScreen(
         state = state,

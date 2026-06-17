@@ -45,6 +45,7 @@ import org.onebusaway.android.mock.MockObaStop;
 import org.onebusaway.android.mock.MockRegion;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.ui.arrivals.ArrivalInfo;
+import org.onebusaway.android.ui.arrivals.StopDetailsDialog;
 import org.onebusaway.android.ui.arrivals.TripOptionsKt;
 import org.onebusaway.android.util.AndroidUtils;
 import org.onebusaway.android.util.ArrivalInfoUtils;
@@ -52,7 +53,6 @@ import org.onebusaway.android.util.DisplayFormat;
 import org.onebusaway.android.util.MyTextUtils;
 import org.onebusaway.android.util.RouteDisplay;
 import org.onebusaway.android.util.SituationUtils;
-import org.onebusaway.android.util.UIUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -430,7 +430,7 @@ public class UIUtilTest extends ObaTestCase {
         routeDisplayNames.add("5");
 
         // Test without stop nickname or direction
-        stopDetails = UIUtils.createStopDetailsDialogText(getTargetContext(),
+        stopDetails = StopDetailsDialog.createStopDetailsDialogText(getTargetContext(),
                 stopName,
                 stopUserName,
                 stopCode,
@@ -445,7 +445,7 @@ public class UIUtilTest extends ObaTestCase {
 
         // Test with stop nickname and without direction
         stopUserName = "My stop nickname";
-        stopDetails = UIUtils.createStopDetailsDialogText(getTargetContext(),
+        stopDetails = StopDetailsDialog.createStopDetailsDialogText(getTargetContext(),
                 stopName,
                 stopUserName,
                 stopCode,
@@ -463,7 +463,7 @@ public class UIUtilTest extends ObaTestCase {
         // Test without stop nickname and with direction
         stopUserName = null;
         stopDirection = "S";
-        stopDetails = UIUtils.createStopDetailsDialogText(getTargetContext(),
+        stopDetails = StopDetailsDialog.createStopDetailsDialogText(getTargetContext(),
                 stopName,
                 stopUserName,
                 stopCode,
@@ -481,7 +481,7 @@ public class UIUtilTest extends ObaTestCase {
         // Test with stop nickname and direction
         stopUserName = "My stop nickname";
         stopDirection = "S";
-        stopDetails = UIUtils.createStopDetailsDialogText(getTargetContext(),
+        stopDetails = StopDetailsDialog.createStopDetailsDialogText(getTargetContext(),
                 stopName,
                 stopUserName,
                 stopCode,

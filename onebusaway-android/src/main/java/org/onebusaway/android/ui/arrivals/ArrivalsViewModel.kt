@@ -78,6 +78,10 @@ class ArrivalsViewModel @AssistedInject constructor(
     private val _favoriteRequest = MutableStateFlow<ArrivalActions?>(null)
     val favoriteRequest: StateFlow<ArrivalActions?> = _favoriteRequest.asStateFlow()
 
+    /** Whether the stop-details dialog (the overflow "show stop details" action) is showing. */
+    private val _stopDetailsVisible = MutableStateFlow(false)
+    val stopDetailsVisible: StateFlow<Boolean> = _stopDetailsVisible.asStateFlow()
+
     private var minutesAfter = DefaultArrivalsRepository.MINUTES_AFTER_DEFAULT
 
     private var routeFilter: Set<String> = emptySet()
@@ -144,6 +148,16 @@ class ArrivalsViewModel @AssistedInject constructor(
     /** Dismisses the route-favorite dialog without changing anything. */
     fun dismissRouteFavorite() {
         _favoriteRequest.value = null
+    }
+
+    /** Opens the stop-details dialog (the overflow "show stop details" action). */
+    fun requestStopDetails() {
+        _stopDetailsVisible.value = true
+    }
+
+    /** Dismisses the stop-details dialog. */
+    fun dismissStopDetails() {
+        _stopDetailsVisible.value = false
     }
 
     /**

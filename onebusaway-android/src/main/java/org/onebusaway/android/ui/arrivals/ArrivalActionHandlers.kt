@@ -26,7 +26,6 @@ import org.onebusaway.android.report.ui.InfrastructureIssueActivity
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.ReminderUtils
-import org.onebusaway.android.util.UIUtils
 
 /**
  * Builds the [ArrivalActionHandler] shared by the standalone arrivals activity and the map panel.
@@ -119,16 +118,8 @@ fun createArrivalActionHandler(
     }
 
     override fun onShowStopDetails() {
-        val content = currentContent() ?: return
-        val text = UIUtils.createStopDetailsDialogText(
-            activity,
-            content.header.name,
-            content.stopUserName,
-            content.stopCode,
-            content.header.direction,
-            content.routeFilterOptions.map { it.displayName }
-        )
-        UIUtils.buildAlertDialog(activity, text.first, text.second).show()
+        // Pure ViewModel operation now: the dialog is Compose ([StopDetailsHost]).
+        viewModel.requestStopDetails()
     }
 
     override fun onReportStopProblem() {

@@ -22,7 +22,7 @@ import androidx.annotation.StringRes
 import org.onebusaway.android.R
 
 /**
- * Display-formatting helpers relocated from [UIUtils].
+ * Display-formatting helpers relocated from the legacy UIUtils.
  */
 object DisplayFormat {
 

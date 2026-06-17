@@ -17,11 +17,10 @@
 
 package org.onebusaway.android.util
 
-import android.app.Activity
 import android.content.Context
 
 /**
- * Small view/dialog-related Android utility helpers.
+ * Small view-related Android utility helpers.
  */
 object ViewUtils {
 
@@ -38,49 +37,5 @@ object ViewUtils {
         val scale = context.resources.displayMetrics.density
         // Convert the dps to pixels, based on density scale
         return (dp * scale + 0.5f).toInt()
-    }
-
-    /**
-     * Returns true if the activity is still active and dialogs can be managed (i.e., displayed
-     * or dismissed), or false if it is
-     * not
-     *
-     * @param activity Activity to check for displaying/dismissing a dialog
-     * @return true if the activity is still active and dialogs can be managed, or false if it is
-     * not
-     */
-    @JvmStatic
-    fun canManageDialog(activity: Activity?): Boolean {
-        return activity != null && !activity.isFinishing && !activity.isDestroyed
-    }
-
-    /**
-     * Returns true if the context is an Activity and is still active and dialogs can be managed
-     * (i.e., displayed or dismissed) OR the context is not an Activity, or false if the Activity
-     * is
-     * no longer active.
-     *
-     * NOTE: We really shouldn't display dialogs from a Service - a notification is a better way
-     * to communicate with the user.
-     *
-     * @param context Context to check for displaying/dismissing a dialog
-     * @return true if the context is an Activity and is still active and dialogs can be managed
-     * (i.e., displayed or dismissed) OR the context is not an Activity, or false if the Activity
-     * is
-     * no longer active
-     */
-    @JvmStatic
-    fun canManageDialog(context: Context?): Boolean {
-        if (context == null) {
-            return false
-        }
-
-        return if (context is Activity) {
-            canManageDialog(context)
-        } else {
-            // We really shouldn't be displaying dialogs from a Service, but if for some reason we
-            // need to do this, we don't have any way of checking whether its possible
-            true
-        }
     }
 }

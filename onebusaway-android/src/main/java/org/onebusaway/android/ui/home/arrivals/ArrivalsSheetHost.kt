@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.home
+package org.onebusaway.android.ui.home.arrivals
 
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.Surface
@@ -36,6 +36,7 @@ import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.compose.rememberClearedViewModelStoreOwner
 import org.onebusaway.android.ui.arrivals.createArrivalActionHandler
+import org.onebusaway.android.ui.home.FocusedStop
 
 /**
  * Hosts the [ArrivalsPanel] for the currently focused stop directly in the home bottom sheet,

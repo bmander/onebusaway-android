@@ -94,14 +94,6 @@ internal fun focusedStopFromExtras(
     }
 
 /**
- * The current weather forecast, decoupled from the io/elements response. The raw icon string and
- * Fahrenheit temperature are kept so the WeatherCard can map them to a drawable + formatted string
- * (via [org.onebusaway.android.ui.weather.WeatherUtils]) at render time, leaving the ViewModel free
- * of resource/preference lookups and unit-testable.
- */
-data class WeatherData(val icon: String, val temperatureF: Double, val summary: String?)
-
-/**
  * The non-reactive environment the host snapshots (preferences + app-global flags) so the ViewModel
  * can compute the gated chrome/overlay visibility without reaching into Android statics itself.
  */
@@ -164,7 +156,7 @@ enum class ArrivalsSheetState { Hidden, Collapsed, Expanded }
  * One-shot effects driven from the ViewModel. [RegionResolved] is handled by the activity; the sheet
  * commands are handled by [HomeScreen] (which alone holds the live `SheetState`). Both subscribe to
  * the same multicast `events` flow and ignore the others. (The drawer is opened directly by
- * [HomeTopBar]'s hamburger, so it needs no event. The region-wide GTFS alert is plain state now —
+ * [org.onebusaway.android.ui.home.chrome.HomeTopBar]'s hamburger, so it needs no event. The region-wide GTFS alert is plain state now —
  * [HomeUiState.wideAlert], rendered as a Compose dialog — not a one-shot event.)
  */
 sealed interface HomeEvent {

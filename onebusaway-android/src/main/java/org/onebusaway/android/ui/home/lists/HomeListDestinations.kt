@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.home
+package org.onebusaway.android.ui.home.lists
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
@@ -34,11 +34,11 @@ import org.onebusaway.android.ui.mylists.routeActions
 import org.onebusaway.android.ui.mylists.stopActions
 
 /**
- * The three home list views (starred stops/routes, reminders) that [HomeScreen] draws over the map.
+ * The three home list views (starred stops/routes, reminders) that [org.onebusaway.android.ui.home.HomeScreen] draws over the map.
  * They're thin bindings to the shared [StopListDestination]/[RouteListDestination]/
  * [ReminderListDestination] (also used by the `My*` tab activities), wired with Home's strings and
  * `shortcutMode = false` (the home screen is never a launcher-shortcut picker). Their backing
- * [MyListViewModel]s are owned by [HomeActivity] (so its options menu can sort/clear them) and handed
+ * [MyListViewModel]s are owned by [org.onebusaway.android.ui.HomeActivity] (so its options menu can sort/clear them) and handed
  * in via [HomeListViewModels].
  */
 class HomeListViewModels(

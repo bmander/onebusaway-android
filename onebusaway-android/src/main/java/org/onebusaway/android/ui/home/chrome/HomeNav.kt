@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.home
+package org.onebusaway.android.ui.home.chrome
 
 import androidx.annotation.StringRes
 import org.onebusaway.android.R
+import org.onebusaway.android.ui.home.HomeNavItem
 
 /**
  * The nav-drawer *policy*, split out of HomeActivity so it's pure + unit-testable: which items the

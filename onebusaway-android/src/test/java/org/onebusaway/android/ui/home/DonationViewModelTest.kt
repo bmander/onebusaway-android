@@ -26,6 +26,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.donations.DonationsManager
 import org.onebusaway.android.testing.MainDispatcherRule
+import org.onebusaway.android.ui.home.donation.DonationEffect
+import org.onebusaway.android.ui.home.donation.DonationViewModel
 
 /**
  * Unit tests for [DonationViewModel]'s dialog/effect logic — the parts that don't touch the

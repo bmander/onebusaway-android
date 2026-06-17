@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.home
+package org.onebusaway.android.ui.home.weather
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -34,7 +34,7 @@ import org.onebusaway.android.region.RegionRepository
 data class WeatherUiState(val data: WeatherData? = null, val hidden: Boolean = false)
 
 /**
- * Owns the weather chip as a self-contained feature module (mirrors [DonationViewModel]/SurveyViewModel):
+ * Owns the weather chip as a self-contained feature module (mirrors [org.onebusaway.android.ui.home.donation.DonationViewModel]/SurveyViewModel):
  * the region-keyed forecast fetch (once per region) + the hide-weather preference. Pulls weather out of
  * HomeViewModel/HomeUiState (the fetch in `onRegionValid`, the `weather` field, the
  * `HomeEnvironment.weatherHidden` gate). The NEARBY-tab gate stays in HomeScreen, like the other chrome;

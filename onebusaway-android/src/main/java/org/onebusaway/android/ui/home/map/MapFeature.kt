@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.home
+package org.onebusaway.android.ui.home.map
 
 import android.Manifest
 import android.content.Intent
@@ -59,6 +59,8 @@ import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.map.render.GeoPoint
+import org.onebusaway.android.ui.home.FocusedStop
+import org.onebusaway.android.ui.home.HomeViewModel
 import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils

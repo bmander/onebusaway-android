@@ -13,13 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.home
+package org.onebusaway.android.ui.home.weather
 
 import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.request.weather.ObaWeatherRequest
+
+/**
+ * The current weather forecast, decoupled from the io/elements response. The raw icon string and
+ * Fahrenheit temperature are kept so the [WeatherCard] can map them to a drawable + formatted string
+ * at render time, leaving the ViewModel free of resource/preference lookups and unit-testable.
+ */
+data class WeatherData(val icon: String, val temperatureF: Double, val summary: String?)
 
 /** Provides the current weather forecast for a region, for the home map's weather chip. */
 interface WeatherRepository {

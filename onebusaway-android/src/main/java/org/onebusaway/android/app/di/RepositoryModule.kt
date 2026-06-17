@@ -32,12 +32,12 @@ import org.onebusaway.android.ui.arrivals.ArrivalsRepository
 import org.onebusaway.android.ui.arrivals.DefaultArrivalsRepository
 import org.onebusaway.android.ui.home.DefaultNavItemsRepository
 import org.onebusaway.android.ui.home.DefaultStartupPreferencesRepository
-import org.onebusaway.android.ui.home.DefaultWeatherRepository
 import org.onebusaway.android.ui.home.DefaultWideAlertsRepository
 import org.onebusaway.android.ui.home.NavItemsRepository
 import org.onebusaway.android.ui.home.StartupPreferencesRepository
-import org.onebusaway.android.ui.home.WeatherRepository
 import org.onebusaway.android.ui.home.WideAlertsRepository
+import org.onebusaway.android.ui.home.weather.DefaultWeatherRepository
+import org.onebusaway.android.ui.home.weather.WeatherRepository
 import org.onebusaway.android.location.DefaultLocationRepository
 import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.region.DefaultRegionRepository

@@ -19,6 +19,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.onebusaway.android.ui.home.chrome.analyticsLabelRes
+import org.onebusaway.android.ui.home.chrome.homeNavItems
 
 /**
  * Unit tests for the nav-drawer policy ([homeNavItems] + [analyticsLabelRes]) extracted from

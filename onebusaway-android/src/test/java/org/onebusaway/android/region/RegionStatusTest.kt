@@ -13,18 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.home
+package org.onebusaway.android.region
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.io.elements.ObaRegionElement
-import org.onebusaway.android.region.REGION_UPDATE_THRESHOLD_MS
-import org.onebusaway.android.region.RegionStatus
-import org.onebusaway.android.region.resolveRegionStatus
-import org.onebusaway.android.region.shouldForceReload
 
 /**
  * Unit tests for the pure region-status decision functions extracted from
@@ -133,33 +127,3 @@ class RegionStatusTest {
     }
 
 }
-
-/** Minimal [ObaRegion] fixture — only the id matters to the selection logic (compared by id). */
-internal fun region(id: Long): ObaRegion = ObaRegionElement(
-        id,            // id
-        "Region $id",  // name
-        true,          // active
-        null,          // obaBaseUrl
-        null,          // siriBaseUrl
-        null,          // bounds
-        null,          // open311Servers
-        null,          // lang
-        null,          // contactEmail
-        true,          // supportsObaDiscoveryApis
-        true,          // supportsObaRealtimeApis
-        false,         // supportsSiriRealtimeApis
-        null,          // twitterUrl
-        false,         // experimental
-        null,          // stopInfoUrl
-        null,          // otpBaseUrl
-        null,          // otpContactEmail
-        false,         // supportsOtpBikeshare
-        false,         // supportsEmbeddedSocial
-        null,          // paymentAndroidAppId
-        null,          // paymentWarningTitle
-        null,          // paymentWarningBody
-        false,         // travelBehaviorDataCollectionEnabled
-        false,         // enrollParticipantsInStudy
-        null,          // sidecarBaseUrl
-        null           // plausibleAnalyticsServerUrl
-    )

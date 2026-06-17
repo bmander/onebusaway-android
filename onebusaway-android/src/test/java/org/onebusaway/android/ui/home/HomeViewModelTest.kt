@@ -38,7 +38,9 @@ import org.junit.Test
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.map.MapCommand
 import org.onebusaway.android.map.MapInteractionBus
+import org.onebusaway.android.region.FakeRegionRepository
 import org.onebusaway.android.region.RegionStatus
+import org.onebusaway.android.region.region
 import org.onebusaway.android.testing.MainDispatcherRule
 
 private class FakeWideAlertsRepository(private val alerts: List<WideAlert>) : WideAlertsRepository {

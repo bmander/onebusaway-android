@@ -39,7 +39,7 @@ import org.onebusaway.android.io.elements.ObaRegion
 
 /**
  * Which shared Home dialog is showing. The help / what's-new / legend dialogs are their own feature
- * module now (see [HelpViewModel] / [HelpFeature]); only the forced-choice region picker remains here.
+ * module now (see [org.onebusaway.android.ui.home.help.HelpViewModel] / [org.onebusaway.android.ui.home.help.HelpFeature]); only the forced-choice region picker remains here.
  */
 sealed interface HomeDialog {
     object None : HomeDialog

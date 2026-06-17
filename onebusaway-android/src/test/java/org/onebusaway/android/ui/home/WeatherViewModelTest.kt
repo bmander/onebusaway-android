@@ -23,8 +23,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
+import org.onebusaway.android.region.FakeRegionRepository
+import org.onebusaway.android.region.region
 import org.onebusaway.android.testing.FakePreferencesRepository
 import org.onebusaway.android.testing.MainDispatcherRule
+import org.onebusaway.android.ui.home.weather.WeatherData
+import org.onebusaway.android.ui.home.weather.WeatherRepository
+import org.onebusaway.android.ui.home.weather.WeatherViewModel
 
 private class FakeWeatherRepository(var result: Result<WeatherData>) : WeatherRepository {
     val requestedRegions = mutableListOf<Long>()

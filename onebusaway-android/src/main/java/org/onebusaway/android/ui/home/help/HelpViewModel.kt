@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.home
+package org.onebusaway.android.ui.home.help
 
 import android.content.pm.PackageManager
 import androidx.lifecycle.ViewModel

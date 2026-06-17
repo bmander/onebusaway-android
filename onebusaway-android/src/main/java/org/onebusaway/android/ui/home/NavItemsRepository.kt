@@ -21,7 +21,7 @@ import org.onebusaway.android.app.Application
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.ReminderUtils
 
-/** The (app-global) inputs that gate which home nav-drawer items are shown — fed to [homeNavItems]. */
+/** The (app-global) inputs that gate which home nav-drawer items are shown — fed to [org.onebusaway.android.ui.home.chrome.homeNavItems]. */
 data class NavItemAvailability(
     val showReminders: Boolean,
     val planTripAvailable: Boolean,
@@ -30,7 +30,7 @@ data class NavItemAvailability(
 
 /**
  * Supplies the region/preference-derived gating inputs for the home nav drawer, so [HomeViewModel] can
- * rebuild its own item list (the pure [homeNavItems] policy) without reaching into Android statics — and
+ * rebuild its own item list (the pure [org.onebusaway.android.ui.home.chrome.homeNavItems] policy) without reaching into Android statics — and
  * stays unit-testable behind a fake.
  */
 interface NavItemsRepository {

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.home
+package org.onebusaway.android.ui.home.chrome
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
@@ -53,6 +53,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import org.onebusaway.android.R
+import org.onebusaway.android.ui.home.HomeUiState
 
 /**
  * Home's Material3 top bar, replacing the hosted `MaterialToolbar` + options menu. It toggles between

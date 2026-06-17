@@ -13,44 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.home
+package org.onebusaway.android.region
 
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.region.RegionRepository
-import org.onebusaway.android.region.RegionState
-import org.onebusaway.android.region.RegionStateHolder
-import org.onebusaway.android.region.RegionStatus
-
-/**
- * A controllable [RegionRepository] for ViewModel tests; shared across the package (see `region(id)`).
- * It drives both the observable [region]/[state] flows and the resolve action ([refresh]/[choose]) —
- * folding in the former `FakeRegionStatusRepository` now that resolution lives in the repository.
- */
-internal class FakeRegionRepository(initial: ObaRegion? = null) : RegionRepository {
-    private val _region = MutableStateFlow(initial)
-    override val region: StateFlow<ObaRegion?> = _region
-    private val _state = MutableStateFlow<RegionState>(RegionState.Active(initial))
-    override val state: StateFlow<RegionState> = _state
-
-    /** The outcome [refresh] returns; set per test (default mirrors a no-op refresh). */
-    var refreshResult: RegionStatus = RegionStatus.Unchanged
-    var refreshCount = 0
-    val chosen = mutableListOf<ObaRegion>()
-
-    override suspend fun refresh(): RegionStatus { refreshCount++; return refreshResult }
-    override suspend fun choose(region: ObaRegion) { chosen.add(region); emit(region) }
-    override fun clear() = emit(null)
-    override fun applyRegion(region: ObaRegion?, regionChanged: Boolean) = emit(region)
-
-    fun emit(region: ObaRegion?) { _region.value = region; _state.value = RegionState.Active(region) }
-    /** Drives the richer [state] flow directly (Resolving / NeedsManualChoice / Failed). */
-    fun emitState(state: RegionState) { _state.value = state }
-}
 
 /** Unit tests for [RegionStateHolder] — the observable region-state holder the repository exposes. */
 class RegionStateHolderTest {

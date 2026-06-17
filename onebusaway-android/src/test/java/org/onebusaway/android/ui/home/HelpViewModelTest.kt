@@ -19,6 +19,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
 import org.onebusaway.android.testing.FakePreferencesRepository
+import org.onebusaway.android.ui.home.help.HelpDialog
+import org.onebusaway.android.ui.home.help.HelpViewModel
 
 /**
  * Unit tests for [HelpViewModel]'s dialog-state transitions (migrated from HomeViewModelTest when help

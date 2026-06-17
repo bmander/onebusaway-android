@@ -56,10 +56,29 @@ import org.onebusaway.android.map.RouteHeader
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.compose.theme.ObaTheme
+import org.onebusaway.android.ui.home.arrivals.ArrivalsSheetHost
+import org.onebusaway.android.ui.home.chrome.HomeNavDrawerSheet
+import org.onebusaway.android.ui.home.chrome.HomeTopBar
+import org.onebusaway.android.ui.home.chrome.titleRes
+import org.onebusaway.android.ui.home.donation.DonationFeature
+import org.onebusaway.android.ui.home.donation.DonationViewModel
+import org.onebusaway.android.ui.home.help.HelpAction
+import org.onebusaway.android.ui.home.help.HelpFeature
+import org.onebusaway.android.ui.home.help.HelpViewModel
+import org.onebusaway.android.ui.home.lists.HomeListViewModels
+import org.onebusaway.android.ui.home.lists.RemindersDestination
+import org.onebusaway.android.ui.home.lists.StarredRoutesDestination
+import org.onebusaway.android.ui.home.lists.StarredStopsDestination
+import org.onebusaway.android.ui.home.map.MapChrome
+import org.onebusaway.android.ui.home.map.MapFeature
+import org.onebusaway.android.ui.home.map.RouteHeaderOverlay
+import org.onebusaway.android.ui.home.survey.SurveyFeature
+import org.onebusaway.android.ui.home.weather.WeatherFeature
+import org.onebusaway.android.ui.home.weather.WeatherViewModel
 import org.onebusaway.android.ui.survey.SurveyViewModel
 
 /**
- * The home screen's tap/UI callbacks, bundled into one holder (mirrors [SurveyCallbacks]) so
+ * The home screen's tap/UI callbacks, bundled into one holder (mirrors [org.onebusaway.android.ui.home.survey.SurveyCallbacks]) so
  * [HomeScreen]'s signature stays a handful of parameters — state + the map/survey plumbing + this —
  * instead of ~30 individual lambdas. Each is dispatched up to HomeActivity or a view model.
  */
@@ -94,7 +113,7 @@ class HomeCallbacks(
  * fights a user drag. **Expansion (peek<->full)** is the live `SheetState`, nudged by one-shot
  * [HomeEvent.ToggleSheet]/[HomeEvent.CollapseSheet] commands (the screen alone knows the live state),
  * plus [BackHandler]. The arrivals panel is hosted directly per focused stop (see [ArrivalsSheetHost]);
- * the map ([MapFeature]), the route-mode header ([RouteHeaderOverlay]), and the survey ([SurveyOverlay])
+ * the map ([MapFeature]), the route-mode header ([RouteHeaderOverlay]), and the survey ([org.onebusaway.android.ui.home.survey.SurveyOverlay])
  * are all composables now — no map-related `AndroidView` / View seam remains.
  */
 @OptIn(ExperimentalMaterial3Api::class)

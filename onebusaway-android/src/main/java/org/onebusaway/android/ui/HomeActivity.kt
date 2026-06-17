@@ -23,7 +23,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
-import android.view.accessibility.AccessibilityManager
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -63,6 +62,7 @@ import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.donation.DonationViewModel
 import org.onebusaway.android.ui.home.weather.WeatherViewModel
+import org.onebusaway.android.ui.home.AccessibilityAnalyticsEffect
 import org.onebusaway.android.ui.home.focusedStopFromExtras
 import org.onebusaway.android.ui.home.help.HelpAction
 import org.onebusaway.android.ui.home.help.HelpViewModel
@@ -151,8 +151,6 @@ class HomeActivity : AppCompatActivity() {
         )
     }
 
-    private lateinit var firebaseAnalytics: FirebaseAnalytics
-
     // A NavHost route to navigate to once the NavHost has composed, set from an incoming external
     // intent (FCM, a pinned shortcut / legacy class name resolved via an activity-alias, an in-app
     // launch from non-NavHost code). The navController is created inside setContent, so onCreate /
@@ -186,10 +184,6 @@ class HomeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // The map's center/zoom/mode are restored from the saved bundle via initMapMode()/resolveMapSeed()
-        // below (the focus is restored by HomeViewModel's SavedStateHandle); the seed avoids a map flash.
-        firebaseAnalytics = FirebaseAnalytics.getInstance(this)
-
         // Host the map content inside a Compose ModalNavigationDrawer + HomeTopBar + BottomSheetScaffold,
         // replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome, the hosted
         // MaterialToolbar + options menu, and the third-party SlidingUpPanelLayout. The arrivals panel
@@ -211,6 +205,7 @@ class HomeActivity : AppCompatActivity() {
 
         setContent {
             val navController = rememberNavController()
+            AccessibilityAnalyticsEffect()
             DeepLinkEffect(navController, pendingDeepLinkRoute)
             SettingsRehomeEffect(navController)
             HomeNavHost(
@@ -429,19 +424,15 @@ class HomeActivity : AppCompatActivity() {
      * chrome-environment refresh (a region change can flip bikeshare availability).
      */
     private fun onRegionResolved(event: HomeEvent.RegionResolved) {
-        reportRegionToAnalytics(event)
-        pushEnvironment()
-    }
-
-    /** Reports an auto-selected region change to analytics (a manual pick passes a null name, so none). */
-    private fun reportRegionToAnalytics(event: HomeEvent.RegionResolved) {
+        // Report an auto-selected region change to analytics (a manual pick passes a null name, so none).
         if (event.changed && event.regionName != null) {
             ObaAnalytics.setRegion(
                 Application.get().plausibleInstance,
-                firebaseAnalytics,
+                FirebaseAnalytics.getInstance(this),
                 event.regionName
             )
         }
+        pushEnvironment()
     }
 
     // --- Settings preference-screen host glue (re-homed from the former SettingsActivity) ------------
@@ -500,13 +491,6 @@ class HomeActivity : AppCompatActivity() {
             zoom = restored.getFloat(MapParams.ZOOM, primary.zoom),
         )
         return resolveMapSeed(primary, persisted)
-    }
-
-    override fun onStart() {
-        super.onStart()
-        val am = getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val isTalkBackEnabled = am.isTouchExplorationEnabled
-        ObaAnalytics.setAccessibility(firebaseAnalytics, isTalkBackEnabled)
     }
 
     override fun onResume() {
@@ -570,7 +554,7 @@ class HomeActivity : AppCompatActivity() {
     private fun reportNavAnalytics(item: HomeNavItem) {
         val label = item.analyticsLabelRes ?: return
         ObaAnalytics.reportUiEvent(
-            firebaseAnalytics,
+            FirebaseAnalytics.getInstance(this),
             Application.get().plausibleInstance,
             PlausibleAnalytics.REPORT_MENU_EVENT_URL,
             getString(label),
@@ -667,7 +651,7 @@ class HomeActivity : AppCompatActivity() {
                 }
                 ExternalIntents.goToUrl(this, twitterUrl)
                 ObaAnalytics.reportUiEvent(
-                    firebaseAnalytics,
+                    FirebaseAnalytics.getInstance(this),
                     Application.get().plausibleInstance,
                     PlausibleAnalytics.REPORT_MENU_EVENT_URL,
                     getString(R.string.analytics_label_twitter),

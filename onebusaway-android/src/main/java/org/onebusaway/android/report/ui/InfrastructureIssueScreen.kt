@@ -114,8 +114,8 @@ import org.onebusaway.android.ui.report.problem.ProblemParams
 import org.onebusaway.android.ui.report.problem.ProblemReportRoute
 import org.onebusaway.android.ui.report.problem.ProblemReportViewModel
 import org.onebusaway.android.ui.report.problem.SubmitState
+import org.onebusaway.android.util.BitmapUtils
 import org.onebusaway.android.util.MyTextUtils
-import org.onebusaway.android.util.UIUtils
 
 /** Host-intent extras carrying the opaque trip context for the InfrastructureIssue destination. */
 const val EXTRA_TRIP_INFO = ".tripInfo"
@@ -679,7 +679,7 @@ private fun createOpen311ViewModel(
 
 /** Creates the camera output file, or null if it can't be opened (was the fragment's try/catch). */
 private fun createImageFileOrNull(context: Context): File? = try {
-    UIUtils.createImageFile(context, null)
+    BitmapUtils.createImageFile(context, null)
 } catch (e: IOException) {
     Log.e(OPEN311_LOG_TAG, "Couldn't open camera", e)
     null

@@ -33,7 +33,7 @@ import org.onebusaway.android.io.request.ObaStopsForRouteResponse
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.MyTextUtils
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.ObaRequestErrors
 import org.onebusaway.android.util.routeDisplayNames
 
 /** Loads a route's metadata and its stops grouped by direction. */
@@ -75,7 +75,7 @@ class DefaultRouteInfoRepository @Inject constructor(
             if (routeCode != ObaApi.OBA_OK || stopsCode != ObaApi.OBA_OK) {
                 val failedCode = if (routeCode != ObaApi.OBA_OK) routeCode else stopsCode
                 return@withContext Result.failure(
-                    IOException(UIUtils.getRouteErrorString(context, failedCode))
+                    IOException(ObaRequestErrors.getRouteErrorString(context, failedCode))
                 )
             }
 

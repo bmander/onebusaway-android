@@ -36,6 +36,7 @@ import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.MyTextUtils
+import org.onebusaway.android.util.ObaRequestErrors
 import org.onebusaway.android.util.UIUtils
 import org.onebusaway.android.util.getRouteDisplayName
 
@@ -172,7 +173,7 @@ class DefaultArrivalsRepository @Inject constructor(
                     toData(stopId, lastGood!!, lastGoodMinutesAfter, filter, isStale = true, now)
                 )
 
-            else -> Result.failure(IOException(UIUtils.getStopErrorString(context, response.code)))
+            else -> Result.failure(IOException(ObaRequestErrors.getStopErrorString(context, response.code)))
         }
     }
 

@@ -32,8 +32,9 @@ import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.util.ArrivalInfoUtils
+import org.onebusaway.android.util.DisplayFormat
 import org.onebusaway.android.util.MyTextUtils
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.ObaRequestErrors
 
 /** A loaded snapshot of a trip's header + ordered stops, ready for the UI. */
 data class TripDetailsData(
@@ -91,7 +92,7 @@ class DefaultTripDetailsRepository @Inject constructor(
             lastGood != null ->
                 Result.success(toData(lastGood!!, stopId, scrollMode, destinationId))
 
-            else -> Result.failure(IOException(UIUtils.getRouteErrorString(context, response.code)))
+            else -> Result.failure(IOException(ObaRequestErrors.getRouteErrorString(context, response.code)))
         }
     }
 
@@ -129,7 +130,7 @@ class DefaultTripDetailsRepository @Inject constructor(
                 stopId = stopTime.stopId,
                 name = MyTextUtils.formatDisplayText(stop.name)!!,
                 direction = stop.direction,
-                timeText = UIUtils.formatTime(context, millis),
+                timeText = DisplayFormat.formatTime(context, millis),
                 canceled = canceled,
                 isPassed = nextStopIndex != null && i < nextStopIndex,
                 linePosition = when (i) {
@@ -196,7 +197,7 @@ class DefaultTripDetailsRepository @Inject constructor(
         else -> {
             val minutes = abs(deviation) / 60
             val seconds = abs(deviation) % 60
-            val lastUpdate = UIUtils.formatTime(context, status.lastUpdateTime)
+            val lastUpdate = DisplayFormat.formatTime(context, status.lastUpdateTime)
             when {
                 deviation >= 0 && deviation < 60 ->
                     context.getString(R.string.trip_details_real_time_sec_late, seconds, lastUpdate)

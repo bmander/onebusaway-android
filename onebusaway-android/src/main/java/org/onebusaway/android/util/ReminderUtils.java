@@ -49,7 +49,7 @@ public class ReminderUtils {
      * @return the short name of the route
      */
     public static String getRouteShortName(Context context, String id) {
-        return UIUtils.stringForQuery(context, Uri.withAppendedPath(ObaContract.Routes.CONTENT_URI, id), ObaContract.Routes.SHORTNAME);
+        return AndroidUtils.stringForQuery(context, Uri.withAppendedPath(ObaContract.Routes.CONTENT_URI, id), ObaContract.Routes.SHORTNAME);
     }
 
     /**

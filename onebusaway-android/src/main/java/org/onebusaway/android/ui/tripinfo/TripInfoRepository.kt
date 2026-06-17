@@ -31,10 +31,10 @@ import org.onebusaway.android.io.request.reminders.ObaReminderRequest
 import org.onebusaway.android.io.request.reminders.ReminderRequestListener
 import org.onebusaway.android.io.request.reminders.model.ReminderResponse
 import org.onebusaway.android.provider.ObaContract
+import org.onebusaway.android.util.AndroidUtils
 import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.ReminderUtils
-import org.onebusaway.android.util.UIUtils
 import kotlin.coroutines.resume
 
 /** The reminder lead times (minutes) backing each spinner position, as stored in the Trips table. */
@@ -121,7 +121,7 @@ class DefaultTripInfoRepository @Inject constructor(
             ObaContract.Trips.convertDBToTime(getInt(COL_DEPARTURE))
         }
         val routeName = args.routeName ?: ReminderUtils.getRouteShortName(context, routeId)
-        val stopName = args.stopName ?: UIUtils.stringForQuery(
+        val stopName = args.stopName ?: AndroidUtils.stringForQuery(
             context,
             Uri.withAppendedPath(ObaContract.Stops.CONTENT_URI, args.stopId),
             ObaContract.Stops.NAME

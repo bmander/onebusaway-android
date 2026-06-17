@@ -46,7 +46,9 @@ import org.onebusaway.android.mock.MockObaStop;
 import org.onebusaway.android.mock.MockRegion;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.ui.arrivals.ArrivalInfo;
+import org.onebusaway.android.util.AndroidUtils;
 import org.onebusaway.android.util.ArrivalInfoUtils;
+import org.onebusaway.android.util.DisplayFormat;
 import org.onebusaway.android.util.MyTextUtils;
 import org.onebusaway.android.util.RouteDisplay;
 import org.onebusaway.android.util.UIUtils;
@@ -472,7 +474,7 @@ public class UIUtilTest extends ObaTestCase {
         expectedMessage.append(newLine);
         expectedMessage.append("Routes: " + routeDisplayNames.get(0));
         expectedMessage.append(newLine);
-        expectedMessage.append(getTargetContext().getString(UIUtils.getStopDirectionText(stopDirection)));
+        expectedMessage.append(getTargetContext().getString(DisplayFormat.getStopDirectionText(stopDirection)));
         assertEquals(expectedMessage.toString(), (String) stopDetails.second);
 
         // Test with stop nickname and direction
@@ -492,7 +494,7 @@ public class UIUtilTest extends ObaTestCase {
         expectedMessage.append(newLine);
         expectedMessage.append("Routes: " + routeDisplayNames.get(0));
         expectedMessage.append(newLine);
-        expectedMessage.append(getTargetContext().getString(UIUtils.getStopDirectionText(stopDirection)));
+        expectedMessage.append(getTargetContext().getString(DisplayFormat.getStopDirectionText(stopDirection)));
         assertEquals(expectedMessage.toString(), (String) stopDetails.second);
     }
 
@@ -933,7 +935,7 @@ public class UIUtilTest extends ObaTestCase {
         String colorString = "#777777";
         int alpha = 127;
         int color = Color.parseColor(colorString);
-        int newColor = UIUtils.getTransparentColor(color, alpha);
+        int newColor = AndroidUtils.getTransparentColor(color, alpha);
 
         int r = Color.red(color);
         int g = Color.green(color);
@@ -951,7 +953,7 @@ public class UIUtilTest extends ObaTestCase {
     }
 
     private String formatTime(long time) {
-        return UIUtils.formatTime(getTargetContext(), time);
+        return DisplayFormat.formatTime(getTargetContext(), time);
     }
 
     /**
@@ -961,24 +963,24 @@ public class UIUtilTest extends ObaTestCase {
     public void testGetMapCenter() {
         // Check null and empty bundles
         Bundle b = null;
-        assertNull(UIUtils.getMapCenter(b));
+        assertNull(AndroidUtils.getMapCenter(b));
 
         b = new Bundle();
-        assertNull(UIUtils.getMapCenter(b));
+        assertNull(AndroidUtils.getMapCenter(b));
 
         // Check single params
         b.putDouble(MapParams.CENTER_LAT, 0.0);
-        assertNull(UIUtils.getMapCenter(b));
+        assertNull(AndroidUtils.getMapCenter(b));
 
         b = new Bundle();
         b.putDouble(MapParams.CENTER_LON, 0.0);
-        assertNull(UIUtils.getMapCenter(b));
+        assertNull(AndroidUtils.getMapCenter(b));
 
         // Check invalid lat/long
         b = new Bundle();
         b.putDouble(MapParams.CENTER_LAT, 0.0);
         b.putDouble(MapParams.CENTER_LON, 0.0);
-        assertNull(UIUtils.getMapCenter(b));
+        assertNull(AndroidUtils.getMapCenter(b));
 
         // Check valid lat/long
         final double lat = 28.343243;
@@ -987,7 +989,7 @@ public class UIUtilTest extends ObaTestCase {
         b = new Bundle();
         b.putDouble(MapParams.CENTER_LAT, lat);
         b.putDouble(MapParams.CENTER_LON, lon);
-        Location l = UIUtils.getMapCenter(b);
+        Location l = AndroidUtils.getMapCenter(b);
         assertNotNull(l);
 
         assertEquals(lat, l.getLatitude());

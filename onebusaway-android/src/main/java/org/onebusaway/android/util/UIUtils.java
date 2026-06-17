@@ -21,7 +21,6 @@ import android.app.Activity;
 import android.app.SearchManager;
 import android.content.ActivityNotFoundException;
 import android.content.ContentQueryMap;
-import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
@@ -29,28 +28,15 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
-import android.database.Cursor;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Matrix;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
-import android.location.Location;
-import android.media.ExifInterface;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Bundle;
-import android.os.Environment;
-import android.os.SystemClock;
-import android.provider.Settings;
 import android.text.TextUtils;
-import android.text.format.DateUtils;
 import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -90,19 +76,14 @@ import org.onebusaway.android.io.elements.ObaStop;
 import org.onebusaway.android.io.elements.Occupancy;
 import org.onebusaway.android.io.elements.OccupancyState;
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse;
-import org.onebusaway.android.map.MapParams;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.ui.arrivals.ArrivalsListLauncher;
 import org.onebusaway.android.ui.routeinfo.RouteInfoLauncher;
 import org.onebusaway.util.comparators.AlphanumComparator;
 
-import java.io.File;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -112,28 +93,6 @@ import java.util.concurrent.TimeUnit;
  * A class containing utility methods related to the user interface
  */
 public final class UIUtils {
-
-    public static int getStopDirectionText(String direction) {
-        if (direction.equals("N")) {
-            return R.string.direction_n;
-        } else if (direction.equals("NW")) {
-            return R.string.direction_nw;
-        } else if (direction.equals("W")) {
-            return R.string.direction_w;
-        } else if (direction.equals("SW")) {
-            return R.string.direction_sw;
-        } else if (direction.equals("S")) {
-            return R.string.direction_s;
-        } else if (direction.equals("SE")) {
-            return R.string.direction_se;
-        } else if (direction.equals("E")) {
-            return R.string.direction_e;
-        } else if (direction.equals("NE")) {
-            return R.string.direction_ne;
-        } else {
-            return R.string.direction_none;
-        }
-    }
 
     /**
      * Generates the dialog text that is used to show detailed information about a particular stop
@@ -172,7 +131,7 @@ public final class UIUtils {
 
         if (!TextUtils.isEmpty(stopDirection)) {
             message.append(newLine)
-                    .append(context.getString(UIUtils.getStopDirectionText(stopDirection)));
+                    .append(context.getString(DisplayFormat.getStopDirectionText(stopDirection)));
         }
         return new Pair(title, message.toString());
     }
@@ -251,9 +210,9 @@ public final class UIUtils {
         final LayerDrawable layerDrawable = new LayerDrawable(
                 new Drawable[]{drawableBackground, drawableIcon});
 
-        int backgroundInset = UIUtils.dpToPixels(context, 2.0f);
+        int backgroundInset = AndroidUtils.dpToPixels(context, 2.0f);
         layerDrawable.setLayerInset(0, backgroundInset, backgroundInset, backgroundInset, backgroundInset);
-        int iconInset = UIUtils.dpToPixels(context, 7.0f);
+        int iconInset = AndroidUtils.dpToPixels(context, 7.0f);
         layerDrawable.setLayerInset(1, iconInset, iconInset, iconInset, iconInset);
 
         final Bitmap b = Bitmap
@@ -448,293 +407,6 @@ public final class UIUtils {
         }
     }
 
-    public static String getRouteErrorString(Context context, int code) {
-        if (!isConnected(context)) {
-            if (isAirplaneMode(context)) {
-                return context.getString(R.string.airplane_mode_error);
-            } else {
-                return context.getString(R.string.no_network_error);
-            }
-        }
-        switch (code) {
-            case ObaApi.OBA_INTERNAL_ERROR:
-                return context.getString(R.string.internal_error);
-            case ObaApi.OBA_NOT_FOUND:
-                ObaRegion r = Application.get().getCurrentRegion();
-                if (r != null) {
-                    return context.getString(R.string.route_not_found_error_with_region_name,
-                            r.getName());
-                } else {
-                    return context.getString(R.string.route_not_found_error_no_region);
-                }
-            case ObaApi.OBA_BAD_GATEWAY:
-                return context.getString(R.string.bad_gateway_error, context.getString(R.string.app_name));
-            case ObaApi.OBA_OUT_OF_MEMORY:
-                return context.getString(R.string.out_of_memory_error);
-            default:
-                return context.getString(R.string.generic_comm_error);
-        }
-    }
-
-    public static String getStopErrorString(Context context, int code) {
-        if (!isConnected(context)) {
-            if (isAirplaneMode(context)) {
-                return context.getString(R.string.airplane_mode_error);
-            } else {
-                return context.getString(R.string.no_network_error);
-            }
-        }
-        switch (code) {
-            case ObaApi.OBA_INTERNAL_ERROR:
-                return context.getString(R.string.internal_error);
-            case ObaApi.OBA_NOT_FOUND:
-                ObaRegion r = Application.get().getCurrentRegion();
-                if (r != null) {
-                    return context
-                            .getString(R.string.stop_not_found_error_with_region_name, r.getName());
-                } else {
-                    return context.getString(R.string.stop_not_found_error_no_region);
-                }
-            case ObaApi.OBA_BAD_GATEWAY:
-                return context.getString(R.string.bad_gateway_error, context.getString(R.string.app_name));
-            case ObaApi.OBA_OUT_OF_MEMORY:
-                return context.getString(R.string.out_of_memory_error);
-            default:
-                return context.getString(R.string.generic_comm_error);
-        }
-    }
-
-    /**
-     * Returns the resource ID for a user-friendly error message based on device state (if a
-     * network
-     * connection is available or airplane mode is on) or an OBA REST API response code
-     *
-     * @param code The status code (one of the ObaApi.OBA_* constants)
-     * @return the resource ID for a user-friendly error message based on device state (if a network
-     * connection is available or airplane mode is on) or an OBA REST API response code
-     */
-    public static int getMapErrorString(Context context, int code) {
-        if (!isConnected(context)) {
-            if (isAirplaneMode(context)) {
-                return R.string.airplane_mode_error;
-            } else {
-                return R.string.no_network_error;
-            }
-        }
-        switch (code) {
-            case ObaApi.OBA_INTERNAL_ERROR:
-                return R.string.internal_error;
-            case ObaApi.OBA_BAD_GATEWAY:
-                return R.string.bad_gateway_error;
-            case ObaApi.OBA_OUT_OF_MEMORY:
-                return R.string.out_of_memory_error;
-            default:
-                return R.string.map_generic_error;
-        }
-    }
-
-    /**
-     * Returns true if the device is in Airplane Mode, and false if the device isn't in Airplane
-     * mode or if it can't be determined
-     * @param context
-     * @return true if the device is in Airplane Mode, and false if the device isn't in Airplane
-     * mode or if it can't be determined
-     */
-    public static boolean isAirplaneMode(Context context) {
-        if (context == null) {
-            // If the context is null, we can't get airplane mode state - assume no
-            return false;
-        }
-        ContentResolver cr = context.getContentResolver();
-        return Settings.System.getInt(cr, Settings.System.AIRPLANE_MODE_ON, 0) != 0;
-    }
-
-    /**
-     * Returns true if the device is connected to a network, and false if the device isn't or if it
-     * can't be determined
-     * @param context
-     * @return true if the device is connected to a network, and false if the device isn't or if it
-     * can't be determined
-     */
-    public static boolean isConnected(Context context) {
-        if (context == null) {
-            // If the context is null, we can't get connected state - assume yes
-            return true;
-        }
-        ConnectivityManager cm =
-                (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-
-        NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-        return (activeNetwork != null) && activeNetwork.isConnectedOrConnecting();
-    }
-
-    /**
-     * Returns the first string for the query URI.
-     */
-    public static String stringForQuery(Context context, Uri uri, String column) {
-        ContentResolver cr = context.getContentResolver();
-        Cursor c = cr.query(uri, new String[]{column}, null, null, null);
-        if (c != null) {
-            try {
-                if (c.moveToFirst()) {
-                    return c.getString(0);
-                }
-            } finally {
-                c.close();
-            }
-        }
-        return "";
-    }
-
-    public static final int MINUTES_IN_HOUR = 60;
-
-    /**
-     * Takes the number of minutes, and returns a user-readable string
-     * saying the number of minutes in which no arrivals are coming,
-     * or the number of hours and minutes if minutes if minutes > 60
-     *
-     * @param minutes            number of minutes for which there are no upcoming arrivals
-     * @param additionalArrivals true if the response should include the word additional, false if
-     *                           it should not
-     * @param shortFormat        true if the format should be abbreviated, false if it should be
-     *                           long
-     * @return a user-readable string saying the number of minutes in which no arrivals are coming,
-     * or the number of hours and minutes if minutes > 60
-     */
-    public static String getNoArrivalsMessage(Context context, int minutes,
-            boolean additionalArrivals, boolean shortFormat) {
-        if (minutes <= MINUTES_IN_HOUR) {
-            // Return just minutes
-            if (additionalArrivals) {
-                if (shortFormat) {
-                    // Abbreviated version
-                    return context
-                            .getString(R.string.stop_info_no_additional_data_minutes_short_format,
-                                    minutes);
-                } else {
-                    // Long version
-                    return context
-                            .getString(R.string.stop_info_no_additional_data_minutes, minutes);
-                }
-            } else {
-                if (shortFormat) {
-                    // Abbreviated version
-                    return context
-                            .getString(R.string.stop_info_nodata_minutes_short_format, minutes);
-                } else {
-                    // Long version
-                    return context.getString(R.string.stop_info_nodata_minutes, minutes);
-                }
-            }
-        } else {
-            // Return hours and minutes
-            if (additionalArrivals) {
-                if (shortFormat) {
-                    // Abbreviated version
-                    return context.getResources()
-                            .getQuantityString(
-                                    R.plurals.stop_info_no_additional_data_hours_minutes_short_format,
-                                    minutes / 60, minutes % 60, minutes / 60);
-                } else {
-                    // Long version
-                    return context.getResources()
-                            .getQuantityString(R.plurals.stop_info_no_additional_data_hours_minutes,
-                                    minutes / 60, minutes % 60, minutes / 60);
-                }
-            } else {
-                if (shortFormat) {
-                    // Abbreviated version
-                    return context.getResources()
-                            .getQuantityString(
-                                    R.plurals.stop_info_nodata_hours_minutes_short_format,
-                                    minutes / 60,
-                                    minutes % 60, minutes / 60);
-                } else {
-                    // Long version
-                    return context.getResources()
-                            .getQuantityString(R.plurals.stop_info_nodata_hours_minutes,
-                                    minutes / 60,
-                                    minutes % 60, minutes / 60);
-                }
-            }
-        }
-    }
-
-    /**
-     * Returns true if the activity is still active and dialogs can be managed (i.e., displayed
-     * or dismissed), or false if it is
-     * not
-     *
-     * @param activity Activity to check for displaying/dismissing a dialog
-     * @return true if the activity is still active and dialogs can be managed, or false if it is
-     * not
-     */
-    public static boolean canManageDialog(Activity activity) {
-        if (activity == null) {
-            return false;
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            return !activity.isFinishing() && !activity.isDestroyed();
-        } else {
-            return !activity.isFinishing();
-        }
-    }
-
-    /**
-     * Returns true if the context is an Activity and is still active and dialogs can be managed
-     * (i.e., displayed or dismissed) OR the context is not an Activity, or false if the Activity
-     * is
-     * no longer active.
-     *
-     * NOTE: We really shouldn't display dialogs from a Service - a notification is a better way
-     * to communicate with the user.
-     *
-     * @param context Context to check for displaying/dismissing a dialog
-     * @return true if the context is an Activity and is still active and dialogs can be managed
-     * (i.e., displayed or dismissed) OR the context is not an Activity, or false if the Activity
-     * is
-     * no longer active
-     */
-    public static boolean canManageDialog(Context context) {
-        if (context == null) {
-            return false;
-        }
-
-        if (context instanceof Activity) {
-            return canManageDialog((Activity) context);
-        } else {
-            // We really shouldn't be displaying dialogs from a Service, but if for some reason we
-            // need to do this, we don't have any way of checking whether its possible
-            return true;
-        }
-    }
-
-    /**
-     * Returns true if the API level supports our Arrival Info Style B (sort by route) views, false
-     * if it does not.  See #350 and #275.
-     *
-     * @return true if the API level supports our Arrival Info Style B (sort by route) views, false
-     * if it does not
-     */
-    public static boolean canSupportArrivalInfoStyleB() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH;
-    }
-
-    /**
-     * Converts screen dimension units from dp to pixels, based on algorithm defined in
-     * http://developer.android.com/guide/practices/screens_support.html#dips-pels
-     *
-     * @param dp value in dp
-     * @return value in pixels
-     */
-    public static int dpToPixels(Context context, float dp) {
-        // Get the screen's density scale
-        final float scale = context.getResources().getDisplayMetrics().density;
-        // Convert the dps to pixels, based on density scale
-        return (int) (dp * scale + 0.5f);
-    }
-
     /**
      * Builds the list of Strings that should be shown for a given trip "Bus Options" menu,
      * provided the arguments for that trip
@@ -790,46 +462,6 @@ public final class UIUtils {
         }
 
         return list;
-    }
-
-    /**
-     * Creates a new Bitmap, with the black color of the source image changed to the given color.
-     * The source Bitmap isn't modified.
-     *
-     * @param source the source Bitmap with a black background
-     * @param color  the color to change the black color to
-     * @return the resulting Bitmap that has the black changed to the color
-     */
-    public static Bitmap colorBitmap(Bitmap source, int color) {
-        int width = source.getWidth();
-        int height = source.getHeight();
-        int[] pixels = new int[width * height];
-        source.getPixels(pixels, 0, width, 0, 0, width, height);
-
-        for (int x = 0; x < pixels.length; ++x) {
-            pixels[x] = (pixels[x] == Color.BLACK) ? color : pixels[x];
-        }
-
-        Bitmap out = Bitmap.createBitmap(width, height, source.getConfig());
-        out.setPixels(pixels, 0, width, 0, 0, width, height);
-        return out;
-    }
-
-    /**
-     * Returns the current time for comparison against another current time.  For API levels >=
-     * Jelly Bean MR1 the SystemClock.getElapsedRealtimeNanos() method is used, and for API levels
-     * <
-     * Jelly Bean MR1 System.currentTimeMillis() is used.
-     *
-     * @return the current time for comparison against another current time, in nanoseconds
-     */
-    public static long getCurrentTimeForComparison() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            // Use elapsed real-time nanos, since its guaranteed monotonic
-            return SystemClock.elapsedRealtimeNanos();
-        } else {
-            return TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
-        }
     }
 
     /**
@@ -947,23 +579,6 @@ public final class UIUtils {
     }
 
     /**
-     * Returns the time formatting as "1:10pm" to be displayed as an absolute time for an
-     * arrival/departure
-     *
-     * @param time an arrival or departure time (e.g., from ArrivalInfo)
-     * @return the time formatting as "1:10pm" to be displayed as an absolute time for an
-     * arrival/departure
-     */
-    public static String formatTime(Context context, long time) {
-        return DateUtils.formatDateTime(context,
-                time,
-                DateUtils.FORMAT_SHOW_TIME |
-                        DateUtils.FORMAT_NO_NOON |
-                        DateUtils.FORMAT_NO_MIDNIGHT
-        );
-    }
-
-    /**
      * Set smaller text size if the route short name has more than 3 characters
      *
      * @param view Text view
@@ -980,186 +595,6 @@ public final class UIUtils {
             view.setTextSize(TypedValue.COMPLEX_UNIT_PX, context.getResources().
                     getDimension(R.dimen.route_name_text_size_small));
         }
-    }
-
-    /**
-     * Transforms a given opaque color into the same color but with the given alpha value
-     *
-     * @param solidColor hex color value that is completely opaque
-     * @param alpha      Specify an alpha value. 0 means fully transparent, and 255 means fully
-     *                   opaque.
-     * @return the provided color with the given alpha value
-     */
-    public static int getTransparentColor(int solidColor, int alpha) {
-        int r = Color.red(solidColor);
-        int g = Color.green(solidColor);
-        int b = Color.blue(solidColor);
-        return Color.argb(alpha, r, g, b);
-    }
-
-    /**
-     * Returns the location of the map center if it has been previously saved in the bundle, or
-     * null if it wasn't saved in the bundle.
-     *
-     * @param b bundle to check for the map center
-     * @return the location of the map center if it has been previously saved in the bundle, or null
-     * if it wasn't saved in the bundle.
-     */
-    public static Location getMapCenter(Bundle b) {
-        if (b == null) {
-            return null;
-        }
-        Location center = null;
-        double lat = b.getDouble(MapParams.CENTER_LAT);
-        double lon = b.getDouble(MapParams.CENTER_LON);
-
-        if (lat != 0.0 && lon != 0.0) {
-            center = LocationUtils.makeLocation(lat, lon);
-        }
-        return center;
-    }
-
-    /**
-     * Creates a JPEG image file with the current date/time as the name
-     *
-     * @param nameSuffix A string that will be added to the end of the file name, or null if
-     *                   nothing
-     *                   should be added
-     * @return a JPEG image file with the current date/time as the name
-     */
-    public static File createImageFile(Context context, String nameSuffix) throws IOException {
-        // Create an image file name
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        StringBuilder imageFileName = new StringBuilder();
-        imageFileName.append("JPEG_");
-        imageFileName.append(timeStamp);
-        imageFileName.append("_");
-        if (nameSuffix != null) {
-            imageFileName.append(nameSuffix);
-        }
-        File storageDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        return File.createTempFile(
-                imageFileName.toString(),  /* prefix */
-                ".jpg",         /* suffix */
-                storageDir      /* directory */
-        );
-    }
-
-    /**
-     * Decode a smaller sampled bitmap given a large bitmap.
-     * Adapted from https://developer.android.com/training/displaying-bitmaps/load-bitmap.html and
-     * http://stackoverflow.com/a/31720143/937715.
-     *
-     * @param pathName  path to the full size image file
-     * @param reqWidth  desired width
-     * @param reqHeight desired height
-     * @return a smaller version of the image at pathName, given the desired width and height
-     */
-    public static Bitmap decodeSampledBitmapFromFile(String pathName, int reqWidth, int reqHeight)
-            throws IOException {
-        // First decode with inJustDecodeBounds=true to check dimensions
-        final BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inJustDecodeBounds = true;
-        BitmapFactory.decodeFile(pathName, options);
-
-        // Calculate inSampleSize
-        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
-
-        // Decode bitmap with inSampleSize set
-        options.inJustDecodeBounds = false;
-
-        Bitmap b = BitmapFactory.decodeFile(pathName, options);
-        return rotateImageIfRequired(b, pathName);
-    }
-
-    /**
-     * Calculate an inSampleSize for use in a {@link BitmapFactory.Options} object when decoding
-     * bitmaps using the decode* methods from {@link BitmapFactory}. This implementation calculates
-     * the closest inSampleSize that will result in the final decoded bitmap having a width and
-     * height equal to or larger than the requested width and height. This implementation does not
-     * ensure a power of 2 is returned for inSampleSize which can be faster when decoding but
-     * results in a larger bitmap which isn't as useful for caching purposes.
-     *
-     * From http://stackoverflow.com/a/31720143/937715.
-     *
-     * @param options   An options object with out* params already populated (run through a decode*
-     *                  method with inJustDecodeBounds==true
-     * @param reqWidth  The requested width of the resulting bitmap
-     * @param reqHeight The requested height of the resulting bitmap
-     * @return The value to be used for inSampleSize
-     */
-    private static int calculateInSampleSize(BitmapFactory.Options options,
-            int reqWidth, int reqHeight) {
-        // Raw height and width of image
-        final int height = options.outHeight;
-        final int width = options.outWidth;
-        int inSampleSize = 1;
-
-        if (height > reqHeight || width > reqWidth) {
-            // Calculate ratios of height and width to requested height and width
-            final int heightRatio = Math.round((float) height / (float) reqHeight);
-            final int widthRatio = Math.round((float) width / (float) reqWidth);
-
-            // Choose the smallest ratio as inSampleSize value, this will guarantee a final image
-            // with both dimensions larger than or equal to the requested height and width.
-            inSampleSize = heightRatio < widthRatio ? heightRatio : widthRatio;
-
-            // This offers some additional logic in case the image has a strange
-            // aspect ratio. For example, a panorama may have a much larger
-            // width than height. In these cases the total pixels might still
-            // end up being too large to fit comfortably in memory, so we should
-            // be more aggressive with sample down the image (=larger inSampleSize).
-
-            final float totalPixels = width * height;
-
-            // Anything more than 2x the requested pixels we'll sample down further
-            final float totalReqPixelsCap = reqWidth * reqHeight * 2;
-
-            while (totalPixels / (inSampleSize * inSampleSize) > totalReqPixelsCap) {
-                inSampleSize++;
-            }
-        }
-        return inSampleSize;
-    }
-
-    /**
-     * Rotate an image if required.
-     *
-     * @param img       The image bitmap
-     * @param imagePath Path to image
-     * @return The resulted Bitmap after manipulation
-     */
-    private static Bitmap rotateImageIfRequired(Bitmap img, String imagePath) throws IOException {
-        ExifInterface ei = new ExifInterface(imagePath);
-        int orientation = ei
-                .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
-
-        switch (orientation) {
-            case ExifInterface.ORIENTATION_ROTATE_90:
-                return rotateImage(img, 90);
-            case ExifInterface.ORIENTATION_ROTATE_180:
-                return rotateImage(img, 180);
-            case ExifInterface.ORIENTATION_ROTATE_270:
-                return rotateImage(img, 270);
-            default:
-                return img;
-        }
-    }
-
-    /**
-     * Rotate the given bitmap
-     *
-     * @param img    image to rotate
-     * @param degree number of degrees to rotate, from 0-360
-     * @return the provided bitmap rotated by the given number of degrees
-     */
-    private static Bitmap rotateImage(Bitmap img, int degree) {
-        Matrix matrix = new Matrix();
-        matrix.postRotate(degree);
-        Bitmap rotatedImg = Bitmap
-                .createBitmap(img, 0, 0, img.getWidth(), img.getHeight(), matrix, true);
-        img.recycle();
-        return rotatedImg;
     }
 
     /**

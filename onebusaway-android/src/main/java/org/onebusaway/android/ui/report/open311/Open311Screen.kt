@@ -53,7 +53,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.components.ErrorContent
 import org.onebusaway.android.ui.compose.components.LoadingContent
 import org.onebusaway.android.ui.report.ReportFormSurface
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.BitmapUtils
 
 /** Stateful entry point: binds the ViewModel's load/form state to the screen and image actions. */
 @Composable
@@ -340,7 +340,7 @@ private fun rememberThumbnail(path: String?): ImageBitmap? {
         } else {
             withContext(Dispatchers.IO) {
                 runCatching {
-                    UIUtils.decodeSampledBitmapFromFile(path, 192, 192)?.asImageBitmap()
+                    BitmapUtils.decodeSampledBitmapFromFile(path, 192, 192)?.asImageBitmap()
                 }.getOrNull()
             }
         }

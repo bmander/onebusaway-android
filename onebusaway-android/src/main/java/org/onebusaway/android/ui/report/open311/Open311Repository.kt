@@ -40,9 +40,9 @@ import org.onebusaway.android.io.elements.ObaArrivalInfo
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.report.constants.ReportConstants
 import org.onebusaway.android.report.ui.util.ServiceUtils
+import org.onebusaway.android.util.BitmapUtils
 import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.PreferenceUtils
-import org.onebusaway.android.util.UIUtils
 import org.onebusaway.android.util.getRouteDisplayName
 
 /** The current map location/address/stop for the issue, read fresh at load and submit time. */
@@ -195,13 +195,13 @@ class DefaultOpen311Repository(
      */
     private fun downsampleImage(imagePath: String): File {
         val target = try {
-            UIUtils.createImageFile(context, "-small")
+            BitmapUtils.createImageFile(context, "-small")
         } catch (e: IOException) {
             null
         } ?: return File(imagePath)
 
         return try {
-            val small = UIUtils.decodeSampledBitmapFromFile(imagePath, 800, 800)
+            val small = BitmapUtils.decodeSampledBitmapFromFile(imagePath, 800, 800)
             FileOutputStream(target).use { out ->
                 small.compress(Bitmap.CompressFormat.JPEG, 100, out)
             }

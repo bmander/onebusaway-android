@@ -23,7 +23,7 @@ import org.onebusaway.android.io.elements.Occupancy
 import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.util.ArrivalInfoUtils
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.DisplayFormat
 import org.onebusaway.android.util.getRouteDisplayName
 import java.text.DateFormat
 import java.util.Date
@@ -264,7 +264,7 @@ class ArrivalInfo(
             return ""
         }
 
-        val displayTimeText = UIUtils.formatTime(context, displayTime)
+        val displayTimeText = DisplayFormat.formatTime(context, displayTime)
 
         return if (eta >= 0) {
             // Bus hasn't yet arrived

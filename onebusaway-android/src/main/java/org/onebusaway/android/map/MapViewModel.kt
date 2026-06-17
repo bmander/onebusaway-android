@@ -76,9 +76,9 @@ import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
+import org.onebusaway.android.util.AndroidUtils
 import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.RegionUtils
-import org.onebusaway.android.util.UIUtils
 import org.onebusaway.android.util.getRouteDescription
 import org.onebusaway.android.util.getRouteDisplayName
 import org.opentripplanner.api.model.EncodedPolylineBean
@@ -449,7 +449,7 @@ class MapViewModel @Inject constructor(
             dispatchCamera(CameraCommand.IncludeClosestVehicle(routes, response))
             zoomIncludeClosestVehicle = false
         }
-        lastVehicleLoadNanos = UIUtils.getCurrentTimeForComparison()
+        lastVehicleLoadNanos = AndroidUtils.getCurrentTimeForComparison()
     }
 
     // ----- Directions loader (replaces DirectionsMapController) -----
@@ -774,7 +774,7 @@ class MapViewModel @Inject constructor(
         // granted). This is what makes `location` a live stream — the legacy host's LocationHelper feed.
         locationRepository.startUpdates()
         if (isRouteMode && vehicleJob?.isActive != true) {
-            startVehiclePolling(nextVehicleDelay(lastVehicleLoadNanos, UIUtils.getCurrentTimeForComparison()))
+            startVehiclePolling(nextVehicleDelay(lastVehicleLoadNanos, AndroidUtils.getCurrentTimeForComparison()))
         }
     }
 

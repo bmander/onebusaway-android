@@ -72,8 +72,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.nightlight.NightLightLauncher
+import org.onebusaway.android.util.AndroidUtils
 import org.onebusaway.android.util.BuildFlavorUtils
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.DisplayFormat
 import org.onebusaway.android.ui.compose.components.LoadingContent
 
 /** Refresh interval matching the legacy ArrivalsListFragment (fixed 60s, not the server value). */
@@ -388,7 +389,7 @@ internal fun ArrivalsList(
     showDirection: Boolean = true
 ) {
     val useCards = content.style == BuildFlavorUtils.ARRIVAL_INFO_STYLE_B &&
-        UIUtils.canSupportArrivalInfoStyleB()
+        AndroidUtils.canSupportArrivalInfoStyleB()
     // Sorting/grouping is non-trivial; keep it off the recomposition path
     val groups = remember(content.arrivals, useCards) {
         if (useCards) groupForStyleB(content.arrivals) else emptyList()
@@ -562,7 +563,7 @@ internal fun RouteFilterDialog(
 
 @Composable
 private fun DirectionLine(direction: String) {
-    val directionText = stringResource(UIUtils.getStopDirectionText(direction))
+    val directionText = stringResource(DisplayFormat.getStopDirectionText(direction))
     if (directionText.isNotEmpty()) {
         Text(
             text = directionText,
@@ -577,7 +578,7 @@ private fun DirectionLine(direction: String) {
 private fun EmptyArrivals(minutesAfter: Int) {
     val context = LocalContext.current
     Text(
-        text = UIUtils.getNoArrivalsMessage(context, minutesAfter, false, false),
+        text = DisplayFormat.getNoArrivalsMessage(context, minutesAfter, false, false),
         style = MaterialTheme.typography.bodyLarge,
         textAlign = TextAlign.Center,
         modifier = Modifier

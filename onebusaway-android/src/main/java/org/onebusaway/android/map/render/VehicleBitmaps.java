@@ -29,8 +29,8 @@ import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
 import org.onebusaway.android.util.ArrivalInfoUtils;
+import org.onebusaway.android.util.BitmapUtils;
 import org.onebusaway.android.util.MathUtils;
-import org.onebusaway.android.util.UIUtils;
 
 import java.util.concurrent.TimeUnit;
 
@@ -112,7 +112,7 @@ public final class VehicleBitmaps {
         String key = createBitmapCacheKey(vehicleType, halfWind, colorResource);
         Bitmap b = sColoredIconCache.get(key);
         if (b == null) {
-            b = UIUtils.colorBitmap(getIcon(halfWind, vehicleType), color);
+            b = BitmapUtils.colorBitmap(getIcon(halfWind, vehicleType), color);
             if (sColoredIconCache.get(key) == null) {
                 sColoredIconCache.put(key, b);
             }

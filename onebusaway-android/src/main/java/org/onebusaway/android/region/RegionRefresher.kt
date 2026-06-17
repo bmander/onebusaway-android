@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.app.di.RegionEntryPoint
 import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.util.UIUtils
+import org.onebusaway.android.util.AndroidUtils
 
 /**
  * Java→coroutine bridge for triggering a region refresh from non-suspend, non-injectable callers — the
@@ -54,7 +54,7 @@ object RegionRefresher {
     @Suppress("DEPRECATION") // ProgressDialog — preserved from ObaRegionsTask's restore UX.
     fun refresh(context: Context, progressMessage: String? = null, onFinished: Callback? = null) {
         val repo = RegionEntryPoint.get(context)
-        val dialog = if (progressMessage != null && UIUtils.canManageDialog(context)) {
+        val dialog = if (progressMessage != null && AndroidUtils.canManageDialog(context)) {
             ProgressDialog.show(context, "", progressMessage, true).apply {
                 setIndeterminate(true)
                 setCancelable(false)
@@ -81,7 +81,7 @@ object RegionRefresher {
         repo: RegionRepository,
         onFinished: Callback?,
     ) {
-        if (!UIUtils.canManageDialog(context) || regions.isEmpty()) return
+        if (!AndroidUtils.canManageDialog(context) || regions.isEmpty()) return
         val names = regions.map { it.name }.toTypedArray<CharSequence>()
         MaterialAlertDialogBuilder(context)
             .setTitle(context.getString(R.string.region_choose_region))

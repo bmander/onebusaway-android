@@ -121,7 +121,7 @@ import org.onebusaway.android.ui.home.help.HelpViewModel
 import org.onebusaway.android.ui.home.HomeEnvironment
 import org.onebusaway.android.ui.home.HomeCallbacks
 import org.onebusaway.android.ui.home.HomeEvent
-import org.onebusaway.android.ui.home.lists.HomeListViewModels
+import org.onebusaway.android.ui.home.HomeListViewModels
 import org.onebusaway.android.ui.home.HomeNavItem
 import org.onebusaway.android.ui.home.initialNavItem
 import org.onebusaway.android.ui.home.HomeScreen

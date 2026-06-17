@@ -55,6 +55,7 @@ import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.map.RouteHeader
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
+import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.ui.home.arrivals.ArrivalsSheetHost
 import org.onebusaway.android.ui.home.chrome.HomeNavDrawerSheet
@@ -65,16 +66,24 @@ import org.onebusaway.android.ui.home.donation.DonationViewModel
 import org.onebusaway.android.ui.home.help.HelpAction
 import org.onebusaway.android.ui.home.help.HelpFeature
 import org.onebusaway.android.ui.home.help.HelpViewModel
-import org.onebusaway.android.ui.home.lists.HomeListViewModels
-import org.onebusaway.android.ui.home.lists.RemindersDestination
-import org.onebusaway.android.ui.home.lists.StarredRoutesDestination
-import org.onebusaway.android.ui.home.lists.StarredStopsDestination
 import org.onebusaway.android.ui.home.map.MapChrome
 import org.onebusaway.android.ui.home.map.MapFeature
 import org.onebusaway.android.ui.home.map.RouteHeaderOverlay
 import org.onebusaway.android.ui.home.survey.SurveyFeature
 import org.onebusaway.android.ui.home.weather.WeatherFeature
 import org.onebusaway.android.ui.home.weather.WeatherViewModel
+import org.onebusaway.android.ui.mylists.MyListViewModel
+import org.onebusaway.android.ui.mylists.ReminderItem
+import org.onebusaway.android.ui.mylists.ReminderListDestination
+import org.onebusaway.android.ui.mylists.RouteListDestination
+import org.onebusaway.android.ui.mylists.RouteListItem
+import org.onebusaway.android.ui.mylists.StopListDestination
+import org.onebusaway.android.ui.mylists.StopListItem
+import org.onebusaway.android.ui.mylists.editReminder
+import org.onebusaway.android.ui.mylists.openRoute
+import org.onebusaway.android.ui.mylists.reminderActions
+import org.onebusaway.android.ui.mylists.routeActions
+import org.onebusaway.android.ui.mylists.stopActions
 import org.onebusaway.android.ui.survey.SurveyViewModel
 
 /**
@@ -101,6 +110,17 @@ class HomeCallbacks(
     val onPreferredHeight: (previewCount: Int, filtering: Boolean) -> Unit,
     val onCancelRouteMode: () -> Unit,
     val onRouteHeaderHeight: (Int) -> Unit,
+)
+
+/**
+ * The home list destinations' backing [MyListViewModel]s, owned by [org.onebusaway.android.ui.HomeActivity]
+ * (so its options menu can sort/clear them) and handed to [HomeScreen]. They stay cheap until a
+ * destination subscribes.
+ */
+class HomeListViewModels(
+    val starredStops: MyListViewModel<StopListItem>,
+    val starredRoutes: MyListViewModel<RouteListItem>,
+    val reminders: MyListViewModel<ReminderItem>,
 )
 
 /**
@@ -350,21 +370,52 @@ fun HomeScreen(
                             modifier = Modifier.align(Alignment.TopCenter),
                         )
                         // A selected list tab draws its destination over the map (an opaque, full-size
-                        // Surface), covering the map chrome; NEARBY shows the map through.
+                        // Surface), covering the map chrome; NEARBY shows the map through. These are thin
+                        // home-specific bindings to the shared My* list destinations (strings + actions,
+                        // shortcutMode = false — the home screen is never a launcher-shortcut picker).
                         when (state.selectedItem) {
-                            HomeNavItem.STARRED_STOPS ->
-                                StarredStopsDestination(
+                            HomeNavItem.STARRED_STOPS -> {
+                                val host = LocalContext.current.findActivity()
+                                StopListDestination(
                                     listVms.starredStops,
-                                    onShowArrivals = onShowArrivals
+                                    emptyText = R.string.my_no_starred_stops,
+                                    onClick = { onShowArrivals(it.id, it.name) },
+                                    actions = {
+                                        host.stopActions(it, R.string.my_context_remove_star, shortcutMode = false) {
+                                            listVms.starredStops.remove(it.id)
+                                        }
+                                    },
                                 )
-                            HomeNavItem.STARRED_ROUTES -> StarredRoutesDestination(listVms.starredRoutes)
-                            HomeNavItem.MY_REMINDERS ->
-                                RemindersDestination(
+                            }
+                            HomeNavItem.STARRED_ROUTES -> {
+                                val host = LocalContext.current.findActivity()
+                                RouteListDestination(
+                                    listVms.starredRoutes,
+                                    emptyText = R.string.my_no_starred_routes,
+                                    onClick = { host.openRoute(it, shortcutMode = false) },
+                                    actions = {
+                                        host.routeActions(it, R.string.my_context_remove_star, shortcutMode = false) {
+                                            listVms.starredRoutes.remove(it.id)
+                                        }
+                                    },
+                                )
+                            }
+                            HomeNavItem.MY_REMINDERS -> {
+                                val host = LocalContext.current.findActivity()
+                                ReminderListDestination(
                                     listVms.reminders,
-                                    onShowRoute = onShowRouteInfo,
+                                    emptyText = R.string.trip_list_notrips,
+                                    onClick = { host.editReminder(it) },
                                     // A reminder carries only a stop id (no cached name).
-                                    onShowStop = { stopId -> onShowArrivals(stopId, null) }
+                                    actions = {
+                                        host.reminderActions(
+                                            it,
+                                            onShowRoute = onShowRouteInfo,
+                                            onShowStop = { stopId -> onShowArrivals(stopId, null) },
+                                        )
+                                    },
                                 )
+                            }
                             else -> {}
                         }
                     }

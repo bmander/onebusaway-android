@@ -17,9 +17,6 @@
 
 package org.onebusaway.android.util;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.SearchManager;
 import android.content.ActivityNotFoundException;
@@ -39,7 +36,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.PorterDuff;
-import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
@@ -53,45 +49,29 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.SystemClock;
 import android.provider.Settings;
-import android.text.Spannable;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
-import android.text.method.LinkMovementMethod;
-import android.text.style.ClickableSpan;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
-import android.view.Window;
-import android.view.WindowManager;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.ColorInt;
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.SearchView;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.pm.ShortcutInfoCompat;
 import androidx.core.content.pm.ShortcutManagerCompat;
 import androidx.core.content.res.ResourcesCompat;
-import androidx.core.graphics.Insets;
 import androidx.core.graphics.drawable.IconCompat;
 import androidx.core.util.Pair;
 import androidx.core.view.MenuItemCompat;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.core.widget.ImageViewCompat;
-import androidx.fragment.app.Fragment;
 
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -113,7 +93,6 @@ import org.onebusaway.android.io.request.ObaArrivalInfoResponse;
 import org.onebusaway.android.map.MapParams;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.ui.arrivals.ArrivalsListLauncher;
-import org.onebusaway.android.ui.HomeActivity;
 import org.onebusaway.android.ui.routeinfo.RouteInfoLauncher;
 import org.onebusaway.util.comparators.AlphanumComparator;
 
@@ -133,107 +112,6 @@ import java.util.concurrent.TimeUnit;
  * A class containing utility methods related to the user interface
  */
 public final class UIUtils {
-
-    private static final String TAG = "UIHelp";
-    private static final String TAG_STATUS_BAR = "STATUS_BAR";
-
-    public static void setupActionBar(AppCompatActivity activity) {
-        ActionBar bar = activity.getSupportActionBar();
-        if (bar != null) {
-            bar.setIcon(android.R.color.transparent);
-            bar.setDisplayShowTitleEnabled(true);
-            bar.setElevation(0);
-        }
-
-        if (!(activity instanceof HomeActivity) && bar != null) {
-            bar.setDisplayHomeAsUpEnabled(true);
-        }
-
-        setStatusBarColor(activity, ContextCompat.getColor(activity, R.color.md_theme_surfaceContainer), true);
-
-        View contentView = activity.findViewById(android.R.id.content);
-        if (contentView != null) {
-            ViewCompat.setOnApplyWindowInsetsListener(contentView, (v, windowInsets) -> {
-                Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
-                v.setPadding(insets.left, v.getPaddingTop(), insets.right, insets.bottom);
-                return windowInsets;
-            });
-        }
-    }
-
-    public static void setStatusBarColor(@NonNull final Activity activity, @ColorInt final int color, final boolean isDecor) {
-        transparentStatusBar(activity.getWindow());
-        applyStatusBarColor(activity.getWindow(), color, isDecor);
-    }
-
-    public static void transparentStatusBar(final Window window) {
-        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-        int option = View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
-        int vis = window.getDecorView().getSystemUiVisibility();
-        window.getDecorView().setSystemUiVisibility(option | vis);
-        window.setStatusBarColor(Color.TRANSPARENT);
-    }
-
-    private static void applyStatusBarColor(final Window window, final int color, boolean isDecor) {
-        ViewGroup parent = isDecor
-                ? (ViewGroup) window.getDecorView()
-                : (ViewGroup) window.findViewById(android.R.id.content);
-
-        View fakeStatusBarView = parent.findViewWithTag(TAG_STATUS_BAR);
-        if (fakeStatusBarView != null) {
-            if (fakeStatusBarView.getVisibility() == View.GONE) {
-                fakeStatusBarView.setVisibility(View.VISIBLE);
-            }
-            fakeStatusBarView.setBackgroundColor(color);
-        } else {
-            fakeStatusBarView = createStatusBarView(window.getContext(), color, parent);
-            parent.addView(fakeStatusBarView, 0);
-        }
-    }
-
-    private static View createStatusBarView(final Context context, final int color, ViewGroup parent) {
-        View statusBarView = new View(context);
-        statusBarView.setBackgroundColor(color);
-        statusBarView.setTag(TAG_STATUS_BAR);
-
-        // Dynamically adjust height from insets
-        ViewCompat.setOnApplyWindowInsetsListener(parent, (v, insets) -> {
-            int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
-            ViewGroup.LayoutParams lp = statusBarView.getLayoutParams();
-            if (lp == null) {
-                lp = new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, statusBarHeight);
-            } else {
-                lp.height = statusBarHeight;
-            }
-            statusBarView.setLayoutParams(lp);
-            return insets;
-        });
-
-        return statusBarView;
-    }
-
-
-    public static void showProgress(Fragment fragment, boolean visible) {
-        AppCompatActivity act = (AppCompatActivity) fragment.getActivity();
-        if (act != null) {
-            act.setSupportProgressBarIndeterminateVisibility(visible);
-        }
-    }
-
-    public static void setClickableSpan(TextView v, ClickableSpan span) {
-        Spannable text = (Spannable) v.getText();
-        text.setSpan(span, 0, text.length(), 0);
-        v.setMovementMethod(LinkMovementMethod.getInstance());
-    }
-
-    public static void removeAllClickableSpans(TextView v) {
-        Spannable text = (Spannable) v.getText();
-        ClickableSpan[] spans = text.getSpans(0, text.length(), ClickableSpan.class);
-        for (ClickableSpan cs : spans) {
-            text.removeSpan(cs);
-        }
-    }
 
     public static int getStopDirectionText(String direction) {
         if (direction.equals("N")) {
@@ -310,19 +188,6 @@ public final class UIUtils {
             return MyTextUtils.toTitleCase(displayText);
         } else {
             return displayText;
-        }
-    }
-
-    // Shows or hides the view, depending on whether or not the direction is
-    // available.
-    public static void setStopDirection(View v, String direction, boolean show) {
-        final TextView text = (TextView) v;
-        final int directionText = UIUtils.getStopDirectionText(direction);
-        if ((directionText != R.string.direction_none) || show) {
-            text.setText(directionText);
-            text.setVisibility(View.VISIBLE);
-        } else {
-            text.setVisibility(View.GONE);
         }
     }
 
@@ -871,21 +736,6 @@ public final class UIUtils {
         return "";
     }
 
-    public static Integer intForQuery(Context context, Uri uri, String column) {
-        ContentResolver cr = context.getContentResolver();
-        Cursor c = cr.query(uri, new String[]{column}, null, null, null);
-        if (c != null) {
-            try {
-                if (c.moveToFirst()) {
-                    return c.getInt(0);
-                }
-            } finally {
-                c.close();
-            }
-        }
-        return null;
-    }
-
     public static final int MINUTES_IN_HOUR = 60;
 
     /**
@@ -1011,28 +861,6 @@ public final class UIUtils {
     }
 
     /**
-     * Returns true if the API level supports animating Views using ViewPropertyAnimator, false if
-     * it doesn't
-     *
-     * @return true if the API level supports animating Views using ViewPropertyAnimator, false if
-     * it doesn't
-     */
-    public static boolean canAnimateViewModern() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1;
-    }
-
-    /**
-     * Returns true if the API level supports canceling existing animations via the
-     * ViewPropertyAnimator, and false if it does not
-     *
-     * @return true if the API level supports canceling existing animations via the
-     * ViewPropertyAnimator, and false if it does not
-     */
-    public static boolean canCancelAnimation() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH;
-    }
-
-    /**
      * Returns true if the API level supports our Arrival Info Style B (sort by route) views, false
      * if it does not.  See #350 and #275.
      *
@@ -1041,136 +869,6 @@ public final class UIUtils {
      */
     public static boolean canSupportArrivalInfoStyleB() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH;
-    }
-
-    /**
-     * Shows a view, using animation if the platform supports it
-     *
-     * @param v                 View to show
-     * @param animationDuration duration of animation
-     */
-    @TargetApi(14)
-    public static void showViewWithAnimation(final View v, int animationDuration) {
-        // If we're on a legacy device, show the view without the animation
-        if (!canAnimateViewModern()) {
-            showViewWithoutAnimation(v);
-            return;
-        }
-
-        if (v.getVisibility() == View.VISIBLE && v.getAlpha() == 1) {
-            // View is already visible and not transparent, return without doing anything
-            return;
-        }
-
-        v.clearAnimation();
-        if (canCancelAnimation()) {
-            v.animate().cancel();
-        }
-
-        if (v.getVisibility() != View.VISIBLE) {
-            // Set the content view to 0% opacity but visible, so that it is visible
-            // (but fully transparent) during the animation.
-            v.setAlpha(0f);
-            v.setVisibility(View.VISIBLE);
-        }
-
-        // Animate the content view to 100% opacity, and clear any animation listener set on the view.
-        v.animate()
-                .alpha(1f)
-                .setDuration(animationDuration)
-                .setListener(null);
-    }
-
-    /**
-     * Shows a view without using animation
-     *
-     * @param v View to show
-     */
-    public static void showViewWithoutAnimation(final View v) {
-        if (v.getVisibility() == View.VISIBLE) {
-            // View is already visible, return without doing anything
-            return;
-        }
-        v.setVisibility(View.VISIBLE);
-    }
-
-    /**
-     * Hides a view, using animation if the platform supports it
-     *
-     * @param v                 View to hide
-     * @param animationDuration duration of animation
-     */
-    @TargetApi(14)
-    public static void hideViewWithAnimation(final View v, int animationDuration) {
-        // If we're on a legacy device, hide the view without the animation
-        if (!canAnimateViewModern()) {
-            hideViewWithoutAnimation(v);
-            return;
-        }
-
-        if (v.getVisibility() == View.GONE) {
-            // View is already gone, return without doing anything
-            return;
-        }
-
-        v.clearAnimation();
-        if (canCancelAnimation()) {
-            v.animate().cancel();
-        }
-
-        // Animate the view to 0% opacity. After the animation ends, set its visibility to GONE as
-        // an optimization step (it won't participate in layout passes, etc.)
-        v.animate()
-                .alpha(0f)
-                .setDuration(animationDuration)
-                .setListener(new AnimatorListenerAdapter() {
-                    @Override
-                    public void onAnimationEnd(Animator animation) {
-                        v.setVisibility(View.GONE);
-                    }
-                });
-    }
-
-    /**
-     * Hides a view without using animation
-     *
-     * @param v View to hide
-     */
-    public static void hideViewWithoutAnimation(final View v) {
-        if (v.getVisibility() == View.GONE) {
-            // View is already gone, return without doing anything
-            return;
-        }
-        // Hide the view without animation
-        v.setVisibility(View.GONE);
-    }
-
-    /**
-     * Prints View visibility information to the log for debugging purposes
-     *
-     * @param v View to log visibility information for
-     */
-    @TargetApi(12)
-    public static void logViewVisibility(View v) {
-        if (v != null) {
-            if (v.getVisibility() == View.VISIBLE) {
-                Log.d(TAG, v.getContext().getResources().getResourceEntryName(v.getId())
-                        + " is visible");
-                if (UIUtils.canAnimateViewModern()) {
-                    Log.d(TAG, v.getContext().getResources().getResourceEntryName(v.getId())
-                            + " alpha - " + v.getAlpha());
-                }
-            } else if (v.getVisibility() == View.INVISIBLE) {
-                Log.d(TAG, v.getContext().getResources().getResourceEntryName(v.getId())
-                        + " is INVISIBLE");
-            } else if (v.getVisibility() == View.GONE) {
-                Log.d(TAG,
-                        v.getContext().getResources().getResourceEntryName(v.getId()) + " is GONE");
-            } else {
-                Log.d(TAG, v.getContext().getResources().getResourceEntryName(v.getId())
-                        + ".getVisibility() - " + v.getVisibility());
-            }
-        }
     }
 
     /**
@@ -1185,33 +883,6 @@ public final class UIUtils {
         final float scale = context.getResources().getDisplayMetrics().density;
         // Convert the dps to pixels, based on density scale
         return (int) (dp * scale + 0.5f);
-    }
-
-    /**
-     * Sets the margins for a given view
-     *
-     * @param v View to set the margin for
-     * @param l left margin, in pixels
-     * @param t top margin, in pixels
-     * @param r right margin, in pixels
-     * @param b bottom margin, in pixels
-     */
-    public static void setMargins(View v, int l, int t, int r, int b) {
-        ViewGroup.MarginLayoutParams p = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
-        p.setMargins(l, t, r, b);
-        v.setLayoutParams(p);
-    }
-
-    /**
-     * Formats a view so it is ignored for accessible access
-     */
-    public static void setAccessibilityIgnore(View view) {
-        view.setClickable(false);
-        view.setFocusable(false);
-        view.setContentDescription("");
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-            view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        }
     }
 
     /**
@@ -1272,37 +943,6 @@ public final class UIUtils {
     }
 
     /**
-     * Builds the array of icons that should be shown for the trip "Bus Options" menu, given the
-     * provided arguments for that trip
-     *
-     * @param isRouteFavorite   true if this route is a user favorite, false if it is not
-     * @param hasUrl true if the route provides a URL for schedule data, false if it does
-     *               not
-     * @param occupancy occupancy of this trip
-     * @return the array of icons that should be shown for a given trip
-     */
-    public static List<Integer> buildTripOptionsIcons(boolean isRouteFavorite, boolean hasUrl, Occupancy occupancy) {
-        ArrayList<Integer> list = new ArrayList<>();
-        if (!isRouteFavorite) {
-            list.add(R.drawable.focus_star_on);
-        } else {
-            list.add(R.drawable.focus_star_off);
-        }
-        list.add(R.drawable.ic_arrivals_styleb_action_map);
-        list.add(R.drawable.ic_trip_details);
-        list.add(R.drawable.ic_drawer_alarm);
-        list.add(R.drawable.ic_content_filter_list);
-        if (hasUrl) {
-            list.add(R.drawable.ic_notification_event_note);
-        }
-        list.add(R.drawable.ic_alert_warning);
-        if (occupancy != null) {
-            list.add(R.drawable.ic_occupancy);
-        }
-        return list;
-    }
-
-    /**
      * Creates a new Bitmap, with the black color of the source image changed to the given color.
      * The source Bitmap isn't modified.
      *
@@ -1326,17 +966,6 @@ public final class UIUtils {
     }
 
     /**
-     * Returns true if the provided touch event was within the provided view
-     *
-     * @return true if the provided touch event was within the provided view
-     */
-    public static boolean isTouchInView(View view, MotionEvent event) {
-        Rect rect = new Rect();
-        view.getGlobalVisibleRect(rect);
-        return rect.contains((int) event.getRawX(), (int) event.getRawY());
-    }
-
-    /**
      * Returns the current time for comparison against another current time.  For API levels >=
      * Jelly Bean MR1 the SystemClock.getElapsedRealtimeNanos() method is used, and for API levels
      * <
@@ -1351,25 +980,6 @@ public final class UIUtils {
         } else {
             return TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
         }
-    }
-
-    /**
-     * Open the soft keyboard
-     */
-    public static void openKeyboard(Context context) {
-        InputMethodManager inputMethodManager = (InputMethodManager) context.getSystemService(
-                Context.INPUT_METHOD_SERVICE);
-        inputMethodManager.toggleSoftInput(InputMethodManager.SHOW_FORCED,
-                InputMethodManager.HIDE_NOT_ALWAYS);
-    }
-
-    /**
-     * Closes the soft keyboard
-     */
-    public static void closeKeyboard(Context context, View v) {
-        InputMethodManager imm =
-                (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
     }
 
     /**
@@ -1793,96 +1403,6 @@ public final class UIUtils {
         }
     }
 
-    /**
-     * Sets the content description of the occupancy view group based on the provided occupancy
-     *
-     * @param v              occupancy.xml layout viewgroup containing the silhouettes
-     * @param occupancy      the occupancy value to use to set the content description
-     * @param occupancyState the state of the occupancy
-     */
-    public static void setOccupancyContentDescription(ViewGroup v, Occupancy occupancy, OccupancyState occupancyState) {
-        // Hide the entire view group if occupancy is null
-        if (occupancy == null) {
-            v.setContentDescription("");
-            return;
-        }
-
-        int stringId = R.string.historically_full;
-
-        // Below switch continues into following cases to minimize lines of code
-        switch (occupancy) {
-            case NOT_ACCEPTING_PASSENGERS:
-                // "Full"
-            case FULL:
-                // "Full"
-            case CRUSHED_STANDING_ROOM_ONLY:
-                // "Full"
-                if (occupancyState == OccupancyState.HISTORICAL) {
-                    stringId = R.string.historically_full;
-                } else if (occupancyState == OccupancyState.REALTIME) {
-                    stringId = R.string.realtime_full;
-                } else if (occupancyState == OccupancyState.PREDICTED) {
-                    stringId = R.string.predicted_full;
-                }
-                break;
-            case STANDING_ROOM_ONLY:
-                // "Standing room"
-                if (occupancyState == OccupancyState.HISTORICAL) {
-                    stringId = R.string.historically_standing_room;
-                } else if (occupancyState == OccupancyState.REALTIME) {
-                    stringId = R.string.realtime_standing_room;
-                } else if (occupancyState == OccupancyState.PREDICTED) {
-                    stringId = R.string.predicted_standing_room;
-                }
-                break;
-            case FEW_SEATS_AVAILABLE:
-                // "Few seats available"
-                if (occupancyState == OccupancyState.HISTORICAL) {
-                    stringId = R.string.historically_few_seats_available;
-                } else if (occupancyState == OccupancyState.REALTIME) {
-                    stringId = R.string.realtime_few_seats_available;
-                } else if (occupancyState == OccupancyState.PREDICTED) {
-                    stringId = R.string.predicted_few_seats_available;
-                }
-                break;
-            case MANY_SEATS_AVAILABLE:
-                // "Many seats available"
-                if (occupancyState == OccupancyState.HISTORICAL) {
-                    stringId = R.string.historically_many_seats_available;
-                } else if (occupancyState == OccupancyState.REALTIME) {
-                    stringId = R.string.realtime_many_seats_available;
-                } else if (occupancyState == OccupancyState.PREDICTED) {
-                    stringId = R.string.predicted_many_seats_available;
-                }
-                break;
-            case EMPTY:
-                // "Empty"
-                if (occupancyState == OccupancyState.HISTORICAL) {
-                    stringId = R.string.historically_empty;
-                } else if (occupancyState == OccupancyState.REALTIME) {
-                    stringId = R.string.realtime_empty;
-                } else if (occupancyState == OccupancyState.PREDICTED) {
-                    stringId = R.string.predicted_empty;
-                }
-                break;
-        }
-
-        v.setContentDescription(Application.get().getString(stringId));
-    }
-
-    /**
-     * Asks the user to whitelist the application for energy restrictions (e.g., running in
-     * the background). See https://developer.android.com/training/monitoring-device-state/doze-standby#support_for_other_use_cases
-     *
-     * @param activity
-     */
-    public static void openBatteryIgnoreIntent(Activity activity) {
-        Intent intent = new Intent();
-        intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-        intent.setData(Uri.parse("package:" + activity.getPackageName()));
-        activity.startActivity(intent);
-    }
-
     public static void setAppTheme(String themeValue) {
         if (themeValue.equalsIgnoreCase(Application.get().getString(R.string.preferences_app_theme_option_system_default))) {
             AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
@@ -1894,8 +1414,5 @@ public final class UIUtils {
             AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         }
     }
-
-// In some utility class, e.g., UIUtils.java
-
 
 }

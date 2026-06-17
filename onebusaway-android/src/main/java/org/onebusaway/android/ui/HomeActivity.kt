@@ -279,7 +279,11 @@ class HomeActivity : AppCompatActivity() {
             onListClear = ::onListClearSelected,
             onBikeshareToggled = ::pushEnvironment,
             onHelpAction = ::onHelpAction,
-            onWhatsNewDismissed = ::onWhatsNewDismissed,
+            onShowWelcomeTutorial = {
+                ShowcaseViewUtils.showTutorial(
+                    ShowcaseViewUtils.TUTORIAL_WELCOME, this@HomeActivity, null, false
+                )
+            },
             onRegionChosen = viewModel::onRegionChosen,
             onSheetSettled = viewModel::onSheetSettled,
             onClearFocus = viewModel::requestClearMapFocus,
@@ -1396,13 +1400,6 @@ class HomeActivity : AppCompatActivity() {
             HelpAction.CONTACT_US -> goToSendFeedBack()
             // LEGEND / WHATS_NEW open dialogs — handled by HelpFeature against HelpViewModel.
             HelpAction.LEGEND, HelpAction.WHATS_NEW -> Unit
-        }
-    }
-
-    private fun onWhatsNewDismissed() {
-        val showOptOut = prefsRepository.getBoolean(ShowcaseViewUtils.TUTORIAL_OPT_OUT_DIALOG, true)
-        if (showOptOut) {
-            ShowcaseViewUtils.showOptOutDialog(this)
         }
     }
 

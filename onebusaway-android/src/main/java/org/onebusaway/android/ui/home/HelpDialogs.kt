@@ -55,15 +55,15 @@ enum class HelpAction { TUTORIALS, LEGEND, WHATS_NEW, AGENCIES, TWITTER, CONTACT
  * Self-rendering help feature module: draws the help menu / what's-new / legend dialogs from
  * [HelpViewModel] state, and auto-shows "What's New" once a region has resolved ([regionReady]). Legend
  * + what's-new taps transition the VM's dialog; the other menu actions (reset tutorials, agencies,
- * Twitter, contact us) are genuine Activity operations, forwarded through [onHelpAction]. What's-new
- * dismissal also pings [onWhatsNewDismissed] (the opt-out dialog).
+ * Twitter, contact us) are genuine Activity operations, forwarded through [onHelpAction]. The
+ * tutorial opt-out's "yes" path shows the welcome tutorial via [onShowWelcomeTutorial].
  */
 @Composable
 fun HelpFeature(
     viewModel: HelpViewModel,
     regionReady: Boolean,
     onHelpAction: (HelpAction) -> Unit,
-    onWhatsNewDismissed: () -> Unit,
+    onShowWelcomeTutorial: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Auto-show "What's New" once a region has resolved (its content may need refreshed Regions API
@@ -92,8 +92,13 @@ fun HelpFeature(
         HelpDialog.WhatsNew -> WhatsNewDialog(
             onDismiss = {
                 viewModel.dismiss()
-                onWhatsNewDismissed()
+                viewModel.maybeShowTutorialOptOut()
             }
+        )
+        HelpDialog.TutorialOptOut -> TutorialOptOutDialog(
+            onYes = { viewModel.setTutorialsEnabled(true); onShowWelcomeTutorial() },
+            onNo = { viewModel.setTutorialsEnabled(false) },
+            onDismiss = viewModel::dismiss,
         )
         HelpDialog.Legend -> LegendDialog(onDismiss = viewModel::dismiss)
         HelpDialog.None -> Unit
@@ -146,6 +151,19 @@ private fun WhatsNewDialog(onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_help_close)) }
         }
+    )
+}
+
+@Composable
+private fun TutorialOptOutDialog(onYes: () -> Unit, onNo: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.tutorial_opt_out_dialog_title)) },
+        text = {
+            Text(stringResource(R.string.tutorial_opt_out_dialog_text, stringResource(R.string.app_name)))
+        },
+        confirmButton = { TextButton(onClick = onYes) { Text(stringResource(R.string.rt_yes)) } },
+        dismissButton = { TextButton(onClick = onNo) { Text(stringResource(R.string.rt_no)) } }
     )
 }
 

@@ -72,7 +72,7 @@ class HomeCallbacks(
     // The bikeshare-layer toggle (in MapFeature) re-snapshots the host environment for the chrome tint.
     val onBikeshareToggled: () -> Unit,
     val onHelpAction: (HelpAction) -> Unit,
-    val onWhatsNewDismissed: () -> Unit,
+    val onShowWelcomeTutorial: () -> Unit,
     val onRegionChosen: (ObaRegion) -> Unit,
     val onSheetSettled: (ArrivalsSheetState, Int) -> Unit,
     val onClearFocus: () -> Unit,
@@ -366,7 +366,7 @@ fun HomeScreen(
             viewModel = helpViewModel,
             regionReady = state.regionReady,
             onHelpAction = onHelpAction,
-            onWhatsNewDismissed = onWhatsNewDismissed,
+            onShowWelcomeTutorial = onShowWelcomeTutorial,
         )
     }
     }

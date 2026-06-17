@@ -16,10 +16,7 @@
 
 package org.onebusaway.android.util;
 
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.res.Resources;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
@@ -211,46 +208,6 @@ public class ShowcaseViewUtils {
             }
         }
         return false;
-    }
-
-    /**
-     * Creates a dialog that prompts the user if they want to see tutorial popups
-     *
-     * @return a dialog that prompts the user if they want to see tutorial popups
-     */
-    public static void showOptOutDialog(final AppCompatActivity activity) {
-        if (!ViewUtils.canManageDialog(activity)) {
-            return;
-        }
-        final String showTutorialsKey = activity
-                .getString(R.string.preference_key_show_tutorial_screens);
-        final PreferencesRepository prefs = PreferencesEntryPoint.get(activity);
-
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(activity);
-        builder.setTitle(R.string.tutorial_opt_out_dialog_title)
-                .setMessage(activity.getString(R.string.tutorial_opt_out_dialog_text, activity.getString(R.string.app_name)))
-                .setPositiveButton(R.string.rt_yes,
-                        new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                // Make sure tutorials are enabled - they will show on their own
-                                prefs.setBoolean(showTutorialsKey, true);
-                                // Show the welcome tutorial
-                                showTutorial(ShowcaseViewUtils.TUTORIAL_WELCOME, activity, null, false);
-                            }
-                        })
-                .setNegativeButton(R.string.rt_no,
-                        new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                // Turn off all tutorials
-                                prefs.setBoolean(showTutorialsKey, false);
-                            }
-                        });
-        builder.create().show();
-
-        // Don't show this dialog again
-        prefs.setBoolean(TUTORIAL_OPT_OUT_DIALOG, false);
     }
 
     /**

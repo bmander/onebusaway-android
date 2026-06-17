@@ -23,8 +23,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.preferences.PreferencesRepository
+import org.onebusaway.android.util.ShowcaseViewUtils
 
 /** Which help dialog is showing. Split out of the shared HomeDialog when help became a feature module. */
 sealed interface HelpDialog {
@@ -32,6 +34,7 @@ sealed interface HelpDialog {
     object Menu : HelpDialog
     object WhatsNew : HelpDialog
     object Legend : HelpDialog
+    object TutorialOptOut : HelpDialog
 }
 
 /** The help feature's state: which dialog is up + whether the menu offers "contact us". */
@@ -60,6 +63,23 @@ class HelpViewModel @Inject constructor(
     fun showLegend() = _state.update { it.copy(dialog = HelpDialog.Legend) }
 
     fun dismiss() = _state.update { it.copy(dialog = HelpDialog.None) }
+
+    /** After what's-new, offer the tutorial opt-out once (gated by TUTORIAL_OPT_OUT_DIALOG). */
+    fun maybeShowTutorialOptOut() {
+        if (prefs.getBoolean(ShowcaseViewUtils.TUTORIAL_OPT_OUT_DIALOG, true)) {
+            _state.update { it.copy(dialog = HelpDialog.TutorialOptOut) }
+            // Only offer it once.
+            prefs.setBoolean(ShowcaseViewUtils.TUTORIAL_OPT_OUT_DIALOG, false)
+        }
+    }
+
+    /** Records the opt-out choice (enable/disable tutorial popups) and closes the dialog. */
+    fun setTutorialsEnabled(enabled: Boolean) {
+        prefs.setBoolean(
+            Application.get().getString(R.string.preference_key_show_tutorial_screens), enabled
+        )
+        dismiss()
+    }
 
     /**
      * Show "What's New" if a newer version was just installed; returns whether it was (the activity uses

@@ -42,7 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
-import org.onebusaway.android.ui.arrivals.EtaPill
+import org.onebusaway.android.ui.arrivals.components.EtaPill
 
 /**
  * The help-menu options, in the order of the `main_help_options` string-array. Dialog-opening actions

@@ -30,7 +30,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import org.onebusaway.android.R
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
-import org.onebusaway.android.ui.arrivals.ArrivalsPanel
+import org.onebusaway.android.ui.arrivals.components.ArrivalsPanel
 import org.onebusaway.android.ui.arrivals.ArrivalsUiState
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.compose.findActivity

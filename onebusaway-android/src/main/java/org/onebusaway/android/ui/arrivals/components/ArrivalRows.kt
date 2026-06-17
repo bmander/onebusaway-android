@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.arrivals
+package org.onebusaway.android.ui.arrivals.components
 
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -63,6 +63,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.Status
+import org.onebusaway.android.ui.arrivals.ArrivalActions
+import org.onebusaway.android.ui.arrivals.ArrivalInfo
+import org.onebusaway.android.ui.arrivals.dialogs.buildTripOptions
 import org.onebusaway.android.ui.compose.components.LineBadge
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.util.comparators.AlphanumComparator

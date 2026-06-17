@@ -18,6 +18,9 @@ package org.onebusaway.android.ui.arrivals
 import org.onebusaway.android.ui.tripinfo.TripInfoLauncher
 import org.onebusaway.android.ui.tripdetails.TripDetailsLauncher
 import org.onebusaway.android.ui.nav.NavHelp
+import org.onebusaway.android.ui.arrivals.dialogs.RouteFavoriteHost
+import org.onebusaway.android.ui.arrivals.dialogs.StopDetailsHost
+import org.onebusaway.android.ui.arrivals.dialogs.showSituationDialog
 import android.content.Intent
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity

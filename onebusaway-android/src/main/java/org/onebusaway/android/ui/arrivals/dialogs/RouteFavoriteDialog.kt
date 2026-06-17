@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.arrivals
+package org.onebusaway.android.ui.arrivals.dialogs
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
@@ -28,6 +28,9 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
+import org.onebusaway.android.ui.arrivals.ArrivalActions
+import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
+import org.onebusaway.android.ui.arrivals.RadioOptionList
 
 // Selections need to match strings.xml "route_favorite_options"
 private const val SELECTION_THIS_STOP = 0

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.arrivals
+package org.onebusaway.android.ui.arrivals.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
@@ -59,6 +59,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
+import org.onebusaway.android.ui.arrivals.ArrivalActionHandler
+import org.onebusaway.android.ui.arrivals.ArrivalActions
+import org.onebusaway.android.ui.arrivals.ArrivalInfo
+import org.onebusaway.android.ui.arrivals.ArrivalsList
+import org.onebusaway.android.ui.arrivals.ArrivalsPolling
+import org.onebusaway.android.ui.arrivals.ArrivalsUiState
+import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
+import org.onebusaway.android.ui.arrivals.dialogs.RouteFavoriteHost
+import org.onebusaway.android.ui.arrivals.dialogs.StopDetailsHost
+import org.onebusaway.android.ui.arrivals.rememberArrivalRowCallbacks
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.util.ArrivalInfoUtils
 

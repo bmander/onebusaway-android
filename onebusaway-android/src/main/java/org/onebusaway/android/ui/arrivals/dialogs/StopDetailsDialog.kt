@@ -16,7 +16,7 @@
  */
 @file:JvmName("StopDetailsDialog")
 
-package org.onebusaway.android.ui.arrivals
+package org.onebusaway.android.ui.arrivals.dialogs
 
 import android.content.Context
 import androidx.compose.material3.AlertDialog
@@ -30,6 +30,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.util.Pair
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
+import org.onebusaway.android.ui.arrivals.ArrivalsUiState
+import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.util.DisplayFormat
 import org.onebusaway.android.util.formatRouteDisplayNames
 

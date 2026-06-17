@@ -86,7 +86,6 @@ fun MapFeature(
     mapSeedLon: Double,
     mapSeedZoom: Float,
     fabBottomInset: Dp,
-    onBikeshareToggled: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -279,8 +278,9 @@ fun MapFeature(
         onZoomOut = { mapViewModel.zoomOut() },
         onToggleBikeshare = {
             val active = LayerUtils.isBikeshareLayerVisible(context)
-            // Persist the toggled state + drive the bike loader, then ping the host to re-snapshot the
-            // environment (so the bikeshare-active tint updates).
+            // Persist the toggled state (DataStore) + drive the bike loader. HomeViewModel's reactive
+            // environment collector observes the visibility pref, so the bikeshare-active tint updates
+            // without a host re-snapshot.
             mapViewModel.setBikeshareLayerVisible(!active, persist = true)
             ObaAnalytics.reportUiEvent(
                 firebaseAnalytics,
@@ -295,7 +295,6 @@ fun MapFeature(
                     }
                 ),
             )
-            onBikeshareToggled()
         },
     )
 }

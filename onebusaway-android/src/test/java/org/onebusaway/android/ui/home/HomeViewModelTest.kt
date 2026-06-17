@@ -35,12 +35,14 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.map.MapCommand
 import org.onebusaway.android.map.MapInteractionBus
 import org.onebusaway.android.region.FakeRegionRepository
 import org.onebusaway.android.region.RegionStatus
 import org.onebusaway.android.region.region
+import org.onebusaway.android.testing.FakePreferencesRepository
 import org.onebusaway.android.testing.MainDispatcherRule
 
 private class FakeWideAlertsRepository(private val alerts: List<WideAlert>) : WideAlertsRepository {
@@ -99,10 +101,11 @@ class HomeViewModelTest {
         startupRepo: FakeStartupPreferencesRepository = FakeStartupPreferencesRepository(),
         navItemsRepo: FakeNavItemsRepository = FakeNavItemsRepository(),
         regionRepo: FakeRegionRepository = FakeRegionRepository().apply { refreshResult = regionStatus },
+        prefsRepo: FakePreferencesRepository = FakePreferencesRepository(),
         savedState: SavedStateHandle = SavedStateHandle(),
         bus: MapInteractionBus = FakeMapInteractionBus(),
     ) = HomeViewModel(
-        savedState, FakeWideAlertsRepository(alerts), startupRepo, navItemsRepo, regionRepo, bus
+        savedState, FakeWideAlertsRepository(alerts), startupRepo, navItemsRepo, regionRepo, prefsRepo, bus
     )
 
     // --- map loading + peek inputs ---
@@ -615,6 +618,66 @@ class HomeViewModelTest {
         assertFalse(vm.uiState.value.mapComposed)
         vm.onMapShown()
         assertTrue(vm.uiState.value.mapComposed)
+    }
+
+    // --- reactive environment (the VM self-collects the chrome-gate prefs; no host push) ---
+
+    @Test
+    fun `the zoom-controls preference flips the gate reactively`() = runTest {
+        val prefs = FakePreferencesRepository(observeValue = false) // start gates off
+        val vm = viewModel(prefsRepo = prefs)
+        vm.selectNav(HomeNavItem.NEARBY)
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.zoomControlsVisible)
+
+        prefs.setBoolean(R.string.preference_key_show_zoom_controls, true)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.zoomControlsVisible)
+    }
+
+    @Test
+    fun `the bikeshare-layer preference flips the active tint reactively`() = runTest {
+        val prefs = FakePreferencesRepository(observeValue = false)
+        // A custom OTP URL makes bikeshare enabled (the layers FAB shows); the visible pref drives active.
+        prefs.setString(R.string.preference_key_otp_api_url, "https://otp.example.org")
+        prefs.setBoolean(R.string.preference_key_layer_bikeshare_visible, true)
+        val vm = viewModel(prefsRepo = prefs)
+        vm.selectNav(HomeNavItem.NEARBY)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.layersFabVisible)
+        assertTrue(vm.uiState.value.bikeshareActive)
+
+        prefs.setBoolean(R.string.preference_key_layer_bikeshare_visible, false)
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.bikeshareActive)
+        assertTrue(vm.uiState.value.layersFabVisible) // still enabled, just not active
+    }
+
+    @Test
+    fun `the layers FAB follows bikeshare-enabled derived from the OTP URL`() = runTest {
+        val prefs = FakePreferencesRepository(observeValue = false)
+        val vm = viewModel(prefsRepo = prefs)
+        vm.selectNav(HomeNavItem.NEARBY)
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.layersFabVisible) // no region, no custom OTP URL
+
+        prefs.setString(R.string.preference_key_otp_api_url, "https://otp.example.org")
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.layersFabVisible)
+    }
+
+    @Test
+    fun `a region supporting OTP bikeshare enables the layers FAB`() = runTest {
+        val regions = FakeRegionRepository()
+        val prefs = FakePreferencesRepository(observeValue = false)
+        val vm = viewModel(regionRepo = regions, prefsRepo = prefs)
+        vm.selectNav(HomeNavItem.NEARBY)
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.layersFabVisible)
+
+        regions.emit(region(1, supportsOtpBikeshare = true))
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.layersFabVisible)
     }
 }
 

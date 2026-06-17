@@ -16,13 +16,17 @@
 package org.onebusaway.android.testing
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import org.onebusaway.android.preferences.PreferencesRepository
 
 /**
  * In-memory [PreferencesRepository] for JVM unit tests. The synchronous accessors read/write a
- * backing map keyed by the resource id or string so they round-trip; [observeBoolean] reports
- * [observeValue] regardless of key (the single reactive value the current consumers care about).
+ * backing map keyed by the resource id or string so they round-trip; the reactive [observeBoolean] /
+ * [observeString] accessors are backed by a per-key [MutableStateFlow] so a test can flip one pref and
+ * assert the resulting state change. A key that's never been set seeds its flow with [observeValue]
+ * (booleans) / null (strings), preserving the old "single reactive value" behavior for callers that
+ * only read one pref.
  *
  * Pre-seed synchronous values with the `setX` methods before constructing the subject under test.
  */
@@ -30,7 +34,20 @@ class FakePreferencesRepository(private val observeValue: Boolean = true) : Pref
 
     private val values = mutableMapOf<Any, Any?>()
 
-    override fun observeBoolean(keyRes: Int, default: Boolean): Flow<Boolean> = flowOf(observeValue)
+    // Per-key reactive flows, keyed by the same key the synchronous map uses (resource id or string).
+    private val boolFlows = mutableMapOf<Any, MutableStateFlow<Boolean>>()
+    private val stringFlows = mutableMapOf<Any, MutableStateFlow<String?>>()
+
+    // Un-set boolean keys seed to [observeValue] (legacy default-true behavior); strings to their default.
+    private fun boolFlow(key: Any) =
+        boolFlows.getOrPut(key) { MutableStateFlow((values[key] as Boolean?) ?: observeValue) }
+
+    private fun stringFlow(key: Any, default: String?) =
+        stringFlows.getOrPut(key) { MutableStateFlow((values[key] as String?) ?: default) }
+
+    override fun observeBoolean(keyRes: Int, default: Boolean): Flow<Boolean> = boolFlow(keyRes)
+
+    override fun observeString(keyRes: Int, default: String?): Flow<String?> = stringFlow(keyRes, default)
 
     override fun observeChanges(): Flow<Unit> = flowOf(Unit)
 
@@ -48,10 +65,10 @@ class FakePreferencesRepository(private val observeValue: Boolean = true) : Pref
     override fun getFloat(keyRes: Int, default: Float) = read(keyRes, default)
     override fun getFloat(key: String, default: Float) = read(key, default)
 
-    override fun setBoolean(keyRes: Int, value: Boolean) { values[keyRes] = value }
-    override fun setBoolean(key: String, value: Boolean) { values[key] = value }
-    override fun setString(keyRes: Int, value: String?) { values[keyRes] = value }
-    override fun setString(key: String, value: String?) { values[key] = value }
+    override fun setBoolean(keyRes: Int, value: Boolean) { values[keyRes] = value; boolFlow(keyRes).value = value }
+    override fun setBoolean(key: String, value: Boolean) { values[key] = value; boolFlow(key).value = value }
+    override fun setString(keyRes: Int, value: String?) { values[keyRes] = value; stringFlow(keyRes, null).value = value }
+    override fun setString(key: String, value: String?) { values[key] = value; stringFlow(key, null).value = value }
     override fun setInt(keyRes: Int, value: Int) { values[keyRes] = value }
     override fun setInt(key: String, value: Int) { values[key] = value }
     override fun setLong(keyRes: Int, value: Long) { values[keyRes] = value }

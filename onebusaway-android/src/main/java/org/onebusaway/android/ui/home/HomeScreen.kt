@@ -98,8 +98,6 @@ class HomeCallbacks(
     val onRecentStopsRoutes: () -> Unit,
     val onListSort: () -> Unit,
     val onListClear: () -> Unit,
-    // The bikeshare-layer toggle (in MapFeature) re-snapshots the host environment for the chrome tint.
-    val onBikeshareToggled: () -> Unit,
     val onHelpAction: (HelpAction) -> Unit,
     val onShowWelcomeTutorial: () -> Unit,
     val onRegionChosen: (ObaRegion) -> Unit,
@@ -317,7 +315,6 @@ fun HomeScreen(
                             mapSeedLon = mapSeedLon,
                             mapSeedZoom = mapSeedZoom,
                             fabBottomInset = fabInsetTarget,
-                            onBikeshareToggled = onBikeshareToggled,
                             modifier = Modifier.fillMaxSize(),
                         )
                         // The map chrome stack drawn over the map (weather/donation/route-header/survey)

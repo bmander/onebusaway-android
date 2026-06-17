@@ -56,6 +56,9 @@ interface PreferencesRepository {
     /** Emits the current value of the boolean pref [keyRes] and re-emits on every change. */
     fun observeBoolean(@StringRes keyRes: Int, default: Boolean): Flow<Boolean>
 
+    /** Emits the current value of the string pref [keyRes] and re-emits on every change. */
+    fun observeString(@StringRes keyRes: Int, default: String?): Flow<String?>
+
     /**
      * Emits once immediately, then a [Unit] on every preference change (any key). For a screen that
      * derives its whole state from many keys at once (e.g. Settings), collecting this and re-reading
@@ -123,6 +126,11 @@ class DefaultPreferencesRepository @Inject constructor(
 
     override fun observeBoolean(keyRes: Int, default: Boolean): Flow<Boolean> {
         val key = booleanPreferencesKey(context.getString(keyRes))
+        return dataStore.data.map { it[key] ?: default }.distinctUntilChanged()
+    }
+
+    override fun observeString(keyRes: Int, default: String?): Flow<String?> {
+        val key = stringPreferencesKey(context.getString(keyRes))
         return dataStore.data.map { it[key] ?: default }.distinctUntilChanged()
     }
 

@@ -20,9 +20,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.map.MapCommand
 import org.onebusaway.android.map.MapInteractionBus
+import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.region.RegionStatus
 import org.onebusaway.android.ui.home.chrome.homeNavItems
@@ -33,6 +35,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
 
@@ -40,8 +44,8 @@ import kotlinx.coroutines.launch
  * Owns the home screen's chrome/overlay/dialog/nav state as a single [HomeUiState], and drives the
  * weather + GTFS-wide-alert fetches through [viewModelScope] (replacing HomeActivity's
  * WeatherRequestTask and the Handler-based GTFS callback). The visibility gates are computed here
- * from the selected nav item plus the host-supplied [HomeEnvironment]; the activity feeds in the
- * inputs and renders the result via [HomeScreen].
+ * from the selected nav item plus the [HomeEnvironment], which the VM collects reactively from the
+ * preference seam in init{}; the activity renders the result via [HomeScreen].
  *
  * The focused stop is owned here and persisted through [SavedStateHandle] (replacing the activity's
  * `onSaveInstanceState`). The arrivals sheet, drawer-open command, and fragment management remain
@@ -59,6 +63,10 @@ class HomeViewModel @Inject constructor(
     // self-subscribes to [region] for alerts / regionReady / nav items, and drives [refresh]/[choose]
     // for the resolve action (Campaign A: resolution moved into the repository).
     private val regionRepo: RegionRepository,
+    // The reactive preference seam. The VM self-collects the chrome-gate prefs (zoom controls, left-hand
+    // mode, bikeshare layer + the OTP URL feeding bikeshare-enabled) into [HomeEnvironment], replacing the
+    // host's onResume/nav-change pushEnvironment snapshots.
+    private val prefsRepo: PreferencesRepository,
     // The shared Home->Map command bus (sheet padding, recenter, route mode, clear focus). Replaces the
     // old HomeMapController VM-on-VM reference, so this is a plain @HiltViewModel; faked in tests.
     private val bus: MapInteractionBus,
@@ -134,6 +142,32 @@ class HomeViewModel @Inject constructor(
         // replacing the host's onRegionValid push + the regionReady/refreshNavItems in resolvedRegion.
         viewModelScope.launch {
             regionRepo.region.distinctUntilChangedBy { it?.id }.collect(::applyRegion)
+        }
+        // Self-collect the chrome-gate environment from its reactive sources (replacing the host's
+        // pushEnvironment snapshots). All writers go through the DataStore-backed PreferencesRepository,
+        // so a pref change here re-derives the gates without an onResume/nav-change push.
+        viewModelScope.launch {
+            combine(
+                prefsRepo.observeBoolean(R.string.preference_key_show_zoom_controls, false),
+                prefsRepo.observeBoolean(R.string.preference_key_left_hand_mode, false),
+                prefsRepo.observeBoolean(R.string.preference_key_layer_bikeshare_visible, true),
+                regionRepo.region,
+                prefsRepo.observeString(R.string.preference_key_otp_api_url, null),
+            ) { zoomControls, leftHand, bikeVisible, region, otpUrl ->
+                // Reactive re-derivation of Application.isBikeshareEnabled() for this consumer, so the
+                // gate tracks region + the OTP-URL pref instead of reading the Application static. The
+                // same predicate still lives in Application.isBikeshareEnabled(), LayerUtils, and
+                // MapViewModel's resume sync; converging them onto one shared reactive source is the
+                // deferred LayerUtils TODO(D4) — keep these in sync until then.
+                val bikeshareEnabled =
+                    (region != null && region.supportsOtpBikeshare) || !otpUrl.isNullOrEmpty()
+                HomeEnvironment(
+                    bikeshareEnabled = bikeshareEnabled,
+                    bikeshareActive = bikeshareEnabled && bikeVisible,
+                    zoomControlsPref = zoomControls,
+                    leftHandMode = leftHand,
+                )
+            }.distinctUntilChanged().collect(::onEnvironmentRefreshed)
         }
     }
 
@@ -310,8 +344,8 @@ class HomeViewModel @Inject constructor(
         _sheetCommands.tryEmit(command)
     }
 
-    /** The host re-snapshotted preferences / app-global flags (onResume, nav change, layer toggle). */
-    fun onEnvironmentRefreshed(env: HomeEnvironment) {
+    /** Driven by the reactive environment collector in init{} when any chrome-gate input changes. */
+    private fun onEnvironmentRefreshed(env: HomeEnvironment) {
         environment = env
         recompute()
     }

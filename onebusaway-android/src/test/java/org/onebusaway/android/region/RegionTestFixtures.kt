@@ -48,7 +48,7 @@ internal class FakeRegionRepository(initial: ObaRegion? = null) : RegionReposito
 }
 
 /** Minimal [ObaRegion] fixture — only the id matters to the selection logic (compared by id). */
-internal fun region(id: Long): ObaRegion = ObaRegionElement(
+internal fun region(id: Long, supportsOtpBikeshare: Boolean = false): ObaRegion = ObaRegionElement(
         id,            // id
         "Region $id",  // name
         true,          // active
@@ -66,7 +66,7 @@ internal fun region(id: Long): ObaRegion = ObaRegionElement(
         null,          // stopInfoUrl
         null,          // otpBaseUrl
         null,          // otpContactEmail
-        false,         // supportsOtpBikeshare
+        supportsOtpBikeshare, // supportsOtpBikeshare
         false,         // supportsEmbeddedSocial
         null,          // paymentAndroidAppId
         null,          // paymentWarningTitle

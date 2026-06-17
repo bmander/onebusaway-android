@@ -66,7 +66,6 @@ import org.onebusaway.android.ui.home.AccessibilityAnalyticsEffect
 import org.onebusaway.android.ui.home.focusedStopFromExtras
 import org.onebusaway.android.ui.home.help.HelpAction
 import org.onebusaway.android.ui.home.help.HelpViewModel
-import org.onebusaway.android.ui.home.HomeEnvironment
 import org.onebusaway.android.ui.home.HomeCallbacks
 import org.onebusaway.android.ui.home.RegionEvent
 import org.onebusaway.android.ui.home.HomeListViewModels
@@ -90,7 +89,6 @@ import org.onebusaway.android.ui.mylists.confirmClear
 import org.onebusaway.android.ui.mylists.hostListVm
 import org.onebusaway.android.ui.survey.SurveyViewModel
 import org.onebusaway.android.util.ExternalIntents
-import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.ReminderUtils
@@ -232,8 +230,6 @@ class HomeActivity : AppCompatActivity() {
             initMapMode(savedInstanceState)
         }
 
-        pushEnvironment()
-
         TravelBehaviorManager(this, applicationContext).registerTravelBehaviorParticipant()
 
         // The VM owns the startup region-check decision: on the very first launch without permission it
@@ -264,7 +260,6 @@ class HomeActivity : AppCompatActivity() {
         onRecentStopsRoutes = ::onRecentStopsRoutes,
         onListSort = ::onListSortSelected,
         onListClear = ::onListClearSelected,
-        onBikeshareToggled = ::pushEnvironment,
         onHelpAction = ::onHelpAction,
         onShowWelcomeTutorial = {
             ShowcaseViewUtils.showTutorial(
@@ -412,9 +407,10 @@ class HomeActivity : AppCompatActivity() {
 
     /**
      * The host-only effects of a region resolve. The map re-zoom (VM onRegionChanged), nav items (VM
-     * refreshNavItems), the region-found snackbar (HomeUiState.regionFoundName), what's-new (HelpFeature)
-     * and the survey (SurveyFeature) are all self-wired elsewhere; what remains here is analytics plus a
-     * chrome-environment refresh (a region change can flip bikeshare availability).
+     * refreshNavItems), the region-found snackbar (HomeUiState.regionFoundName), what's-new (HelpFeature),
+     * the survey (SurveyFeature), and the chrome environment (the VM's reactive environment collector
+     * re-derives bikeshare availability from the region) are all self-wired elsewhere; what remains here
+     * is analytics.
      */
     private fun onRegionResolved(event: RegionEvent.RegionResolved) {
         // Report an auto-selected region change to analytics (a manual pick passes a null name, so none).
@@ -425,7 +421,6 @@ class HomeActivity : AppCompatActivity() {
                 event.regionName
             )
         }
-        pushEnvironment()
     }
 
     // --- Settings preference-screen host glue (re-homed from the former SettingsActivity) ------------
@@ -486,14 +481,6 @@ class HomeActivity : AppCompatActivity() {
         return resolveMapSeed(primary, persisted)
     }
 
-    override fun onResume() {
-        super.onResume()
-        // Re-snapshot preferences + app-global flags so the ViewModel recomputes the chrome/overlay
-        // visibility gates (zoom controls, left-hand mode, layers FAB, weather). The map's own
-        // resume/pause is handled by MapFeature; the survey/donation/weather modules self-wire theirs.
-        pushEnvironment()
-    }
-
     override fun onPause() {
         ShowcaseViewUtils.hideShowcaseView()
         super.onPause()
@@ -538,9 +525,8 @@ class HomeActivity : AppCompatActivity() {
         }
         if (!reselect) reportNavAnalytics(item)
         // The survey is a Compose overlay in the map Box; a list tab's opaque destination covers it,
-        // so it hides itself off NEARBY with no imperative work here.
-        // Recompute the donation / weather / layers gates for the new selection.
-        pushEnvironment()
+        // so it hides itself off NEARBY with no imperative work here. The donation / weather / layers
+        // gates recompute via the VM (selectNav + the reactive environment collector).
     }
 
     /** Per-item menu analytics, preserving the legacy labels (PAY_FARE intentionally reports none). */
@@ -713,31 +699,6 @@ class HomeActivity : AppCompatActivity() {
                 ReportActivity.start(this)
             }
         }
-    }
-
-    /**
-     * Carries out the region-resolved side effects (was the `ObaRegionsTask.Callback` override): map
-     * re-zoom is done by the caller; this handles What's-New, the nav-drawer redraw, and the
-     * region-found toast. Body preserved verbatim from the legacy callback.
-     */
-    /**
-     * Snapshots the non-reactive environment (preferences + app-global flags) and feeds it to the
-     * ViewModel, which recomputes the gated chrome visibility (zoom controls, left-hand mode, layers
-     * FAB). Called whenever those inputs may have changed: onResume, after a nav selection, after a
-     * region update, and after toggling the bikeshare layer. (The weather + donation feature modules
-     * read their own prefs.)
-     */
-    private fun pushEnvironment() {
-        viewModel.onEnvironmentRefreshed(
-            HomeEnvironment(
-                bikeshareEnabled = Application.isBikeshareEnabled(),
-                bikeshareActive = LayerUtils.isBikeshareLayerVisible(this),
-                zoomControlsPref =
-                    prefsRepository.getBoolean(R.string.preference_key_show_zoom_controls, false),
-                leftHandMode =
-                    prefsRepository.getBoolean(R.string.preference_key_left_hand_mode, false),
-            )
-        )
     }
 
     private fun setupNavigationDrawer() {

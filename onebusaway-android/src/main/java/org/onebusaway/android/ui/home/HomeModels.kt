@@ -94,8 +94,9 @@ internal fun focusedStopFromExtras(
     }
 
 /**
- * The non-reactive environment the host snapshots (preferences + app-global flags) so the ViewModel
- * can compute the gated chrome/overlay visibility without reaching into Android statics itself.
+ * The chrome-gate inputs (preferences + region-derived flags) the ViewModel collects reactively from
+ * the preference seam (see HomeViewModel's init{} combine collector), grouped so [buildState] can
+ * compute the gated chrome/overlay visibility from a single named value.
  */
 data class HomeEnvironment(
     val bikeshareEnabled: Boolean = false,

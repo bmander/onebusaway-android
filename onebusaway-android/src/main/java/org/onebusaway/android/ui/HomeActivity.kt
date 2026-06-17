@@ -183,10 +183,11 @@ class HomeActivity : AppCompatActivity() {
         val homeCallbacks = buildHomeCallbacks()
 
         // Stage any external "open this screen" intent (set before setContent so [DeepLinkEffect]
-        // observes it once the NavHost composes). MapParams.* focus / route-mode launches return
-        // null here and stay on the map path below. Only on a fresh launch (not a config change).
+        // observes it once the NavHost composes) and run its side effects. MapParams.* focus / route-mode
+        // launches stage null here and stay on the map path below. Only on a fresh launch (not a config
+        // change), so a rotation doesn't re-fire reminder deletes / URL applies.
         if (savedInstanceState == null) {
-            pendingDeepLinkRoute.value = routeForIntent(intent)
+            handleIncomingIntent(intent)
         }
 
         setContent {
@@ -270,13 +271,46 @@ class HomeActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    /**
+     * Handles an incoming external intent: runs any domain side effects it implies, then stages the
+     * NavHost route it should open. Both entry points (cold launch in [onCreate], warm re-launch in
+     * [onNewIntent]) funnel through here so the side-effect-then-route sequence stays in one place.
+     */
+    private fun handleIncomingIntent(intent: Intent?) {
+        applyIntentSideEffects(intent)
         pendingDeepLinkRoute.value = routeForIntent(intent)
     }
 
     /**
+     * Runs the domain mutations implied by certain incoming intents, kept out of the pure
+     * [routeForIntent] mapping so it stays a side-effect-free translator: the `add-region` deep link
+     * applies custom API URLs (clearing the region), and the FCM `arrival_and_departure` payload clears
+     * the now-fired reminder.
+     */
+    private fun applyIntentSideEffects(intent: Intent?) {
+        if (intent == null) return
+        val data = intent.data
+        if (data?.scheme == "onebusaway" && data.host == "add-region") {
+            // Validating and applying the URLs is the region domain's job; we just parse them off the URI.
+            regionRepository.applyCustomApiUrls(
+                obaUrl = data.getQueryParameter("oba-url"),
+                otpUrl = data.getQueryParameter("otp-url"),
+            )
+            return
+        }
+        intent.getStringExtra("arrival_and_departure")?.let { arrivalJson ->
+            ReminderUtils.handleArrivalPayload(applicationContext, arrivalJson)
+        }
+    }
+
+    /**
      * Translates an incoming external intent into the NavHost route it should open, or null to leave
-     * the home/map path untouched. Handles the FCM `arrival_and_departure` payload (delete the
-     * reminder, then open arrivals) and the explicit-component screen intents that carry a
+     * the home/map path untouched — a pure mapping with no side effects (the domain mutations some
+     * intents imply run in [applyIntentSideEffects]). Maps the FCM `arrival_and_departure` payload to
+     * the stop's arrivals route, and the explicit-component screen intents that carry a
      * `content://<authority>/<path>/{id}` data URI (read by path segment, since the authority is
      * flavor-specific). MapParams.* focus / route-mode launches have no data URI and return null —
      * they stay map behavior (the map mode/camera seed from the intent extras, via MapViewModel's
@@ -286,24 +320,17 @@ class HomeActivity : AppCompatActivity() {
         if (intent == null) return null
         // In-app / cross-screen launches carry their destination route verbatim (see [navIntent]).
         intent.getStringExtra(EXTRA_NAV_ROUTE)?.let { return it }
-        // The exported `onebusaway://add-region?oba-url=…&otp-url=…` deep link (former SettingsActivity
-        // VIEW filter). Apply the custom API URL(s), clear the current region, and stay on the home/map
-        // path (the legacy handler immediately went Home), so return null after processing.
+        // The exported `onebusaway://add-region` deep link applies custom API URLs as a side effect (see
+        // [applyIntentSideEffects]); for routing it stays on the home/map path (the legacy handler went
+        // Home), so return null.
         val data = intent.data
-        if (data?.scheme == "onebusaway" && data.host == "add-region") {
-            // Validating and applying the URLs is the region domain's job; we just parse them off the URI.
-            regionRepository.applyCustomApiUrls(
-                obaUrl = data.getQueryParameter("oba-url"),
-                otpUrl = data.getQueryParameter("otp-url"),
-            )
-            return null
-        }
+        if (data?.scheme == "onebusaway" && data.host == "add-region") return null
         // System search (HomeActivity is the default_searchable target): open the search destination.
         if (intent.action == Intent.ACTION_SEARCH) {
             return NavRoutes.search(intent.getStringExtra(SearchManager.QUERY).orEmpty())
         }
+        // The FCM arrival payload clears its fired reminder as a side effect; here it just opens arrivals.
         intent.getStringExtra("arrival_and_departure")?.let { arrivalJson ->
-            ReminderUtils.handleArrivalPayload(applicationContext, arrivalJson)
             return ReminderUtils.getStopIdFromPayload(arrivalJson)?.let { NavRoutes.arrivals(it, null) }
         }
         // Trip details carries its args as extras (no data URI) — e.g. the arrivals "show trip" / map

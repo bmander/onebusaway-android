@@ -35,9 +35,12 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.google.firebase.analytics.FirebaseAnalytics
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.onebusaway.android.R
+import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
+import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.report.ui.reportGraph
@@ -165,6 +168,31 @@ internal fun AccessibilityAnalyticsEffect() {
             FirebaseAnalytics.getInstance(context),
             am.isTouchExplorationEnabled,
         )
+    }
+}
+
+/**
+ * Reports the ViewModel's [HomeAnalyticsEvent]s (region auto-selects, nav/help menu selections) to
+ * Firebase + Plausible. The single home-screen home for the formerly scattered imperative `ObaAnalytics`
+ * calls; the decision of *what* to report stays in the VM, dispatch (which needs a `Context`) lives here.
+ */
+@Composable
+internal fun HomeAnalyticsEffect(analyticsEvents: SharedFlow<HomeAnalyticsEvent>) {
+    val context = LocalContext.current
+    LaunchedEffect(analyticsEvents) {
+        analyticsEvents.collect { event ->
+            val firebase = FirebaseAnalytics.getInstance(context)
+            val plausible = Application.get().plausibleInstance
+            when (event) {
+                is HomeAnalyticsEvent.RegionSelected ->
+                    ObaAnalytics.setRegion(plausible, firebase, event.regionName)
+                is HomeAnalyticsEvent.MenuItem ->
+                    ObaAnalytics.reportUiEvent(
+                        firebase, plausible, PlausibleAnalytics.REPORT_MENU_EVENT_URL,
+                        context.getString(event.labelRes), null,
+                    )
+            }
+        }
     }
 }
 

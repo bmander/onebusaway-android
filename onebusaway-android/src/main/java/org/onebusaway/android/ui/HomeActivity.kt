@@ -25,18 +25,10 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.rememberNavController
-import kotlinx.coroutines.launch
-import com.google.firebase.analytics.FirebaseAnalytics
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
-import org.onebusaway.android.io.ObaAnalytics
-import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.location.LocationRepository
@@ -54,11 +46,11 @@ import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.home.donation.DonationViewModel
 import org.onebusaway.android.ui.home.weather.WeatherViewModel
 import org.onebusaway.android.ui.home.AccessibilityAnalyticsEffect
+import org.onebusaway.android.ui.home.HomeAnalyticsEffect
 import org.onebusaway.android.ui.home.focusedStopFromExtras
 import org.onebusaway.android.ui.home.help.HelpAction
 import org.onebusaway.android.ui.home.help.HelpViewModel
 import org.onebusaway.android.ui.home.HomeCallbacks
-import org.onebusaway.android.ui.home.RegionEvent
 import org.onebusaway.android.ui.home.ReportTarget
 import org.onebusaway.android.ui.home.HomeNavItem
 import org.onebusaway.android.ui.home.HomeScreen
@@ -142,6 +134,7 @@ class HomeActivity : AppCompatActivity() {
         setContent {
             val navController = rememberNavController()
             AccessibilityAnalyticsEffect()
+            HomeAnalyticsEffect(viewModel.analyticsEvents)
             DeepLinkEffect(navController, viewModel.deepLinkRoute, viewModel::onDeepLinkRouteConsumed)
             SettingsRehomeEffect(navController)
             HomeNavHost(
@@ -180,8 +173,6 @@ class HomeActivity : AppCompatActivity() {
                 ShowcaseViewUtils.showTutorial(ShowcaseViewUtils.TUTORIAL_WELCOME, this, null, false)
             }
         }
-
-        observeRegionEvents()
     }
 
     /**
@@ -332,40 +323,6 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Subscribes to the [RegionEvent]s the activity handles — currently just [RegionEvent.RegionResolved]
-     * (region analytics). (Sheet commands ride a separate [HomeViewModel.sheetCommands] flow consumed by
-     * [HomeScreen], so this `when` is exhaustive with no discard arm.)
-     */
-    private fun observeRegionEvents() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.regionEvents.collect { event ->
-                    when (event) {
-                        is RegionEvent.RegionResolved -> onRegionResolved(event)
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * The host-only effects of a region resolve. The map re-zoom (VM onRegionChanged), nav items (VM
-     * refreshNavItems), the region-found snackbar (HomeUiState.regionFoundName), what's-new (HelpFeature),
-     * the survey (SurveyFeature), and the chrome environment (the VM's reactive environment collector
-     * re-derives bikeshare availability from the region) are all self-wired elsewhere; what remains here
-     * is analytics.
-     */
-    private fun onRegionResolved(event: RegionEvent.RegionResolved) {
-        // Report an auto-selected region change to analytics (a manual pick passes a null name, so none).
-        if (event.changed && event.regionName != null) {
-            ObaAnalytics.setRegion(
-                Application.get().plausibleInstance,
-                FirebaseAnalytics.getInstance(this),
-                event.regionName
-            )
-        }
-    }
 
     // --- Settings preference-screen host glue (re-homed from the former SettingsActivity) ------------
 
@@ -407,22 +364,12 @@ class HomeActivity : AppCompatActivity() {
             HomeNavItem.OPEN_SOURCE ->
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.open_source_github))))
         }
-        if (!reselect) reportNavAnalytics(item)
+        // Per-item menu analytics (PAY_FARE has no label, so reports none); reported via the VM's
+        // analytics event so the imperative ObaAnalytics call lives in HomeAnalyticsEffect, not here.
+        if (!reselect) item.analyticsLabelRes?.let { viewModel.reportMenuAnalytics(it) }
         // The survey is a Compose overlay in the map Box; a list tab's opaque destination covers it,
         // so it hides itself off NEARBY with no imperative work here. The donation / weather / layers
         // gates recompute via the VM (selectNav + the reactive environment collector).
-    }
-
-    /** Per-item menu analytics, preserving the legacy labels (PAY_FARE intentionally reports none). */
-    private fun reportNavAnalytics(item: HomeNavItem) {
-        val label = item.analyticsLabelRes ?: return
-        ObaAnalytics.reportUiEvent(
-            FirebaseAnalytics.getInstance(this),
-            Application.get().plausibleInstance,
-            PlausibleAnalytics.REPORT_MENU_EVENT_URL,
-            getString(label),
-            null
-        )
     }
 
     private fun showMap() {
@@ -465,14 +412,9 @@ class HomeActivity : AppCompatActivity() {
             HelpAction.AGENCIES -> startActivity(navIntent(this, NavRoutes.AGENCIES))
             HelpAction.TWITTER -> {
                 // The VM derives which URL fits the current region; the host just fires the ACTION_VIEW.
+                // Analytics rides the VM's event so the ObaAnalytics call lives in HomeAnalyticsEffect.
                 ExternalIntents.goToUrl(this, helpViewModel.twitterUrl())
-                ObaAnalytics.reportUiEvent(
-                    FirebaseAnalytics.getInstance(this),
-                    Application.get().plausibleInstance,
-                    PlausibleAnalytics.REPORT_MENU_EVENT_URL,
-                    getString(R.string.analytics_label_twitter),
-                    null
-                )
+                viewModel.reportMenuAnalytics(R.string.analytics_label_twitter)
             }
             HelpAction.CONTACT_US -> goToSendFeedBack()
             // LEGEND / WHATS_NEW open dialogs — handled by HelpFeature against HelpViewModel.

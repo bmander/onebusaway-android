@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.ui.home
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -81,14 +82,13 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    // Two single-consumer command flows: the host (HomeActivity) collects regionEvents, HomeScreen
-    // collects sheetCommands. Kept separate (rather than one multiplexed flow) so each collector's
-    // `when` is exhaustive with no discard-the-rest else.
-    private val _regionEvents = MutableSharedFlow<RegionEvent>(extraBufferCapacity = 4)
-    val regionEvents: SharedFlow<RegionEvent> = _regionEvents.asSharedFlow()
-
     private val _sheetCommands = MutableSharedFlow<SheetCommand>(extraBufferCapacity = 4)
     val sheetCommands: SharedFlow<SheetCommand> = _sheetCommands.asSharedFlow()
+
+    // Telemetry events the host's single HomeAnalyticsEffect reports (region auto-selects, nav/help menu
+    // selections) — so the imperative ObaAnalytics calls live in one Compose effect, not scattered here.
+    private val _analyticsEvents = MutableSharedFlow<HomeAnalyticsEvent>(extraBufferCapacity = 8)
+    val analyticsEvents: SharedFlow<HomeAnalyticsEvent> = _analyticsEvents.asSharedFlow()
 
     // Toolbar list-menu (sort/clear) requests: the active list overlay collects these and acts on its own
     // VM, replacing the host's hold-all-three-VMs + dispatch-by-selectedItem switchboard.
@@ -416,12 +416,14 @@ class HomeViewModel @Inject constructor(
         bus.send(MapCommand.ClearFocus)
     }
 
-    // tryEmit (not a launched emit): the buffer (capacity 4, 0 replay) has room for these low-frequency
-    // one-shot commands, matching the codebase effect-flow idiom (MapViewModel etc.).
-    private fun emit(event: RegionEvent) {
-        _regionEvents.tryEmit(event)
+    /** Report a nav-drawer / help-menu selection to analytics (by its label res); fired by the host's
+     *  single HomeAnalyticsEffect so the imperative ObaAnalytics call doesn't live in the activity. */
+    fun reportMenuAnalytics(@StringRes labelRes: Int) {
+        _analyticsEvents.tryEmit(HomeAnalyticsEvent.MenuItem(labelRes))
     }
 
+    // tryEmit (not a launched emit): the buffer (capacity 4, 0 replay) has room for these low-frequency
+    // one-shot commands, matching the codebase effect-flow idiom (MapViewModel etc.).
     private fun emit(command: SheetCommand) {
         _sheetCommands.tryEmit(command)
     }
@@ -525,14 +527,17 @@ class HomeViewModel @Inject constructor(
      * A region *resolve action* completed. The region-derived *state* (alerts, regionReady, nav items)
      * is driven reactively by the region collector ([applyRegion]), and the map re-zoom by the map's own
      * region collector; this handles only the remaining resolve-action outcomes: announce an
-     * auto-selected region via a snackbar ([name] is non-null only for an auto-select change), and raise
-     * the activity's analytics event.
+     * auto-selected region via a snackbar ([name] is non-null only for an auto-select change), and emit
+     * the region analytics event (consumed by the host's HomeAnalyticsEffect).
      */
     private fun resolvedRegion(changed: Boolean, name: String?) {
         // The map re-zoom is now driven by the map's own region collector (it observes RegionRepository).
         regionFoundName = name
         recompute() // surface regionFoundName for the snackbar
-        emit(RegionEvent.RegionResolved(changed, name))
+        // Report an auto-selected region change to analytics (a manual pick passes a null name -> none).
+        if (changed && name != null) {
+            _analyticsEvents.tryEmit(HomeAnalyticsEvent.RegionSelected(name))
+        }
     }
 
     /** HomeScreen has shown the region-found snackbar; clear it so it isn't re-shown on recomposition. */

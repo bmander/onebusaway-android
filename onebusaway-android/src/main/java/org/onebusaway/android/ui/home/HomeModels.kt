@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.ui.home
 
+import androidx.annotation.StringRes
+
 /**
  * JVM-pure models for the Compose home screen, replacing the int NAVDRAWER_ITEM_* constants and the
  * scattered map/panel state HomeActivity tracked in fields. The selectable items render content
@@ -177,18 +179,16 @@ enum class ArrivalsSheetState { Hidden, Collapsed, Expanded }
 enum class ListMenuRequest { Sort, Clear }
 
 /**
- * One-shot region effects driven from the ViewModel, consumed by the host ([HomeActivity]) off its own
- * [HomeViewModel.regionEvents] flow. (The region-wide GTFS alert is plain state now —
- * [HomeUiState.wideAlert], rendered as a Compose dialog — not a one-shot event.)
+ * A telemetry event the ViewModel emits ([HomeViewModel.analyticsEvents]) for the host's single
+ * [HomeAnalyticsEffect] to report — keeping the imperative `ObaAnalytics` calls out of the activity
+ * (mirroring `AccessibilityAnalyticsEffect`), since dispatch needs a `Context` but the decision doesn't.
  */
-sealed interface RegionEvent {
-    /**
-     * Region resolved (replaces ObaRegionsTask's callback). [changed] is the old
-     * `currentRegionChanged`; [regionName] is non-null only for an auto-selected change (the
-     * activity uses it for analytics — a manual pick passes null, matching the legacy onClick which
-     * logged none).
-     */
-    data class RegionResolved(val changed: Boolean, val regionName: String?) : RegionEvent
+sealed interface HomeAnalyticsEvent {
+    /** An auto-selected region change (a manual pick logs none, matching the legacy behavior). */
+    data class RegionSelected(val regionName: String) : HomeAnalyticsEvent
+
+    /** A nav-drawer / help-menu selection identified by its analytics label string resource. */
+    data class MenuItem(@StringRes val labelRes: Int) : HomeAnalyticsEvent
 }
 
 /**

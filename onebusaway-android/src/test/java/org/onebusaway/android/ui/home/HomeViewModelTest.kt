@@ -382,17 +382,17 @@ class HomeViewModelTest {
     // --- region refresh (events + manual-picker dialog) ---
 
     @Test
-    fun `a changed region emits RegionResolved with the region name`() = runTest {
+    fun `a changed region reports a region-selected analytics event`() = runTest {
         val region = region(1)
         val vm = viewModel(regionStatus = RegionStatus.Changed(region))
-        val events = mutableListOf<RegionEvent>()
-        val job = launch { vm.regionEvents.collect { events.add(it) } }
+        val events = mutableListOf<HomeAnalyticsEvent>()
+        val job = launch { vm.analyticsEvents.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.refreshRegions()
         advanceUntilIdle()
 
-        assertEquals(listOf(RegionEvent.RegionResolved(true, region.name)), events)
+        assertEquals(listOf<HomeAnalyticsEvent>(HomeAnalyticsEvent.RegionSelected(region.name)), events)
         job.cancel()
     }
 
@@ -435,25 +435,25 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `an unchanged region emits RegionResolved without a name`() = runTest {
+    fun `an unchanged region reports no analytics event`() = runTest {
         val vm = viewModel(regionStatus = RegionStatus.Unchanged)
-        val events = mutableListOf<RegionEvent>()
-        val job = launch { vm.regionEvents.collect { events.add(it) } }
+        val events = mutableListOf<HomeAnalyticsEvent>()
+        val job = launch { vm.analyticsEvents.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.refreshRegions()
         advanceUntilIdle()
 
-        assertEquals(listOf(RegionEvent.RegionResolved(false, null)), events)
+        assertTrue(events.isEmpty())
         job.cancel()
     }
 
     @Test
-    fun `needing manual selection raises the chooser dialog and emits no event`() = runTest {
+    fun `needing manual selection raises the chooser dialog and reports no analytics`() = runTest {
         val regions = listOf(region(1), region(2))
         val vm = viewModel(regionStatus = RegionStatus.NeedsManualSelection(regions))
-        val events = mutableListOf<RegionEvent>()
-        val job = launch { vm.regionEvents.collect { events.add(it) } }
+        val events = mutableListOf<HomeAnalyticsEvent>()
+        val job = launch { vm.analyticsEvents.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.refreshRegions()
@@ -469,8 +469,8 @@ class HomeViewModelTest {
         val statuses = listOf(RegionStatus.Skipped, RegionStatus.Fixed(region(1)), RegionStatus.Failed)
         for (status in statuses) {
             val vm = viewModel(regionStatus = status)
-            val events = mutableListOf<RegionEvent>()
-            val job = launch { vm.regionEvents.collect { events.add(it) } }
+            val events = mutableListOf<HomeAnalyticsEvent>()
+            val job = launch { vm.analyticsEvents.collect { events.add(it) } }
             advanceUntilIdle()
 
             vm.refreshRegions()
@@ -482,14 +482,14 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `onRegionChosen selects the region, dismisses the dialog, and signals a change`() = runTest {
+    fun `onRegionChosen selects the region and dismisses the dialog (no analytics)`() = runTest {
         val regions = listOf(region(1), region(2))
         val repo = FakeRegionRepository().apply {
             refreshResult = RegionStatus.NeedsManualSelection(regions)
         }
         val vm = viewModel(regionRepo = repo)
-        val events = mutableListOf<RegionEvent>()
-        val job = launch { vm.regionEvents.collect { events.add(it) } }
+        val events = mutableListOf<HomeAnalyticsEvent>()
+        val job = launch { vm.analyticsEvents.collect { events.add(it) } }
         advanceUntilIdle()
 
         vm.refreshRegions()
@@ -500,8 +500,8 @@ class HomeViewModelTest {
 
         assertEquals(listOf(chosen), repo.chosen)
         assertEquals(HomeDialog.None, vm.uiState.value.dialog)
-        // regionName null: the legacy manual-pick path logged no analytics.
-        assertEquals(listOf<RegionEvent>(RegionEvent.RegionResolved(true, null)), events)
+        // A manual pick passes a null region name, so it reports no analytics (matching legacy).
+        assertTrue(events.isEmpty())
         job.cancel()
     }
 

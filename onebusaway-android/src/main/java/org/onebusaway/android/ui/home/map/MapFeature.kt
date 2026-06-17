@@ -82,9 +82,6 @@ fun MapFeature(
     mapViewModel: MapViewModel,
     homeViewModel: HomeViewModel,
     mapComposed: Boolean,
-    mapSeedLat: Double,
-    mapSeedLon: Double,
-    mapSeedZoom: Float,
     fabBottomInset: Dp,
     modifier: Modifier = Modifier,
 ) {
@@ -237,14 +234,18 @@ fun MapFeature(
 
     // The map itself, gated so the SDK only initializes once NEARBY is first shown (then stays).
     if (mapComposed) {
+        // The cold-launch seed (flash avoidance) comes from the view model, which owns its own
+        // mode/camera persistence. remember()ed so cameraSeed's Bundle alloc doesn't re-run on uiState
+        // churn; a config change recreates this composition, so MapLibre still re-reads the live camera.
+        val seed = remember(mapViewModel) { mapViewModel.cameraSeed }
         ObaMap(
             renderState = mapViewModel.renderState,
             callbacks = callbacks,
             modifier = modifier,
             mapViewModel = mapViewModel,
-            initialLatitude = mapSeedLat,
-            initialLongitude = mapSeedLon,
-            initialZoom = mapSeedZoom,
+            initialLatitude = seed.lat,
+            initialLongitude = seed.lon,
+            initialZoom = seed.zoom,
         )
     }
 

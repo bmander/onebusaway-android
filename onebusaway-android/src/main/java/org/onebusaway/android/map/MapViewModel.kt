@@ -20,6 +20,7 @@ import android.graphics.Color
 import android.location.Location
 import android.os.SystemClock
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -121,6 +122,10 @@ data class RouteHeader(
  */
 @HiltViewModel
 class MapViewModel @Inject constructor(
+    // Persists the map's mode + camera across process death (Hilt-supplied). On a fresh launch it's
+    // pre-seeded with the host Activity's intent extras (the MapParams.* keys), so it subsumes both the
+    // deep-link intent read and the Bundle restore the host used to do.
+    private val savedStateHandle: SavedStateHandle,
     private val stopsRepository: StopsRepository,
     private val routeRepository: RouteMapRepository,
     private val bikeStationsRepository: BikeStationsRepository,
@@ -178,6 +183,11 @@ class MapViewModel @Inject constructor(
 
     fun onCameraIdle(snapshot: CameraSnapshot) {
         _camera.value = snapshot
+        // Persist the live viewport so a process-death restore (and MapLibre, which has no rememberSaveable
+        // backstop) re-seeds here via [cameraSeed]. Same keys as the intent extras, so they interoperate.
+        savedStateHandle[MapParams.CENTER_LAT] = snapshot.center.latitude
+        savedStateHandle[MapParams.CENTER_LON] = snapshot.center.longitude
+        savedStateHandle[MapParams.ZOOM] = snapshot.zoom.toFloat()
         // A region change that arrived before the map was ready deferred its framing to here (the first
         // idle means the adapter is composed + subscribed to cameraCommands, so the command won't be lost).
         if (pendingRegionFrame) {
@@ -271,6 +281,11 @@ class MapViewModel @Inject constructor(
         _progress.value = false
         selectedBikeStationIds = null
         currentMode = mode
+        // Persist the mode so a process-death restore re-enters it (the inverse of the host's old
+        // onSaveInstanceState write). Directions saves as Stop — the home map only restores Stop/Route.
+        val (modeString, persistRouteId) = mapModeToParams(mode)
+        savedStateHandle[MapParams.MODE] = modeString
+        savedStateHandle[MapParams.ROUTE_ID] = persistRouteId
 
         when (mode) {
             is MapMode.Stop -> stopJob = launchStopLoader()
@@ -622,8 +637,17 @@ class MapViewModel @Inject constructor(
 
     private val isRouteMode: Boolean get() = currentMode is MapMode.Route
 
-    /** The current mode, or null before the first [setMode] (used to init mode once after process death). */
+    /** The current mode, or null before the initial [setMode] in init{} has run. */
     val currentMapMode: MapMode? get() = currentMode
+
+    /**
+     * The map's initial camera, read live from [savedStateHandle] each time the adapter (re)composes
+     * (replacing the host's readMapSeed). A getter, not a cached val: on a config change the VM survives
+     * but the MapLibre MapView is recreated and re-reads this, so it must reflect the *current* camera
+     * (kept fresh by [onCameraIdle]) rather than the stale cold-launch seed. The Google adapter restores
+     * its own camera via rememberSaveable and ignores this after the first composition.
+     */
+    val cameraSeed: MapCameraSeed get() = resolveCameraSeed(savedStateHandle)
 
     // ----- "Show route on map" / leave route mode (replaces ShowRoute / ExitRouteMode commands) -----
 
@@ -787,6 +811,21 @@ class MapViewModel @Inject constructor(
     // routeId -> ObaRoute.TYPE_*, maintained alongside cachedRoutes so toStopMarker doesn't rebuild
     // the lookup on every pan.
     private val routeTypeById = HashMap<String, Int>()
+
+    // Seed the initial mode once per VM creation (replacing the host's guarded initMapMode). On a fresh
+    // launch SavedStateHandle carries the intent extras as default-args; on a process-death restore it
+    // carries the values setMode persisted. init runs once (NOT on a config change), so this is exactly
+    // the old `if (currentMapMode == null)` guard. Placed here — after every field setMode touches
+    // (stopAccum/_progress/etc.) is initialized — so the loaders it launches see fully-constructed state.
+    init {
+        setMode(
+            resolveMapMode(
+                mode = savedStateHandle[MapParams.MODE],
+                routeId = savedStateHandle[MapParams.ROUTE_ID],
+                zoomToRoute = savedStateHandle[MapParams.ZOOM_TO_ROUTE] ?: false,
+            )
+        )
+    }
 
     /** Adds routes to the caches that a stop tap reports + the icon route-type lookup. */
     private fun cacheRoutes(routes: Iterable<ObaRoute>) {

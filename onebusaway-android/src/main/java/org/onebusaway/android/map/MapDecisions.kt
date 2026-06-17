@@ -15,11 +15,40 @@
  */
 package org.onebusaway.android.map
 
+import android.os.Bundle
+import androidx.lifecycle.SavedStateHandle
 import org.onebusaway.android.map.render.StopMarker
+import org.onebusaway.android.util.PreferenceUtils
 import java.util.concurrent.TimeUnit
 
 /** The map's initial camera (lat/lon/zoom) before the loaders / region centering take over. */
 data class MapCameraSeed(val lat: Double, val lon: Double, val zoom: Float)
+
+/** The seed-camera default zoom (was HomeActivity.MAP_DEFAULT_ZOOM; NOT [MapParams.DEFAULT_ZOOM] = 18). */
+internal const val SEED_DEFAULT_ZOOM = 16f
+
+/**
+ * Resolves the cold-launch camera seed from the map view model's [SavedStateHandle] (replacing the
+ * former HomeActivity.readMapSeed). The [primary] seed is the SSH center/zoom — the launching intent's
+ * extras as default-args on a fresh launch, the VM's own persisted values on process death, and the
+ * live camera once [MapViewModel.onCameraIdle] has written one — falling back to the [persisted]
+ * last-viewed camera (prefs) when the primary carries no explicit center. See [resolveMapSeed].
+ */
+internal fun resolveCameraSeed(handle: SavedStateHandle): MapCameraSeed {
+    val primary = MapCameraSeed(
+        lat = handle[MapParams.CENTER_LAT] ?: 0.0,
+        lon = handle[MapParams.CENTER_LON] ?: 0.0,
+        zoom = handle[MapParams.ZOOM] ?: SEED_DEFAULT_ZOOM,
+    )
+    val restored = Bundle().also { PreferenceUtils.maybeRestoreMapViewToBundle(it) }
+    val persisted = MapCameraSeed(
+        lat = restored.getDouble(MapParams.CENTER_LAT, 0.0),
+        lon = restored.getDouble(MapParams.CENTER_LON, 0.0),
+        // The persisted zoom defaults to the primary zoom (so an empty persisted view keeps it).
+        zoom = restored.getFloat(MapParams.ZOOM, primary.zoom),
+    )
+    return resolveMapSeed(primary, persisted)
+}
 
 /**
  * Resolves the initial map camera from the launch sources. The [primary] seed (saved instance state,

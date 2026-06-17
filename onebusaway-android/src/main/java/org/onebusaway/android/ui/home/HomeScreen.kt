@@ -144,9 +144,6 @@ fun HomeScreen(
     // first NEARBY selection); the route-mode header and survey are Compose overlays over it.
     homeViewModel: HomeViewModel,
     mapViewModel: MapViewModel,
-    mapSeedLat: Double,
-    mapSeedLon: Double,
-    mapSeedZoom: Float,
     routeHeader: RouteHeader?,
     surveyViewModel: SurveyViewModel,
     donationViewModel: DonationViewModel,
@@ -311,9 +308,6 @@ fun HomeScreen(
                             mapViewModel = mapViewModel,
                             homeViewModel = homeViewModel,
                             mapComposed = state.mapComposed,
-                            mapSeedLat = mapSeedLat,
-                            mapSeedLon = mapSeedLon,
-                            mapSeedZoom = mapSeedZoom,
                             fabBottomInset = fabInsetTarget,
                             modifier = Modifier.fillMaxSize(),
                         )

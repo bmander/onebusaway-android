@@ -39,7 +39,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.onebusaway.android.R
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.map.MapCameraSeed
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.report.ui.reportGraph
 import org.onebusaway.android.ui.HomeActivity
@@ -79,7 +78,6 @@ class HomeDestinationDeps(
     val listVms: HomeListViewModels,
     val arrivalsViewModelFactory: ArrivalsViewModel.Factory,
     val callbacks: HomeCallbacks,
-    val mapSeed: MapCameraSeed,
 )
 
 /**
@@ -103,9 +101,6 @@ fun HomeNavHost(
                 sheetCommands = home.homeViewModel.sheetCommands,
                 homeViewModel = home.homeViewModel,
                 mapViewModel = home.mapViewModel,
-                mapSeedLat = home.mapSeed.lat,
-                mapSeedLon = home.mapSeed.lon,
-                mapSeedZoom = home.mapSeed.zoom,
                 routeHeader = routeHeader,
                 surveyViewModel = home.surveyViewModel,
                 donationViewModel = home.donationViewModel,

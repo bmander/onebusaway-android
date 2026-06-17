@@ -43,12 +43,8 @@ import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.location.LocationRepository
-import org.onebusaway.android.map.MapCameraSeed
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
-import org.onebusaway.android.map.mapModeToParams
-import org.onebusaway.android.map.resolveMapMode
-import org.onebusaway.android.map.resolveMapSeed
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
@@ -120,8 +116,8 @@ class HomeActivity : AppCompatActivity() {
     private val viewModel: HomeViewModel by viewModels()
 
     // The map view model — the single source of truth for the map. MapFeature (in HomeScreen) renders it
-    // and self-wires the callbacks/collectors/effects/lifecycle; the activity only obtains it here (Hilt-
-    // injected, shared with HomeViewModel) and reads its mode/camera in onSaveInstanceState + sets the mode/seed.
+    // and self-wires the callbacks/collectors/effects/lifecycle; it now also owns its own mode + camera
+    // persistence via SavedStateHandle, so the activity no longer marshals them through the Bundle.
     private val mapViewModel: MapViewModel by viewModels()
 
     // The map survey (Compose), shown over the map on NEARBY. Activity-scoped.
@@ -184,10 +180,6 @@ class HomeActivity : AppCompatActivity() {
         // is the scaffold's bottom sheet, rendered per focused stop by ArrivalsSheetHost. The map, the
         // route-mode header, and the survey are all Compose now — no map-related View seam remains.
 
-        // The map is driven by mapViewModel; the seed (saved state → intent → last-saved view) just
-        // avoids an initial flash before the loaders/region center it.
-        val mapSeed = readMapSeed(savedInstanceState)
-
         val homeCallbacks = buildHomeCallbacks()
 
         // Stage any external "open this screen" intent (set before setContent so [DeepLinkEffect]
@@ -214,7 +206,6 @@ class HomeActivity : AppCompatActivity() {
                     listVms = listVms,
                     arrivalsViewModelFactory = arrivalsViewModelFactory,
                     callbacks = homeCallbacks,
-                    mapSeed = mapSeed,
                 ),
             )
             PaymentWarningDialog(paymentWarningRegion)
@@ -223,12 +214,6 @@ class HomeActivity : AppCompatActivity() {
         setupNavigationDrawer()
 
         setupMapState()
-
-        // Initialize the map mode from the intent (route deep link vs nearby stops), unless the view
-        // model already has a mode (it survives a configuration change).
-        if (mapViewModel.currentMapMode == null) {
-            initMapMode(savedInstanceState)
-        }
 
         TravelBehaviorManager(this, applicationContext).registerTravelBehaviorParticipant()
 
@@ -294,7 +279,8 @@ class HomeActivity : AppCompatActivity() {
      * reminder, then open arrivals) and the explicit-component screen intents that carry a
      * `content://<authority>/<path>/{id}` data URI (read by path segment, since the authority is
      * flavor-specific). MapParams.* focus / route-mode launches have no data URI and return null —
-     * they stay map behavior (initMapMode / setupMapState).
+     * they stay map behavior (the map mode/camera seed from the intent extras, via MapViewModel's
+     * SavedStateHandle; the focused stop via setupMapState).
      */
     private fun routeForIntent(intent: Intent?): String? {
         if (intent == null) return null
@@ -447,58 +433,9 @@ class HomeActivity : AppCompatActivity() {
         viewModel.onExperimentalRegionsToggled()
     }
 
-    /** Sets the initial map mode from the launch sources (route deep link, else nearby stops). */
-    private fun initMapMode(savedInstanceState: Bundle?) {
-        val src = savedInstanceState ?: intent.extras
-        mapViewModel.setMode(
-            resolveMapMode(
-                mode = src?.getString(MapParams.MODE),
-                routeId = src?.getString(MapParams.ROUTE_ID),
-                zoomToRoute = src?.getBoolean(MapParams.ZOOM_TO_ROUTE, false) ?: false,
-            )
-        )
-    }
-
-    /**
-     * Reads the initial map camera candidates from the launch sources — the primary seed (saved state,
-     * else the intent) and the persisted last view — and hands them to the pure [resolveMapSeed] for the
-     * precedence decision (so the map opens where you left it). Replaces ObaMapHost.resolveInitialCamera.
-     */
-    private fun readMapSeed(savedInstanceState: Bundle?): MapCameraSeed {
-        val src = savedInstanceState ?: intent.extras
-        val primary = MapCameraSeed(
-            lat = src?.getDouble(MapParams.CENTER_LAT, 0.0) ?: 0.0,
-            lon = src?.getDouble(MapParams.CENTER_LON, 0.0) ?: 0.0,
-            zoom = src?.getFloat(MapParams.ZOOM, MAP_DEFAULT_ZOOM) ?: MAP_DEFAULT_ZOOM,
-        )
-        val restored = Bundle().also { PreferenceUtils.maybeRestoreMapViewToBundle(it) }
-        val persisted = MapCameraSeed(
-            lat = restored.getDouble(MapParams.CENTER_LAT, 0.0),
-            lon = restored.getDouble(MapParams.CENTER_LON, 0.0),
-            // The persisted zoom defaults to the primary zoom (so an empty persisted view keeps it).
-            zoom = restored.getFloat(MapParams.ZOOM, primary.zoom),
-        )
-        return resolveMapSeed(primary, persisted)
-    }
-
     override fun onPause() {
         ShowcaseViewUtils.hideShowcaseView()
         super.onPause()
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        // Persist the map's mode + camera so a process-death restore re-enters the same mode/viewport
-        // (the focused stop is persisted by HomeViewModel's SavedStateHandle). Config changes survive
-        // in the view model itself; these feed initMapMode()/readMapSeed() on recreation.
-        val (modeString, routeId) = mapModeToParams(mapViewModel.currentMapMode)
-        outState.putString(MapParams.MODE, modeString)
-        routeId?.let { outState.putString(MapParams.ROUTE_ID, it) }
-        mapViewModel.camera.value?.let {
-            outState.putDouble(MapParams.CENTER_LAT, it.center.latitude)
-            outState.putDouble(MapParams.CENTER_LON, it.center.longitude)
-            outState.putFloat(MapParams.ZOOM, it.zoom.toFloat())
-        }
     }
 
     private fun goToNavDrawerItem(item: HomeNavItem, reselect: Boolean) {
@@ -771,9 +708,6 @@ class HomeActivity : AppCompatActivity() {
         @JvmStatic
         fun navIntent(context: Context, route: String): Intent =
             Intent(context, HomeActivity::class.java).putExtra(EXTRA_NAV_ROUTE, route)
-
-        // The seed-camera default zoom (matches the former ObaMapHost.CAMERA_DEFAULT_ZOOM).
-        private const val MAP_DEFAULT_ZOOM = 16f
 
         // The remembered nav tab, keyed by HomeNavItem.name. STATE_SELECTED_POSITION is the legacy
         // int key (NavigationDrawerFragment's), read once as a migration fallback for old installs.

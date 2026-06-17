@@ -30,13 +30,13 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.io.elements.ObaStopElement
 import org.onebusaway.android.map.MapCommand
 import org.onebusaway.android.map.MapInteractionBus
 import org.onebusaway.android.location.FakeLocationRepository
@@ -76,6 +76,7 @@ private class FakeMapInteractionBus : MapInteractionBus {
     val recenters get() = sent.filterIsInstance<MapCommand.RecenterOnFocusedStop>().map { it.lat to it.lon }
     val routesShown get() = sent.filterIsInstance<MapCommand.ShowRoute>().map { it.routeId }
     val clearFocusCount get() = sent.count { it is MapCommand.ClearFocus }
+    val focusStops get() = sent.filterIsInstance<MapCommand.FocusStop>()
 
     private val _bottomPadding = MutableStateFlow(0)
     override val bottomPadding: StateFlow<Int> = _bottomPadding.asStateFlow()
@@ -110,6 +111,10 @@ class HomeViewModelTest {
         savedState, FakeWideAlertsRepository(alerts), startupRepo, navItemsRepo, regionRepo, prefsRepo,
         bus, locationRepo
     )
+
+    // The raw stop payload onArrivalsLoaded forwards to the map; its identity is irrelevant to the
+    // pending-focus gate, so one shared fixture suffices.
+    private val obaStop = ObaStopElement("1", 47.6, -122.3, "Main St", "100")
 
     // --- map loading + peek inputs ---
 
@@ -225,11 +230,13 @@ class HomeViewModelTest {
 
     @Test
     fun `applyInitialFocus adopts an intent stop and marks it pending`() = runTest {
-        val vm = viewModel()
+        val bus = FakeMapInteractionBus()
+        val vm = viewModel(bus = bus)
         val stop = FocusedStop("1", "Main St", "100", 47.6, -122.3)
         vm.applyInitialFocus(stop)
         assertEquals(stop, vm.uiState.value.focusedStop)
-        assertNotNull(vm.onArrivalsLoaded()) // pending was marked
+        vm.onArrivalsLoaded(obaStop, null)
+        assertEquals(1, bus.focusStops.size) // pending was marked -> focus dispatched to the map
     }
 
     @Test
@@ -237,46 +244,58 @@ class HomeViewModelTest {
         val handle = SavedStateHandle()
         val restored = FocusedStop("42", "Pike St", "577", 47.61, -122.34)
         viewModel(savedState = handle).onStopFocused(restored)
-        val vm = viewModel(savedState = handle) // recreation: focus restored from the handle
+        val bus = FakeMapInteractionBus()
+        val vm = viewModel(savedState = handle, bus = bus) // recreation: focus restored from the handle
         vm.applyInitialFocus(null) // intent carries no stop
         assertEquals(restored, vm.uiState.value.focusedStop) // unchanged
-        assertNotNull(vm.onArrivalsLoaded()) // pending was marked
+        vm.onArrivalsLoaded(obaStop, null)
+        assertEquals(1, bus.focusStops.size) // pending was marked
     }
 
     @Test
     fun `applyInitialFocus with no restored or intent focus does nothing`() = runTest {
-        val vm = viewModel()
+        val bus = FakeMapInteractionBus()
+        val vm = viewModel(bus = bus)
         vm.applyInitialFocus(null)
         assertNull(vm.uiState.value.focusedStop)
-        assertNull(vm.onArrivalsLoaded()) // not pending
+        vm.onArrivalsLoaded(obaStop, null)
+        assertEquals(0, bus.focusStops.size) // not pending -> nothing dispatched
     }
 
     // --- pending map focus / route mode / clear focus ---
 
     @Test
-    fun `a pending focus is reported once on arrivals load`() = runTest {
-        val vm = viewModel()
+    fun `a pending focus is dispatched once on arrivals load`() = runTest {
+        val bus = FakeMapInteractionBus()
+        val vm = viewModel(bus = bus)
         vm.markPendingMapFocus()
-        // Pending -> returns the overlay-expanded decision (false: sheet not expanded); latch then clears.
-        assertEquals(false, vm.onArrivalsLoaded())
-        assertNull(vm.onArrivalsLoaded())          // latch cleared -> no longer pending
+        // Pending -> dispatch FocusStop (sheet not expanded -> overlayExpanded false); latch then clears.
+        vm.onArrivalsLoaded(obaStop, null)
+        assertEquals(1, bus.focusStops.size)
+        assertEquals(false, bus.focusStops.single().overlayExpanded)
+        vm.onArrivalsLoaded(obaStop, null)         // latch cleared -> no further dispatch
+        assertEquals(1, bus.focusStops.size)
     }
 
     @Test
-    fun `arrivals load with no pending focus returns null`() = runTest {
-        val vm = viewModel()
-        assertNull(vm.onArrivalsLoaded())
+    fun `arrivals load with no pending focus dispatches nothing`() = runTest {
+        val bus = FakeMapInteractionBus()
+        val vm = viewModel(bus = bus)
+        vm.onArrivalsLoaded(obaStop, null)
+        assertEquals(0, bus.focusStops.size)
     }
 
     @Test
-    fun `a pending focus reports overlay-expanded when the sheet is expanded`() = runTest {
-        val vm = viewModel()
+    fun `a pending focus dispatches overlay-expanded when the sheet is expanded`() = runTest {
+        val bus = FakeMapInteractionBus()
+        val vm = viewModel(bus = bus)
         vm.onStopFocused(FocusedStop("1", "Main St", "100", 47.6, -122.3))
         vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // reveal, skipped
         vm.onSheetSettled(ArrivalsSheetState.Expanded, 120)
 
         vm.markPendingMapFocus()
-        assertEquals(true, vm.onArrivalsLoaded())
+        vm.onArrivalsLoaded(obaStop, null)
+        assertEquals(true, bus.focusStops.single().overlayExpanded)
     }
 
     @Test

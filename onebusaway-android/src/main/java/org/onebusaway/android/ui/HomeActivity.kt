@@ -551,15 +551,13 @@ class HomeActivity : AppCompatActivity() {
 
     /**
      * Called (from ArrivalsSheetHost's responses collector) when the panel has new arrival info. The
-     * HomeViewModel owns the pending-focus latch + the overlay-expanded decision; when it reports a
-     * pending focus we call [MapViewModel.focusStop] with the response's raw io/elements stop + routes,
-     * which recenters the map + render-focuses the stop.
+     * focus decision + map dispatch live in [HomeViewModel.onArrivalsLoaded] (it owns the pending-focus
+     * latch and reaches the map through the MapInteractionBus), so the host no longer relays between the
+     * two view models — it just forwards the loaded stop and triggers the tutorials.
      */
     private fun onArrivalsLoaded(response: ObaArrivalInfoResponse) {
         val stop = response.stop ?: return
-        viewModel.onArrivalsLoaded()?.let { overlayExpanded ->
-            mapViewModel.focusStop(stop, response.routes, overlayExpanded)
-        }
+        viewModel.onArrivalsLoaded(stop, response.routes)
         // Show arrival info related tutorials
         showArrivalInfoTutorials(response)
     }

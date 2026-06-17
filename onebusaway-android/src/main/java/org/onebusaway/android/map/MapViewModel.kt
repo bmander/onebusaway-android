@@ -168,6 +168,8 @@ class MapViewModel @Inject constructor(
                         recenterOnFocusedStop(command.lat, command.lon)
                     is MapCommand.ShowRoute -> showRoute(command.routeId)
                     MapCommand.ClearFocus -> clearFocus()
+                    is MapCommand.FocusStop ->
+                        focusStop(command.stop, command.routes, command.overlayExpanded)
                 }
             }
         }
@@ -602,8 +604,8 @@ class MapViewModel @Inject constructor(
     }
 
     /**
-     * Programmatic focus for a restored/deep-linked stop once its arrivals load (the old
-     * MapCommand.FocusStop): ensure the stop is on the map + render-focused, and center on it
+     * Programmatic focus for a restored/deep-linked stop once its arrivals load (driven by
+     * [MapCommand.FocusStop]): ensure the stop is on the map + render-focused, and center on it
      * (route-header bias only in route mode when the sheet settled expanded).
      */
     fun focusStop(stop: ObaStop, routes: List<ObaRoute>?, overlayExpanded: Boolean) {

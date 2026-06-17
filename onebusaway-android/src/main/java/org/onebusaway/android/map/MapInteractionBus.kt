@@ -27,6 +27,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.onebusaway.android.io.elements.ObaRoute
+import org.onebusaway.android.io.elements.ObaStop
 
 /**
  * The Home↔Map coordination seam — the reactive replacement for `HomeViewModel` holding a
@@ -63,6 +65,17 @@ sealed interface MapCommand {
 
     /** Clear the map's render focus (back-press from a peeking arrivals sheet). */
     object ClearFocus : MapCommand
+
+    /**
+     * Focus a restored / deep-linked stop once its arrivals load: ensure it's on the map, render-focus
+     * it, and recenter (route-header bias only when [overlayExpanded] in route mode). A fresh map tap
+     * already centers the stop, so it doesn't issue this.
+     */
+    data class FocusStop(
+        val stop: ObaStop,
+        val routes: List<ObaRoute>?,
+        val overlayExpanded: Boolean,
+    ) : MapCommand
 }
 
 /**

@@ -22,6 +22,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.io.elements.ObaRoute
+import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.map.MapCommand
 import org.onebusaway.android.map.MapInteractionBus
@@ -353,16 +355,17 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * Arrivals loaded for the focused stop. If a restore/deep-link focus is pending, consume the latch
-     * and return the overlay-expanded flag (true iff the sheet settled expanded) so the activity can
-     * call MapViewModel.focusStop with the io/elements payload it holds; null if not pending.
+     * Arrivals loaded for the focused [stop]. If a restore/deep-link focus is pending, consume the latch
+     * and tell the map to focus it (recenter + add the marker) via the [MapInteractionBus] — so the map
+     * reacts to a command rather than the activity relaying one VM's decision into another's method. A
+     * fresh map tap already centered the stop and set no pending focus, so this is then a no-op.
      */
-    fun onArrivalsLoaded(): Boolean? {
+    fun onArrivalsLoaded(stop: ObaStop, routes: List<ObaRoute>?) {
         if (!pendingMapFocus) {
-            return null
+            return
         }
         pendingMapFocus = false
-        return settledSheet == ArrivalsSheetState.Expanded
+        bus.send(MapCommand.FocusStop(stop, routes, settledSheet == ArrivalsSheetState.Expanded))
     }
 
     /** "Show vehicles on map" — collapse the sheet (screen), then switch the map to route mode. */

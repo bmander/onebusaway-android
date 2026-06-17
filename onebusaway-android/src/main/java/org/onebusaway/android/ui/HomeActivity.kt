@@ -51,7 +51,6 @@ import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.arrivals.ArrivalsIntents
 import org.onebusaway.android.ui.nav.NavHelp
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
-import org.onebusaway.android.ui.home.ArrivalsSheetState
 import org.onebusaway.android.ui.home.donation.DonationViewModel
 import org.onebusaway.android.ui.home.weather.WeatherViewModel
 import org.onebusaway.android.ui.home.AccessibilityAnalyticsEffect
@@ -491,30 +490,18 @@ class HomeActivity : AppCompatActivity() {
         val stop = response.stop ?: return
         viewModel.onArrivalsLoaded(stop, response.routes)
         // Show arrival info related tutorials
-        showArrivalInfoTutorials(response)
+        showArrivalInfoTutorials()
     }
 
     /**
-     * Triggers the various tutorials related to arrival info and the sliding panel header
+     * Shows the recent-stops/routes tutorial over the loaded arrival info. The *decision* (the map is up
+     * and the sheet is visible) lives in [HomeViewModel.shouldShowArrivalTutorial]; what stays here is the
+     * imperative ShowcaseView seam — the already-showing guard and the View-overlay show. (The legacy
+     * arrival-header tutorials anchored to the old header's Views, gone with the Compose panel.)
      */
-    private fun showArrivalInfoTutorials(response: ObaArrivalInfoResponse) {
-        // If we're already showing a ShowcaseView, we don't want to stack another on top
-        if (ShowcaseViewUtils.isShowcaseViewShowing()) {
-            return
-        }
-
-        // If we can't see the map or arrivals sheet, we can't see the arrival info, so return. The map
-        // is composed (and stays so — lists overlay it) once NEARBY is first selected, so mapComposed
-        // == "map shown".
-        if (!viewModel.uiState.value.mapComposed ||
-            viewModel.lastSettledSheet == ArrivalsSheetState.Hidden
-        ) {
-            return
-        }
-
-        // The arrival-header tutorials (arrival info / sliding panel / star route) anchored to the
-        // legacy header's Views, which the Compose panel no longer exposes, so they've been retired.
-        // The general "recent stops/routes" tutorial still applies.
+    private fun showArrivalInfoTutorials() {
+        if (ShowcaseViewUtils.isShowcaseViewShowing()) return
+        if (!viewModel.shouldShowArrivalTutorial()) return
         ShowcaseViewUtils.showTutorial(
             ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES, this, null, false
         )

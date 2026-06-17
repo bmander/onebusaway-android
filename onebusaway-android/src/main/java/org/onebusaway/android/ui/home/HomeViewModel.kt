@@ -390,6 +390,14 @@ class HomeViewModel @Inject constructor(
         bus.send(MapCommand.FocusStop(stop, routes, settledSheet == ArrivalsSheetState.Expanded))
     }
 
+    /**
+     * Whether the arrival-info tutorial may show now: the map is composed (so the arrival info is
+     * actually on screen) and the arrivals sheet isn't hidden. The "a ShowcaseView is already up" guard
+     * stays with the host — that's imperative View-overlay state, not VM state.
+     */
+    fun shouldShowArrivalTutorial(): Boolean =
+        mapComposed && settledSheet != ArrivalsSheetState.Hidden
+
     /** "Show vehicles on map" — collapse the sheet (screen), then switch the map to route mode. */
     fun requestShowRouteOnMap(routeId: String) {
         emit(SheetCommand.CollapseSheet)

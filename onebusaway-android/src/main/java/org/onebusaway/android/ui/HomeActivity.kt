@@ -199,6 +199,7 @@ class HomeActivity : AppCompatActivity() {
     fun showRouteOnMap(routeId: String) {
         onHomeNavItemSelected(HomeNavItem.NEARBY)
         mapViewModel.showRoute(routeId)
+        revealMap()
     }
 
     /**
@@ -211,7 +212,17 @@ class HomeActivity : AppCompatActivity() {
         onHomeNavItemSelected(HomeNavItem.NEARBY)
         viewModel.onStopFocused(FocusedStop(stopId, null, null, lat, lon))
         viewModel.markPendingMapFocus()
+        revealMap()
     }
+
+    /**
+     * Pops the NavHost back to HOME so the map is actually on screen. The "show on map" actions fire from
+     * pushed destinations (trip details, route info, the My* lists, search, full-screen arrivals); without
+     * this the map enters route/focus mode underneath but stays hidden behind that screen. Routes to HOME
+     * through the same staged-deep-link path (which pops up to HOME), so it's a no-op when HOME is already
+     * current. Restores the reveal the old `HomeActivity.start(MapParams…)` intent round-trip provided.
+     */
+    private fun revealMap() = viewModel.stageDeepLinkRoute(NavRoutes.HOME)
 
     /**
      * Navigate the NavHost to an in-app [route] (a [NavRoutes] string) — the single-Activity replacement

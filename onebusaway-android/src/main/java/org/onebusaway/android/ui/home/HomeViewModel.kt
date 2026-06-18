@@ -107,6 +107,12 @@ class HomeViewModel @Inject constructor(
     private val _deepLinkRoute = MutableStateFlow<String?>(null)
     val deepLinkRoute: StateFlow<String?> = _deepLinkRoute.asStateFlow()
 
+    // One-shot welcome-tutorial request, staged from onCreate (the TUTORIAL_WELCOME launch extra) for the
+    // host's WelcomeTutorialEffect to show once composed; mirrors [deepLinkRoute]. The ShowcaseView show
+    // needs an Activity, so it stays a host callback — only the trigger lives here.
+    private val _showWelcomeTutorial = MutableStateFlow(false)
+    val showWelcomeTutorial: StateFlow<Boolean> = _showWelcomeTutorial.asStateFlow()
+
     // Raw inputs the gated [HomeUiState] is derived from.
     private var navItems: List<HomeNavItem> = emptyList()
     // Restored from SavedStateHandle so the tab survives process death (config change survives via the
@@ -302,6 +308,16 @@ class HomeViewModel @Inject constructor(
     /** DeepLinkEffect navigated to the staged route; clear the latch so it isn't re-navigated. */
     fun onDeepLinkRouteConsumed() {
         _deepLinkRoute.value = null
+    }
+
+    /** Stage the welcome tutorial for the host to show once composed (the launching intent requested it). */
+    fun requestWelcomeTutorial() {
+        _showWelcomeTutorial.value = true
+    }
+
+    /** WelcomeTutorialEffect showed the welcome tutorial; clear the latch so it isn't re-shown. */
+    fun onWelcomeTutorialConsumed() {
+        _showWelcomeTutorial.value = false
     }
 
     fun onBikeStationFocused(id: String?) {

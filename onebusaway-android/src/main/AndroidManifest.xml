@@ -80,8 +80,8 @@
                 <action android:name="android.intent.action.SEARCH" />
             </intent-filter>
             <!-- Campaign C: the `onebusaway://add-region` deep link (former SettingsActivity VIEW
-                 filter). HomeActivity's translator (routeForIntent) reads the oba-url/otp-url query
-                 params, applies the custom API URL(s), and stays on the home/map path. -->
+                 filter). HomeActivity.applyIntentSideEffects reads the oba-url/otp-url query params,
+                 applies the custom API URL(s), and stays on the home/map path (IntentRouteMapper). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 

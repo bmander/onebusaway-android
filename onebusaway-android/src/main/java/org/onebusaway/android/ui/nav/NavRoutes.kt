@@ -33,6 +33,13 @@ object NavRoutes {
     /** The map-centric home screen — the NavHost start destination. */
     const val HOME = "home"
 
+    /**
+     * Intent-extra key carrying an explicit in-app route for cross-screen launches; the entry-boundary
+     * translator ([org.onebusaway.android.ui.nav.IntentRouteMapper]) reads it (see `HomeActivity.navIntent`).
+     * The value is a frozen launch contract — relocated here from `HomeActivity` but kept verbatim.
+     */
+    const val EXTRA_NAV_ROUTE = "org.onebusaway.android.ui.HomeActivity.NAV_ROUTE"
+
     // --- Argless content screens (former thin host Activities) ---
     /** Transit agencies supported in the current region. */
     const val AGENCIES = "agencies"

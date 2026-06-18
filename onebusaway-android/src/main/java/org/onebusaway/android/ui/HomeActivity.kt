@@ -17,7 +17,6 @@
  */
 package org.onebusaway.android.ui
 
-import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -35,12 +34,10 @@ import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.preferences.PreferencesRepository
-import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.report.ui.ReportActivity
 import org.onebusaway.android.report.ui.ReportDestination
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
-import org.onebusaway.android.ui.arrivals.ArrivalsIntents
 import org.onebusaway.android.ui.nav.NavHelp
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.home.donation.DonationViewModel
@@ -58,10 +55,11 @@ import org.onebusaway.android.ui.home.HomeViewModel
 import org.onebusaway.android.ui.home.HomeNavHost
 import org.onebusaway.android.ui.home.HomeDestinationDeps
 import org.onebusaway.android.ui.home.DeepLinkEffect
+import org.onebusaway.android.ui.home.WelcomeTutorialEffect
 import org.onebusaway.android.ui.home.SettingsRehomeEffect
 import org.onebusaway.android.ui.home.PaymentWarningDialog
 import org.onebusaway.android.ui.home.chrome.analyticsLabelRes
-import org.onebusaway.android.ui.mylists.MyTabs
+import org.onebusaway.android.ui.nav.IntentRouteMapper
 import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.survey.SurveyViewModel
 import org.onebusaway.android.util.ExternalIntents
@@ -136,6 +134,11 @@ class HomeActivity : AppCompatActivity() {
             AccessibilityAnalyticsEffect()
             HomeAnalyticsEffect(viewModel.analyticsEvents)
             DeepLinkEffect(navController, viewModel.deepLinkRoute, viewModel::onDeepLinkRouteConsumed)
+            WelcomeTutorialEffect(
+                viewModel.showWelcomeTutorial,
+                onShow = homeCallbacks.onShowWelcomeTutorial,
+                onConsumed = viewModel::onWelcomeTutorialConsumed,
+            )
             SettingsRehomeEffect(navController)
             HomeNavHost(
                 navController = navController,
@@ -165,14 +168,6 @@ class HomeActivity : AppCompatActivity() {
         viewModel.onHomeStarted(
             PermissionUtils.hasGrantedAtLeastOnePermission(this, PermissionUtils.LOCATION_PERMISSIONS)
         )
-
-        // Check to see if we should show the welcome tutorial
-        val b = intent.extras
-        if (b != null) {
-            if (b.getBoolean(ShowcaseViewUtils.TUTORIAL_WELCOME)) {
-                ShowcaseViewUtils.showTutorial(ShowcaseViewUtils.TUTORIAL_WELCOME, this, null, false)
-            }
-        }
     }
 
     /**
@@ -219,19 +214,28 @@ class HomeActivity : AppCompatActivity() {
      */
     private fun handleIncomingIntent(intent: Intent?) {
         applyIntentSideEffects(intent)
-        viewModel.stageDeepLinkRoute(routeForIntent(intent))
+        viewModel.stageDeepLinkRoute(IntentRouteMapper.routeForIntent(intent))
+        // "Show tutorials again" (help menu / settings) re-launches us with this extra to (re-)show the
+        // welcome tutorial. HomeActivity is singleTop, so when it's already on top that re-launch arrives
+        // via onNewIntent, not a fresh onCreate — staging here in the shared funnel (rather than only in
+        // onCreate) makes both the cold first-run and the warm re-launch honor it. [WelcomeTutorialEffect]
+        // shows it once the host composes; the ShowcaseView show stays the onShowWelcomeTutorial callback.
+        if (intent?.extras?.getBoolean(ShowcaseViewUtils.TUTORIAL_WELCOME) == true) {
+            viewModel.requestWelcomeTutorial()
+        }
     }
 
     /**
-     * Runs the domain mutations implied by certain incoming intents, kept out of the pure
-     * [routeForIntent] mapping so it stays a side-effect-free translator: the `add-region` deep link
-     * applies custom API URLs (clearing the region), and the FCM `arrival_and_departure` payload clears
-     * the now-fired reminder.
+     * Runs the domain mutations implied by certain incoming intents, kept out of [IntentRouteMapper]'s
+     * pure route mapping so that stays a side-effect-free translator: the `add-region` deep link applies
+     * custom API URLs (clearing the region), and the FCM payload clears the now-fired reminder.
      */
     private fun applyIntentSideEffects(intent: Intent?) {
         if (intent == null) return
         val data = intent.data
-        if (data?.scheme == "onebusaway" && data.host == "add-region") {
+        if (data?.scheme == IntentRouteMapper.ADD_REGION_SCHEME &&
+            data.host == IntentRouteMapper.ADD_REGION_HOST
+        ) {
             // Validating and applying the URLs is the region domain's job; we just parse them off the URI.
             regionRepository.applyCustomApiUrls(
                 obaUrl = data.getQueryParameter("oba-url"),
@@ -239,87 +243,8 @@ class HomeActivity : AppCompatActivity() {
             )
             return
         }
-        intent.getStringExtra("arrival_and_departure")?.let { arrivalJson ->
+        intent.getStringExtra(ReminderUtils.ARRIVAL_PAYLOAD_KEY)?.let { arrivalJson ->
             ReminderUtils.handleArrivalPayload(applicationContext, arrivalJson)
-        }
-    }
-
-    /**
-     * Translates an incoming external intent into the NavHost route it should open, or null to leave
-     * the home/map path untouched — a pure mapping with no side effects (the domain mutations some
-     * intents imply run in [applyIntentSideEffects]). Maps the FCM `arrival_and_departure` payload to
-     * the stop's arrivals route, and the explicit-component screen intents that carry a
-     * `content://<authority>/<path>/{id}` data URI (read by path segment, since the authority is
-     * flavor-specific). MapParams.* focus / route-mode launches have no data URI and return null —
-     * they stay map behavior (the map mode/camera seed from the intent extras, via MapViewModel's
-     * SavedStateHandle; the focused stop via setupMapState).
-     */
-    private fun routeForIntent(intent: Intent?): String? {
-        if (intent == null) return null
-        // In-app / cross-screen launches carry their destination route verbatim (see [navIntent]).
-        intent.getStringExtra(EXTRA_NAV_ROUTE)?.let { return it }
-        // The exported `onebusaway://add-region` deep link applies custom API URLs as a side effect (see
-        // [applyIntentSideEffects]); for routing it stays on the home/map path (the legacy handler went
-        // Home), so return null.
-        val data = intent.data
-        if (data?.scheme == "onebusaway" && data.host == "add-region") return null
-        // System search (HomeActivity is the default_searchable target): open the search destination.
-        if (intent.action == Intent.ACTION_SEARCH) {
-            return NavRoutes.search(intent.getStringExtra(SearchManager.QUERY).orEmpty())
-        }
-        // The FCM arrival payload clears its fired reminder as a side effect; here it just opens arrivals.
-        intent.getStringExtra("arrival_and_departure")?.let { arrivalJson ->
-            return ReminderUtils.getStopIdFromPayload(arrivalJson)?.let { NavRoutes.arrivals(it, null) }
-        }
-        // Trip details carries its args as extras (no data URI) — e.g. the arrivals "show trip" / map
-        // vehicle tap / NavigationService reminder notification.
-        intent.getStringExtra(NavRoutes.ARG_TRIP_ID)?.let { tripId ->
-            return NavRoutes.tripDetails(
-                tripId,
-                intent.getStringExtra(NavRoutes.ARG_STOP_ID),
-                intent.getStringExtra(NavRoutes.ARG_SCROLL_MODE),
-            )
-        }
-        // Old pinned night-light launcher shortcuts target the frozen NightLightActivity component
-        // (now an alias → HomeActivity) with no data URI; the alias name is preserved in the launched
-        // intent's component, so route by class name. (New pins use the NAV_ROUTE extra above.)
-        if (intent.component?.className?.endsWith("NightLightActivity") == true) {
-            return NavRoutes.NIGHT_LIGHT
-        }
-        // Old pinned launcher shortcuts (the deleted My* shells/aliases) carry a `tab://<tag>` data URI.
-        // Map the tag to the matching My* list route so they keep opening the right screen.
-        if (intent.data?.scheme == "tab") {
-            val tag = intent.data?.let { MyTabs.defaultTabFromUri(it) }
-            return when (tag) {
-                MyTabs.RECENT_ROUTES -> NavRoutes.myRoutes(MyTabs.RECENT_ROUTES)
-                else -> NavRoutes.myStops(tag)
-            }
-        }
-        val segments = intent.data?.pathSegments ?: return null
-        return when (segments.firstOrNull()) {
-            ObaContract.Stops.PATH -> intent.data?.lastPathSegment?.let { stopId ->
-                NavRoutes.arrivals(stopId, intent.getStringExtra(ArrivalsIntents.STOP_NAME))
-            }
-            ObaContract.Routes.PATH -> intent.data?.lastPathSegment?.let { routeId ->
-                NavRoutes.routeInfo(routeId)
-            }
-            // Trip reminder editor: ids in the data URI path; the create path adds the trip context
-            // as extras (edit path omits them). content://…/trips/{tripId}/{stopId}.
-            ObaContract.Trips.PATH -> if (segments.size >= 3) {
-                NavRoutes.tripInfo(
-                    tripId = segments[1],
-                    stopId = segments[2],
-                    routeId = intent.getStringExtra(NavRoutes.ARG_ROUTE_ID),
-                    routeName = intent.getStringExtra(NavRoutes.ARG_ROUTE_NAME),
-                    stopName = intent.getStringExtra(NavRoutes.ARG_STOP_NAME),
-                    headsign = intent.getStringExtra(NavRoutes.ARG_HEADSIGN),
-                    departTime = intent.getLongExtra(NavRoutes.ARG_DEPART_TIME, 0L),
-                    stopSequence = intent.getIntExtra(NavRoutes.ARG_STOP_SEQUENCE, 0),
-                    serviceDate = intent.getLongExtra(NavRoutes.ARG_SERVICE_DATE, 0L),
-                    vehicleId = intent.getStringExtra(NavRoutes.ARG_VEHICLE_ID),
-                )
-            } else null
-            else -> null
         }
     }
 
@@ -503,12 +428,6 @@ class HomeActivity : AppCompatActivity() {
     }
 
     companion object {
-        // Generic in-app entry point: a launcher facade builds an explicit HomeActivity intent
-        // carrying the NavHost route to open (see [navIntent]); the translator (routeForIntent)
-        // navigates there. Lets former screen Activities become thin facade objects with no
-        // per-screen intent contract. (External contracts — shortcuts/FCM — use the data-URI branches.)
-        const val EXTRA_NAV_ROUTE = "org.onebusaway.android.ui.HomeActivity.NAV_ROUTE"
-
         /**
          * Extra on the [navIntent] SETTINGS intent requesting the settings destination show the
          * "check your region" dialog on first composition. Set by the report flow's region-validate
@@ -516,10 +435,16 @@ class HomeActivity : AppCompatActivity() {
          */
         const val EXTRA_SHOW_CHECK_REGION_DIALOG = ".checkRegionDialog"
 
-        /** An intent that opens HomeActivity and navigates its NavHost to [route]. */
+        /**
+         * An intent that opens HomeActivity and navigates its NavHost to [route]. The generic in-app
+         * entry point: a launcher facade builds this explicit intent carrying the route via
+         * [NavRoutes.EXTRA_NAV_ROUTE]; [IntentRouteMapper] navigates there. Lets former screen Activities
+         * be thin facades with no per-screen intent contract. (External contracts — shortcuts/FCM — use
+         * [IntentRouteMapper]'s data-URI branches.)
+         */
         @JvmStatic
         fun navIntent(context: Context, route: String): Intent =
-            Intent(context, HomeActivity::class.java).putExtra(EXTRA_NAV_ROUTE, route)
+            Intent(context, HomeActivity::class.java).putExtra(NavRoutes.EXTRA_NAV_ROUTE, route)
 
         /**
          * Starts HomeActivity with a particular stop focused with the center of

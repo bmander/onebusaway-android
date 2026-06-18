@@ -43,6 +43,13 @@ public class ReminderUtils {
     private static final String TAG = "ReminderUtils";
 
     /**
+     * Key for the arrival-and-departure reminder payload (JSON): the FCM message data key on receipt
+     * and the intent extra it is forwarded as. Shared by the FCM service, the route translator, and
+     * this class's payload parsers ({@link #getStopIdFromPayload}, {@link #handleArrivalPayload}).
+     */
+    public static final String ARRIVAL_PAYLOAD_KEY = "arrival_and_departure";
+
+    /**
      * Retrieves the short name of a bus route based on the provided route ID.
      *
      * @param context the application context

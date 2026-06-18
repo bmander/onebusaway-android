@@ -39,7 +39,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
-        val arrivalJson = remoteMessage.data["arrival_and_departure"]
+        val arrivalJson = remoteMessage.data[ReminderUtils.ARRIVAL_PAYLOAD_KEY]
         val stopId = ReminderUtils.getStopIdFromPayload(arrivalJson)
 
         if (stopId == null) {

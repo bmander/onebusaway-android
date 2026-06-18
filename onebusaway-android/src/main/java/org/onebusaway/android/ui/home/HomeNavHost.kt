@@ -85,7 +85,7 @@ class HomeDestinationDeps(
 /**
  * The single-Activity Navigation-Compose backbone (Campaign C): every screen is a NavHost destination.
  * Hosted by [HomeActivity] (which created [navController] and staged any external deep-link route);
- * external intents are routed here by `HomeActivity.routeForIntent`. Extracted out of `onCreate` so the
+ * external intents are translated to routes by `IntentRouteMapper`. Extracted out of `onCreate` so the
  * activity is a thin Compose-host shell. The HOME destination consumes [home]; the rest live in
  * per-feature `NavGraphBuilder` graphs that recover the host via [findActivity].
  */
@@ -148,6 +148,27 @@ internal fun DeepLinkEffect(
                 popUpTo(NavRoutes.HOME) { inclusive = false }
                 launchSingleTop = true
             }
+            onConsumed()
+        }
+    }
+}
+
+/**
+ * Shows the welcome tutorial once the host has composed when the launching intent requested it (the
+ * [HomeViewModel.showWelcomeTutorial] latch). The ShowcaseView show needs an Activity, so [onShow] is
+ * the host's `onShowWelcomeTutorial` callback; the latch is cleared via [onConsumed]. Mirrors
+ * [DeepLinkEffect] — keeps the trigger out of `onCreate`.
+ */
+@Composable
+internal fun WelcomeTutorialEffect(
+    showWelcomeTutorial: StateFlow<Boolean>,
+    onShow: () -> Unit,
+    onConsumed: () -> Unit,
+) {
+    val pending by showWelcomeTutorial.collectAsStateWithLifecycle()
+    LaunchedEffect(pending) {
+        if (pending) {
+            onShow()
             onConsumed()
         }
     }

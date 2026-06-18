@@ -74,7 +74,7 @@ fun WeatherFeature(viewModel: WeatherViewModel, onNearby: Boolean, modifier: Mod
 /**
  * The small weather chip overlaid at the top of the map (current icon + temperature), replacing the
  * XML `weatherView` CardView. Tapping it surfaces the forecast summary (the host shows a toast).
- * State is pushed in by HomeActivity from the weather request response.
+ * State is supplied by [WeatherFeature] from [WeatherViewModel].
  */
 @Composable
 fun WeatherCard(

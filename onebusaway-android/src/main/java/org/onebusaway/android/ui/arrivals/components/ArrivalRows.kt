@@ -71,7 +71,7 @@ import org.onebusaway.util.comparators.AlphanumComparator
 
 /**
  * The per-arrival menu actions (legacy `showListItemMenu`). Implemented by the host activity,
- * which has the Context/FragmentManager needed to launch the targets. The route-filter toggle is
+ * which has the Context needed to launch the targets. The route-filter toggle is
  * a ViewModel action; the rest are navigation/dialogs.
  */
 class ArrivalRowCallbacks(

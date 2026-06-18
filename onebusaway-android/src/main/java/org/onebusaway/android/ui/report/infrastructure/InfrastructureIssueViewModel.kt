@@ -79,7 +79,7 @@ class InfrastructureIssueViewModel(
 
     // --- Map + address inputs -------------------------------------------------------------------
 
-    /** The native map reported a stop focus change (stop is null when focus is lost). */
+    /** The map reported a stop focus change (stop is null when focus is lost). */
     fun onMapFocusChanged(stop: ObaStop?, latitude: Double, longitude: Double) {
         clearReportingTarget()
         if (stop != null) {

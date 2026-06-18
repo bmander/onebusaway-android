@@ -51,8 +51,7 @@ import org.onebusaway.android.ui.compose.theme.ObaTheme
 /**
  * The reusable Material3 building blocks for the Compose settings screens — the hand-rolled
  * replacement for the legacy `androidx.preference` XML widgets (there is no official Compose
- * preference library, and the community ones require newer Compose than this app's minSdk-21 pin
- * allows). Every item is stateless: the current value is hoisted to the caller (a settings
+ * preference library). Every item is stateless: the current value is hoisted to the caller (a settings
  * ViewModel), and a change is reported back through a callback. Visibility/enablement decisions live
  * in the caller too — an item that shouldn't show is simply not emitted.
  */

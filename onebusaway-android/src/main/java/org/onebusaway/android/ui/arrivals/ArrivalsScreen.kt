@@ -125,7 +125,7 @@ internal fun rememberArrivalRowCallbacks(
 
 /**
  * Navigation/dialog actions for the arrivals screen, implemented by the host activity (it has the
- * Context/FragmentManager the targets need). The route-filter and alert hide/show actions are pure
+ * Context the targets need). The route-filter and alert hide/show actions are pure
  * ViewModel operations and so are passed as plain lambdas, not through this handler.
  */
 interface ArrivalActionHandler {

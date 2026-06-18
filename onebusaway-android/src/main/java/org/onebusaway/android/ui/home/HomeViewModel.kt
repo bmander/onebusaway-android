@@ -52,8 +52,8 @@ import kotlinx.coroutines.launch
  * preference seam in init{}; the activity renders the result via [HomeScreen].
  *
  * The focused stop is owned here and persisted through [SavedStateHandle] (replacing the activity's
- * `onSaveInstanceState`). The arrivals sheet, drawer-open command, and fragment management remain
- * imperative in the activity until the map + arrivals fragments are dissolved (P10b/P11).
+ * `onSaveInstanceState`). The arrivals sheet and drawer-open command are still coordinated through
+ * imperative VM callbacks (e.g. [onSheetSettled]) that drive the Compose map via the [MapInteractionBus].
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -331,7 +331,7 @@ class HomeViewModel @Inject constructor(
         recompute()
     }
 
-    /** The map fragment started/stopped loading data (drives the map-loading indicator on NEARBY). */
+    /** The map started/stopped loading data (drives the map-loading indicator on NEARBY). */
     fun onMapLoading(loading: Boolean) {
         mapLoading = loading
         recompute()
@@ -350,9 +350,8 @@ class HomeViewModel @Inject constructor(
     /**
      * The arrivals sheet settled at [state] (reported from the screen's live SheetState). Tracks the
      * resting position and drives the map's bottom padding + (on Expanded) a recenter on the focused
-     * stop. The initial reveal (from Hidden) is skipped, matching the legacy behavior. The map host
-     * null-check lives at the apply site (the Activity's `mMapHost?.`), so emitting unconditionally is
-     * safe.
+     * stop, applied through the [MapInteractionBus]. The initial reveal (from Hidden) is skipped,
+     * matching the legacy behavior.
      */
     fun onSheetSettled(state: ArrivalsSheetState, peekPx: Int) {
         val previous = settledSheet

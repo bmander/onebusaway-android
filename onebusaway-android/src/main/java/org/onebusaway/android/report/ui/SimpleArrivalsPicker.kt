@@ -44,8 +44,8 @@ import org.onebusaway.android.ui.compose.components.LoadingContent
  * the chosen one back via [onPick]. Reuses the arrivals [ArrivalsViewModel] (configured to show all
  * routes) and the shared row content, but with no per-arrival menu — tapping a row picks it.
  *
- * Hosted inside the report flow's CustomScrollView (which measures children with unbounded height),
- * so this uses a plain [Column], not a LazyColumn — a scrollable component can't be measured with
+ * Hosted inside the report flow's vertically-scrolling Column (which measures children with unbounded
+ * height), so this uses a plain [Column], not a LazyColumn — a scrollable component can't be measured with
  * infinite max height.
  */
 @Composable

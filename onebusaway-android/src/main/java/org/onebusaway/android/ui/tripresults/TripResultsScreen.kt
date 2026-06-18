@@ -80,9 +80,8 @@ import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.opentripplanner.api.model.Itinerary
 
 /**
- * The results header: the (1–3) itinerary option cards plus the list/map tab row. Rendered in its
- * own ComposeView above the directions/map frame so the native map can occupy the frame while these
- * stay visible. Empty until the first [TripResultsUiState.Success].
+ * The results header: the (1–3) itinerary option cards plus the list/map tab row. Shown above the
+ * directions list / map frame. Empty until the first [TripResultsUiState.Success].
  */
 @Composable
 fun TripResultsHeader(
@@ -163,8 +162,8 @@ private fun RowScope.OptionCard(
 }
 
 /**
- * The directions list (or the loading/error state). Rendered in the frame the native map shares; the
- * host hides this and shows the map when the map tab is selected.
+ * The directions list (or the loading/error state). Shown when the list tab is selected; the map tab
+ * shows the declarative [ObaMap] instead.
  */
 @Composable
 fun TripResultsList(state: TripResultsUiState) {

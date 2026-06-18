@@ -45,8 +45,8 @@ fun rememberClearedViewModelStoreOwner(key: Any?): ViewModelStoreOwner {
 
 /**
  * Unwraps the [AppCompatActivity] from a (possibly themed) Compose `LocalContext` chain — the
- * canonical bridge for a composable that needs its hosting activity on `activity-compose` versions
- * before `LocalActivity` (1.10.0, which would bump minSdk to 23).
+ * canonical bridge for a composable that needs its hosting activity. (Predates `activity-compose`'s
+ * `LocalActivity`, which returns a plain `Activity` rather than the `AppCompatActivity` callers cast to.)
  */
 tailrec fun Context.findActivity(): AppCompatActivity = when (this) {
     is AppCompatActivity -> this

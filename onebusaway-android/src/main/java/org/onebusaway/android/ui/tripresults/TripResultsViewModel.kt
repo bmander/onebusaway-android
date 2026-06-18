@@ -32,7 +32,7 @@ import org.opentripplanner.api.model.Itinerary
  * Holds the trip-planning results: the option cards, which one is selected, and the selected
  * itinerary's directions. The OTP [Itinerary] objects are kept as opaque tokens (they aren't
  * JVM-pure) and handed back to the repository to re-summarize/re-generate directions on selection.
- * [selectedItinerary] lets the host update the native map (the map is not Compose).
+ * [selectedItinerary] drives a re-point of the declarative map when a different option is selected.
  */
 @HiltViewModel
 class TripResultsViewModel @Inject constructor(
@@ -42,7 +42,7 @@ class TripResultsViewModel @Inject constructor(
     private val _state = MutableStateFlow<TripResultsUiState>(TripResultsUiState.Loading)
     val state: StateFlow<TripResultsUiState> = _state.asStateFlow()
 
-    /** Emits the selected index (and its itinerary) so the host can re-point the native map. */
+    /** Emits the selected index (and its itinerary) so the screen can re-point the map. */
     private val _selectedItinerary = MutableSharedFlow<Pair<Int, Itinerary>>(extraBufferCapacity = 1)
     val selectedItinerary: SharedFlow<Pair<Int, Itinerary>> = _selectedItinerary.asSharedFlow()
 
@@ -66,7 +66,7 @@ class TripResultsViewModel @Inject constructor(
         load()
     }
 
-    /** Switches between the list and map tabs (the host toggles the native map frame). */
+    /** Switches between the list and map tabs. */
     fun toggleMap(show: Boolean) {
         showMap = show
         (_state.value as? TripResultsUiState.Success)?.let {

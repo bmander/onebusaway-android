@@ -43,8 +43,8 @@ import org.onebusaway.android.R
 
 /**
  * The map-overlay controls for the infrastructure-issue screen: bus-stop header, address search
- * field, the sectioned service spinner, and the "tap a stop" prompt. Rendered in the container's
- * CustomScrollView, so it does not scroll itself and is wrapped in a [Surface] for a visible
+ * field, the sectioned service spinner, and the "tap a stop" prompt. Rendered in the report flow's
+ * vertically-scrolling Column, so it does not scroll itself and is wrapped in a [Surface] for a visible
  * content color on the dark report background.
  */
 @Composable

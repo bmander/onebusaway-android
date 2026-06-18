@@ -57,10 +57,10 @@ import org.onebusaway.android.R
 
 /**
  * The map's Compose overlay chrome, replacing the XML my-location FAB, zoom buttons, and the
- * third-party android-fab layers speed-dial. Hosted over the map inside HomeShellHost's
+ * third-party android-fab layers speed-dial. Hosted over the map inside HomeScreen's
  * BottomSheetScaffold content; [fabBottomInsetTarget] is the sheet-driven lift target (the peek
  * height when collapsed, else 0) that the FABs animate to — replacing the legacy
- * `moveFabsLocation()` margin animation. All state + actions are driven by HomeActivity.
+ * `moveFabsLocation()` margin animation. All state + actions are supplied by [MapFeature].
  */
 @Composable
 fun MapChrome(
@@ -77,7 +77,7 @@ fun MapChrome(
     onToggleBikeshare: () -> Unit,
 ) {
     // Animate the lift here so the per-frame value only recomposes the FABs, not the hosting map
-    // AndroidView / overlay cards (which are siblings in HomeShellHost's Box).
+    // AndroidView / overlay cards (which are siblings in HomeScreen's Box).
     val fabBottomInset by animateDpAsState(fabBottomInsetTarget, label = "fabInset")
     val sideAlign = if (leftHandMode) Alignment.BottomStart else Alignment.BottomEnd
     val marginHorizontal = dimensionResource(R.dimen.fab_margin_horizontal)

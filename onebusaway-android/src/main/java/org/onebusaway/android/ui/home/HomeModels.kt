@@ -116,8 +116,8 @@ data class HomeEnvironment(
  * ViewModel from [selectedItem] + the last [HomeEnvironment], replacing HomeActivity's scattered
  * updateLayersFab()/setWeatherData()/updateDonationsUIVisibility() recomputation at call sites.
  *
- * The arrivals sheet, drawer-open command, and focused-stop tracking remain imperative for now
- * (HomeShellHost / HomeActivity); they migrate when the map + arrivals fragments do (P10/P11).
+ * The arrivals sheet, drawer-open command, and focused-stop tracking are coordinated through
+ * imperative [HomeViewModel] callbacks; the map + arrivals are Compose, driven via the map interaction bus.
  */
 data class HomeUiState(
     val navItems: List<HomeNavItem> = emptyList(),

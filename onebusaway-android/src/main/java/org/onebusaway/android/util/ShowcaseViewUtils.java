@@ -42,6 +42,7 @@ import org.onebusaway.android.R;
 import org.onebusaway.android.app.di.PreferencesEntryPoint;
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse;
 import org.onebusaway.android.preferences.PreferencesRepository;
+import org.onebusaway.android.ui.tutorial.ArrivalTutorial;
 
 /**
  * A class containing utility methods related to showing a tutorial to users for how to use various
@@ -277,5 +278,10 @@ public class ShowcaseViewUtils {
         prefs.setBoolean(TUTORIAL_STARRED_STOPS_SORT, false);
         prefs.setBoolean(TUTORIAL_STARRED_STOPS_SHORTCUT, false);
         prefs.setBoolean(TUTORIAL_SEND_FEEDBACK_OPEN311_CATEGORIES, false);
+
+        // Re-arm the Compose arrivals-panel onboarding spotlight (its keys live with the sequence).
+        for (String key : ArrivalTutorial.resetKeys()) {
+            prefs.setBoolean(key, false);
+        }
     }
 }

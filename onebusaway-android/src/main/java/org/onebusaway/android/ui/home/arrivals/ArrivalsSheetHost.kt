@@ -15,13 +15,17 @@
  */
 package org.onebusaway.android.ui.home.arrivals
 
+import android.content.Context
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
@@ -29,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import org.onebusaway.android.R
+import org.onebusaway.android.app.di.PreferencesEntryPoint
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.ui.arrivals.components.ArrivalsPanel
 import org.onebusaway.android.ui.arrivals.ArrivalsUiState
@@ -37,6 +42,10 @@ import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.compose.rememberClearedViewModelStoreOwner
 import org.onebusaway.android.ui.arrivals.createArrivalActionHandler
 import org.onebusaway.android.ui.home.FocusedStop
+import org.onebusaway.android.ui.tutorial.ArrivalTutorial
+import org.onebusaway.android.ui.tutorial.LocalTutorialState
+import org.onebusaway.android.ui.tutorial.TutorialState
+import org.onebusaway.android.ui.tutorial.tutorialAnchor
 
 /**
  * Hosts the [ArrivalsPanel] for the currently focused stop directly in the home bottom sheet,
@@ -54,6 +63,9 @@ import org.onebusaway.android.ui.home.FocusedStop
 internal fun ArrivalsSheetHost(
     focusedStop: FocusedStop?,
     collapsed: Boolean,
+    // The sheet is actually on screen (not hidden) — gates the onboarding spotlight so it can't fire
+    // over a hidden panel.
+    sheetVisible: Boolean,
     arrivalsViewModelFactory: ArrivalsViewModel.Factory,
     onArrivalsLoaded: (ObaArrivalInfoResponse) -> Unit,
     onShowRouteOnMap: (String) -> Unit,
@@ -88,6 +100,10 @@ internal fun ArrivalsSheetHost(
             }
             val listState = remember { LazyListState() }
 
+            // This host owns the arrivals-tutorial wiring so the reusable panel stays tutorial-ignorant:
+            // it maps the panel's opaque anchor slots to the spotlight targets and triggers the sequence.
+            val tutorialState = LocalTutorialState.current
+
             // The BottomSheetScaffold sheet container is transparent; keep the legacy panel background.
             Surface(color = colorResource(R.color.trip_details_background)) {
                 ArrivalsPanel(
@@ -98,13 +114,44 @@ internal fun ArrivalsSheetHost(
                     handler = handler,
                     onToggleExpand = onToggleSheet,
                     onPreferredHeight = onPreferredHeight,
+                    etaAnchor = Modifier.tutorialAnchor(tutorialState, ArrivalTutorial.KEY_ETA),
+                    starAnchor = Modifier.tutorialAnchor(tutorialState, ArrivalTutorial.KEY_STAR),
+                    chevronAnchor = Modifier.tutorialAnchor(tutorialState, ArrivalTutorial.KEY_PANEL),
                 )
             }
 
-            // Forward each completed load to the host (replaces the fragment's onViewCreated collector).
+            // Forward each completed load to the host (replaces the fragment's onViewCreated collector),
+            // and — the first time arrivals show — kick off the arrivals-panel onboarding spotlight.
+            val sheetVisibleNow by rememberUpdatedState(sheetVisible)
             LaunchedEffect(viewModel) {
-                viewModel.responses.collect(onArrivalsLoaded)
+                viewModel.responses.collect { response ->
+                    onArrivalsLoaded(response)
+                    if (sheetVisibleNow && tutorialState != null) {
+                        maybeStartArrivalTutorial(context, tutorialState, response)
+                    }
+                }
             }
         }
     }
+}
+
+/**
+ * Starts the [ArrivalTutorial] spotlight sequence the first time a focused stop's arrivals load, gated
+ * so it shows at most once: nothing if a tutorial is already up, the stop has no arrivals (the ETA/star
+ * spotlights need a peek row), or every step is already shown / tutorials are off ([ArrivalTutorial.pendingSteps]).
+ * The pending steps are marked shown up front so a later poll refresh doesn't reopen it.
+ */
+private fun maybeStartArrivalTutorial(
+    context: Context,
+    tutorialState: TutorialState,
+    response: ObaArrivalInfoResponse,
+) {
+    if (tutorialState.active) return
+    val arrivals = response.arrivalInfo
+    if (arrivals == null || arrivals.isEmpty()) return
+    val prefs = PreferencesEntryPoint.get(context)
+    val pending = ArrivalTutorial.pendingSteps(prefs)
+    if (pending.isEmpty()) return
+    ArrivalTutorial.markShown(prefs, pending)
+    tutorialState.start(pending)
 }

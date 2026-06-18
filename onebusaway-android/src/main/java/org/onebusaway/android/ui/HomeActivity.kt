@@ -55,13 +55,13 @@ import org.onebusaway.android.ui.home.HomeViewModel
 import org.onebusaway.android.ui.home.HomeNavHost
 import org.onebusaway.android.ui.home.HomeDestinationDeps
 import org.onebusaway.android.ui.home.DeepLinkEffect
-import org.onebusaway.android.ui.home.WelcomeTutorialEffect
 import org.onebusaway.android.ui.home.SettingsRehomeEffect
 import org.onebusaway.android.ui.home.PaymentWarningDialog
 import org.onebusaway.android.ui.home.chrome.analyticsLabelRes
 import org.onebusaway.android.ui.nav.IntentRouteMapper
 import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.survey.SurveyViewModel
+import org.onebusaway.android.ui.tutorial.ArrivalTutorial
 import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.ReminderUtils
@@ -134,11 +134,8 @@ class HomeActivity : AppCompatActivity() {
             AccessibilityAnalyticsEffect()
             HomeAnalyticsEffect(viewModel.analyticsEvents)
             DeepLinkEffect(navController, viewModel.deepLinkRoute, viewModel::onDeepLinkRouteConsumed)
-            WelcomeTutorialEffect(
-                viewModel.showWelcomeTutorial,
-                onShow = homeCallbacks.onShowWelcomeTutorial,
-                onConsumed = viewModel::onWelcomeTutorialConsumed,
-            )
+            // The welcome tutorial (now the Compose green welcome + map-stop spotlight sequence) is
+            // started by HomeScreen off the same showWelcomeTutorial latch — no host effect needed.
             SettingsRehomeEffect(navController)
             HomeNavHost(
                 navController = navController,
@@ -181,11 +178,9 @@ class HomeActivity : AppCompatActivity() {
         onListSort = viewModel::requestListSort,
         onListClear = viewModel::requestListClear,
         onHelpAction = ::onHelpAction,
-        onShowWelcomeTutorial = {
-            ShowcaseViewUtils.showTutorial(
-                ShowcaseViewUtils.TUTORIAL_WELCOME, this@HomeActivity, null, false
-            )
-        },
+        // Stage the welcome sequence on the VM latch; HomeScreen starts the Compose welcome + map-stop
+        // spotlight when it fires (the what's-new opt-out's "yes" reaches this via HelpFeature).
+        onShowWelcomeTutorial = viewModel::requestWelcomeTutorial,
         onRegionChosen = viewModel::onRegionChosen,
         onSheetSettled = viewModel::onSheetSettled,
         onClearFocus = viewModel::requestClearMapFocus,
@@ -217,9 +212,9 @@ class HomeActivity : AppCompatActivity() {
         viewModel.stageDeepLinkRoute(IntentRouteMapper.routeForIntent(intent))
         // "Show tutorials again" (help menu / settings) re-launches us with this extra to (re-)show the
         // welcome tutorial. HomeActivity is singleTop, so when it's already on top that re-launch arrives
-        // via onNewIntent, not a fresh onCreate — staging here in the shared funnel (rather than only in
-        // onCreate) makes both the cold first-run and the warm re-launch honor it. [WelcomeTutorialEffect]
-        // shows it once the host composes; the ShowcaseView show stays the onShowWelcomeTutorial callback.
+        // via onNewIntent, not a fresh onCreate — staging on the VM latch here in the shared funnel
+        // (rather than only in onCreate) makes both the cold first-run and the warm re-launch honor it.
+        // HomeScreen starts the Compose welcome + map-stop spotlight sequence off the latch.
         if (intent?.extras?.getBoolean(ShowcaseViewUtils.TUTORIAL_WELCOME) == true) {
             viewModel.requestWelcomeTutorial()
         }
@@ -322,7 +317,8 @@ class HomeActivity : AppCompatActivity() {
 
     /** Opens the recent stops/routes screen (the toolbar overflow item) — the MY_RECENT destination. */
     private fun onRecentStopsRoutes() {
-        ShowcaseViewUtils.doNotShowTutorial(this, ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES)
+        // The user found the overflow on their own — don't later spotlight it in the onboarding tutorial.
+        prefsRepository.setBoolean(ArrivalTutorial.KEY_MORE_MENU, true)
         viewModel.stageDeepLinkRoute(NavRoutes.myRecent())
     }
 
@@ -350,28 +346,13 @@ class HomeActivity : AppCompatActivity() {
     /**
      * Called (from ArrivalsSheetHost's responses collector) when the panel has new arrival info. The
      * focus decision + map dispatch live in [HomeViewModel.onArrivalsLoaded] (it owns the pending-focus
-     * latch and reaches the map through the MapInteractionBus), so the host no longer relays between the
-     * two view models — it just forwards the loaded stop and triggers the tutorials.
+     * latch and reaches the map through the MapInteractionBus), so the host just forwards the loaded
+     * stop. The arrivals-panel onboarding spotlights (ETA / panel / star / overflow) are now driven in
+     * Compose by [org.onebusaway.android.ui.tutorial.ArrivalTutorial] off the same responses collector.
      */
     private fun onArrivalsLoaded(response: ObaArrivalInfoResponse) {
         val stop = response.stop ?: return
         viewModel.onArrivalsLoaded(stop, response.routes)
-        // Show arrival info related tutorials
-        showArrivalInfoTutorials()
-    }
-
-    /**
-     * Shows the recent-stops/routes tutorial over the loaded arrival info. The *decision* (the map is up
-     * and the sheet is visible) lives in [HomeViewModel.shouldShowArrivalTutorial]; what stays here is the
-     * imperative ShowcaseView seam — the already-showing guard and the View-overlay show. (The legacy
-     * arrival-header tutorials anchored to the old header's Views, gone with the Compose panel.)
-     */
-    private fun showArrivalInfoTutorials() {
-        if (ShowcaseViewUtils.isShowcaseViewShowing()) return
-        if (!viewModel.shouldShowArrivalTutorial()) return
-        ShowcaseViewUtils.showTutorial(
-            ShowcaseViewUtils.TUTORIAL_RECENT_STOPS_ROUTES, this, null, false
-        )
     }
 
     private fun goToSendFeedBack() {

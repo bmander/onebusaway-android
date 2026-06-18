@@ -91,7 +91,12 @@ fun ArrivalsPanel(
     initialTitle: String,
     handler: ArrivalActionHandler,
     onToggleExpand: () -> Unit,
-    onPreferredHeight: (previewCount: Int, filtering: Boolean) -> Unit
+    onPreferredHeight: (previewCount: Int, filtering: Boolean) -> Unit,
+    // Opaque anchor modifiers a host may attach to the first peek row's ETA pill + favorite star and the
+    // header chevron (e.g. for an onboarding spotlight). The panel stays ignorant of what they're for.
+    etaAnchor: Modifier = Modifier,
+    starAnchor: Modifier = Modifier,
+    chevronAnchor: Modifier = Modifier,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     ArrivalsPolling(viewModel)
@@ -124,7 +129,10 @@ fun ArrivalsPanel(
                         arrival = arrival,
                         actions = content.actions[arrival.info.tripId],
                         filterActive = filtering,
-                        callbacks = rowCallbacks
+                        callbacks = rowCallbacks,
+                        // The host's anchors apply to the first peek row only.
+                        etaModifier = if (index == 0) etaAnchor else Modifier,
+                        starModifier = if (index == 0) starAnchor else Modifier,
                     )
                 }
             }
@@ -137,7 +145,8 @@ fun ArrivalsPanel(
                 filtering = filtering,
                 collapsed = collapsed,
                 onToggleExpand = onToggleExpand,
-                onToggleFavorite = viewModel::toggleFavorite
+                onToggleFavorite = viewModel::toggleFavorite,
+                chevronModifier = chevronAnchor,
             )
             // The full standalone-style list sits below the peek + header and is revealed as the
             // panel slides up. It's always composed (not gated on `collapsed`, which only flips at
@@ -179,7 +188,9 @@ private fun PeekRow(
     arrival: ArrivalInfo,
     actions: ArrivalActions?,
     filterActive: Boolean,
-    callbacks: ArrivalRowCallbacks
+    callbacks: ArrivalRowCallbacks,
+    etaModifier: Modifier = Modifier,
+    starModifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
     PeekRowVisual(
@@ -191,6 +202,8 @@ private fun PeekRow(
         isFavorite = actions?.isRouteFavorite == true,
         onFavorite = { actions?.let { callbacks.onRouteFavorite(it) } },
         onMore = { expanded = true },
+        etaModifier = etaModifier,
+        starModifier = starModifier,
         menu = {
             ArrivalActionsMenu(expanded, { expanded = false }, arrival, actions, filterActive, callbacks)
         }
@@ -213,13 +226,15 @@ private fun PeekRowVisual(
     onFavorite: () -> Unit,
     onMore: () -> Unit,
     modifier: Modifier = Modifier,
+    etaModifier: Modifier = Modifier,
+    starModifier: Modifier = Modifier,
     menu: @Composable () -> Unit = {}
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onFavorite) {
+        IconButton(onClick = onFavorite, modifier = starModifier) {
             Icon(
                 painter = painterResource(
                     if (isFavorite) R.drawable.ic_toggle_star else R.drawable.ic_toggle_star_outline
@@ -242,7 +257,7 @@ private fun PeekRowVisual(
             modifier = Modifier.weight(1f)
         )
         Spacer(Modifier.width(8.dp))
-        EtaPill(eta, etaColor, predicted)
+        EtaPill(eta, etaColor, predicted, modifier = etaModifier)
         Box {
             IconButton(onClick = onMore) {
                 Icon(
@@ -263,9 +278,15 @@ private fun PeekRowVisual(
  * the text through for the legend's canceled row.
  */
 @Composable
-internal fun EtaPill(eta: Long, color: Color, predicted: Boolean, canceled: Boolean = false) {
+internal fun EtaPill(
+    eta: Long,
+    color: Color,
+    predicted: Boolean,
+    modifier: Modifier = Modifier,
+    canceled: Boolean = false,
+) {
     val decoration = if (canceled) TextDecoration.LineThrough else null
-    Surface(shape = RoundedCornerShape(8.dp), color = color) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(8.dp), color = color) {
         // Fixed height + centered content so "NOW" and "21 min" pills render the same height.
         Box(
             modifier = Modifier
@@ -326,6 +347,7 @@ private fun ArrivalsPanelHeader(
     collapsed: Boolean,
     onToggleExpand: () -> Unit,
     onToggleFavorite: () -> Unit,
+    chevronModifier: Modifier = Modifier,
     starSize: Dp = 20.dp,
     chevronSize: Dp = 18.dp
 ) {
@@ -386,7 +408,7 @@ private fun ArrivalsPanelHeader(
             Icon(
                 painter = painterResource(R.drawable.ic_navigation_expand_more),
                 contentDescription = stringResource(R.string.stop_header_sliding_panel_collapsed),
-                modifier = Modifier
+                modifier = chevronModifier
                     .rotate(chevronRotation)
                     .size(chevronSize),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant

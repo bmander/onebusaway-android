@@ -154,27 +154,6 @@ internal fun DeepLinkEffect(
 }
 
 /**
- * Shows the welcome tutorial once the host has composed when the launching intent requested it (the
- * [HomeViewModel.showWelcomeTutorial] latch). The ShowcaseView show needs an Activity, so [onShow] is
- * the host's `onShowWelcomeTutorial` callback; the latch is cleared via [onConsumed]. Mirrors
- * [DeepLinkEffect] — keeps the trigger out of `onCreate`.
- */
-@Composable
-internal fun WelcomeTutorialEffect(
-    showWelcomeTutorial: StateFlow<Boolean>,
-    onShow: () -> Unit,
-    onConsumed: () -> Unit,
-) {
-    val pending by showWelcomeTutorial.collectAsStateWithLifecycle()
-    LaunchedEffect(pending) {
-        if (pending) {
-            onShow()
-            onConsumed()
-        }
-    }
-}
-
-/**
  * Reports the device accessibility (TalkBack) state to Firebase on each ON_START — replaces the former
  * HomeActivity.onStart. Re-reports on every foreground so a TalkBack toggle made while backgrounded is
  * captured. Fetches the analytics process-singleton from the Context per the codebase convention

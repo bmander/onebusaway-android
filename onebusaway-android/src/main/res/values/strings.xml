@@ -891,6 +891,14 @@
     <string name="tutorial_recent_stops_routes_text">Find the stops and routes that you\'ve recently
         looked at via the \"More\" button at the top right of the screen.
     </string>
+    <!-- Onboarding spotlight card: the corner close button's accessibility label + the final-step action -->
+    <string name="tutorial_button_close">End tutorial</string>
+    <string name="tutorial_button_finish">Finish</string>
+    <!-- The welcome onboarding step that spotlights a real stop on the map -->
+    <string name="tutorial_welcome_map_stop_title">Here\'s a stop</string>
+    <string name="tutorial_welcome_map_stop_text">Tap a green dot like this one on the map to see its
+        arrival times.
+    </string>
     <string name="tutorial_starred_stops_sort_title">Sort your starred stops</string>
     <string name="tutorial_starred_stops_sort_text">Organize your favorite stops by name or
         frequency of use with the \"Sort\" button at the top of the screen.

@@ -30,6 +30,18 @@ import org.opentripplanner.routing.bike_rental.BikeRentalStation
 /** A geographic point, flavor-neutral (carries no Google/maplibre `LatLng` dependency). */
 data class GeoPoint(val latitude: Double, val longitude: Double)
 
+/** A screen pixel position in the composition's root coordinate space (flavor-neutral). */
+data class ScreenOffset(val x: Float, val y: Float)
+
+/**
+ * Projects a [GeoPoint] to a root-space screen position, or null if the map isn't laid out yet or the
+ * point is off screen. A flavor map adapter publishes one via [MapRenderState.setProjector]; map-SDK-
+ * agnostic callers (e.g. the onboarding spotlight) use it without depending on Google/maplibre.
+ */
+fun interface MapProjector {
+    fun toScreen(point: GeoPoint): ScreenOffset?
+}
+
 /**
  * The map's content padding, in pixels. [topPx] keeps content (vehicle markers) below the route-mode
  * header; [bottomPx] keeps the focused stop above the arrivals sheet. Held as declarative state and
@@ -127,6 +139,17 @@ class MapRenderState {
     fun setTopPadding(px: Int) = _padding.update { it.copy(topPx = px) }
 
     fun setBottomPadding(px: Int) = _padding.update { it.copy(bottomPx = px) }
+
+    // The live lat/lng -> screen projector, published by the flavor renderer once the map is laid out
+    // (Google: backed by CameraPositionState.projection). Lets map-SDK-agnostic callers locate a marker
+    // on screen without touching the map SDK; null while the map isn't ready.
+    private val _projector = MutableStateFlow<MapProjector?>(null)
+
+    val projector: StateFlow<MapProjector?> = _projector.asStateFlow()
+
+    fun setProjector(projector: MapProjector?) {
+        _projector.value = projector
+    }
 
     // One-shot camera intents the host dispatches (from its ObaMapView camera methods) and the
     // renderer applies in the Compose layer (Google: against CameraPositionState). Buffered so the

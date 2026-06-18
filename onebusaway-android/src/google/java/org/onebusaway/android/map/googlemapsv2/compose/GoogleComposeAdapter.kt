@@ -20,12 +20,18 @@ import android.content.res.Configuration
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import com.google.android.gms.maps.model.CameraPosition
@@ -43,7 +49,9 @@ import org.onebusaway.android.map.compose.ObaComposeMapAdapter
 import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.map.render.CameraSnapshot
 import org.onebusaway.android.map.render.GeoPoint
+import org.onebusaway.android.map.render.MapProjector
 import org.onebusaway.android.map.render.MapRenderState
+import org.onebusaway.android.map.render.ScreenOffset
 
 /**
  * Google flavor's [ObaComposeMapAdapter]: renders the shared [MapRenderState] inside an
@@ -130,8 +138,11 @@ class GoogleComposeAdapter : ObaComposeMapAdapter {
                 mapToolbarEnabled = false,
             )
         }
+        // The map's top-left in root coordinates, so the published projector can report marker positions
+        // in the composition's root space (not just map-view-local pixels).
+        var mapRootOffset by remember { mutableStateOf(Offset.Zero) }
         GoogleMap(
-            modifier = modifier,
+            modifier = modifier.onGloballyPositioned { mapRootOffset = it.positionInRoot() },
             cameraPositionState = cameraPositionState,
             properties = properties,
             uiSettings = uiSettings,
@@ -146,6 +157,22 @@ class GoogleComposeAdapter : ObaComposeMapAdapter {
             // Declarative overlay content (polylines, markers, vehicles, bikes, stops). The camera
             // state lets bike icons react live to the zoom band.
             ObaMapContent(renderState, cameraPositionState, cb)
+        }
+        // Publish a flavor-neutral lat/lng -> root-space projector so map-SDK-agnostic callers (the
+        // onboarding spotlight) can locate a marker on screen without touching the Google SDK. It reads
+        // the live camera projection + the map's root offset on demand; cleared when the map disposes.
+        DisposableEffect(renderState, cameraPositionState) {
+            renderState.setProjector(
+                MapProjector { point ->
+                    val projection = cameraPositionState.projection
+                        ?: return@MapProjector null
+                    val screen = projection.toScreenLocation(
+                        LatLng(point.latitude, point.longitude)
+                    )
+                    ScreenOffset(screen.x + mapRootOffset.x, screen.y + mapRootOffset.y)
+                }
+            )
+            onDispose { renderState.setProjector(null) }
         }
     }
 }

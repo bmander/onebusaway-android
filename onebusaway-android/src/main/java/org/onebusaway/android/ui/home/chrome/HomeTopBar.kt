@@ -79,6 +79,8 @@ fun HomeTopBar(
     onSort: () -> Unit,
     onClear: () -> Unit,
     onRecentStopsRoutes: () -> Unit,
+    // Opaque anchor a host may attach to the overflow (⋮) button (e.g. for an onboarding spotlight).
+    overflowModifier: Modifier = Modifier,
 ) {
     var searching by remember { mutableStateOf(false) }
     val colors = TopAppBarDefaults.topAppBarColors(
@@ -114,7 +116,7 @@ fun HomeTopBar(
                         )
                     }
                 }
-                HomeOverflow(showClear, clearLabel, onClear, onRecentStopsRoutes)
+                HomeOverflow(showClear, clearLabel, onClear, onRecentStopsRoutes, overflowModifier)
             }
         )
     }
@@ -127,10 +129,11 @@ private fun HomeOverflow(
     @StringRes clearLabel: Int,
     onClear: () -> Unit,
     onRecentStopsRoutes: () -> Unit,
+    overflowModifier: Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { expanded = true }) {
+        IconButton(onClick = { expanded = true }, modifier = overflowModifier) {
             Icon(Icons.Default.MoreVert, contentDescription = null)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

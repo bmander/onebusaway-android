@@ -60,6 +60,7 @@ import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.map.render.GeoPoint
 import org.onebusaway.android.ui.home.FocusedStop
 import org.onebusaway.android.ui.home.HomeViewModel
+import org.onebusaway.android.ui.tutorial.MapStopSpotlight
 import org.onebusaway.android.util.LayerUtils
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.PreferenceUtils
@@ -248,6 +249,16 @@ fun MapFeature(
             initialZoom = seed.zoom,
         )
     }
+
+    // The welcome tutorial's map-stop spotlight, wired from the flavor-neutral map seam (the published
+    // projector + the shared stop list) so this host knows nothing of the underlying map SDK. A tap
+    // focuses the chosen stop exactly like a marker tap, continuing into the arrivals tutorial.
+    val mapStopProjector by mapViewModel.renderState.projector.collectAsStateWithLifecycle()
+    MapStopSpotlight(
+        projector = mapStopProjector,
+        currentStops = { mapViewModel.renderState.snapshot.value.stops },
+        onFocusStop = { callbacks.onStopClick(it) },
+    )
 
     // The map chrome FABs (my-location / zoom / layers), over the map. Their actions drive the map view
     // model directly; the bikeshare toggle also pings the host to re-snapshot the chrome environment.

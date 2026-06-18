@@ -299,29 +299,6 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `shouldShowArrivalTutorial is false until the map is composed`() = runTest {
-        val vm = viewModel()
-        vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120) // a visible sheet, but the map isn't up yet
-        assertFalse(vm.shouldShowArrivalTutorial())
-    }
-
-    @Test
-    fun `shouldShowArrivalTutorial is false when the sheet is hidden`() = runTest {
-        val vm = viewModel()
-        vm.onMapShown()
-        // settledSheet defaults to Hidden — no arrival info on screen to tutorialize.
-        assertFalse(vm.shouldShowArrivalTutorial())
-    }
-
-    @Test
-    fun `shouldShowArrivalTutorial is true with the map composed and a visible sheet`() = runTest {
-        val vm = viewModel()
-        vm.onMapShown()
-        vm.onSheetSettled(ArrivalsSheetState.Collapsed, 120)
-        assertTrue(vm.shouldShowArrivalTutorial())
-    }
-
-    @Test
     fun `show route on map collapses the sheet and shows the route`() = runTest {
         val bus = FakeMapInteractionBus()
         val vm = viewModel(bus = bus)

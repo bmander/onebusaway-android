@@ -36,6 +36,7 @@ import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -73,6 +74,12 @@ import org.onebusaway.android.ui.home.map.MapChrome
 import org.onebusaway.android.ui.home.map.MapFeature
 import org.onebusaway.android.ui.home.map.RouteHeaderOverlay
 import org.onebusaway.android.ui.survey.SurveyFeature
+import org.onebusaway.android.ui.tutorial.ArrivalTutorial
+import org.onebusaway.android.ui.tutorial.LocalTutorialState
+import org.onebusaway.android.ui.tutorial.TutorialOverlay
+import org.onebusaway.android.ui.tutorial.WelcomeTutorial
+import org.onebusaway.android.ui.tutorial.tutorialAnchor
+import org.onebusaway.android.ui.tutorial.rememberTutorialState
 import org.onebusaway.android.ui.home.weather.WeatherFeature
 import org.onebusaway.android.ui.home.weather.WeatherViewModel
 import org.onebusaway.android.ui.mylists.ReminderListDestination
@@ -162,6 +169,9 @@ fun HomeScreen(
         val density = LocalDensity.current
         val context = LocalContext.current
         val snackbarHostState = remember { SnackbarHostState() }
+        // Drives the arrivals-panel onboarding spotlight; provided to the sheet content (so the panel's
+        // anchors can register) and read by [TutorialOverlay] below, which draws over the whole screen.
+        val tutorialState = rememberTutorialState()
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val sheetState = rememberStandardBottomSheetState(
             initialValue = SheetValue.Hidden,
@@ -222,6 +232,18 @@ fun HomeScreen(
             }
         }
 
+        // Welcome onboarding: the host stages a request (help "Show tutorials" / what's-new opt-out /
+        // first-run launch extra) on the VM latch; start the green welcome + map-stop spotlight sequence
+        // here (replacing the legacy ShowcaseView welcome), then clear the latch.
+        LaunchedEffect(Unit) {
+            homeViewModel.showWelcomeTutorial.collect { requested ->
+                if (requested) {
+                    tutorialState.start(WelcomeTutorial.steps)
+                    homeViewModel.onWelcomeTutorialConsumed()
+                }
+            }
+        }
+
         // Back collapses an expanded sheet first, then (from peek) clears the focus, which hides it.
         // A hidden sheet leaves back to the system (mirrors the legacy !isSheetHidden() gate).
         BackHandler(enabled = sheetState.currentValue != SheetValue.Hidden) {
@@ -238,6 +260,9 @@ fun HomeScreen(
             selectedItem = state.selectedItem,
             onNavItemSelected = onNavItemSelected,
         ) {
+            // Provide the tutorial state to the whole screen (top bar, map, and sheet) so their spotlight
+            // anchors register; [TutorialOverlay] below draws from the same state.
+            CompositionLocalProvider(LocalTutorialState provides tutorialState) {
             // The TopAppBar applies its own top window inset (status bar), so the Column doesn't.
             Column(Modifier.fillMaxSize()) {
                 HomeTopBar(
@@ -254,6 +279,8 @@ fun HomeScreen(
                     onSort = onListSort,
                     onClear = onListClear,
                     onRecentStopsRoutes = onRecentStopsRoutes,
+                    // Wire the top bar's overflow anchor slot to the "recent stops/routes" spotlight target.
+                    overflowModifier = Modifier.tutorialAnchor(tutorialState, ArrivalTutorial.KEY_MORE_MENU),
                 )
                 BottomSheetScaffold(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -265,6 +292,7 @@ fun HomeScreen(
                         ArrivalsSheetHost(
                             focusedStop = state.focusedStop,
                             collapsed = sheetState.currentValue != SheetValue.Expanded,
+                            sheetVisible = sheetState.currentValue != SheetValue.Hidden,
                             arrivalsViewModelFactory = arrivalsViewModelFactory,
                             onArrivalsLoaded = onArrivalsLoaded,
                             onShowRouteOnMap = onShowRouteOnMap,
@@ -323,6 +351,7 @@ fun HomeScreen(
                     }
                 }
             }
+            }
         }
 
         HomeDialogs(dialog = state.dialog, onRegionChosen = onRegionChosen)
@@ -340,6 +369,10 @@ fun HomeScreen(
             onHelpAction = onHelpAction,
             onShowWelcomeTutorial = onShowWelcomeTutorial,
         )
+
+        // The arrivals-panel onboarding spotlight, drawn over the whole screen (incl. the bottom sheet)
+        // as the last sibling so it sits on top; renders nothing while no tutorial is active.
+        TutorialOverlay(tutorialState)
     }
     }
 }

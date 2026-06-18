@@ -107,9 +107,9 @@ class HomeViewModel @Inject constructor(
     private val _deepLinkRoute = MutableStateFlow<String?>(null)
     val deepLinkRoute: StateFlow<String?> = _deepLinkRoute.asStateFlow()
 
-    // One-shot welcome-tutorial request, staged from onCreate (the TUTORIAL_WELCOME launch extra) for the
-    // host's WelcomeTutorialEffect to show once composed; mirrors [deepLinkRoute]. The ShowcaseView show
-    // needs an Activity, so it stays a host callback — only the trigger lives here.
+    // One-shot welcome-tutorial request (the TUTORIAL_WELCOME launch extra, the help "Show tutorials"
+    // action, or the what's-new opt-out's "yes"); HomeScreen starts the Compose welcome + map-stop
+    // spotlight sequence off this latch once composed. Mirrors [deepLinkRoute].
     private val _showWelcomeTutorial = MutableStateFlow(false)
     val showWelcomeTutorial: StateFlow<Boolean> = _showWelcomeTutorial.asStateFlow()
 
@@ -315,7 +315,7 @@ class HomeViewModel @Inject constructor(
         _showWelcomeTutorial.value = true
     }
 
-    /** WelcomeTutorialEffect showed the welcome tutorial; clear the latch so it isn't re-shown. */
+    /** HomeScreen started the welcome sequence; clear the latch so it isn't re-started. */
     fun onWelcomeTutorialConsumed() {
         _showWelcomeTutorial.value = false
     }
@@ -405,14 +405,6 @@ class HomeViewModel @Inject constructor(
         pendingMapFocus = false
         bus.send(MapCommand.FocusStop(stop, routes, settledSheet == ArrivalsSheetState.Expanded))
     }
-
-    /**
-     * Whether the arrival-info tutorial may show now: the map is composed (so the arrival info is
-     * actually on screen) and the arrivals sheet isn't hidden. The "a ShowcaseView is already up" guard
-     * stays with the host — that's imperative View-overlay state, not VM state.
-     */
-    fun shouldShowArrivalTutorial(): Boolean =
-        mapComposed && settledSheet != ArrivalsSheetState.Hidden
 
     /** "Show vehicles on map" — collapse the sheet (screen), then switch the map to route mode. */
     fun requestShowRouteOnMap(routeId: String) {

@@ -207,6 +207,7 @@ fun MapFeature(
 
     when (dialog) {
         MapEffect.OutOfRange -> OutOfRangeDialog(
+            regionName = mapViewModel.currentRegionName.orEmpty(),
             onConfirm = { mapViewModel.zoomToRegion(); dialog = null },
             onDismiss = { dialog = null },
         )
@@ -313,8 +314,7 @@ fun MapFeature(
 
 /** The viewport (or device) is outside the current region (ported from GoogleMapHost.showOutOfRange). */
 @Composable
-private fun OutOfRangeDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    val regionName = Application.get().currentRegion?.name ?: ""
+private fun OutOfRangeDialog(regionName: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.main_outofrange_title)) },

@@ -45,7 +45,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
+import org.onebusaway.android.app.di.RegionEntryPoint
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.request.ObaArrivalInfoRequest
 import org.onebusaway.android.provider.ObaContract
@@ -97,8 +97,8 @@ private val RECENT_WINDOW_MS = 7 * DateUtils.DAY_IN_MILLIS
 private fun recentSelection(accessTime: String, useCount: String, cutoffMs: Long, regionWhere: String) =
     "(($accessTime IS NOT NULL AND $accessTime > $cutoffMs) OR ($useCount > 0))$regionWhere"
 
-private fun regionWhere(regionField: String): String {
-    val region = Application.get().currentRegion ?: return ""
+private fun regionWhere(context: Context, regionField: String): String {
+    val region = RegionEntryPoint.get(context).region.value ?: return ""
     return " AND ($regionField=${region.id} OR $regionField IS NULL)"
 }
 
@@ -166,7 +166,7 @@ class RecentStopsRepository(private val context: Context) : MyListRepository<Sto
         val cutoff = System.currentTimeMillis() - RECENT_WINDOW_MS
         val selection = recentSelection(
             ObaContract.Stops.ACCESS_TIME, ObaContract.Stops.USE_COUNT, cutoff,
-            regionWhere(ObaContract.Stops.REGION_ID)
+            regionWhere(context, ObaContract.Stops.REGION_ID)
         )
         val uri = ObaContract.Stops.CONTENT_URI.buildUpon()
             .appendQueryParameter("limit", RECENT_LIMIT).build()
@@ -202,7 +202,7 @@ class RecentRoutesRepository(private val context: Context) : MyListRepository<Ro
         val cutoff = System.currentTimeMillis() - RECENT_WINDOW_MS
         val selection = recentSelection(
             ObaContract.Routes.ACCESS_TIME, ObaContract.Routes.USE_COUNT, cutoff,
-            regionWhere(ObaContract.Routes.REGION_ID)
+            regionWhere(context, ObaContract.Routes.REGION_ID)
         )
         val uri = ObaContract.Routes.CONTENT_URI.buildUpon()
             .appendQueryParameter("limit", RECENT_LIMIT).build()
@@ -260,7 +260,7 @@ class StarredStopsRepository(private val context: Context) : MyListRepository<St
     }
 
     private fun queryStarredStops(order: Int): List<StopListItem> {
-        val selection = "${ObaContract.Stops.FAVORITE}=1" + regionWhere(ObaContract.Stops.REGION_ID)
+        val selection = "${ObaContract.Stops.FAVORITE}=1" + regionWhere(context, ObaContract.Stops.REGION_ID)
         val sortOrder = if (order == SORT_BY_FREQUENCY) {
             "${ObaContract.Stops.USE_COUNT} desc"
         } else {
@@ -315,7 +315,7 @@ class StarredRoutesRepository(private val context: Context) : MyListRepository<R
     }
 
     private fun queryStarredRoutes(order: Int): List<RouteListItem> {
-        val selection = "${ObaContract.Routes.FAVORITE}=1" + regionWhere(ObaContract.Routes.REGION_ID)
+        val selection = "${ObaContract.Routes.FAVORITE}=1" + regionWhere(context, ObaContract.Routes.REGION_ID)
         val sortOrder = if (order == SORT_BY_FREQUENCY) {
             "${ObaContract.Routes.USE_COUNT} desc"
         } else {

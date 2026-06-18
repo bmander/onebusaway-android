@@ -210,6 +210,9 @@ class MapViewModel @Inject constructor(
     /** One-shot events that need an Activity (e.g. the out-of-range prompt). */
     val effects: SharedFlow<MapEffect> = _effects.asSharedFlow()
 
+    /** The current region's display name (for the out-of-range prompt), or null if none is selected. */
+    val currentRegionName: String? get() = regionRepo.region.value?.name
+
     // ----- Bikeshare layer toggle (overlays every mode) -----
 
     // Defaults off; the host pushes the real `LayerUtils.isBikeshareLayerVisible()` value on resume

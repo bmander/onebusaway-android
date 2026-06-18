@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.ui.home.help
 
-import android.content.pm.PackageManager
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -23,8 +22,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.ShowcaseViewUtils
@@ -91,25 +90,16 @@ class HelpViewModel @Inject constructor(
 
     /** Records the opt-out choice (enable/disable tutorial popups) and closes the dialog. */
     fun setTutorialsEnabled(enabled: Boolean) {
-        prefs.setBoolean(
-            Application.get().getString(R.string.preference_key_show_tutorial_screens), enabled
-        )
+        prefs.setBoolean(R.string.preference_key_show_tutorial_screens, enabled)
         dismiss()
     }
 
     /**
      * Show "What's New" if a newer version was just installed; returns whether it was (the activity uses
-     * that to refresh the region-gated drawer items). Application-backed, so it isn't unit-tested.
+     * that to refresh the region-gated drawer items).
      */
-    @Suppress("DEPRECATION")
     fun maybeAutoShowWhatsNew(): Boolean {
-        val appInfo = try {
-            Application.get().packageManager
-                .getPackageInfo(Application.get().packageName, PackageManager.GET_META_DATA)
-        } catch (e: PackageManager.NameNotFoundException) {
-            return false
-        }
-        val newVer = appInfo.versionCode
+        val newVer = BuildConfig.VERSION_CODE
         if (prefs.getInt(WHATS_NEW_VER, 0) < newVer) {
             showWhatsNew()
             prefs.setInt(WHATS_NEW_VER, newVer)

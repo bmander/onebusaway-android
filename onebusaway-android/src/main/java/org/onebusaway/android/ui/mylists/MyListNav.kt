@@ -18,7 +18,7 @@ package org.onebusaway.android.ui.mylists
 import org.onebusaway.android.ui.tripinfo.confirmDeleteReminder
 import org.onebusaway.android.ui.tripinfo.TripInfoLauncher
 import org.onebusaway.android.ui.routeinfo.RouteInfoLauncher
-import org.onebusaway.android.ui.nav.NavHelp
+import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.arrivals.ArrivalsListLauncher
 import org.onebusaway.android.ui.HomeActivity
 import android.app.Activity
@@ -38,7 +38,6 @@ import org.onebusaway.android.util.ReminderUtils
  * `My*` tab activities (`MyTabsScreen`) and the Compose home screen, with identical tap/long-press
  * behavior except for the remove-action label and whether the host is a launcher-shortcut picker
  * (`shortcutMode`) — so it lives here as [AppCompatActivity] extensions rather than a base class.
- * (This file is in the `ui` package, not `ui.mylists`, so it can reach the package-private [NavHelp].)
  */
 
 private fun AppCompatActivity.stopArrivalsBuilder(stop: StopListItem) =
@@ -48,14 +47,12 @@ private fun AppCompatActivity.stopArrivalsBuilder(stop: StopListItem) =
 
 /** Opens a stop's arrivals, or returns it as a launcher shortcut when [shortcutMode] is set. */
 internal fun AppCompatActivity.openStop(stop: StopListItem, shortcutMode: Boolean) {
-    val builder = stopArrivalsBuilder(stop)
     if (shortcutMode) {
-        val shortcut = Shortcuts.createStopShortcut(this, stop.name, builder)
+        val shortcut = Shortcuts.createStopShortcut(this, stop.name, stopArrivalsBuilder(stop))
         setResult(Activity.RESULT_OK, shortcut.intent)
         finish()
     } else {
-        builder.setUpMode(NavHelp.UP_MODE_BACK)
-        builder.start()
+        (this as HomeActivity).navigateTo(NavRoutes.arrivals(stop.id, stop.name))
     }
 }
 
@@ -148,16 +145,15 @@ internal fun AppCompatActivity.reminderActions(
 
 /** Opens a search-result stop's arrivals, or returns it as a launcher shortcut in [shortcutMode]. */
 internal fun AppCompatActivity.openStopSearchResult(stop: StopSearchResult, shortcutMode: Boolean) {
-    val builder = ArrivalsListLauncher.Builder(this, stop.id)
-        .setStopName(stop.serverName)
-        .setStopDirection(stop.direction)
     if (shortcutMode) {
+        val builder = ArrivalsListLauncher.Builder(this, stop.id)
+            .setStopName(stop.serverName)
+            .setStopDirection(stop.direction)
         val shortcut = Shortcuts.createStopShortcut(this, stop.serverName, builder)
         setResult(Activity.RESULT_OK, shortcut.intent)
         finish()
     } else {
-        builder.setUpMode(NavHelp.UP_MODE_BACK)
-        builder.start()
+        (this as HomeActivity).navigateTo(NavRoutes.arrivals(stop.id, stop.serverName))
     }
 }
 
@@ -168,6 +164,6 @@ internal fun AppCompatActivity.openRouteSearchResult(route: RouteSearchResult, s
         setResult(Activity.RESULT_OK, shortcut.intent)
         finish()
     } else {
-        RouteInfoLauncher.start(this, route.id)
+        (this as HomeActivity).navigateTo(NavRoutes.routeInfo(route.id))
     }
 }

@@ -26,12 +26,12 @@ import org.onebusaway.android.ui.nav.NavRoutes
  * Campaign C: the screen is a NavHost destination ([NightLightRoute]) hosted by [HomeActivity]; this
  * is no longer an Activity but a launcher facade. The frozen `NightLightActivity` component name is
  * kept alive as an activity-alias → HomeActivity (for old pinned launcher shortcuts, which HomeActivity's
- * translator maps to the [NavRoutes.NIGHT_LIGHT] route by component name); in-app callers build an
- * explicit [HomeActivity] intent carrying the route.
+ * translator maps to the [NavRoutes.NIGHT_LIGHT] route by component name); in-app callers navigate the
+ * NavHost directly via [HomeActivity.navigateTo].
  */
 object NightLightLauncher {
 
     fun start(context: Context) {
-        context.startActivity(HomeActivity.navIntent(context, NavRoutes.NIGHT_LIGHT))
+        (context as HomeActivity).navigateTo(NavRoutes.NIGHT_LIGHT)
     }
 }

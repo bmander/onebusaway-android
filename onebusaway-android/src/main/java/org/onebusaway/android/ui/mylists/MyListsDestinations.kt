@@ -119,7 +119,13 @@ fun NavGraphBuilder.myListsGraph(navController: NavHostController) {
                         reminders,
                         emptyText = R.string.trip_list_notrips,
                         onClick = { activity.editReminder(it) },
-                        actions = { activity.reminderActions(it) }
+                        actions = {
+                            activity.reminderActions(
+                                it,
+                                onShowRoute = { navController.navigate(NavRoutes.routeInfo(it)) },
+                                onShowStop = { navController.navigate(NavRoutes.arrivals(it)) },
+                            )
+                        }
                     )
                 }
             }

@@ -18,10 +18,8 @@ package org.onebusaway.android.ui.tripinfo
 
 import org.onebusaway.android.ui.HomeActivity
 import android.content.Context
-import android.content.Intent
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import org.onebusaway.android.R
-import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
@@ -32,16 +30,18 @@ import org.onebusaway.android.ui.nav.NavRoutes
  * [ObaContract.Trips] data URI); the arrivals "set reminder" path also passes the full trip context
  * as extras so a brand-new reminder needs no DB round-trip. Both build an explicit [HomeActivity]
  * intent that HomeActivity's translator turns into the [NavRoutes.TRIP_INFO] route. (Non-exported,
- * launched only in-app, so no activity-alias is needed.)
+ * launched only in-app, so no activity-alias is needed.) Navigates in-app via [HomeActivity.navigateTo]
+ * rather than round-tripping through `startActivity` — the route carries the same context the old
+ * intent did.
  */
 object TripInfoLauncher {
 
-    /** Opens an existing reminder for editing — the data is read from the Trips table. */
+    /** Opens an existing reminder for editing — the editor reads the rest from the Trips table. */
     fun start(context: Context, tripId: String, stopId: String) {
-        context.startActivity(intentFor(context, tripId, stopId))
+        (context as HomeActivity).navigateTo(NavRoutes.tripInfo(tripId, stopId))
     }
 
-    /** Creates a reminder for an upcoming arrival, with the trip context passed as extras. */
+    /** Creates a reminder for an upcoming arrival, with the trip context carried on the route. */
     fun start(
         context: Context,
         tripId: String,
@@ -55,21 +55,21 @@ object TripInfoLauncher {
         serviceDate: Long,
         vehicleId: String?
     ) {
-        val intent = intentFor(context, tripId, stopId)
-            .putExtra(NavRoutes.ARG_ROUTE_ID, routeId)
-            .putExtra(NavRoutes.ARG_ROUTE_NAME, routeName)
-            .putExtra(NavRoutes.ARG_STOP_NAME, stopName)
-            .putExtra(NavRoutes.ARG_DEPART_TIME, departureTime)
-            .putExtra(NavRoutes.ARG_HEADSIGN, headsign)
-            .putExtra(NavRoutes.ARG_STOP_SEQUENCE, stopSequence)
-            .putExtra(NavRoutes.ARG_SERVICE_DATE, serviceDate)
-            .putExtra(NavRoutes.ARG_VEHICLE_ID, vehicleId)
-        context.startActivity(intent)
+        (context as HomeActivity).navigateTo(
+            NavRoutes.tripInfo(
+                tripId = tripId,
+                stopId = stopId,
+                routeId = routeId,
+                routeName = routeName,
+                stopName = stopName,
+                headsign = headsign,
+                departTime = departureTime,
+                stopSequence = stopSequence,
+                serviceDate = serviceDate,
+                vehicleId = vehicleId,
+            )
+        )
     }
-
-    private fun intentFor(context: Context, tripId: String, stopId: String): Intent =
-        Intent(context, HomeActivity::class.java)
-            .setData(ObaContract.Trips.buildUri(tripId, stopId))
 }
 
 /**

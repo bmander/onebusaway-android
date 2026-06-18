@@ -44,15 +44,15 @@ import org.onebusaway.android.ui.nav.NavRoutes
  * Launches the external-survey web view.
  *
  * Campaign C: the survey web view is a NavHost destination hosted by [HomeActivity]; this is no longer
- * an Activity but a launcher facade. [start] builds an explicit [HomeActivity] intent carrying the
- * [NavRoutes.SURVEY_WEB_VIEW] route (the survey URL as a nav-arg), which HomeActivity's translator
- * navigates to. (Non-exported, launched only in-app from the survey overlay, so no alias is needed.)
+ * an Activity but a launcher facade. [start] navigates the NavHost to the [NavRoutes.SURVEY_WEB_VIEW]
+ * route (the survey URL as a nav-arg) in-app via [HomeActivity.navigateTo]. (Non-exported, launched only
+ * in-app from the survey overlay, so no alias is needed.)
  */
 object SurveyWebViewActivity {
 
     @JvmStatic
     fun start(context: Context, url: String) {
-        context.startActivity(HomeActivity.navIntent(context, NavRoutes.surveyWebView(url)))
+        (context as HomeActivity).navigateTo(NavRoutes.surveyWebView(url))
     }
 }
 

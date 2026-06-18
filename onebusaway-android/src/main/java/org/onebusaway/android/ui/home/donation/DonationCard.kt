@@ -51,6 +51,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.ui.HomeActivity
+import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
@@ -76,7 +77,7 @@ fun DonationFeature(viewModel: DonationViewModel, onNearby: Boolean, cardModifie
             viewModel.effects.collect { effect ->
                 when (effect) {
                     DonationEffect.OpenLearnMore ->
-                        context.startActivity(HomeActivity.navIntent(context, NavRoutes.DONATION_LEARN_MORE))
+                        (context.findActivity() as HomeActivity).navigateTo(NavRoutes.DONATION_LEARN_MORE)
                     DonationEffect.OpenDonatePage ->
                         context.startActivity(Application.getDonationsManager().buildOpenDonationsPageIntent())
                 }

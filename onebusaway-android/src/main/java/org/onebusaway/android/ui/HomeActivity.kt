@@ -225,6 +225,14 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
+     * Navigate the NavHost to an in-app [route] (a [NavRoutes] string) — the single-Activity replacement
+     * for `startActivity(launcher intent)` from in-app code that has no `navController` in scope (the
+     * arrivals sheet, the My* helpers, the Compose overlays). Goes through the same staged-route path
+     * the old intent round-trip resolved to, so the back-stack behavior is unchanged.
+     */
+    fun navigateTo(route: String) = viewModel.stageDeepLinkRoute(route)
+
+    /**
      * Handles an incoming external intent: runs any domain side effects it implies, then stages the
      * NavHost route it should open. Both entry points (cold launch in [onCreate], warm re-launch in
      * [onNewIntent]) funnel through here so the side-effect-then-route sequence stays in one place.
@@ -352,7 +360,7 @@ class HomeActivity : AppCompatActivity() {
                 ShowcaseViewUtils.resetAllTutorials(this)
                 NavHelp.goHome(this, true)
             }
-            HelpAction.AGENCIES -> startActivity(navIntent(this, NavRoutes.AGENCIES))
+            HelpAction.AGENCIES -> viewModel.stageDeepLinkRoute(NavRoutes.AGENCIES)
             HelpAction.TWITTER -> {
                 // The VM derives which URL fits the current region; the host just fires the ACTION_VIEW.
                 // Analytics rides the VM's event so the ObaAnalytics call lives in HomeAnalyticsEffect.

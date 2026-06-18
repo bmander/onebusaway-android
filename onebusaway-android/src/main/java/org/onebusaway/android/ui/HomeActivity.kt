@@ -34,7 +34,7 @@ import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
-import org.onebusaway.android.report.ui.ReportActivity
+import org.onebusaway.android.report.ui.ReportLauncher
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.nav.NavHelp
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
@@ -63,7 +63,7 @@ import org.onebusaway.android.ui.tutorial.ArrivalTutorial
 import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.PermissionUtils
 import org.onebusaway.android.util.ReminderUtils
-import org.onebusaway.android.util.ShowcaseViewUtils
+import org.onebusaway.android.ui.tutorial.TutorialPrefs
 
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity() {
@@ -241,7 +241,7 @@ class HomeActivity : AppCompatActivity() {
         viewModel.stageDeepLinkRoute(IntentRouteMapper.routeForIntent(intent))
         // "Show tutorials again" re-launches with this extra. Staging in this shared funnel (not just
         // onCreate) makes both the cold first-run and the singleTop warm re-launch (onNewIntent) honor it.
-        if (intent?.extras?.getBoolean(ShowcaseViewUtils.TUTORIAL_WELCOME) == true) {
+        if (intent?.extras?.getBoolean(TutorialPrefs.TUTORIAL_WELCOME) == true) {
             viewModel.requestWelcomeTutorial()
         }
     }
@@ -344,7 +344,7 @@ class HomeActivity : AppCompatActivity() {
     private fun onHelpAction(action: HelpAction) {
         when (action) {
             HelpAction.TUTORIALS -> {
-                ShowcaseViewUtils.resetAllTutorials(this)
+                TutorialPrefs.resetAllTutorials(this)
                 NavHelp.goHome(this, true)
             }
             HelpAction.AGENCIES -> viewModel.stageDeepLinkRoute(NavRoutes.AGENCIES)
@@ -376,10 +376,10 @@ class HomeActivity : AppCompatActivity() {
         // The VM picks the report target (focused stop → last location → nothing); the host just launches.
         when (val target = viewModel.reportTarget()) {
             is ReportTarget.Stop -> target.stop.let {
-                ReportActivity.start(this, it.id, it.name, it.code, it.lat, it.lon)
+                ReportLauncher.start(this, it.id, it.name, it.code, it.lat, it.lon)
             }
-            is ReportTarget.Location -> ReportActivity.start(this, target.lat, target.lon)
-            ReportTarget.Generic -> ReportActivity.start(this)
+            is ReportTarget.Location -> ReportLauncher.start(this, target.lat, target.lon)
+            ReportTarget.Generic -> ReportLauncher.start(this)
         }
     }
 

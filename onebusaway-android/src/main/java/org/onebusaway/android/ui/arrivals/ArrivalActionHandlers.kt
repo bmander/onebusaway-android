@@ -23,7 +23,7 @@ import org.onebusaway.android.ui.arrivals.dialogs.showSituationDialog
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import org.onebusaway.android.R
-import org.onebusaway.android.report.ui.InfrastructureIssueActivity
+import org.onebusaway.android.report.ui.InfrastructureIssueLauncher
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.ReminderUtils
@@ -96,7 +96,7 @@ fun createArrivalActionHandler(
     override fun onReportArrivalProblem(actions: ArrivalActions) {
         val content = currentContent() ?: return
         val info = content.arrivals.firstOrNull { it.info.tripId == actions.tripId }?.info ?: return
-        InfrastructureIssueActivity.startWithService(
+        InfrastructureIssueLauncher.startWithService(
             activity,
             activity.getString(R.string.ri_selected_service_trip),
             content.header.stopId,
@@ -128,7 +128,7 @@ fun createArrivalActionHandler(
 
     override fun onReportStopProblem() {
         val content = currentContent() ?: return
-        InfrastructureIssueActivity.startWithService(
+        InfrastructureIssueLauncher.startWithService(
             activity,
             activity.getString(R.string.ri_selected_service_stop),
             content.header.stopId,

@@ -32,7 +32,7 @@ import org.onebusaway.android.ui.nav.NavRoutes
  * own (process-death-safe) back-stack args. Reached from the arrivals "report problem" actions (this
  * facade → HomeActivity → translator).
  */
-object InfrastructureIssueActivity {
+object InfrastructureIssueLauncher {
 
     @JvmStatic
     @JvmOverloads

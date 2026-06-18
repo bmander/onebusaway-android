@@ -18,7 +18,7 @@ package org.onebusaway.android.ui.nav
 import android.content.Context
 import android.content.Intent
 import org.onebusaway.android.ui.HomeActivity
-import org.onebusaway.android.util.ShowcaseViewUtils
+import org.onebusaway.android.ui.tutorial.TutorialPrefs
 
 object NavHelp {
 
@@ -31,7 +31,7 @@ object NavHelp {
         val intent = Intent(context, HomeActivity::class.java)
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         if (showTutorial) {
-            intent.putExtra(ShowcaseViewUtils.TUTORIAL_WELCOME, true)
+            intent.putExtra(TutorialPrefs.TUTORIAL_WELCOME, true)
         }
         context.startActivity(intent)
     }

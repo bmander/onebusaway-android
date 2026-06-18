@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.survey.activities
+package org.onebusaway.android.ui.survey
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -48,7 +48,7 @@ import org.onebusaway.android.ui.nav.NavRoutes
  * route (the survey URL as a nav-arg) in-app via [HomeActivity.navigateTo]. (Non-exported, launched only
  * in-app from the survey overlay, so no alias is needed.)
  */
-object SurveyWebViewActivity {
+object SurveyWebViewLauncher {
 
     @JvmStatic
     fun start(context: Context, url: String) {

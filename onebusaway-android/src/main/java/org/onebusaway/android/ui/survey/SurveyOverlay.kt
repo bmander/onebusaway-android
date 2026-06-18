@@ -58,7 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import org.onebusaway.android.R
 import org.onebusaway.android.io.request.survey.model.StudyResponse
-import org.onebusaway.android.ui.survey.activities.SurveyWebViewActivity
+import org.onebusaway.android.ui.survey.SurveyWebViewLauncher
 import org.onebusaway.android.ui.survey.utils.SurveyUtils
 
 /**
@@ -92,7 +92,7 @@ fun SurveyFeature(
             viewModel.effects.collect { effect ->
                 when (effect) {
                     is SurveyEffect.OpenExternalSurvey ->
-                        SurveyWebViewActivity.start(context, effect.url)
+                        SurveyWebViewLauncher.start(context, effect.url)
                     is SurveyEffect.ShowToast ->
                         Toast.makeText(context, effect.resId, Toast.LENGTH_SHORT).show()
                 }

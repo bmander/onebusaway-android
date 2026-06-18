@@ -60,7 +60,7 @@ import org.onebusaway.android.util.PreferenceUtils
  * which the destination — and the customer-service / infrastructure-issue sub-screens it forwards to —
  * read from their own (process-death-safe) back-stack args.
  */
-object ReportActivity {
+object ReportLauncher {
 
     @JvmStatic
     fun start(

@@ -24,7 +24,7 @@ import org.onebusaway.android.preferences.PreferencesRepository
  * Spotlights, in order, the ETA pill, the slide-up chevron, and the favorite star of the focused
  * stop's peek (see the [Modifier.tutorialAnchor] call sites in `ArrivalsPanel`). Shown once the first
  * time a stop's arrivals load, gated by [pendingSteps]; "show tutorials again" re-arms it by clearing
- * the [resetKeys] (see `ShowcaseViewUtils.resetAllTutorials`).
+ * the [resetKeys] (see `TutorialPrefs.resetAllTutorials`).
  *
  * Each step's [TutorialStep.id] is both its spotlight anchor key and its persisted "already shown"
  * preference key. These are fresh `.tutorial_compose_arrival_*` keys (not the legacy ShowcaseView

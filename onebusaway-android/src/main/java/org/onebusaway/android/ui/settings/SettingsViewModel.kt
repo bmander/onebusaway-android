@@ -40,7 +40,7 @@ import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.BuildFlavorUtils
-import org.onebusaway.android.util.ShowcaseViewUtils
+import org.onebusaway.android.ui.tutorial.TutorialPrefs
 import org.onebusaway.android.util.ThemeUtils
 
 /** One-shot actions the root settings screen can only perform with its host Activity. */
@@ -210,7 +210,7 @@ class SettingsViewModel @Inject constructor(
 
     fun onTutorialClicked() {
         reportPreferencesEvent(context, R.string.analytics_label_button_press_tutorial)
-        ShowcaseViewUtils.resetAllTutorials(context)
+        TutorialPrefs.resetAllTutorials(context)
         _effects.trySend(SettingsEffect.GoHomeResetTutorial)
     }
 

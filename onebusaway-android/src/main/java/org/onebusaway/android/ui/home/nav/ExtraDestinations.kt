@@ -37,7 +37,7 @@ import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.nightlight.NightLightRoute
 import org.onebusaway.android.ui.searchresults.SearchResultsRoute
 import org.onebusaway.android.ui.searchresults.SearchResultsViewModel
-import org.onebusaway.android.ui.survey.activities.SurveyWebViewScreen
+import org.onebusaway.android.ui.survey.SurveyWebViewScreen
 import org.onebusaway.android.util.DBUtil
 
 /**
@@ -66,7 +66,7 @@ fun NavGraphBuilder.extraDestinations(navController: NavHostController) {
         }
     }
     // Survey web view destination (Campaign C): the external-survey WebView. Reached in-app
-    // from the home survey overlay (SurveyWebViewActivity facade → HomeActivity → translator).
+    // from the home survey overlay (SurveyWebViewLauncher facade → HomeActivity → translator).
     // The survey URL is the nav-arg. Non-exported; no alias.
     composable(
         NavRoutes.SURVEY_WEB_VIEW,

@@ -26,7 +26,7 @@ import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
-import org.onebusaway.android.util.ShowcaseViewUtils
+import org.onebusaway.android.ui.tutorial.TutorialPrefs
 
 /** Which help dialog is showing. Split out of the shared HomeDialog when help became a feature module. */
 sealed interface HelpDialog {
@@ -81,10 +81,10 @@ class HelpViewModel @Inject constructor(
 
     /** After what's-new, offer the tutorial opt-out once (gated by TUTORIAL_OPT_OUT_DIALOG). */
     fun maybeShowTutorialOptOut() {
-        if (prefs.getBoolean(ShowcaseViewUtils.TUTORIAL_OPT_OUT_DIALOG, true)) {
+        if (prefs.getBoolean(TutorialPrefs.TUTORIAL_OPT_OUT_DIALOG, true)) {
             _state.update { it.copy(dialog = HelpDialog.TutorialOptOut) }
             // Only offer it once.
-            prefs.setBoolean(ShowcaseViewUtils.TUTORIAL_OPT_OUT_DIALOG, false)
+            prefs.setBoolean(TutorialPrefs.TUTORIAL_OPT_OUT_DIALOG, false)
         }
     }
 

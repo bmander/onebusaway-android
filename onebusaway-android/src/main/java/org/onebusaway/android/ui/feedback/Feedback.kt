@@ -77,7 +77,7 @@ import org.onebusaway.android.ui.nav.NavRoutes
  */
 object FeedbackLauncher {
 
-    const val TAG = "FeedbackActivity"
+    const val TAG = "FeedbackLauncher"
 
     const val TRIP_ID = ".TRIP_ID"
     const val NOTIFICATION_ID = ".NOTIFICATION_ID"

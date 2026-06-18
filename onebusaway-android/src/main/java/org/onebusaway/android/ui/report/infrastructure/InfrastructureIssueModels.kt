@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.ui.report.infrastructure
 
-import org.onebusaway.android.io.elements.ObaArrivalInfo
+import org.onebusaway.android.report.TripReportContext
 import org.onebusaway.android.io.elements.ObaStop
 
 /**
@@ -46,8 +46,8 @@ sealed interface ReportTarget {
     data class StopProblem(val stop: ObaStop) : ReportTarget
 
     /** A null [arrival] means the host shows the arrival picker first; non-null shows the form. */
-    data class TripProblem(val stop: ObaStop, val arrival: ObaArrivalInfo?) : ReportTarget
-    data class Open311(val category: ServiceListItem.Category, val arrival: ObaArrivalInfo?) : ReportTarget
+    data class TripProblem(val stop: ObaStop, val arrival: TripReportContext?) : ReportTarget
+    data class Open311(val category: ServiceListItem.Category, val arrival: TripReportContext?) : ReportTarget
 }
 
 /** The category to auto-select when the screen opens, from the report type list. */

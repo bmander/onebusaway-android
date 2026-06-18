@@ -60,26 +60,42 @@ object NavRoutes {
     const val SETTINGS_ADVANCED = "settingsAdvanced"
 
     // --- Report / problem-reporting flow (Campaign C: former ReportActivity /
-    // CustomerServiceActivity / InfrastructureIssueActivity). The chooser ([REPORT]) and the
-    // customer-service list take no args; the stop/location context for the whole flow rides on the
-    // host activity intent extras (MapParams.*, LOCATION_STRING), read by the destinations. ---
+    // CustomerServiceActivity / InfrastructureIssueActivity). The whole flow's stop/location/trip
+    // context rides one nav-arg ([ARG_REPORT_CONTEXT] = an encoded
+    // [org.onebusaway.android.report.ReportContext]), so each destination reads its own back-stack args
+    // (process-death safe) instead of the host activity intent. ---
+    /** The encoded report context (stop/location/trip), carried by every report destination. */
+    const val ARG_REPORT_CONTEXT = "reportContext"
+
     /** The "Send feedback" report-type chooser (former ReportActivity). */
-    const val REPORT = "report"
+    const val REPORT = "report?$ARG_REPORT_CONTEXT={$ARG_REPORT_CONTEXT}"
+
+    /** Builds a navigable [REPORT] route, optionally carrying the encoded [reportContext]. */
+    fun report(reportContext: String? = null): String = "report" + reportContextQuery(reportContext)
 
     /** Region transit-agency contact list (former CustomerServiceActivity). */
-    const val CUSTOMER_SERVICE = "customerService"
+    const val CUSTOMER_SERVICE = "customerService?$ARG_REPORT_CONTEXT={$ARG_REPORT_CONTEXT}"
 
-    // The infrastructure-issue (stop/trip problem) hybrid map+form screen. The only nav-arg is the
-    // selected-service keyword ("stop"/"trip", from the chooser); the stop/location context and the
-    // opaque ObaArrivalInfo (TRIP_INFO) / AGENCY_NAME / BLOCK_ID ride on the host intent extras (read
-    // by the destination's hand-built VM factory, exactly as the former Activity did).
+    /** Builds a navigable [CUSTOMER_SERVICE] route, optionally carrying the encoded [reportContext]. */
+    fun customerService(reportContext: String? = null): String =
+        "customerService" + reportContextQuery(reportContext)
+
+    // The infrastructure-issue (stop/trip problem) hybrid map+form screen: the selected-service keyword
+    // ("stop"/"trip") plus the encoded report context, both as nav-args.
     const val ARG_SELECTED_SERVICE = "selectedService"
-    const val INFRASTRUCTURE_ISSUE = "infrastructureIssue?$ARG_SELECTED_SERVICE={$ARG_SELECTED_SERVICE}"
+    const val INFRASTRUCTURE_ISSUE =
+        "infrastructureIssue?$ARG_SELECTED_SERVICE={$ARG_SELECTED_SERVICE}" +
+            "&$ARG_REPORT_CONTEXT={$ARG_REPORT_CONTEXT}"
 
-    /** Builds a navigable [INFRASTRUCTURE_ISSUE] route, optionally carrying the [selectedService]. */
-    fun infrastructureIssue(selectedService: String? = null): String =
-        "infrastructureIssue" +
-            if (selectedService != null) "?$ARG_SELECTED_SERVICE=${Uri.encode(selectedService)}" else ""
+    /** Builds a navigable [INFRASTRUCTURE_ISSUE] route, optionally carrying [selectedService] + context. */
+    fun infrastructureIssue(selectedService: String? = null, reportContext: String? = null): String =
+        "infrastructureIssue" + buildList {
+            if (selectedService != null) add("$ARG_SELECTED_SERVICE=${Uri.encode(selectedService)}")
+            if (reportContext != null) add("$ARG_REPORT_CONTEXT=${Uri.encode(reportContext)}")
+        }.let { if (it.isEmpty()) "" else "?" + it.joinToString("&") }
+
+    private fun reportContextQuery(reportContext: String?): String =
+        if (reportContext != null) "?$ARG_REPORT_CONTEXT=${Uri.encode(reportContext)}" else ""
 
     // --- Search results (system ACTION_SEARCH target + the home top-bar search field) ---
     const val ARG_QUERY = "query"

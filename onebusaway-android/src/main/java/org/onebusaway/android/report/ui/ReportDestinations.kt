@@ -19,11 +19,13 @@ package org.onebusaway.android.report.ui
 
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import org.onebusaway.android.report.ReportContext
 import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.compose.theme.ObaTheme
@@ -42,16 +44,29 @@ fun NavGraphBuilder.reportGraph(navController: NavHostController) {
     // InfrastructureIssueActivity). The chooser ([REPORT]) shows the region-validate dialog
     // (if needed) then the type list; a tapped type navigates in-NavHost to customer service
     // or the infrastructure-issue screen, so back returns to the chooser (today's behavior).
-    // The stop/location context rides on this activity's intent (from the launch facade) and
-    // is read by the issue destination. Non-exported; no aliases.
-    composable(NavRoutes.REPORT) {
+    // The stop/location/trip context rides one nav-arg (an encoded [ReportContext]) the chooser
+    // forwards to its sub-screens, so each destination reads its own (process-death-safe)
+    // back-stack args. Non-exported; no aliases.
+    composable(
+        NavRoutes.REPORT,
+        arguments = listOf(reportContextArg()),
+    ) { backStackEntry ->
         ObaTheme {
-            ReportDestination(navController = navController)
+            ReportDestination(
+                navController = navController,
+                reportContext = backStackEntry.decodeReportContext(),
+            )
         }
     }
-    composable(NavRoutes.CUSTOMER_SERVICE) {
+    composable(
+        NavRoutes.CUSTOMER_SERVICE,
+        arguments = listOf(reportContextArg()),
+    ) { backStackEntry ->
         ObaTheme {
-            CustomerServiceDestination(navController = navController)
+            CustomerServiceDestination(
+                navController = navController,
+                reportContext = backStackEntry.decodeReportContext(),
+            )
         }
     }
     composable(
@@ -60,6 +75,7 @@ fun NavGraphBuilder.reportGraph(navController: NavHostController) {
             navArgument(NavRoutes.ARG_SELECTED_SERVICE) {
                 type = NavType.StringType; nullable = true; defaultValue = null
             },
+            reportContextArg(),
         ),
     ) { backStackEntry ->
         val selectedService =
@@ -68,6 +84,7 @@ fun NavGraphBuilder.reportGraph(navController: NavHostController) {
             InfrastructureIssueDestination(
                 navController = navController,
                 selectedService = selectedService,
+                reportContext = backStackEntry.decodeReportContext(),
             )
         }
     }
@@ -113,3 +130,12 @@ fun NavGraphBuilder.reportGraph(navController: NavHostController) {
         }
     }
 }
+
+/** The optional, nullable encoded-[ReportContext] nav-arg shared by every report destination. */
+private fun reportContextArg() = navArgument(NavRoutes.ARG_REPORT_CONTEXT) {
+    type = NavType.StringType; nullable = true; defaultValue = null
+}
+
+/** Decodes this entry's [NavRoutes.ARG_REPORT_CONTEXT] arg into a [ReportContext] (empty if absent). */
+private fun NavBackStackEntry.decodeReportContext(): ReportContext =
+    ReportContext.decode(arguments?.getString(NavRoutes.ARG_REPORT_CONTEXT))

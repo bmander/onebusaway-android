@@ -21,7 +21,6 @@ import org.onebusaway.android.ui.nav.NavHelp
 import org.onebusaway.android.ui.arrivals.dialogs.RouteFavoriteHost
 import org.onebusaway.android.ui.arrivals.dialogs.StopDetailsHost
 import org.onebusaway.android.ui.arrivals.dialogs.showSituationDialog
-import android.content.Intent
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import org.onebusaway.android.R
@@ -101,8 +100,12 @@ fun createArrivalActionHandler(
         val info = content.arrivals.firstOrNull { it.info.tripId == actions.tripId }?.info ?: return
         InfrastructureIssueActivity.startWithService(
             activity,
-            stopReportIntent(activity, content),
             activity.getString(R.string.ri_selected_service_trip),
+            content.header.stopId,
+            content.header.name,
+            content.stopCode,
+            content.stopLat,
+            content.stopLon,
             info,
             actions.agencyName,
             actions.blockId
@@ -129,21 +132,12 @@ fun createArrivalActionHandler(
         val content = currentContent() ?: return
         InfrastructureIssueActivity.startWithService(
             activity,
-            stopReportIntent(activity, content),
-            activity.getString(R.string.ri_selected_service_stop)
+            activity.getString(R.string.ri_selected_service_stop),
+            content.header.stopId,
+            content.header.name,
+            content.stopCode,
+            content.stopLat,
+            content.stopLon
         )
     }
 }
-
-/** The HomeActivity-style intent the report flow expects (stop focused on the map). */
-private fun stopReportIntent(
-    activity: AppCompatActivity,
-    content: ArrivalsUiState.Content
-): Intent = ArrivalsIntents.makeHomeIntent(
-    activity,
-    content.header.stopId,
-    content.header.name,
-    content.stopCode,
-    content.stopLat,
-    content.stopLon
-)

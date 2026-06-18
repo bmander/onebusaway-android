@@ -112,8 +112,15 @@ fun ArrivalsPanel(
             .orEmpty()
     }
     val filtering = (content?.filteredRouteCount ?: 0) > 0
-    LaunchedEffect(previewArrivals.size, filtering) {
-        onPreferredHeight(previewArrivals.size, filtering)
+    // Only report the peek size once arrivals have actually loaded. Reporting the loading skeleton's
+    // 0-count first would shrink the sheet's peek anchor and then grow it when arrivals arrive; that
+    // anchor move, landing mid-open-animation, strands the BottomSheetScaffold's AnchoredDraggable so
+    // the sheet sticks partway up. Holding the peek steady (at its prior/default height) until real
+    // content lands keeps the anchor stable through the open.
+    if (content != null) {
+        LaunchedEffect(previewArrivals.size, filtering) {
+            onPreferredHeight(previewArrivals.size, filtering)
+        }
     }
 
     Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {

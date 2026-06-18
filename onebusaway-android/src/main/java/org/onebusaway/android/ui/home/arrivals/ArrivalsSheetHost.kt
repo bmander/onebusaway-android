@@ -21,10 +21,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
@@ -32,6 +32,7 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.flow.first
 import org.onebusaway.android.R
 import org.onebusaway.android.app.di.PreferencesEntryPoint
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
@@ -132,12 +133,15 @@ internal fun ArrivalsSheetHost(
 
             // Forward each completed load to the host (replaces the fragment's onViewCreated collector),
             // and — the first time arrivals show — kick off the arrivals-panel onboarding spotlight.
-            val sheetVisibleNow by rememberUpdatedState(sheetVisible)
+            val sheetVisibleState = rememberUpdatedState(sheetVisible)
             LaunchedEffect(viewModel) {
                 viewModel.responses.collect { response ->
                     onArrivalsLoaded(response)
-                    if (sheetVisibleNow && tutorialState != null) {
-                        maybeStartArrivalTutorial(context, tutorialState, response)
+                    if (tutorialState != null) {
+                        maybeStartArrivalTutorial(context, tutorialState, response) {
+                            // Suspend until the sheet is actually on screen (see the helper KDoc).
+                            snapshotFlow { sheetVisibleState.value }.first { it }
+                        }
                     }
                 }
             }
@@ -149,12 +153,19 @@ internal fun ArrivalsSheetHost(
  * Starts the [ArrivalTutorial] spotlight sequence the first time a focused stop's arrivals load, gated
  * so it shows at most once: nothing if a tutorial is already up, the stop has no arrivals (the ETA/star
  * spotlights need a peek row), or every step is already shown / tutorials are off ([ArrivalTutorial.pendingSteps]).
- * The pending steps are marked shown up front so a later poll refresh doesn't reopen it.
+ *
+ * Before starting, it [awaitSheetVisible]s — the bottom sheet opens with an animation, so its "visible"
+ * state lags the focus by a few hundred ms and the (often cached) arrivals response beats it. The old
+ * code checked sheet visibility *instantaneously* and dropped the start when it lost that race, which
+ * skipped the tour almost every time (the next retry was a 60s-away poll). Waiting instead anchors the
+ * spotlight to the panel once it's actually on screen. The pending steps are marked shown only once we
+ * commit to starting, so a lost-then-retried response can't double-show.
  */
-private fun maybeStartArrivalTutorial(
+private suspend fun maybeStartArrivalTutorial(
     context: Context,
     tutorialState: TutorialState,
     response: ObaArrivalInfoResponse,
+    awaitSheetVisible: suspend () -> Unit,
 ) {
     if (tutorialState.active) return
     val arrivals = response.arrivalInfo
@@ -162,6 +173,9 @@ private fun maybeStartArrivalTutorial(
     val prefs = PreferencesEntryPoint.get(context)
     val pending = ArrivalTutorial.pendingSteps(prefs)
     if (pending.isEmpty()) return
+    awaitSheetVisible()
+    // Re-check after the wait: a stop change or another tutorial may have intervened.
+    if (tutorialState.active) return
     ArrivalTutorial.markShown(prefs, pending)
     tutorialState.start(pending)
 }

@@ -17,21 +17,20 @@
 package org.onebusaway.android.report.ui
 
 import android.app.Activity
-import android.content.Context
-import android.content.Intent
 import org.onebusaway.android.io.elements.ObaArrivalInfo
-import org.onebusaway.android.map.MapParams
+import org.onebusaway.android.report.ReportContext
+import org.onebusaway.android.report.toTripReportContext
 import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.ui.nav.NavRoutes
 
 /**
  * Launcher facade for the infrastructure-issue (stop/trip problem) screen (Campaign C; former
  * Activity). The screen is now the [NavRoutes.INFRASTRUCTURE_ISSUE] NavHost destination
- * ([InfrastructureIssueDestination]); [startWithService] builds a [HomeActivity] intent carrying that
- * route (with the selected-service keyword as the nav-arg) plus the stop/location context, the opaque
- * [ObaArrivalInfo] (TRIP_INFO), and agency/block ids as host-intent extras — exactly the values the
- * destination's hand-built ViewModel factory reads. Reached from [ReportDestination] (in-NavHost
- * navigate) and from the arrivals "report problem" actions (this facade → HomeActivity → translator).
+ * ([InfrastructureIssueDestination]); [startWithService] encodes the stop/location context plus the
+ * live [ObaArrivalInfo] (flattened to a scalar [org.onebusaway.android.report.TripReportContext]) and
+ * agency/block ids into a single [ReportContext] nav-arg on the route, so the destination reads its
+ * own (process-death-safe) back-stack args. Reached from the arrivals "report problem" actions (this
+ * facade → HomeActivity → translator).
  */
 object InfrastructureIssueActivity {
 
@@ -39,32 +38,30 @@ object InfrastructureIssueActivity {
     @JvmOverloads
     fun startWithService(
         activity: Activity,
-        intent: Intent,
         serviceKeyword: String,
+        stopId: String?,
+        stopName: String?,
+        stopCode: String?,
+        latitude: Double,
+        longitude: Double,
         arrivalInfo: ObaArrivalInfo? = null,
         agencyName: String? = null,
         blockId: String? = null
     ) {
-        val target = makeIntent(activity, intent, serviceKeyword).apply {
-            arrivalInfo?.let { putExtra(EXTRA_TRIP_INFO, it) }
-            putExtra(EXTRA_AGENCY_NAME, agencyName)
-            putExtra(EXTRA_BLOCK_ID, blockId)
-        }
-        activity.startActivity(target)
+        val context = ReportContext(
+            stopId = stopId,
+            stopName = stopName,
+            stopCode = stopCode,
+            lat = latitude,
+            lon = longitude,
+            agencyName = agencyName,
+            blockId = blockId,
+            trip = arrivalInfo?.toTripReportContext(),
+        )
+        activity.startActivity(
+            HomeActivity.navIntent(
+                activity, NavRoutes.infrastructureIssue(serviceKeyword, context.encode())
+            )
+        )
     }
-
-    /**
-     * Builds the [HomeActivity] intent for the infrastructure-issue route, copying the stop/location
-     * context from [source]. The selected-service keyword rides on the route nav-arg (so it survives
-     * process death via the back-stack args); the rest stay as host-intent extras.
-     */
-    @JvmStatic
-    private fun makeIntent(context: Context, source: Intent, serviceKeyword: String?): Intent =
-        HomeActivity.navIntent(context, NavRoutes.infrastructureIssue(serviceKeyword)).apply {
-            putExtra(MapParams.STOP_ID, source.getStringExtra(MapParams.STOP_ID))
-            putExtra(MapParams.STOP_NAME, source.getStringExtra(MapParams.STOP_NAME))
-            putExtra(MapParams.STOP_CODE, source.getStringExtra(MapParams.STOP_CODE))
-            putExtra(MapParams.CENTER_LAT, source.getDoubleExtra(MapParams.CENTER_LAT, 0.0))
-            putExtra(MapParams.CENTER_LON, source.getDoubleExtra(MapParams.CENTER_LON, 0.0))
-        }
 }

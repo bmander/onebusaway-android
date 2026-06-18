@@ -36,7 +36,7 @@ import edu.usf.cutr.open311client.models.ServiceRequest
 import edu.usf.cutr.open311client.utils.Open311Validator
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.io.elements.ObaArrivalInfo
+import org.onebusaway.android.report.TripReportContext
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.report.constants.ReportConstants
 import org.onebusaway.android.report.ui.util.ServiceUtils
@@ -55,7 +55,7 @@ data class Open311IssueContext(
 
 /** Fixed trip context when reporting a transit-trip Open311 issue. */
 data class Open311TripContext(
-    val arrivalInfo: ObaArrivalInfo,
+    val trip: TripReportContext,
     val agencyName: String?,
     val blockId: String?
 )
@@ -96,7 +96,7 @@ class DefaultOpen311Repository(
         }
         serviceDescription = description
 
-        val headsign = tripContext?.arrivalInfo
+        val headsign = tripContext?.trip
             ?.takeIf { ServiceUtils.isTransitTripServiceByType(service.type) }
             ?.let { MyTextUtils.formatDisplayText(it.headsign) }
 
@@ -224,7 +224,7 @@ class DefaultOpen311Repository(
             sb.append(res.getString(R.string.ri_append_gtfs_stop_id, obaStop.id))
             sb.append(res.getString(R.string.ri_append_stop_name, obaStop.name))
         } else if (ServiceUtils.isTransitTripServiceByType(service.type)) {
-            val arrival = tripContext?.arrivalInfo ?: return sb.toString()
+            val arrival = tripContext?.trip ?: return sb.toString()
             sb.append(
                 res.getString(
                     R.string.ri_append_service_date,
@@ -235,7 +235,7 @@ class DefaultOpen311Repository(
             sb.append(res.getString(R.string.ri_append_gtfs_stop_id, obaStop.id))
             sb.append(res.getString(R.string.ri_append_stop_name, obaStop.name))
             sb.append(res.getString(R.string.ri_append_route_id, arrival.routeId))
-            getRouteDisplayName(arrival).takeIf { it.isNotEmpty() }?.let {
+            getRouteDisplayName(arrival.shortName, arrival.routeLongName).takeIf { it.isNotEmpty() }?.let {
                 sb.append(res.getString(R.string.ri_append_route_display_name, it))
             }
             tripContext.blockId?.let { sb.append(res.getString(R.string.ri_append_block_id, it)) }
@@ -243,19 +243,18 @@ class DefaultOpen311Repository(
             sb.append(res.getString(R.string.ri_append_trip_name, arrival.headsign))
             sb.append(res.getString(R.string.ri_append_predicted, arrival.predicted.toString()))
 
-            val tripStatus = arrival.tripStatus
-            if (tripStatus != null && arrival.predicted) {
+            if (arrival.hasTripStatus && arrival.predicted) {
                 sb.append(res.getString(R.string.ri_append_vehicle_id, arrival.vehicleId))
-                tripStatus.lastKnownLocation?.let {
+                if (arrival.lastKnownLat != null && arrival.lastKnownLon != null) {
                     sb.append(
                         res.getString(
                             R.string.ri_append_vehicle_location,
-                            "${it.latitude} ${it.longitude}"
+                            "${arrival.lastKnownLat} ${arrival.lastKnownLon}"
                         )
                     )
                 }
                 val numberFormat = DecimalFormat("#.000")
-                val deviation = tripStatus.scheduleDeviation / 60.0
+                val deviation = arrival.scheduleDeviation / 60.0
                 when {
                     deviation == 0.0 ->
                         sb.append(res.getString(R.string.ri_append_schedule_deviation, "0"))

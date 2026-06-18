@@ -148,6 +148,8 @@ class HomeViewModel @Inject constructor(
     // (matches the legacy setupSlidingPanel default); onPreferredHeight refines it.
     private var peekArrivalCount: Int = 2
     private var routeFiltering: Boolean = false
+    // Whether the focused stop's arrivals have loaded (peek height final). Gates the sheet open.
+    private var arrivalsReady: Boolean = false
     // Focus state — seeded from SavedStateHandle so it survives process death (the data class itself
     // isn't Parcelable, so the fields are stored individually).
     private var focusedStop: FocusedStop? = readFocusedStop(savedState)
@@ -264,6 +266,9 @@ class HomeViewModel @Inject constructor(
     /** A map stop gained focus (non-null) or focus was cleared (null). Persists across process death. */
     fun onStopFocused(stop: FocusedStop?) {
         focusedStop = stop
+        // A new (or cleared) focus hasn't loaded its arrivals yet, so the peek height isn't final;
+        // the screen waits for [onPreferredHeight] before opening the sheet (see [arrivalsReady]).
+        arrivalsReady = false
         savedState[KEY_STOP_ID] = stop?.id
         savedState[KEY_STOP_NAME] = stop?.name
         savedState[KEY_STOP_CODE] = stop?.code
@@ -336,6 +341,9 @@ class HomeViewModel @Inject constructor(
     fun onPreferredHeight(arrivalCount: Int, filtering: Boolean) {
         peekArrivalCount = arrivalCount
         routeFiltering = filtering
+        // The panel reports this only once real arrivals have loaded (not the loading skeleton), so
+        // the peek height is now final for the focused stop — the screen may open the sheet.
+        arrivalsReady = true
         recompute()
     }
 
@@ -583,7 +591,7 @@ class HomeViewModel @Inject constructor(
         _uiState.value = buildState(
             selectedItem, navItems, environment, dialog,
             focusedStop, focusedBikeStationId, mapLoading, peekArrivalCount, routeFiltering, mapComposed,
-            wideAlert, regionReady, regionFoundName
+            wideAlert, regionReady, regionFoundName, arrivalsReady
         )
     }
 
@@ -637,6 +645,7 @@ internal fun buildState(
     wideAlert: WideAlert? = null,
     regionReady: Boolean = false,
     regionFoundName: String? = null,
+    arrivalsReady: Boolean = false,
 ): HomeUiState {
     val nearby = selectedItem == HomeNavItem.NEARBY
     val starredTab = selectedItem == HomeNavItem.STARRED_STOPS ||
@@ -649,6 +658,7 @@ internal fun buildState(
         focusedBikeStationId = focusedBikeStationId,
         peekArrivalCount = peekArrivalCount,
         routeFiltering = routeFiltering,
+        arrivalsReady = arrivalsReady,
         mapComposed = mapComposed,
         regionReady = regionReady,
         mapLoading = nearby && mapLoading,

@@ -141,6 +141,12 @@ data class HomeUiState(
     // arrivals sheet peek size inputs (the screen maps these to a peek height)
     val peekArrivalCount: Int = 0,
     val routeFiltering: Boolean = false,
+    // Whether the focused stop's arrivals have loaded (so [peekArrivalCount] reflects real content,
+    // not the loading skeleton). The screen waits for this before animating the peek open, so the
+    // sheet opens straight to its final height instead of opening to a stale height and then jumping
+    // when the count resolves (which strands the BottomSheetScaffold's open animation). Reset on focus
+    // change. See HomeScreen's sheet reconcile.
+    val arrivalsReady: Boolean = false,
     // Whether the map has been shown at least once (NEARBY selected). A latch: once true it stays so,
     // so list tabs draw over a still-composed map rather than tearing it down (defers SDK init).
     val mapComposed: Boolean = false,

@@ -27,7 +27,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.onebusaway.android.io.elements.ObaArrivalInfo
+import org.onebusaway.android.report.TripReportContext
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.report.constants.ReportConstants
 
@@ -47,7 +47,7 @@ class InfrastructureIssueViewModel(
     initialLocation: GeoPoint,
     initialStop: ObaStop?,
     private val defaultIssueType: DefaultIssueType,
-    private var arrivalInfo: ObaArrivalInfo?,
+    private var arrivalInfo: TripReportContext?,
     private val agencyName: String?,
     private val blockId: String?
 ) : ViewModel() {
@@ -219,7 +219,7 @@ class InfrastructureIssueViewModel(
     }
 
     /** The arrival picker returned a selection; route to the trip form or the Open311 trip form. */
-    fun onArrivalSelected(arrival: ObaArrivalInfo) {
+    fun onArrivalSelected(arrival: TripReportContext) {
         arrivalInfo = arrival
         val stop = _uiState.value.location.stop ?: return
         val category = selectedCategory
@@ -235,7 +235,7 @@ class InfrastructureIssueViewModel(
     }
 
     /** Trip context for the host when launching the trip / Open311-trip forms. */
-    fun tripContext(): Triple<ObaArrivalInfo?, String?, String?> = Triple(arrivalInfo, agencyName, blockId)
+    fun tripContext(): Triple<TripReportContext?, String?, String?> = Triple(arrivalInfo, agencyName, blockId)
 
     /**
      * The current issue location/address/stop, for the hosted Open311 form (was the host activity's
@@ -254,7 +254,7 @@ class InfrastructureIssueViewModel(
 
     // --- Helpers --------------------------------------------------------------------------------
 
-    private fun open311TargetOrNone(arrival: ObaArrivalInfo?): ReportTarget =
+    private fun open311TargetOrNone(arrival: TripReportContext?): ReportTarget =
         selectedCategory?.let { ReportTarget.Open311(it, arrival) } ?: ReportTarget.None
 
     private fun showTarget(target: ReportTarget, showMarker: Boolean) {

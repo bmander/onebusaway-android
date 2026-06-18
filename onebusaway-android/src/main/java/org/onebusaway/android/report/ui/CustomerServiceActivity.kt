@@ -26,6 +26,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
+import org.onebusaway.android.report.ReportContext
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.report.customerservice.CustomerServiceRoute
 import org.onebusaway.android.util.ExternalIntents
@@ -33,10 +34,10 @@ import org.onebusaway.android.util.ExternalIntents
 /**
  * The customer-service NavHost destination (former CustomerServiceActivity content). Hosts the
  * Hilt-scoped [CustomerServiceRoute]; the email/web/phone handlers issue the platform contact intents
- * and analytics here (reading the optional location string off the host activity intent).
+ * and analytics here (reading the optional location string off the forwarded [reportContext] nav-arg).
  */
 @Composable
-fun CustomerServiceDestination(navController: NavController) {
+fun CustomerServiceDestination(navController: NavController, reportContext: ReportContext) {
     val activity = LocalContext.current.findActivity()
     val firebaseAnalytics = remember { FirebaseAnalytics.getInstance(activity) }
 
@@ -55,7 +56,7 @@ fun CustomerServiceDestination(navController: NavController) {
         onBack = { navController.popBackStack() },
         onEmail = { agency ->
             val email = agency.email ?: return@CustomerServiceRoute
-            val locationString = activity.intent.getStringExtra(ReportActivity.LOCATION_STRING)
+            val locationString = reportContext.locationString
             ExternalIntents.sendEmail(activity, email, locationString)
             reportContactEvent(agency.name, R.string.analytics_label_customer_service_email)
             if (locationString == null) {

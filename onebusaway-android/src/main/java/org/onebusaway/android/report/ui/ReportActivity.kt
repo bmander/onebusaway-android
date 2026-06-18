@@ -41,7 +41,7 @@ import org.onebusaway.android.app.di.RegionEntryPoint
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.map.MapParams
+import org.onebusaway.android.report.ReportContext
 import org.onebusaway.android.report.constants.ReportConstants
 import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.ui.compose.findActivity
@@ -55,14 +55,12 @@ import org.onebusaway.android.util.PreferenceUtils
 
 /**
  * Launcher facade for the report flow (Campaign C; former Activity). The screen is now the
- * [NavRoutes.REPORT] NavHost destination ([ReportDestination]); [start] builds a [HomeActivity]
- * intent carrying that route plus the stop/location context as [MapParams] / [LOCATION_STRING]
- * extras, which the destination + the infrastructure-issue destination read off the host intent.
+ * [NavRoutes.REPORT] NavHost destination ([ReportDestination]); [start] encodes the stop/location
+ * context (plus the last-known-location string) into a single [ReportContext] nav-arg on the route,
+ * which the destination — and the customer-service / infrastructure-issue sub-screens it forwards to —
+ * read from their own (process-death-safe) back-stack args.
  */
 object ReportActivity {
-
-    /** The location string forwarded to email reports (was on BaseReportActivity). */
-    const val LOCATION_STRING = "locationString"
 
     @JvmStatic
     fun start(
@@ -94,16 +92,17 @@ object ReportActivity {
         lat: Double,
         lon: Double
     ): Intent {
-        val intent = HomeActivity.navIntent(context, NavRoutes.REPORT)
-            .putExtra(MapParams.STOP_ID, focusId)
-            .putExtra(MapParams.STOP_NAME, stopName)
-            .putExtra(MapParams.STOP_CODE, stopCode)
-            .putExtra(MapParams.CENTER_LAT, lat)
-            .putExtra(MapParams.CENTER_LON, lon)
-        LocationEntryPoint.get(context).lastKnownLocation()?.let {
-            intent.putExtra(LOCATION_STRING, LocationUtils.printLocationDetails(it))
-        }
-        return intent
+        val locationString = LocationEntryPoint.get(context).lastKnownLocation()
+            ?.let { LocationUtils.printLocationDetails(it) }
+        val reportContext = ReportContext(
+            stopId = focusId,
+            stopName = stopName,
+            stopCode = stopCode,
+            lat = lat,
+            lon = lon,
+            locationString = locationString,
+        )
+        return HomeActivity.navIntent(context, NavRoutes.report(reportContext.encode()))
     }
 }
 
@@ -114,7 +113,7 @@ object ReportActivity {
  * in-NavHost to customer service or the infrastructure-issue screen, or sends app feedback.
  */
 @Composable
-fun ReportDestination(navController: NavController) {
+fun ReportDestination(navController: NavController, reportContext: ReportContext) {
     val activity = LocalContext.current.findActivity() as HomeActivity
     val firebaseAnalytics = remember { FirebaseAnalytics.getInstance(activity) }
 
@@ -160,7 +159,7 @@ fun ReportDestination(navController: NavController) {
             viewModel = hiltViewModel(),
             onBack = { navController.popBackStack() },
             onActionSelected = { action ->
-                onReportActionSelected(activity, firebaseAnalytics, navController, action)
+                onReportActionSelected(activity, firebaseAnalytics, navController, action, reportContext)
             }
         )
     }
@@ -170,11 +169,15 @@ private fun onReportActionSelected(
     activity: HomeActivity,
     firebaseAnalytics: FirebaseAnalytics,
     navController: NavController,
-    action: ReportAction
+    action: ReportAction,
+    reportContext: ReportContext
 ) {
+    // Forward the same stop/location context to the sub-screens so a report started with a focused
+    // stop keeps it through customer service / the infrastructure-issue form.
+    val encodedContext = reportContext.encode()
     when (action) {
         ReportAction.CUSTOMER_SERVICE -> {
-            navController.navigate(NavRoutes.CUSTOMER_SERVICE)
+            navController.navigate(NavRoutes.customerService(encodedContext))
             reportEvent(
                 activity, firebaseAnalytics,
                 PlausibleAnalytics.REPORT_MORE_EVENT_URL, R.string.analytics_label_customer_service
@@ -183,7 +186,9 @@ private fun onReportActionSelected(
 
         ReportAction.STOP_PROBLEM -> {
             navController.navigate(
-                NavRoutes.infrastructureIssue(activity.getString(R.string.ri_selected_service_stop))
+                NavRoutes.infrastructureIssue(
+                    activity.getString(R.string.ri_selected_service_stop), encodedContext
+                )
             )
             reportEvent(
                 activity, firebaseAnalytics,
@@ -193,7 +198,9 @@ private fun onReportActionSelected(
 
         ReportAction.ARRIVAL_PROBLEM -> {
             navController.navigate(
-                NavRoutes.infrastructureIssue(activity.getString(R.string.ri_selected_service_trip))
+                NavRoutes.infrastructureIssue(
+                    activity.getString(R.string.ri_selected_service_trip), encodedContext
+                )
             )
             reportEvent(
                 activity, firebaseAnalytics,
@@ -201,12 +208,15 @@ private fun onReportActionSelected(
             )
         }
 
-        ReportAction.APP_FEEDBACK -> sendAppFeedback(activity, firebaseAnalytics)
+        ReportAction.APP_FEEDBACK -> sendAppFeedback(activity, firebaseAnalytics, reportContext.locationString)
     }
 }
 
-private fun sendAppFeedback(activity: HomeActivity, firebaseAnalytics: FirebaseAnalytics) {
-    val locationString = activity.intent.getStringExtra(ReportActivity.LOCATION_STRING)
+private fun sendAppFeedback(
+    activity: HomeActivity,
+    firebaseAnalytics: FirebaseAnalytics,
+    locationString: String?
+) {
     ExternalIntents.sendEmail(activity, activity.getString(R.string.ri_app_feedback_email), locationString)
     reportEvent(
         activity, firebaseAnalytics,

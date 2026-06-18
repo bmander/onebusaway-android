@@ -51,6 +51,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
@@ -188,11 +189,21 @@ fun HomeScreen(
         // reconcile decision (hide / peek-open-if-hidden / leave) is the pure sheetReconcile().
         val showSheet = shouldShowSheet(state.focusedStop, state.selectedItem)
         val sheetKey = if (showSheet) state.focusedStop?.id else null
-        LaunchedEffect(sheetKey) {
+        // Re-keyed on arrivalsReady so the peek opens once the focused stop's arrivals load.
+        LaunchedEffect(sheetKey, state.arrivalsReady) {
             runCatching {
                 when (sheetReconcile(sheetKey != null, sheetState.currentValue.toArrivalsSheetState())) {
                     SheetReconcile.HIDE -> sheetState.hide()
-                    SheetReconcile.PEEK_OPEN -> sheetState.partialExpand()
+                    SheetReconcile.PEEK_OPEN -> {
+                        // Open only once the focused stop's arrivals have loaded, so the sheet animates
+                        // straight to its final peek height. Opening to a stale height and then resizing
+                        // when the count resolves moves the sheet's anchor mid-animation, which strands
+                        // BottomSheetScaffold's AnchoredDraggable (the sheet sticks partway up). The
+                        // effect re-runs when arrivalsReady flips true (cancelling this wait); the
+                        // timeout is a fallback so a stop whose arrivals are slow or fail still opens.
+                        if (!state.arrivalsReady) delay(SHEET_OPEN_LOAD_TIMEOUT_MS)
+                        sheetState.partialExpand()
+                    }
                     SheetReconcile.LEAVE -> {}
                 }
             }
@@ -627,3 +638,10 @@ private fun arrivalsPeekHeight(arrivalCount: Int, filtering: Boolean): Dp {
  * BottomSheetScaffold handle now replaces, so only the net difference is added.
  */
 private val DRAG_HANDLE_ALLOWANCE = 28.dp
+
+/**
+ * How long the sheet waits for a freshly-focused stop's arrivals to load before peeking open anyway.
+ * The common path opens sooner — the open effect re-runs the instant arrivals load (arrivalsReady) —
+ * so this only bounds the wait when a stop's arrivals are slow or fail, ensuring its sheet still shows.
+ */
+private const val SHEET_OPEN_LOAD_TIMEOUT_MS = 800L

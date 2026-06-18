@@ -84,7 +84,9 @@ import java.io.IOException
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
-import org.onebusaway.android.io.elements.ObaArrivalInfo
+import org.onebusaway.android.report.ReportContext
+import org.onebusaway.android.report.TripReportContext
+import org.onebusaway.android.report.toTripReportContext
 import org.onebusaway.android.ui.arrivals.ArrivalInfo
 import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
@@ -116,11 +118,6 @@ import org.onebusaway.android.ui.report.problem.SubmitState
 import org.onebusaway.android.util.BitmapUtils
 import org.onebusaway.android.util.MyTextUtils
 
-/** Host-intent extras carrying the opaque trip context for the InfrastructureIssue destination. */
-const val EXTRA_TRIP_INFO = ".tripInfo"
-const val EXTRA_AGENCY_NAME = ".agencyName"
-const val EXTRA_BLOCK_ID = ".blockId"
-
 /**
  * The infrastructure-issue (stop/trip problem) NavHost destination (Campaign C; former
  * [InfrastructureIssueActivity]). It replaces the `infrastructure_issue.xml` layout with a Compose
@@ -128,14 +125,15 @@ const val EXTRA_BLOCK_ID = ".blockId"
  * [InfrastructureControls], and the inline stop/trip form, arrivals picker, and Open311 dynamic form
  * (Tier 1) — the whole report flow is pure Compose now, with no fragments.
  *
- * The [InfrastructureIssueViewModel] is built once (back-stack-entry-scoped) from the nav-arg
- * `selectedService` plus the host intent extras (lat/lon, stop id/name/code, the opaque
- * `ObaArrivalInfo`, agency name, block id), reproducing the former Activity's hand-built factory.
+ * The [InfrastructureIssueViewModel] is built once (back-stack-entry-scoped) from the nav-args
+ * `selectedService` and the decoded [ReportContext] (lat/lon, stop id/name/code, the scalar trip
+ * context, agency name, block id), reproducing the former Activity's hand-built factory.
  */
 @Composable
 fun InfrastructureIssueDestination(
     navController: NavController,
     selectedService: String?,
+    reportContext: ReportContext,
 ) {
     val activity = LocalContext.current.findActivity() as HomeActivity
 
@@ -145,11 +143,11 @@ fun InfrastructureIssueDestination(
     val mapViewModel = hiltViewModel<MapViewModel>()
 
     // Build the InfrastructureIssueViewModel once, scoped to this back-stack entry (so its
-    // viewModelScope is cancelled when the destination leaves). Reads selectedService from the
-    // nav-arg and the rest of the context from the host intent — the former Activity's createViewModel.
+    // viewModelScope is cancelled when the destination leaves). Reads selectedService and the rest of
+    // the context from the decoded nav-args — the former Activity's createViewModel.
     val viewModel: InfrastructureIssueViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { createInfrastructureIssueViewModel(activity, selectedService) }
+            initializer { createInfrastructureIssueViewModel(activity, selectedService, reportContext) }
         }
     )
 
@@ -355,29 +353,21 @@ private fun reconcileMarker(
 }
 
 /**
- * Builds the [InfrastructureIssueViewModel] from the nav-arg [selectedService] and the host intent
- * extras (port of InfrastructureIssueActivity.createViewModel). The stop/location context + the opaque
- * `ObaArrivalInfo` (TRIP_INFO) + agency/block ids ride on the host activity intent, exactly as the
- * former Activity read them.
+ * Builds the [InfrastructureIssueViewModel] from the nav-arg [selectedService] and the decoded
+ * [reportContext] (port of InfrastructureIssueActivity.createViewModel). The stop/location context,
+ * the scalar trip context, and the agency/block ids all ride on the nav-arg now.
  */
 private fun createInfrastructureIssueViewModel(
     activity: HomeActivity,
     selectedService: String?,
+    reportContext: ReportContext,
 ): InfrastructureIssueViewModel {
-    val source = activity.intent
-    val latitude = source.getDoubleExtra(MapParams.CENTER_LAT, 0.0)
-    val longitude = source.getDoubleExtra(MapParams.CENTER_LON, 0.0)
+    val latitude = reportContext.lat
+    val longitude = reportContext.lon
 
-    val initialStop: ObaStop? = source.getStringExtra(MapParams.STOP_ID)?.let { stopId ->
-        ObaStopElement(
-            stopId, latitude, longitude,
-            source.getStringExtra(MapParams.STOP_NAME),
-            source.getStringExtra(MapParams.STOP_CODE),
-        )
+    val initialStop: ObaStop? = reportContext.stopId?.let { stopId ->
+        ObaStopElement(stopId, latitude, longitude, reportContext.stopName, reportContext.stopCode)
     }
-
-    @Suppress("DEPRECATION")
-    val arrival = source.getSerializableExtra(EXTRA_TRIP_INFO) as? org.onebusaway.android.io.elements.ObaArrivalInfo
 
     val defaultIssueType = when (selectedService) {
         activity.getString(R.string.ri_selected_service_stop) -> DefaultIssueType.STOP
@@ -391,9 +381,9 @@ private fun createInfrastructureIssueViewModel(
         initialLocation = GeoPoint(latitude, longitude),
         initialStop = initialStop,
         defaultIssueType = defaultIssueType,
-        arrivalInfo = arrival,
-        agencyName = source.getStringExtra(EXTRA_AGENCY_NAME),
-        blockId = source.getStringExtra(EXTRA_BLOCK_ID),
+        arrivalInfo = reportContext.trip,
+        agencyName = reportContext.agencyName,
+        blockId = reportContext.blockId,
     )
 }
 
@@ -408,7 +398,7 @@ private fun createInfrastructureIssueViewModel(
 @Composable
 private fun StopTripProblemForm(
     stop: ObaStop,
-    arrival: ObaArrivalInfo?,
+    arrival: TripReportContext?,
     issueViewModel: InfrastructureIssueViewModel,
     onSubmit: ((() -> Unit)?) -> Unit,
 ) {
@@ -474,7 +464,7 @@ private fun ArrivalsPickerInline(
         },
     )
     SimpleArrivalsPicker(arrivalsViewModel) { arrival ->
-        issueViewModel.onArrivalSelected(arrival.info)
+        issueViewModel.onArrivalSelected(arrival.info.toTripReportContext())
     }
 }
 
@@ -482,7 +472,7 @@ private fun ArrivalsPickerInline(
 private fun createProblemReportViewModel(
     context: Context,
     stop: ObaStop,
-    arrival: ObaArrivalInfo?,
+    arrival: TripReportContext?,
 ): ProblemReportViewModel {
     val repository = DefaultProblemReportRepository(context.applicationContext)
     return if (arrival != null) {

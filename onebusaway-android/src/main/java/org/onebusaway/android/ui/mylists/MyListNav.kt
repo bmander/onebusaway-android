@@ -17,11 +17,9 @@ package org.onebusaway.android.ui.mylists
 
 import org.onebusaway.android.ui.tripinfo.confirmDeleteReminder
 import org.onebusaway.android.ui.tripinfo.TripInfoLauncher
-import org.onebusaway.android.ui.routeinfo.RouteInfoLauncher
 import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.ui.arrivals.ArrivalsListLauncher
 import org.onebusaway.android.ui.HomeActivity
-import android.app.Activity
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
 import org.onebusaway.android.R
@@ -36,96 +34,73 @@ import org.onebusaway.android.util.ReminderUtils
  * Shared navigation and row-action wiring for the My-tab list destinations (recent/starred ×
  * stops/routes, plus reminders and the search results). They're hosted as composables by both the
  * `My*` tab activities (`MyTabsScreen`) and the Compose home screen, with identical tap/long-press
- * behavior except for the remove-action label and whether the host is a launcher-shortcut picker
- * (`shortcutMode`) — so it lives here as [AppCompatActivity] extensions rather than a base class.
+ * behavior except for the remove-action label — so it lives here as [AppCompatActivity] extensions
+ * rather than a base class.
  */
 
 private fun AppCompatActivity.stopArrivalsBuilder(stop: StopListItem) =
     ArrivalsListLauncher.Builder(this, stop.id)
         .setStopName(stop.name)
-        .setStopDirection(stop.rawDirection)
 
-/** Opens a stop's arrivals, or returns it as a launcher shortcut when [shortcutMode] is set. */
-internal fun AppCompatActivity.openStop(stop: StopListItem, shortcutMode: Boolean) {
-    if (shortcutMode) {
-        val shortcut = Shortcuts.createStopShortcut(this, stop.name, stopArrivalsBuilder(stop))
-        setResult(Activity.RESULT_OK, shortcut.intent)
-        finish()
-    } else {
-        (this as HomeActivity).navigateTo(NavRoutes.arrivals(stop.id, stop.name))
-    }
+/** Opens a stop's arrivals. */
+internal fun AppCompatActivity.openStop(stop: StopListItem) {
+    (this as HomeActivity).navigateTo(NavRoutes.arrivals(stop.id, stop.name))
 }
 
-/** A stop row's long-press actions (empty in [shortcutMode]); [removeLabel] is the only per-list delta. */
+/** A stop row's long-press actions; [removeLabel] is the only per-list delta. */
 internal fun AppCompatActivity.stopActions(
     stop: StopListItem,
     @StringRes removeLabel: Int,
-    shortcutMode: Boolean,
     onRemove: () -> Unit
-): List<RowAction> {
-    if (shortcutMode) return emptyList()
-    return listOf(
-        RowAction(getString(R.string.my_context_showonmap)) {
-            (this as HomeActivity).focusStopOnMap(stop.id, stop.lat, stop.lon)
-        },
-        RowAction(getString(R.string.my_context_create_shortcut)) {
-            Shortcuts.createStopShortcut(this, stop.name, stopArrivalsBuilder(stop))
-        },
-        RowAction(getString(removeLabel), onRemove)
-    )
+): List<RowAction> = listOf(
+    RowAction(getString(R.string.my_context_showonmap)) {
+        (this as HomeActivity).focusStopOnMap(stop.id, stop.lat, stop.lon)
+    },
+    RowAction(getString(R.string.my_context_create_shortcut)) {
+        Shortcuts.createStopShortcut(this, stop.name, stopArrivalsBuilder(stop))
+    },
+    RowAction(getString(removeLabel), onRemove)
+)
+
+/** Opens a route on the map. */
+internal fun AppCompatActivity.openRoute(route: RouteListItem) {
+    (this as HomeActivity).showRouteOnMap(route.id)
 }
 
-/** Opens a route on the map, or returns it as a launcher shortcut when [shortcutMode] is set. */
-internal fun AppCompatActivity.openRoute(route: RouteListItem, shortcutMode: Boolean) {
-    if (shortcutMode) {
-        val shortcut = Shortcuts.createRouteShortcut(this, route.id, route.shortName)
-        setResult(Activity.RESULT_OK, shortcut.intent)
-        finish()
-    } else {
-        (this as HomeActivity).showRouteOnMap(route.id)
-    }
-}
-
-/** A route row's long-press actions (empty in [shortcutMode]); [removeLabel] is the only per-list delta. */
+/** A route row's long-press actions; [removeLabel] is the only per-list delta. */
 internal fun AppCompatActivity.routeActions(
     route: RouteListItem,
     @StringRes removeLabel: Int,
-    shortcutMode: Boolean,
     onRemove: () -> Unit
-): List<RowAction> {
-    if (shortcutMode) return emptyList()
-    return buildList {
-        add(RowAction(getString(R.string.my_context_showonmap)) {
-            (this@routeActions as HomeActivity).showRouteOnMap(route.id)
+): List<RowAction> = buildList {
+    add(RowAction(getString(R.string.my_context_showonmap)) {
+        (this@routeActions as HomeActivity).showRouteOnMap(route.id)
+    })
+    route.url?.let { url ->
+        add(RowAction(getString(R.string.my_context_show_schedule)) {
+            ExternalIntents.goToUrl(this@routeActions, url)
         })
-        route.url?.let { url ->
-            add(RowAction(getString(R.string.my_context_show_schedule)) {
-                ExternalIntents.goToUrl(this@routeActions, url)
-            })
-        }
-        add(RowAction(getString(R.string.my_context_create_shortcut)) {
-            Shortcuts.createRouteShortcut(this@routeActions, route.id, route.shortName)
-        })
-        add(RowAction(getString(removeLabel), onRemove))
     }
+    add(RowAction(getString(R.string.my_context_create_shortcut)) {
+        Shortcuts.createRouteShortcut(this@routeActions, route.id, route.shortName)
+    })
+    add(RowAction(getString(removeLabel), onRemove))
 }
 
-/** Opens the reminder editor for [reminder] (My Reminders has no shortcut mode). */
+/** Opens the reminder editor for [reminder]. */
 internal fun AppCompatActivity.editReminder(reminder: ReminderItem) {
     TripInfoLauncher.start(this, reminder.tripId, reminder.stopId)
 }
 
 /**
  * A reminder row's long-press actions: edit / delete (cancels the alarm) / show stop / show route.
- *
- * [onShowRoute]/[onShowStop] default to launching [RouteInfoLauncher]/[ArrivalsListLauncher] (the
- * standalone My-Reminders host has no NavHost), but the home overlay overrides them to navigate to
- * the in-app RouteInfo / Arrivals destinations.
+ * The host supplies [onShowRoute]/[onShowStop] to navigate to the in-app RouteInfo / Arrivals
+ * destinations.
  */
 internal fun AppCompatActivity.reminderActions(
     reminder: ReminderItem,
-    onShowRoute: (routeId: String) -> Unit = { RouteInfoLauncher.start(this, it) },
-    onShowStop: (stopId: String) -> Unit = { ArrivalsListLauncher.start(this, it) },
+    onShowRoute: (routeId: String) -> Unit,
+    onShowStop: (stopId: String) -> Unit,
 ): List<RowAction> = listOf(
     RowAction(getString(R.string.trip_list_context_edit)) { editReminder(reminder) },
     RowAction(getString(R.string.trip_list_context_delete)) {
@@ -143,27 +118,12 @@ internal fun AppCompatActivity.reminderActions(
     }
 )
 
-/** Opens a search-result stop's arrivals, or returns it as a launcher shortcut in [shortcutMode]. */
-internal fun AppCompatActivity.openStopSearchResult(stop: StopSearchResult, shortcutMode: Boolean) {
-    if (shortcutMode) {
-        val builder = ArrivalsListLauncher.Builder(this, stop.id)
-            .setStopName(stop.serverName)
-            .setStopDirection(stop.direction)
-        val shortcut = Shortcuts.createStopShortcut(this, stop.serverName, builder)
-        setResult(Activity.RESULT_OK, shortcut.intent)
-        finish()
-    } else {
-        (this as HomeActivity).navigateTo(NavRoutes.arrivals(stop.id, stop.serverName))
-    }
+/** Opens a search-result stop's arrivals. */
+internal fun AppCompatActivity.openStopSearchResult(stop: StopSearchResult) {
+    (this as HomeActivity).navigateTo(NavRoutes.arrivals(stop.id, stop.serverName))
 }
 
-/** Opens a search-result route, or returns it as a launcher shortcut in [shortcutMode]. */
-internal fun AppCompatActivity.openRouteSearchResult(route: RouteSearchResult, shortcutMode: Boolean) {
-    if (shortcutMode) {
-        val shortcut = Shortcuts.createRouteShortcut(this, route.id, route.shortName)
-        setResult(Activity.RESULT_OK, shortcut.intent)
-        finish()
-    } else {
-        (this as HomeActivity).navigateTo(NavRoutes.routeInfo(route.id))
-    }
+/** Opens a search-result route. */
+internal fun AppCompatActivity.openRouteSearchResult(route: RouteSearchResult) {
+    (this as HomeActivity).navigateTo(NavRoutes.routeInfo(route.id))
 }

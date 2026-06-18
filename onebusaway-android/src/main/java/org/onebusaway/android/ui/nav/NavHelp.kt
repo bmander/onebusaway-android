@@ -15,31 +15,12 @@
  */
 package org.onebusaway.android.ui.nav
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.util.ShowcaseViewUtils
 
 object NavHelp {
-
-    //
-    // Up mode. This controls whether or not the logo (Up) button
-    // goes back or goes home. Activity support is required:
-    // the only activity that supports it now is the ArrivalsList.
-    //
-    const val UP_MODE = ".UpMode"
-
-    const val UP_MODE_BACK = "back"
-
-    fun goUp(activity: Activity) {
-        val mode = activity.intent.getStringExtra(UP_MODE)
-        if (UP_MODE_BACK == mode) {
-            activity.finish()
-        } else {
-            goHome(activity, false)
-        }
-    }
 
     /**
      * Go back to the HomeActivity

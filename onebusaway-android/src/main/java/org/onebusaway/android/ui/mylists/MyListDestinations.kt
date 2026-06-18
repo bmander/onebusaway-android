@@ -35,8 +35,8 @@ import org.onebusaway.android.util.ExternalIntents
  * The shared list/search "destinations": body composables hosted by both the Compose [MyTabsScreen]
  * (the `My*` tab activities) and the Compose home overlays ([org.onebusaway.android.ui.home]). The
  * three list destinations are stateless — callers supply the per-row `onClick` and `actions` (each
- * caller wires them to the `AppCompatActivity` nav/action helpers with its own strings and
- * `shortcutMode`). The two search destinations still resolve the host via [findActivity] for now.
+ * caller wires them to the `AppCompatActivity` nav/action helpers with its own strings). The two
+ * search destinations still resolve the host via [findActivity] for now.
  */
 
 @Composable
@@ -83,23 +83,21 @@ fun ReminderListDestination(
 }
 
 @Composable
-fun StopSearchDestination(viewModel: SearchViewModel<StopSearchResult>, shortcutMode: Boolean) {
+fun StopSearchDestination(viewModel: SearchViewModel<StopSearchResult>) {
     val host = LocalContext.current.findActivity() as HomeActivity
     StopSearchContent(
         viewModel = viewModel,
-        shortcutMode = shortcutMode,
-        onStopClick = { host.openStopSearchResult(it, shortcutMode) },
+        onStopClick = { host.openStopSearchResult(it) },
         onShowOnMap = { host.focusStopOnMap(it.id, it.latitude, it.longitude) }
     )
 }
 
 @Composable
-fun RouteSearchDestination(viewModel: SearchViewModel<RouteSearchResult>, shortcutMode: Boolean) {
+fun RouteSearchDestination(viewModel: SearchViewModel<RouteSearchResult>) {
     val host = LocalContext.current.findActivity() as HomeActivity
     RouteSearchContent(
         viewModel = viewModel,
-        shortcutMode = shortcutMode,
-        onRouteClick = { host.openRouteSearchResult(it, shortcutMode) },
+        onRouteClick = { host.openRouteSearchResult(it) },
         onShowOnMap = { host.showRouteOnMap(it.id) },
         onShowSchedule = { route -> route.url?.let { ExternalIntents.goToUrl(host, it) } },
         onCreateShortcut = { Shortcuts.createRouteShortcut(host, it.id, it.shortName) }

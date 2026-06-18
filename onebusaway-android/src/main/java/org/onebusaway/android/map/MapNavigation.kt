@@ -40,7 +40,6 @@ object MapNavigation {
     fun openVehicleTripDetails(context: Context, status: ObaTripStatus, focusedStopId: String?) {
         val builder = TripDetailsLauncher.Builder(context, status.activeTripId)
             .setScrollMode(TripDetailsLauncher.SCROLL_MODE_VEHICLE)
-            .setUpMode("back")
         focusedStopId?.let { builder.setStopId(it) }
         builder.start()
     }

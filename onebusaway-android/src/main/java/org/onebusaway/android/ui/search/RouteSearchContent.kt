@@ -40,7 +40,6 @@ import org.onebusaway.android.ui.compose.components.RouteRowContent
 @Composable
 fun RouteSearchContent(
     viewModel: SearchViewModel<RouteSearchResult>,
-    shortcutMode: Boolean,
     onRouteClick: (RouteSearchResult) -> Unit,
     onShowOnMap: (RouteSearchResult) -> Unit,
     onShowSchedule: (RouteSearchResult) -> Unit,
@@ -58,7 +57,6 @@ fun RouteSearchContent(
     ) { route ->
         RouteSearchRow(
             route = route,
-            shortcutMode = shortcutMode,
             onRouteClick = onRouteClick,
             onShowOnMap = onShowOnMap,
             onShowSchedule = onShowSchedule,
@@ -71,7 +69,6 @@ fun RouteSearchContent(
 @Composable
 private fun RouteSearchRow(
     route: RouteSearchResult,
-    shortcutMode: Boolean,
     onRouteClick: (RouteSearchResult) -> Unit,
     onShowOnMap: (RouteSearchResult) -> Unit,
     onShowSchedule: (RouteSearchResult) -> Unit,
@@ -93,17 +90,7 @@ private fun RouteSearchRow(
         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
             MenuHeader(stringResource(R.string.route_name, route.shortName))
             DropdownMenuItem(
-                text = {
-                    Text(
-                        stringResource(
-                            if (shortcutMode) {
-                                R.string.my_context_create_shortcut
-                            } else {
-                                R.string.my_context_get_route_info
-                            }
-                        )
-                    )
-                },
+                text = { Text(stringResource(R.string.my_context_get_route_info)) },
                 onClick = {
                     menuExpanded = false
                     onRouteClick(route)

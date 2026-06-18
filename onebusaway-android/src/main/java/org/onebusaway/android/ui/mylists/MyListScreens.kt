@@ -36,7 +36,7 @@ import org.onebusaway.android.util.PreferenceUtils
  * thin [HomeActivity][org.onebusaway.android.ui.HomeActivity] `composable {}`; the recent-stops and
  * recent-routes tabs appear in two destinations each, so the tab wiring (list + row actions + clear/
  * sort) lives once here as [AppCompatActivity] extensions and is composed per screen. The legacy
- * launcher-shortcut picker is gone, so every list takes the in-app (`shortcutMode = false`) path.
+ * launcher-shortcut picker is gone, so every list uses the in-app navigation path.
  */
 
 internal fun AppCompatActivity.recentStopsTab(
@@ -57,9 +57,9 @@ internal fun AppCompatActivity.recentStopsTab(
     StopListDestination(
         viewModel,
         emptyText = R.string.my_no_recent_stops,
-        onClick = { openStop(it, shortcutMode = false) },
+        onClick = { openStop(it) },
         actions = {
-            stopActions(it, R.string.my_context_remove_recent, shortcutMode = false) {
+            stopActions(it, R.string.my_context_remove_recent) {
                 viewModel.remove(it.id)
             }
         },
@@ -86,9 +86,9 @@ internal fun AppCompatActivity.starredStopsTab(viewModel: MyListViewModel<StopLi
     StopListDestination(
         viewModel,
         emptyText = R.string.my_no_starred_stops,
-        onClick = { openStop(it, shortcutMode = false) },
+        onClick = { openStop(it) },
         actions = {
-            stopActions(it, R.string.my_context_remove_star, shortcutMode = false) {
+            stopActions(it, R.string.my_context_remove_star) {
                 viewModel.remove(it.id)
             }
         },
@@ -113,9 +113,9 @@ internal fun AppCompatActivity.recentRoutesTab(
     RouteListDestination(
         viewModel,
         emptyText = R.string.my_no_recent_routes,
-        onClick = { openRoute(it, shortcutMode = false) },
+        onClick = { openRoute(it) },
         actions = {
-            routeActions(it, R.string.my_context_remove_recent, shortcutMode = false) {
+            routeActions(it, R.string.my_context_remove_recent) {
                 viewModel.remove(it.id)
             }
         },
@@ -127,7 +127,7 @@ internal fun stopSearchTab(viewModel: SearchViewModel<StopSearchResult>): MyTab 
     titleRes = R.string.my_search_title,
     iconRes = R.drawable.ic_tab_search_unselected,
 ) {
-    StopSearchDestination(viewModel, shortcutMode = false)
+    StopSearchDestination(viewModel)
 }
 
 internal fun routeSearchTab(viewModel: SearchViewModel<RouteSearchResult>): MyTab = MyTab(
@@ -135,7 +135,7 @@ internal fun routeSearchTab(viewModel: SearchViewModel<RouteSearchResult>): MyTa
     titleRes = R.string.my_search_title,
     iconRes = R.drawable.ic_tab_search_unselected,
 ) {
-    RouteSearchDestination(viewModel, shortcutMode = false)
+    RouteSearchDestination(viewModel)
 }
 
 /** [MyTabsScreen] with the last-viewed-tab persistence seam wired to [prefsRepository]. */

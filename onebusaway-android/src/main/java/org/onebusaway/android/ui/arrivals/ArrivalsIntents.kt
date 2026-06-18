@@ -22,8 +22,4 @@ package org.onebusaway.android.ui.arrivals
 object ArrivalsIntents {
 
     const val STOP_NAME = ".StopName"
-
-    const val STOP_DIRECTION = ".StopDir"
-
-    const val STOP_ROUTES = ".StopRoutes"
 }

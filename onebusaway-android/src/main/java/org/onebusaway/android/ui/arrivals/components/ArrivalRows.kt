@@ -65,7 +65,6 @@ import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.ui.arrivals.ArrivalActions
 import org.onebusaway.android.ui.arrivals.ArrivalInfo
-import org.onebusaway.android.ui.arrivals.dialogs.buildTripOptions
 import org.onebusaway.android.ui.compose.components.LineBadge
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.util.comparators.AlphanumComparator
@@ -364,7 +363,7 @@ fun ArrivalCardStyleB(
     }
 }
 
-/** The dropdown of per-arrival actions, gated like the legacy `buildTripOptions` (minus occupancy). */
+/** The dropdown of per-arrival actions, gated by the same route/trip availability rules (minus occupancy). */
 @Composable
 internal fun ArrivalActionsMenu(
     expanded: Boolean,

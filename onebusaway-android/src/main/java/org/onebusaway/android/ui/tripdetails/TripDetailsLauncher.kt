@@ -16,7 +16,6 @@
  */
 package org.onebusaway.android.ui.tripdetails
 
-import org.onebusaway.android.ui.nav.NavHelp
 import org.onebusaway.android.ui.HomeActivity
 import android.content.Context
 import android.content.Intent
@@ -53,8 +52,6 @@ object TripDetailsLauncher {
 
         fun setDestinationId(stopId: String?): Builder =
             apply { intent.putExtra(NavRoutes.ARG_DEST_ID, stopId) }
-
-        fun setUpMode(mode: String?): Builder = apply { intent.putExtra(NavHelp.UP_MODE, mode) }
 
         fun getIntent(): Intent = intent
 

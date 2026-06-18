@@ -17,7 +17,6 @@ package org.onebusaway.android.ui.tripplan
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Bundle
 import android.provider.ContactsContract
 import android.text.format.DateFormat
 import android.widget.Toast
@@ -44,7 +43,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text

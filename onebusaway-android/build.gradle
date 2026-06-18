@@ -248,8 +248,6 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.12.4'
     // For sorting alphanumeric route names
     implementation 'org.onebusaway.util:comparators:1.0.0'
-    // For tutorial (ShowcaseView) library
-    implementation 'com.github.amlcurran.showcaseview:library:5.4.3'
     // POJOs used for full data-binding via Jackson
     implementation 'edu.usf.cutr.opentripplanner.android:opentripplanner-pojos:1.0.0-SNAPSHOT'
     // Pelias for point-of-interest search and geocoding for trip planning origin and destination

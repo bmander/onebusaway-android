@@ -17,7 +17,6 @@ package org.onebusaway.android.ui.arrivals
 
 import org.onebusaway.android.ui.tripinfo.TripInfoLauncher
 import org.onebusaway.android.ui.tripdetails.TripDetailsLauncher
-import org.onebusaway.android.ui.nav.NavHelp
 import org.onebusaway.android.ui.arrivals.dialogs.RouteFavoriteHost
 import org.onebusaway.android.ui.arrivals.dialogs.StopDetailsHost
 import org.onebusaway.android.ui.arrivals.dialogs.showSituationDialog
@@ -49,7 +48,6 @@ fun createArrivalActionHandler(
         TripDetailsLauncher.Builder(activity, tripId)
             .setStopId(stopId)
             .setScrollMode(TripDetailsLauncher.SCROLL_MODE_STOP)
-            .setUpMode(NavHelp.UP_MODE_BACK)
             .start()
     }
 ): ArrivalActionHandler = object : ArrivalActionHandler {

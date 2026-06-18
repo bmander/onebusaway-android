@@ -40,7 +40,6 @@ import org.onebusaway.android.ui.compose.components.StopRowContent
 @Composable
 fun StopSearchContent(
     viewModel: SearchViewModel<StopSearchResult>,
-    shortcutMode: Boolean,
     onStopClick: (StopSearchResult) -> Unit,
     onShowOnMap: (StopSearchResult) -> Unit
 ) {
@@ -56,7 +55,6 @@ fun StopSearchContent(
     ) { stop ->
         StopSearchRow(
             stop = stop,
-            shortcutMode = shortcutMode,
             onStopClick = onStopClick,
             onShowOnMap = onShowOnMap
         )
@@ -67,7 +65,6 @@ fun StopSearchContent(
 @Composable
 private fun StopSearchRow(
     stop: StopSearchResult,
-    shortcutMode: Boolean,
     onStopClick: (StopSearchResult) -> Unit,
     onShowOnMap: (StopSearchResult) -> Unit
 ) {
@@ -88,17 +85,7 @@ private fun StopSearchRow(
         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
             MenuHeader(stop.name)
             DropdownMenuItem(
-                text = {
-                    Text(
-                        stringResource(
-                            if (shortcutMode) {
-                                R.string.my_context_create_shortcut
-                            } else {
-                                R.string.my_context_get_stop_info
-                            }
-                        )
-                    )
-                },
+                text = { Text(stringResource(R.string.my_context_get_stop_info)) },
                 onClick = {
                     menuExpanded = false
                     onStopClick(stop)

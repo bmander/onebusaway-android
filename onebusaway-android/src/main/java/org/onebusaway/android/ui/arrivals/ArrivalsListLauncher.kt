@@ -16,72 +16,33 @@
  */
 package org.onebusaway.android.ui.arrivals
 
-import org.onebusaway.android.ui.nav.NavHelp
 import org.onebusaway.android.ui.HomeActivity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.provider.ObaContract
-import org.onebusaway.android.util.serializeRouteDisplayNames
-import java.util.HashMap
 
 /**
  * Launches the real-time arrivals screen for a stop.
  *
  * Campaign C-c: arrivals is a NavHost destination hosted by [HomeActivity]; this is no longer an
  * Activity but a launcher facade that builds an explicit [HomeActivity] intent carrying the stop's
- * `content://…/stops/{id}` data URI (+ optional name/direction extras). HomeActivity's intent
- * translator reads the data URI and navigates to the arrivals destination. The frozen class name
+ * `content://…/stops/{id}` data URI (+ an optional name extra). HomeActivity's intent translator
+ * reads the data URI and navigates to the arrivals destination. The frozen class name
  * `org.onebusaway.android.ui.arrivals.ArrivalsListActivity` keeps resolving (for old pinned launcher
  * shortcuts) via an `<activity-alias>` → HomeActivity in the manifest.
  */
 object ArrivalsListLauncher {
 
-    class Builder {
-
-        private val context: Context
+    class Builder(private val context: Context, stopId: String) {
 
         /** The built intent; Java callers see this as getIntent(). */
-        val intent: Intent
-
-        constructor(context: Context, stopId: String) {
-            this.context = context
-            intent = Intent(context, HomeActivity::class.java)
-            intent.data = Uri.withAppendedPath(ObaContract.Stops.CONTENT_URI, stopId)
-        }
-
-        /**
-         * @param stop the [ObaStop] to be shown
-         * @param routes route display names that serve this stop, keyed by route id
-         */
-        constructor(context: Context, stop: ObaStop, routes: HashMap<String, ObaRoute>) {
-            this.context = context
-            intent = Intent(context, HomeActivity::class.java)
-            intent.data = Uri.withAppendedPath(ObaContract.Stops.CONTENT_URI, stop.id)
-            setStopName(stop.name)
-            setStopDirection(stop.direction)
-            setStopRoutes(serializeRouteDisplayNames(stop, routes))
+        val intent: Intent = Intent(context, HomeActivity::class.java).apply {
+            data = Uri.withAppendedPath(ObaContract.Stops.CONTENT_URI, stopId)
         }
 
         fun setStopName(stopName: String?): Builder {
             intent.putExtra(ArrivalsIntents.STOP_NAME, stopName)
-            return this
-        }
-
-        fun setStopDirection(stopDir: String?): Builder {
-            intent.putExtra(ArrivalsIntents.STOP_DIRECTION, stopDir)
-            return this
-        }
-
-        fun setStopRoutes(routes: String?): Builder {
-            intent.putExtra(ArrivalsIntents.STOP_ROUTES, routes)
-            return this
-        }
-
-        fun setUpMode(mode: String?): Builder {
-            intent.putExtra(NavHelp.UP_MODE, mode)
             return this
         }
 
@@ -93,10 +54,5 @@ object ArrivalsListLauncher {
     @JvmStatic
     fun start(context: Context, stopId: String) {
         Builder(context, stopId).start()
-    }
-
-    @JvmStatic
-    fun start(context: Context, stop: ObaStop, routes: HashMap<String, ObaRoute>) {
-        Builder(context, stop, routes).start()
     }
 }

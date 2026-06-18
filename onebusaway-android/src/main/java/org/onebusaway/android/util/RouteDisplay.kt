@@ -19,7 +19,6 @@ package org.onebusaway.android.util
 
 import org.onebusaway.android.io.elements.ObaArrivalInfo
 import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.util.comparators.AlphanumComparator
 
 /** A route's two display lines: the prominent short name and an optional secondary line. */
@@ -67,36 +66,6 @@ fun getRouteDescription(route: ObaRoute): String? {
     }
     return MyTextUtils.formatDisplayText(longName)
 }
-
-/**
- * Returns a comma-delimited list of route display names that serve a stop
- *
- * For example, if a stop was served by "14" and "54", this method will return "14,54"
- *
- * @param stop   the stop for which the route display names should be serialized
- * @param routes a HashMap containing all routes that serve this stop, with the routeId as the
- *               key.
- *               Note that for efficiency this routes HashMap may contain routes that don't
- *               serve this stop as well -
- *               the routes for the stop are referenced via stop.getRouteDisplayNames()
- * @return comma-delimited list of route display names that serve a stop
- */
-fun serializeRouteDisplayNames(stop: ObaStop, routes: HashMap<String, ObaRoute>?): String =
-    stop.routeIds.joinToString(",") { routeId ->
-        // Use the route's display name when we have the mapping, else fall back to the routeId.
-        if (routes != null) getRouteDisplayName(routes[routeId]!!) else routeId
-    }
-
-/**
- * Returns a list of route display names from a serialized list of route display names
- *
- * See [serializeRouteDisplayNames]
- *
- * @param serializedRouteDisplayNames comma-separate list of routeIds from serializeRouteDisplayNames()
- * @return list of route display names
- */
-fun deserializeRouteDisplayNames(serializedRouteDisplayNames: String): List<String> =
-    serializedRouteDisplayNames.split(",")
 
 /**
  * Returns a formatted and sorted list of route display names for presentation in a single line

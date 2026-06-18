@@ -485,8 +485,7 @@ private fun BoxScope.HomeMapOverlays(
 /**
  * A selected list tab draws its destination over the map (an opaque, full-size Surface), covering the
  * map chrome; NEARBY shows the map through. These are thin home-specific bindings to the shared My*
- * list destinations (strings + actions, shortcutMode = false — the home screen is never a
- * launcher-shortcut picker).
+ * list destinations (strings + actions; the home screen is never a launcher-shortcut picker).
  */
 @Composable
 private fun HomeListOverlay(
@@ -520,7 +519,7 @@ private fun HomeListOverlay(
                 emptyText = R.string.my_no_starred_stops,
                 onClick = { onShowArrivals(it.id, it.name) },
                 actions = {
-                    host.stopActions(it, R.string.my_context_remove_star, shortcutMode = false) {
+                    host.stopActions(it, R.string.my_context_remove_star) {
                         vm.remove(it.id)
                     }
                 },
@@ -545,9 +544,9 @@ private fun HomeListOverlay(
             RouteListDestination(
                 vm,
                 emptyText = R.string.my_no_starred_routes,
-                onClick = { host.openRoute(it, shortcutMode = false) },
+                onClick = { host.openRoute(it) },
                 actions = {
-                    host.routeActions(it, R.string.my_context_remove_star, shortcutMode = false) {
+                    host.routeActions(it, R.string.my_context_remove_star) {
                         vm.remove(it.id)
                     }
                 },

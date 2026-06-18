@@ -34,9 +34,6 @@ object MyTabs {
 
     private const val SCHEME = "tab"
 
-    /** A `tab://<tag>` deep-link URI for [tag] (matches the legacy `getDefaultTabUri`). */
-    fun defaultTabUri(tag: String): Uri = Uri.fromParts(SCHEME, tag, null)
-
     /** The tab tag carried by a `tab://<tag>` URI, or null if [uri] isn't a tab link. */
     fun defaultTabFromUri(uri: Uri): String? =
         uri.takeIf { it.scheme == SCHEME }?.schemeSpecificPart

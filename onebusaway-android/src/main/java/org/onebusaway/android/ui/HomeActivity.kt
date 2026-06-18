@@ -35,7 +35,6 @@ import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.report.ui.ReportActivity
-import org.onebusaway.android.report.ui.ReportDestination
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.nav.NavHelp
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
@@ -283,11 +282,6 @@ class HomeActivity : AppCompatActivity() {
      *  VM. Public so the (extracted) SETTINGS_ADVANCED destination can reach it off the host. */
     fun onExperimentalRegionsToggled() {
         viewModel.onExperimentalRegionsToggled()
-    }
-
-    override fun onPause() {
-        ShowcaseViewUtils.hideShowcaseView()
-        super.onPause()
     }
 
     private fun goToNavDrawerItem(item: HomeNavItem, reselect: Boolean) {

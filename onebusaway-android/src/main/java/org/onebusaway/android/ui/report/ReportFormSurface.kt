@@ -21,10 +21,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 /**
- * Wrapper every report form must use when hosted (via composeFragmentView) inside the report
- * container's CustomScrollView, which measures the ComposeView with unbounded height. The [Surface]
- * supplies a visible content color on the dark report background, and [content] must NOT scroll
- * itself (the parent CustomScrollView scrolls) — a self-scrolling Column crashes with
+ * Wrapper every report form must use when hosted inside the report flow's vertically-scrolling
+ * Column, which measures its children with unbounded height. The [Surface] supplies a visible
+ * content color on the dark report background, and [content] must NOT scroll itself (the parent
+ * Column scrolls) — a self-scrolling Column crashes with
  * "Vertically scrollable component was measured with an infinity maximum height".
  */
 @Composable

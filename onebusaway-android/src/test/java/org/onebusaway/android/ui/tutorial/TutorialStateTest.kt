@@ -59,14 +59,48 @@ class TutorialStateTest {
     }
 
     @Test
-    fun `advancing past the last step ends the tutorial and signals completion`() {
+    fun `advancing past a final step signals completion and enters the finish flourish`() {
         val state = TutorialState()
         state.start(listOf(step("a"), step("b")))
         state.advance() // -> b (last)
-        state.advance() // -> finished
+        state.advance() // -> finishing (b doesn't continue into a follow-on)
+        assertEquals("b", state.completedStepId)
+        assertTrue(state.finishing)
+        // The overlay keeps showing the final step until it has played the expand-to-fill flourish.
+        assertTrue(state.active)
+        assertEquals("b", state.current?.id)
+    }
+
+    @Test
+    fun `onFinishExpanded ends the tutorial after the flourish`() {
+        val state = TutorialState()
+        state.start(listOf(step("a")))
+        state.advance() // -> finishing
+        state.onFinishExpanded()
         assertFalse(state.active)
         assertNull(state.current)
-        assertEquals("b", state.completedStepId)
+        assertFalse(state.finishing)
+    }
+
+    @Test
+    fun `advance is a no-op while finishing`() {
+        val state = TutorialState()
+        state.start(listOf(step("a")))
+        state.advance() // -> finishing
+        state.advance() // ignored
+        assertTrue(state.finishing)
+        assertEquals("a", state.current?.id)
+    }
+
+    @Test
+    fun `a final step that continues hands off at once without a flourish`() {
+        val state = TutorialState()
+        state.start(listOf(step("a", continuesAfter = true)))
+        state.advance() // completes + clears so the follow-on sequence can start
+        assertEquals("a", state.completedStepId)
+        assertFalse(state.finishing)
+        assertFalse(state.active)
+        assertNull(state.current)
     }
 
     @Test

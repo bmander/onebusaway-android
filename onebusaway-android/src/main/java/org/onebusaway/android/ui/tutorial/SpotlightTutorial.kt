@@ -17,7 +17,10 @@ package org.onebusaway.android.ui.tutorial
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -47,6 +50,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -58,6 +62,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -71,6 +76,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.lerp
 import kotlin.math.hypot
 import org.onebusaway.android.R
 
@@ -122,6 +128,15 @@ class TutorialState {
     var completedStepId by mutableStateOf<String?>(null)
         private set
 
+    /**
+     * True while the genuinely-final step plays its expand-to-fill finish flourish: [current] keeps
+     * returning that step (so the overlay stays up and animating) until [onFinishExpanded] clears it. A
+     * step that continues into a follow-on tutorial doesn't set this — it clears at once so the next
+     * sequence can pop open — and neither does a skip / "X" ([dismiss]).
+     */
+    var finishing by mutableStateOf(false)
+        private set
+
     /** Begin a sequence at its first step. A no-op for an empty list. */
     fun start(steps: List<TutorialStep>) {
         if (steps.isEmpty()) return
@@ -129,22 +144,31 @@ class TutorialState {
         index = 0
     }
 
-    /** Advance to the next step; finishing the last step ends the tutorial and signals completion. */
+    /**
+     * Advance to the next step. Finishing the last step signals completion and either clears at once (if
+     * it continues into a follow-on tutorial) or enters the [finishing] flourish, which clears once the
+     * overlay reports it has played ([onFinishExpanded]). A no-op while already [finishing].
+     */
     fun advance() {
+        if (finishing) return
         if (index < steps.size - 1) {
             index++
-        } else {
-            completedStepId = current?.id
-            clear()
+            return
         }
+        completedStepId = current?.id
+        if (current?.continuesAfter == true) clear() else finishing = true
     }
 
-    /** End the tutorial immediately (skip / final dismiss) WITHOUT signalling completion. */
+    /** End the tutorial immediately (skip / "X") WITHOUT signalling completion or playing the flourish. */
     fun dismiss() = clear()
+
+    /** The overlay calls this once the finish flourish has expanded off-screen, ending the tutorial. */
+    fun onFinishExpanded() = clear()
 
     private fun clear() {
         steps = emptyList()
         index = 0
+        finishing = false
     }
 
     /** Acknowledge a [completedStepId] so it isn't handled again. */
@@ -169,6 +193,16 @@ fun rememberTutorialState(): TutorialState = remember { TutorialState() }
 
 /** An ease-out-back curve (overshoots past 1) that gives the annulus pulse its springy "bounce". */
 private val SpotlightBounceEasing = CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f)
+
+// A step change transitions the spotlight in place rather than sliding it across the screen: the cutout
+// shrinks shut over the old target, swaps to the new one, then springs back open. The two halves run
+// back-to-back, ~300 ms total.
+private const val SpotlightCloseMillis = 130
+private const val SpotlightOpenMillis = 170
+
+// On a genuine finish, the final cutout grows past the screen edges, dissolving the scrim to reveal the
+// app beneath, then the overlay tears down.
+private const val SpotlightFinishMillis = 300
 
 /**
  * Provides the active [TutorialState] to deep composables so a target can anchor itself via
@@ -202,7 +236,36 @@ fun Modifier.tutorialAnchor(state: TutorialState?, id: String): Modifier =
 fun TutorialOverlay(state: TutorialState) {
     val step = state.current ?: return
     var overlayOrigin by remember { mutableStateOf(Offset.Zero) }
-    val target = state.boundsFor(step.id)?.translate(-overlayOrigin.x, -overlayOrigin.y)
+
+    // The step the spotlight is currently drawn around. It lags [step] across a transition: when the step
+    // changes the cutout shrinks shut over the old target, this flips to the new step, and the cutout grows
+    // back open over the new target — so the spotlight never slides between the two positions.
+    var spotlightStepId by remember { mutableStateOf(step.id) }
+    // 0 = closed (no cutout, full scrim); 1 = fully open. Scales the cutout radius (see the Canvas below).
+    val openFraction = remember { Animatable(0f) }
+    LaunchedEffect(step.id) {
+        if (step.id != spotlightStepId) {
+            openFraction.animateTo(0f, tween(SpotlightCloseMillis, easing = FastOutLinearInEasing))
+            spotlightStepId = step.id
+        }
+        // The springy reopen — also the initial pop-in, where there's no close half to run first.
+        openFraction.animateTo(1f, tween(SpotlightOpenMillis, easing = SpotlightBounceEasing))
+    }
+
+    // The finish flourish: on a genuine finish the cutout grows past the screen edges (see the Canvas),
+    // clearing the scrim, and then the overlay tears itself down.
+    val finishProgress = remember { Animatable(0f) }
+    LaunchedEffect(state.finishing) {
+        if (state.finishing) {
+            finishProgress.animateTo(1f, tween(SpotlightFinishMillis, easing = FastOutSlowInEasing))
+            state.onFinishExpanded()
+        }
+    }
+
+    // The cutout tracks the transitioning [spotlightStepId]; the caption jumps straight to the incoming
+    // step (its text is the next thing to read), so its placement keys off that target.
+    val spotlightTarget = state.boundsFor(spotlightStepId)?.translate(-overlayOrigin.x, -overlayOrigin.y)
+    val captionTarget = state.boundsFor(step.id)?.translate(-overlayOrigin.x, -overlayOrigin.y)
 
     // A gentle, continuous "bounce" for the annulus around the cutout — an overshooting ease-in-out so
     // the ring springs out a little past its resting thickness and settles back, repeatedly.
@@ -237,16 +300,28 @@ fun TutorialOverlay(state: TutorialState) {
         // Reused across the per-frame pulse redraws so the cutout isn't reallocated each frame.
         val cutoutPath = remember { Path() }
         Canvas(Modifier.fillMaxSize()) {
-            if (target == null || target.isEmpty) {
-                drawRect(overlayColor)
+            if (spotlightTarget == null || spotlightTarget.isEmpty) {
+                // No target yet (or a target-less step): a full scrim, fading out if we're finishing.
+                drawRect(overlayColor, alpha = 1f - finishProgress.value)
             } else {
-                val center = target.center
+                val center = spotlightTarget.center
                 val halfDiagonal =
-                    (hypot(target.width.toDouble(), target.height.toDouble()) / 2.0).toFloat()
-                // 1.5x the base radius for a more prominent cutout.
-                val radius = maxOf(halfDiagonal + cutoutPad.toPx(), minRadius.toPx()) * 1.5f
+                    (hypot(spotlightTarget.width.toDouble(), spotlightTarget.height.toDouble()) / 2.0)
+                        .toFloat()
+                // 1.5x the base radius for a more prominent cutout, scaled by the open/close transition
+                // (0 collapses the cutout to nothing, leaving a full scrim).
+                val openRadius =
+                    maxOf(halfDiagonal + cutoutPad.toPx(), minRadius.toPx()) * 1.5f * openFraction.value
+                // On finish, expand the cutout past the farthest screen corner so the scrim clears entirely;
+                // skipped while not finishing (every frame of the overlay's pulsing lifetime), so the
+                // farthest-corner hypot isn't computed and thrown away ~60 times a second for nothing.
+                val radius =
+                    if (finishProgress.value == 0f) openRadius
+                    else lerp(openRadius, farthestCorner(center, size) + minRadius.toPx(), finishProgress.value)
                 // Annulus thickness ~half the radius, pulsing ±~45% so the ring bounces around the cutout.
-                val annulusWidth = (radius * 0.5f) * (1f + 0.45f * pulse)
+                // Tied to the *open* radius (not the expanding one) so it stays a steady band as it sweeps
+                // off-screen on finish rather than ballooning.
+                val annulusWidth = (openRadius * 0.5f) * (1f + 0.45f * pulse)
 
                 cutoutPath.rewind()
                 cutoutPath.addOval(Rect(center, radius))
@@ -276,17 +351,21 @@ fun TutorialOverlay(state: TutorialState) {
         // rides at the top).
         val rootHeightPx = constraints.maxHeight.toFloat()
         val alignment = when {
-            target == null || target.isEmpty -> Alignment.Center
-            target.center.y > rootHeightPx / 2f -> Alignment.TopCenter
+            captionTarget == null || captionTarget.isEmpty -> Alignment.Center
+            captionTarget.center.y > rootHeightPx / 2f -> Alignment.TopCenter
             else -> Alignment.BottomCenter
         }
-        TutorialCaption(
-            step = step,
-            isLast = state.isLast,
-            onNext = state::advance,
-            onClose = state::dismiss,
-            modifier = Modifier.align(alignment),
-        )
+        // The caption goes the moment the finish flourish starts — the spotlight blooming open is the
+        // whole "you're done" gesture, so a lingering card would only be in the way.
+        if (!state.finishing) {
+            TutorialCaption(
+                step = step,
+                isLast = state.isLast,
+                onNext = state::advance,
+                onClose = state::dismiss,
+                modifier = Modifier.align(alignment),
+            )
+        }
     }
 }
 
@@ -358,4 +437,11 @@ private fun TutorialCaption(
             }
         }
     }
+}
+
+/** Distance from [center] to the farthest of the four corners of a [size]-sized area. */
+private fun farthestCorner(center: Offset, size: Size): Float {
+    val dx = maxOf(center.x, size.width - center.x)
+    val dy = maxOf(center.y, size.height - center.y)
+    return hypot(dx.toDouble(), dy.toDouble()).toFloat()
 }

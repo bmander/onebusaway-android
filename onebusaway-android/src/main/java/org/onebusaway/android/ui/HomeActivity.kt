@@ -69,31 +69,27 @@ import org.onebusaway.android.util.ShowcaseViewUtils
 @AndroidEntryPoint
 class HomeActivity : AppCompatActivity() {
 
-    // Shared with the NavHost destinations (My* / report / trip-details) that read preferences off the
-    // host. (HomeActivity's own nav-selection prefs now live in HomeViewModel.)
+    // Shared with the NavHost destinations (My* / report / trip-details) that read preferences off the host.
     @Inject
     lateinit var prefsRepository: PreferencesRepository
 
-    // Builds the per-stop ArrivalsViewModel for the home bottom-sheet host (and, in C-b.3, the
-    // arrivals NavHost destination). Assisted because the sheet's stop id is runtime-dynamic.
+    // Builds the per-stop ArrivalsViewModel for the home bottom-sheet host. Assisted because the sheet's
+    // stop id is runtime-dynamic.
     @Inject
     lateinit var arrivalsViewModelFactory: ArrivalsViewModel.Factory
 
-    // The current region (Campaign A): the add-region deep link applies custom API URLs through this
-    // instead of reaching into Application.get(). (The region-derived reads it once fed have moved to VMs.)
+    // The add-region deep link applies custom API URLs through this (rather than reaching Application.get()).
     @Inject
     lateinit var regionRepository: RegionRepository
 
-    // The last-known location (Campaign A, B1). The send-feedback decision now lives in HomeViewModel;
-    // this remains because the infrastructure-issue report screen reads it off the host to submit.
+    // The last-known location, read off the host by the infrastructure-issue report screen to submit.
     @Inject
     lateinit var locationRepository: LocationRepository
 
     private val viewModel: HomeViewModel by viewModels()
 
-    // The map view model — the single source of truth for the map. MapFeature (in HomeScreen) renders it
-    // and self-wires the callbacks/collectors/effects/lifecycle; it now also owns its own mode + camera
-    // persistence via SavedStateHandle, so the activity no longer marshals them through the Bundle.
+    // The single source of truth for the map. MapFeature (in HomeScreen) renders it and self-wires its
+    // callbacks/collectors/effects/lifecycle, and owns its mode + camera persistence via SavedStateHandle.
     private val mapViewModel: MapViewModel by viewModels()
 
     // The map survey (Compose), shown over the map on NEARBY. Activity-scoped.
@@ -112,18 +108,14 @@ class HomeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Host the map content inside a Compose ModalNavigationDrawer + HomeTopBar + BottomSheetScaffold,
-        // replacing the XML DrawerLayout + NavigationDrawerFragment + main.xml chrome, the hosted
-        // MaterialToolbar + options menu, and the third-party SlidingUpPanelLayout. The arrivals panel
-        // is the scaffold's bottom sheet, rendered per focused stop by ArrivalsSheetHost. The map, the
-        // route-mode header, and the survey are all Compose now — no map-related View seam remains.
+        // The whole screen is Compose: a ModalNavigationDrawer + HomeTopBar + BottomSheetScaffold whose
+        // bottom sheet is the per-stop arrivals panel (ArrivalsSheetHost). No map-related View seam remains.
 
         val homeCallbacks = buildHomeCallbacks()
 
-        // Stage any external "open this screen" intent (set before setContent so [DeepLinkEffect]
-        // observes it once the NavHost composes) and run its side effects. MapParams.* focus / route-mode
-        // launches stage null here and stay on the map path below. Only on a fresh launch (not a config
-        // change), so a rotation doesn't re-fire reminder deletes / URL applies.
+        // Stage any external "open this screen" intent and run its side effects, before setContent so
+        // [DeepLinkEffect] observes it once the NavHost composes. Fresh launch only, so a rotation doesn't
+        // re-fire reminder deletes / URL applies.
         if (savedInstanceState == null) {
             handleIncomingIntent(intent)
         }
@@ -158,9 +150,8 @@ class HomeActivity : AppCompatActivity() {
 
         TravelBehaviorManager(this, applicationContext).registerTravelBehaviorParticipant()
 
-        // The VM owns the startup region-check decision: on the very first launch without permission it
-        // defers until the map's permission result, otherwise it checks now. (The permission read needs
-        // a Context, so it stays here.)
+        // The VM owns the startup region-check decision (defer to the map's permission result on a first
+        // launch without permission, else check now). The permission read needs a Context, so it stays here.
         viewModel.onHomeStarted(
             PermissionUtils.hasGrantedAtLeastOnePermission(this, PermissionUtils.LOCATION_PERMISSIONS)
         )
@@ -177,8 +168,7 @@ class HomeActivity : AppCompatActivity() {
         onListSort = viewModel::requestListSort,
         onListClear = viewModel::requestListClear,
         onHelpAction = ::onHelpAction,
-        // Stage the welcome sequence on the VM latch; HomeScreen starts the Compose welcome + map-stop
-        // spotlight when it fires (the what's-new opt-out's "yes" reaches this via HelpFeature).
+        // Stage the welcome sequence on the VM latch; HomeScreen starts it when the latch fires.
         onShowWelcomeTutorial = viewModel::requestWelcomeTutorial,
         onRegionChosen = viewModel::onRegionChosen,
         onSheetSettled = viewModel::onSheetSettled,
@@ -239,11 +229,8 @@ class HomeActivity : AppCompatActivity() {
     private fun handleIncomingIntent(intent: Intent?) {
         applyIntentSideEffects(intent)
         viewModel.stageDeepLinkRoute(IntentRouteMapper.routeForIntent(intent))
-        // "Show tutorials again" (help menu / settings) re-launches us with this extra to (re-)show the
-        // welcome tutorial. HomeActivity is singleTop, so when it's already on top that re-launch arrives
-        // via onNewIntent, not a fresh onCreate — staging on the VM latch here in the shared funnel
-        // (rather than only in onCreate) makes both the cold first-run and the warm re-launch honor it.
-        // HomeScreen starts the Compose welcome + map-stop spotlight sequence off the latch.
+        // "Show tutorials again" re-launches with this extra. Staging in this shared funnel (not just
+        // onCreate) makes both the cold first-run and the singleTop warm re-launch (onNewIntent) honor it.
         if (intent?.extras?.getBoolean(ShowcaseViewUtils.TUTORIAL_WELCOME) == true) {
             viewModel.requestWelcomeTutorial()
         }
@@ -293,10 +280,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun goToNavDrawerItem(item: HomeNavItem, reselect: Boolean) {
-        // Selectable list tabs render as Compose overlays (HomeScreen reads selectedItem); only NEARBY
-        // drives the hosted map. Activity-launcher items start their screen; in-place items need no
-        // imperative work (the title/content come from selectedItem). [reselect] suppresses the
-        // redundant re-show / re-report when the active in-place tab is tapped again.
+        // Only NEARBY drives the hosted map; the other in-place tabs render as Compose overlays off
+        // selectedItem and need no imperative work. [reselect] suppresses the redundant re-show / re-report
+        // when the active in-place tab is tapped again.
         when (item) {
             HomeNavItem.NEARBY -> if (!reselect) showMap()
             HomeNavItem.STARRED_STOPS,
@@ -313,19 +299,16 @@ class HomeActivity : AppCompatActivity() {
             HomeNavItem.OPEN_SOURCE ->
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.open_source_github))))
         }
-        // Per-item menu analytics (PAY_FARE has no label, so reports none); reported via the VM's
-        // analytics event so the imperative ObaAnalytics call lives in HomeAnalyticsEffect, not here.
+        // Per-item menu analytics, via the VM event so the ObaAnalytics call lives in HomeAnalyticsEffect.
+        // (PAY_FARE has no label, so reports none.)
         if (!reselect) item.analyticsLabelRes?.let { viewModel.reportMenuAnalytics(it) }
-        // The survey is a Compose overlay in the map Box; a list tab's opaque destination covers it,
-        // so it hides itself off NEARBY with no imperative work here. The donation / weather / layers
-        // gates recompute via the VM (selectNav + the reactive environment collector).
+        // The survey / donation / weather / layers overlays gate themselves off the VM state (selectNav +
+        // the reactive environment collector) — no imperative show/hide here.
     }
 
     private fun showMap() {
-        // Latch the map shown (in the VM) so MapFeature composes ObaMap() — deferring the map SDK init
-        // to the first NEARBY selection, then staying composed (list tabs draw an opaque destination
-        // over it rather than tearing it down), so this is idempotent. (MapFeature does the eager
-        // location-permission prompt once the map shows.)
+        // Latch the map shown so MapFeature composes ObaMap(), deferring the map SDK init to the first
+        // NEARBY selection. Idempotent: once composed it stays so (list tabs draw over it, not tear it down).
         viewModel.onMapShown()
         // The survey self-triggers when NEARBY is shown (SurveyFeature reads selectedItem + regionReady).
     }
@@ -396,23 +379,21 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun setupNavigationDrawer() {
-        // The nav items themselves are built by the ViewModel (init + on region resolve); here we only
-        // determine and apply the initial selection. The VM resolves the deep-link-vs-remembered-tab
-        // decision from its persisted prefs; the host just reads whether the intent deep-links to the map.
+        // The VM builds the nav items and resolves the deep-link-vs-remembered-tab decision; the host just
+        // reads whether the intent deep-links to the map.
         val bundle = intent.extras
         val deepLinksToMap = bundle != null &&
             (bundle.getString(MapParams.ROUTE_ID) != null || bundle.getString(MapParams.STOP_ID) != null)
         val item = viewModel.resolveInitialNavItem(deepLinksToMap)
-        // Defer the first content selection until after onCreate (so the Compose content has composed
-        // and lazy map/survey gating reads the applied selection).
+        // Defer until after onCreate, so the Compose content has composed and the lazy map/survey gating
+        // reads the applied selection.
         window.decorView.post { onHomeNavItemSelected(item) }
     }
 
     /** Routes a Compose-drawer selection to the ViewModel selection + the imperative per-item work. */
     private fun onHomeNavItemSelected(item: HomeNavItem) {
-        // The VM owns the fresh-vs-re-tap decision and the selection persistence (SavedStateHandle +
-        // cross-session pref); a re-tap of the active in-place tab returns false to suppress the redundant
-        // showMap()/analytics.
+        // The VM owns the fresh-vs-re-tap decision and selection persistence; a re-tap of the active
+        // in-place tab returns false to suppress the redundant showMap()/analytics.
         val fresh = viewModel.selectNav(item)
         goToNavDrawerItem(item, reselect = !fresh)
     }

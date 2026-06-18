@@ -64,22 +64,6 @@ object IntentRouteMapper {
         val pathSegments: List<String> = emptyList(),
         /** Optional pre-load stop title for the stops data-URI ([ArrivalsIntents.STOP_NAME]). */
         val arrivalsStopName: String? = null,
-        /** Reminder-editor context extras for the trips data-URI (the ids come from [pathSegments]). */
-        val tripInfoArgs: TripInfoArgs = TripInfoArgs(),
-    )
-
-    /** The reminder-editor (TripInfo) context: trip/stop ids fill from the data-URI path; the rest ride as extras. */
-    data class TripInfoArgs(
-        val tripId: String = "",
-        val stopId: String = "",
-        val routeId: String? = null,
-        val routeName: String? = null,
-        val stopName: String? = null,
-        val headsign: String? = null,
-        val departTime: Long = 0L,
-        val stopSequence: Int = 0,
-        val serviceDate: Long = 0L,
-        val vehicleId: String? = null,
     )
 
     /**
@@ -97,7 +81,6 @@ object IntentRouteMapper {
         object NightLight : RouteDecision
         data class MyRoutes(val tab: String) : RouteDecision
         data class MyStops(val tab: String) : RouteDecision
-        data class TripInfo(val args: TripInfoArgs) : RouteDecision
     }
 
     /** Translates an incoming external [intent] into the NavHost route to open, or null to stay on home/map. */
@@ -140,19 +123,6 @@ object IntentRouteMapper {
                     ?.let { RouteDecision.Arrivals(it, input.arrivalsStopName) } ?: RouteDecision.None
             ObaContract.Routes.PATH ->
                 input.pathSegments.lastOrNull()?.let { RouteDecision.RouteInfo(it) } ?: RouteDecision.None
-            // Trip reminder editor: ids in the data URI path; the create path adds the trip context as
-            // extras (the edit path omits them). content://…/trips/{tripId}/{stopId}.
-            ObaContract.Trips.PATH ->
-                if (input.pathSegments.size >= 3) {
-                    RouteDecision.TripInfo(
-                        input.tripInfoArgs.copy(
-                            tripId = input.pathSegments[1],
-                            stopId = input.pathSegments[2],
-                        )
-                    )
-                } else {
-                    RouteDecision.None
-                }
             else -> RouteDecision.None
         }
     }
@@ -168,18 +138,6 @@ object IntentRouteMapper {
         RouteDecision.NightLight -> NavRoutes.NIGHT_LIGHT
         is RouteDecision.MyRoutes -> NavRoutes.myRoutes(tab)
         is RouteDecision.MyStops -> NavRoutes.myStops(tab)
-        is RouteDecision.TripInfo -> NavRoutes.tripInfo(
-            tripId = args.tripId,
-            stopId = args.stopId,
-            routeId = args.routeId,
-            routeName = args.routeName,
-            stopName = args.stopName,
-            headsign = args.headsign,
-            departTime = args.departTime,
-            stopSequence = args.stopSequence,
-            serviceDate = args.serviceDate,
-            vehicleId = args.vehicleId,
-        )
     }
 
     /** Projects the Android [intent] into the plain [RouteIntent] that [decide] consumes. */
@@ -204,16 +162,6 @@ object IntentRouteMapper {
             tabTag = tabTag,
             pathSegments = data?.pathSegments ?: emptyList(),
             arrivalsStopName = intent.getStringExtra(ArrivalsIntents.STOP_NAME),
-            tripInfoArgs = TripInfoArgs(
-                routeId = intent.getStringExtra(NavRoutes.ARG_ROUTE_ID),
-                routeName = intent.getStringExtra(NavRoutes.ARG_ROUTE_NAME),
-                stopName = intent.getStringExtra(NavRoutes.ARG_STOP_NAME),
-                headsign = intent.getStringExtra(NavRoutes.ARG_HEADSIGN),
-                departTime = intent.getLongExtra(NavRoutes.ARG_DEPART_TIME, 0L),
-                stopSequence = intent.getIntExtra(NavRoutes.ARG_STOP_SEQUENCE, 0),
-                serviceDate = intent.getLongExtra(NavRoutes.ARG_SERVICE_DATE, 0L),
-                vehicleId = intent.getStringExtra(NavRoutes.ARG_VEHICLE_ID),
-            ),
         )
     }
 }

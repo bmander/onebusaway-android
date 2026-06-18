@@ -21,7 +21,6 @@ import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.ui.mylists.MyTabs
 import org.onebusaway.android.ui.nav.IntentRouteMapper.RouteDecision
 import org.onebusaway.android.ui.nav.IntentRouteMapper.RouteIntent
-import org.onebusaway.android.ui.nav.IntentRouteMapper.TripInfoArgs
 import org.onebusaway.android.ui.nav.IntentRouteMapper.decide
 
 /**
@@ -162,35 +161,6 @@ class IntentRouteMapperTest {
         assertEquals(
             RouteDecision.RouteInfo("1_100224"),
             decide(RouteIntent(pathSegments = listOf(ObaContract.Routes.PATH, "1_100224"))),
-        )
-    }
-
-    @Test
-    fun `a trips data-URI fills the editor ids from the path and the context from extras`() {
-        val decision = decide(
-            RouteIntent(
-                pathSegments = listOf(ObaContract.Trips.PATH, "trip-7", "1_75403"),
-                tripInfoArgs = TripInfoArgs(routeId = "1_100224", headsign = "Downtown"),
-            )
-        )
-        assertEquals(
-            RouteDecision.TripInfo(
-                TripInfoArgs(
-                    tripId = "trip-7",
-                    stopId = "1_75403",
-                    routeId = "1_100224",
-                    headsign = "Downtown",
-                )
-            ),
-            decision,
-        )
-    }
-
-    @Test
-    fun `a trips data-URI missing the stop segment stays put`() {
-        assertEquals(
-            RouteDecision.None,
-            decide(RouteIntent(pathSegments = listOf(ObaContract.Trips.PATH, "trip-7"))),
         )
     }
 

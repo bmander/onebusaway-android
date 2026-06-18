@@ -77,7 +77,7 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
             TripDetailsRoute(
                 viewModel = tripVm,
                 onBack = { navController.popBackStack() },
-                onShowOnMap = { routeId -> HomeActivity.start(activity, routeId) },
+                onShowOnMap = { routeId -> activity.showRouteOnMap(routeId) },
                 onStopClick = { sid, name, _ ->
                     navController.navigate(NavRoutes.arrivals(sid, name))
                 },

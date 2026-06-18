@@ -69,7 +69,7 @@ internal fun AppCompatActivity.stopActions(
     if (shortcutMode) return emptyList()
     return listOf(
         RowAction(getString(R.string.my_context_showonmap)) {
-            HomeActivity.start(this, stop.id, stop.lat, stop.lon)
+            (this as HomeActivity).focusStopOnMap(stop.id, stop.lat, stop.lon)
         },
         RowAction(getString(R.string.my_context_create_shortcut)) {
             Shortcuts.createStopShortcut(this, stop.name, stopArrivalsBuilder(stop))
@@ -85,7 +85,7 @@ internal fun AppCompatActivity.openRoute(route: RouteListItem, shortcutMode: Boo
         setResult(Activity.RESULT_OK, shortcut.intent)
         finish()
     } else {
-        HomeActivity.start(this, route.id)
+        (this as HomeActivity).showRouteOnMap(route.id)
     }
 }
 
@@ -99,7 +99,7 @@ internal fun AppCompatActivity.routeActions(
     if (shortcutMode) return emptyList()
     return buildList {
         add(RowAction(getString(R.string.my_context_showonmap)) {
-            HomeActivity.start(this@routeActions, route.id)
+            (this@routeActions as HomeActivity).showRouteOnMap(route.id)
         })
         route.url?.let { url ->
             add(RowAction(getString(R.string.my_context_show_schedule)) {

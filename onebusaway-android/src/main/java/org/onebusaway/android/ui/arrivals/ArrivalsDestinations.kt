@@ -56,21 +56,19 @@ fun NavGraphBuilder.arrivalsGraph(navController: NavHostController) {
             navArgument(NavRoutes.ARG_ROUTE_ID) { type = NavType.StringType }
         ),
     ) { backStackEntry ->
-        val activity = LocalContext.current.findActivity()
+        val activity = LocalContext.current.findActivity() as HomeActivity
         val routeId =
             backStackEntry.arguments?.getString(NavRoutes.ARG_ROUTE_ID).orEmpty()
         ObaTheme {
             RouteInfoRoute(
                 viewModel = hiltViewModel(),
                 onBack = { navController.popBackStack() },
-                onShowRouteOnMap = { HomeActivity.start(activity, routeId) },
+                onShowRouteOnMap = { activity.showRouteOnMap(routeId) },
                 onStopClick = { stop ->
                     navController.navigate(NavRoutes.arrivals(stop.id, stop.name))
                 },
                 onStopShowOnMap = { stop ->
-                    HomeActivity.start(
-                        activity, stop.id, stop.latitude, stop.longitude
-                    )
+                    activity.focusStopOnMap(stop.id, stop.latitude, stop.longitude)
                 },
             )
         }
@@ -111,7 +109,7 @@ fun NavGraphBuilder.arrivalsGraph(navController: NavHostController) {
                 viewModel = arrivalsVm,
                 currentContent = { arrivalsVm.state.value as? ArrivalsUiState.Content },
                 onShowRouteOnMap = { routeId ->
-                    HomeActivity.start(activity, routeId)
+                    activity.showRouteOnMap(routeId)
                 },
                 showUndoSnackbar = { messageRes, actionRes, onAction ->
                     scope.launch {

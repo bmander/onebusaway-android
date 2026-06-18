@@ -28,7 +28,6 @@ import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import org.onebusaway.android.R
-import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.map.MapParams
@@ -49,6 +48,7 @@ import org.onebusaway.android.ui.home.help.HelpAction
 import org.onebusaway.android.ui.home.help.HelpViewModel
 import org.onebusaway.android.ui.home.HomeCallbacks
 import org.onebusaway.android.ui.home.ReportTarget
+import org.onebusaway.android.ui.home.FocusedStop
 import org.onebusaway.android.ui.home.HomeNavItem
 import org.onebusaway.android.ui.home.HomeScreen
 import org.onebusaway.android.ui.home.HomeViewModel
@@ -200,40 +200,27 @@ class HomeActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIncomingIntent(intent)
-        applyWarmMapIntent(intent)
     }
 
     /**
-     * A warm singleTop re-launch carrying a "show on map" intent built by [makeIntent] — route mode
-     * ([MapParams.MODE_ROUTE]) or a focused stop ([MapParams.STOP_ID]), fired in-app by the starred-route/
-     * stop taps and the various "show on map" actions. On a cold launch the [MapViewModel] seeds route
-     * mode from the intent extras (its `SavedStateHandle`) and [setupMapState] adopts the stop focus, but
-     * both run once at startup; on a warm re-launch the already-built VM never sees the new intent, so the
-     * tap appeared to do nothing. Re-apply it here: surface the map and enter route mode / focus the stop
-     * at runtime. (Cold launches keep their startup path, so there's no double-apply.)
-     *
-     * (The deeper cleanup — retiring these in-app-only intents for direct VM calls — spans several NavHost
-     * destinations that fire them; this seam fixes every caller at the one place they share.)
+     * In-app "show route on map": surface the map (select NEARBY, dismissing any list overlay) and enter
+     * route mode. The single-Activity replacement for the old `HomeActivity.start(routeId)` intent
+     * round-trip — every in-app caller reaches this directly instead of building a MapParams intent.
      */
-    private fun applyWarmMapIntent(intent: Intent) {
-        if (intent.getStringExtra(MapParams.MODE) == MapParams.MODE_ROUTE) {
-            intent.getStringExtra(MapParams.ROUTE_ID)?.let { routeId ->
-                onHomeNavItemSelected(HomeNavItem.NEARBY)
-                mapViewModel.showRoute(routeId)
-            }
-            return
-        }
-        val focus = focusedStopFromExtras(
-            stopId = intent.getStringExtra(MapParams.STOP_ID),
-            stopName = intent.getStringExtra(MapParams.STOP_NAME),
-            stopCode = intent.getStringExtra(MapParams.STOP_CODE),
-            lat = intent.getDoubleExtra(MapParams.CENTER_LAT, 0.0),
-            lon = intent.getDoubleExtra(MapParams.CENTER_LON, 0.0),
-        ) ?: return
-        // Unlike the cold-launch [applyInitialFocus] (which only adopts a stop when none is focused yet),
-        // an explicit "show on map" should focus this stop and recenter even if another is already up.
+    fun showRouteOnMap(routeId: String) {
         onHomeNavItemSelected(HomeNavItem.NEARBY)
-        viewModel.onStopFocused(focus)
+        mapViewModel.showRoute(routeId)
+    }
+
+    /**
+     * In-app "show stop on map": surface the map and focus [stopId], recentering on it and peeking its
+     * arrivals once they load. Replaces `HomeActivity.start(stopId, lat, lon)`. Unlike the cold-launch
+     * [setupMapState]/applyInitialFocus (which only adopts a stop when none is focused), an explicit
+     * "show on map" focuses this stop even if another is already up.
+     */
+    fun focusStopOnMap(stopId: String, lat: Double, lon: Double) {
+        onHomeNavItemSelected(HomeNavItem.NEARBY)
+        viewModel.onStopFocused(FocusedStop(stopId, null, null, lat, lon))
         viewModel.markPendingMapFocus()
     }
 
@@ -461,73 +448,5 @@ class HomeActivity : AppCompatActivity() {
         @JvmStatic
         fun navIntent(context: Context, route: String): Intent =
             Intent(context, HomeActivity::class.java).putExtra(NavRoutes.EXTRA_NAV_ROUTE, route)
-
-        /**
-         * Starts HomeActivity with a particular stop focused with the center of
-         * the map at a particular point.
-         */
-        @JvmStatic
-        fun start(context: Context, focusId: String?, lat: Double, lon: Double) {
-            context.startActivity(makeIntent(context, focusId, lat, lon))
-        }
-
-        /**
-         * Starts HomeActivity with a particular stop focused with the center of
-         * the map at a particular point.
-         */
-        @JvmStatic
-        fun start(context: Context, stop: ObaStop) {
-            context.startActivity(makeIntent(context, stop))
-        }
-
-        /**
-         * Starts HomeActivity in "RouteMode", which shows stops along a route,
-         * and does not get new stops when the user pans the map.
-         */
-        @JvmStatic
-        fun start(context: Context, routeId: String) {
-            context.startActivity(makeIntent(context, routeId))
-        }
-
-        /**
-         * Returns an intent that will start HomeActivity with a particular stop
-         * focused with the center of the map at a particular point.
-         */
-        @JvmStatic
-        fun makeIntent(context: Context, focusId: String?, lat: Double, lon: Double): Intent {
-            val myIntent = Intent(context, HomeActivity::class.java)
-            myIntent.putExtra(MapParams.STOP_ID, focusId)
-            myIntent.putExtra(MapParams.CENTER_LAT, lat)
-            myIntent.putExtra(MapParams.CENTER_LON, lon)
-            return myIntent
-        }
-
-        /**
-         * Returns an intent that will start HomeActivity with a particular stop
-         * focused with the center of the map at a particular point.
-         */
-        @JvmStatic
-        fun makeIntent(context: Context, stop: ObaStop): Intent {
-            val myIntent = Intent(context, HomeActivity::class.java)
-            myIntent.putExtra(MapParams.STOP_ID, stop.id)
-            myIntent.putExtra(MapParams.STOP_NAME, stop.name)
-            myIntent.putExtra(MapParams.STOP_CODE, stop.stopCode)
-            myIntent.putExtra(MapParams.CENTER_LAT, stop.latitude)
-            myIntent.putExtra(MapParams.CENTER_LON, stop.longitude)
-            return myIntent
-        }
-
-        /**
-         * Returns an intent that starts HomeActivity in "RouteMode", which shows
-         * stops along a route, and does not get new stops when the user pans the map.
-         */
-        @JvmStatic
-        fun makeIntent(context: Context, routeId: String): Intent {
-            val myIntent = Intent(context, HomeActivity::class.java)
-            myIntent.putExtra(MapParams.MODE, MapParams.MODE_ROUTE)
-            myIntent.putExtra(MapParams.ZOOM_TO_ROUTE, true)
-            myIntent.putExtra(MapParams.ROUTE_ID, routeId)
-            return myIntent
-        }
     }
 }

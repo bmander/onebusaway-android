@@ -84,23 +84,23 @@ fun ReminderListDestination(
 
 @Composable
 fun StopSearchDestination(viewModel: SearchViewModel<StopSearchResult>, shortcutMode: Boolean) {
-    val host = LocalContext.current.findActivity()
+    val host = LocalContext.current.findActivity() as HomeActivity
     StopSearchContent(
         viewModel = viewModel,
         shortcutMode = shortcutMode,
         onStopClick = { host.openStopSearchResult(it, shortcutMode) },
-        onShowOnMap = { HomeActivity.start(host, it.id, it.latitude, it.longitude) }
+        onShowOnMap = { host.focusStopOnMap(it.id, it.latitude, it.longitude) }
     )
 }
 
 @Composable
 fun RouteSearchDestination(viewModel: SearchViewModel<RouteSearchResult>, shortcutMode: Boolean) {
-    val host = LocalContext.current.findActivity()
+    val host = LocalContext.current.findActivity() as HomeActivity
     RouteSearchContent(
         viewModel = viewModel,
         shortcutMode = shortcutMode,
         onRouteClick = { host.openRouteSearchResult(it, shortcutMode) },
-        onShowOnMap = { HomeActivity.start(host, it.id) },
+        onShowOnMap = { host.showRouteOnMap(it.id) },
         onShowSchedule = { route -> route.url?.let { ExternalIntents.goToUrl(host, it) } },
         onCreateShortcut = { Shortcuts.createRouteShortcut(host, it.id, it.shortName) }
     )

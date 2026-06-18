@@ -103,7 +103,7 @@ fun NavGraphBuilder.extraDestinations(navController: NavHostController) {
             },
         ),
     ) { backStackEntry ->
-        val activity = LocalContext.current.findActivity()
+        val activity = LocalContext.current.findActivity() as HomeActivity
         // The Firebase analytics process-singleton, fetched from the Context like everywhere else
         // (MapFeature/TripPlanScreen) rather than reaching into the host for it.
         val firebaseAnalytics = remember { FirebaseAnalytics.getInstance(activity) }
@@ -129,15 +129,13 @@ fun NavGraphBuilder.extraDestinations(navController: NavHostController) {
                     DBUtil.addRouteToDB(
                         activity, route.id, route.shortName, route.longName, route.url
                     )
-                    HomeActivity.start(activity, route.id)
+                    activity.showRouteOnMap(route.id)
                 },
                 onStopArrivals = { stop ->
                     navController.navigate(NavRoutes.arrivals(stop.id))
                 },
                 onStopShowOnMap = { stop ->
-                    HomeActivity.start(
-                        activity, stop.id, stop.latitude, stop.longitude
-                    )
+                    activity.focusStopOnMap(stop.id, stop.latitude, stop.longitude)
                 },
             )
         }

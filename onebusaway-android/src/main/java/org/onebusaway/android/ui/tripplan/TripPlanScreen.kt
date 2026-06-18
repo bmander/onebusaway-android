@@ -23,6 +23,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -85,6 +86,7 @@ import org.onebusaway.android.directions.util.OTPConstants
 import org.onebusaway.android.directions.util.TripRequestBuilder
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
+import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.ui.compose.components.SwitchRow
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.ui.nav.NavRoutes
@@ -352,7 +354,7 @@ private fun TripPlanTopBar(onBack: () -> Unit, onReportProblem: () -> Unit) {
 
 // -- Date / time pickers (platform), feeding the ViewModel ------------------------------------
 
-private fun pickDate(activity: androidx.appcompat.app.AppCompatActivity, viewModel: TripPlanViewModel) {
+private fun pickDate(activity: AppCompatActivity, viewModel: TripPlanViewModel) {
     val current = viewModel.formState.value.dateTimeMillis
     val picker = MaterialDatePicker.Builder.datePicker()
         .setTitleText(R.string.trip_plan_date)
@@ -372,7 +374,7 @@ private fun pickDate(activity: androidx.appcompat.app.AppCompatActivity, viewMod
     picker.show(activity.supportFragmentManager, "DATE_PICKER")
 }
 
-private fun pickTime(activity: androidx.appcompat.app.AppCompatActivity, viewModel: TripPlanViewModel) {
+private fun pickTime(activity: AppCompatActivity, viewModel: TripPlanViewModel) {
     val current = viewModel.formState.value.dateTimeMillis
     val calendar = Calendar.getInstance().apply { timeInMillis = current }
     val timeFormat =
@@ -395,7 +397,7 @@ private fun pickTime(activity: androidx.appcompat.app.AppCompatActivity, viewMod
 // -- Current location + contacts (platform) --------------------------------------------------
 
 private fun setCurrentLocation(
-    activity: androidx.appcompat.app.AppCompatActivity,
+    activity: AppCompatActivity,
     target: (PlaceItem) -> Unit
 ) {
     val location = LocationEntryPoint.get(activity.applicationContext).lastKnownLocation()
@@ -414,7 +416,7 @@ private fun setCurrentLocation(
 }
 
 private fun formattedAddress(
-    activity: androidx.appcompat.app.AppCompatActivity,
+    activity: AppCompatActivity,
     uri: Uri
 ): String? {
     val projection = arrayOf(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS)
@@ -433,7 +435,7 @@ private fun formattedAddress(
 
 @Composable
 private fun AdvancedSettingsDialog(
-    activity: androidx.appcompat.app.AppCompatActivity,
+    activity: AppCompatActivity,
     viewModel: TripPlanViewModel,
     onDismiss: () -> Unit,
 ) {
@@ -550,9 +552,9 @@ private fun AdvancedSettingsDialog(
 // -- Errors, reporting, analytics, notification re-entry --------------------------------------
 
 private fun showFeedbackDialog(
-    activity: androidx.appcompat.app.AppCompatActivity,
+    activity: AppCompatActivity,
     firebaseAnalytics: FirebaseAnalytics,
-    regionRepository: org.onebusaway.android.region.RegionRepository,
+    regionRepository: RegionRepository,
     message: String
 ) {
     MaterialAlertDialogBuilder(activity)
@@ -566,9 +568,9 @@ private fun showFeedbackDialog(
 }
 
 private fun reportProblem(
-    activity: androidx.appcompat.app.AppCompatActivity,
+    activity: AppCompatActivity,
     firebaseAnalytics: FirebaseAnalytics,
-    regionRepository: org.onebusaway.android.region.RegionRepository
+    regionRepository: RegionRepository
 ) {
     val email = regionRepository.region.value?.otpContactEmail
     if (email.isNullOrEmpty()) {
@@ -587,7 +589,7 @@ private fun reportProblem(
 }
 
 private fun reportPlanAnalytics(
-    activity: androidx.appcompat.app.AppCompatActivity,
+    activity: AppCompatActivity,
     firebaseAnalytics: FirebaseAnalytics
 ) {
     ObaAnalytics.reportUiEvent(

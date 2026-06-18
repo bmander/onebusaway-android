@@ -79,7 +79,9 @@ class DefaultRegionsRepository @Inject constructor(
 ) : RegionsRepository {
 
     // Domain objects from the last successful load, so selectRegion(id) can resolve the ObaRegion
-    // that RegionRepository.choose() needs
+    // that RegionRepository.choose() needs. @Volatile: written on Dispatchers.IO in getRegions, read
+    // in selectRegion from a separately-launched coroutine.
+    @Volatile
     private var regionsById: Map<Long, ObaRegion> = emptyMap()
 
     override suspend fun getRegions(refresh: Boolean): Result<List<RegionItem>> =

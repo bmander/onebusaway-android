@@ -65,7 +65,9 @@ class DonationViewModel @Inject constructor(
 
     fun cancelDismiss() = _state.update { it.copy(showDismissDialog = false) }
 
-    fun learnMore() = _effects.tryEmit(DonationEffect.OpenLearnMore).let {}
+    fun learnMore() {
+        _effects.tryEmit(DonationEffect.OpenLearnMore)
+    }
 
     /** Donate now: stop asking (the legacy order), then open the donations page. */
     fun donate() {

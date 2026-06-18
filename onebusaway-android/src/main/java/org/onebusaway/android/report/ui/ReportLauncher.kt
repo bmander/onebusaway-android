@@ -37,7 +37,6 @@ import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.app.di.LocationEntryPoint
-import org.onebusaway.android.app.di.RegionEntryPoint
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.io.elements.ObaRegion
@@ -248,7 +247,7 @@ private fun reportEvent(
 
 /** Don't re-validate a region the user already confirmed (skipped for the single-region brand). */
 private fun showValidateRegionDialog(activity: HomeActivity): Boolean {
-    val currentRegion: ObaRegion = RegionEntryPoint.get(activity).region.value ?: return false
+    val currentRegion: ObaRegion = activity.regionRepository.region.value ?: return false
     val validatedRegionId = PreferenceUtils.getLong(ReportConstants.PREF_VALIDATED_REGION_ID, -1)
     val needsValidation = validatedRegionId == -1L || currentRegion.id != validatedRegionId
     if (!needsValidation) return false

@@ -27,7 +27,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.R
 import org.onebusaway.android.io.ObaApi
+import org.onebusaway.android.io.elements.ObaRoute
+import org.onebusaway.android.io.elements.ObaTrip
 import org.onebusaway.android.io.elements.ObaTripSchedule
+import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
@@ -128,7 +131,7 @@ class DefaultTripDetailsRepository @Inject constructor(
             val millis = serviceDate + stopTime.arrivalTime * 1000 + deviation * 1000
             TripStopItem(
                 stopId = stopTime.stopId,
-                name = MyTextUtils.formatDisplayText(stop.name)!!,
+                name = MyTextUtils.formatDisplayText(stop.name).orEmpty(),
                 direction = stop.direction,
                 timeText = DisplayFormat.formatTime(context, millis),
                 canceled = canceled,
@@ -160,9 +163,9 @@ class DefaultTripDetailsRepository @Inject constructor(
 
     private fun buildHeader(
         response: ObaTripDetailsResponse,
-        trip: org.onebusaway.android.io.elements.ObaTrip,
-        route: org.onebusaway.android.io.elements.ObaRoute,
-        status: org.onebusaway.android.io.elements.ObaTripStatus?,
+        trip: ObaTrip,
+        route: ObaRoute,
+        status: ObaTripStatus?,
         isRealtime: Boolean
     ): TripHeader {
         val deviation = status?.scheduleDeviation ?: 0L
@@ -186,7 +189,7 @@ class DefaultTripDetailsRepository @Inject constructor(
     }
 
     private fun headerStatusText(
-        status: org.onebusaway.android.io.elements.ObaTripStatus?,
+        status: ObaTripStatus?,
         deviation: Long
     ): String = when {
         status == null -> context.getString(R.string.trip_details_scheduled_data)

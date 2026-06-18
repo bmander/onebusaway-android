@@ -179,9 +179,9 @@ class DefaultTripInfoRepository @Inject constructor(
         tripName = tripName,
         reminderMinutes = reminderMinutes,
         isNewTrip = isNewTrip,
-        stopNameText = MyTextUtils.formatDisplayText(stopName.orEmpty())!!,
-        routeText = MyTextUtils.formatDisplayText(context.getString(R.string.trip_info_route, routeName.orEmpty()))!!,
-        headsignText = MyTextUtils.formatDisplayText(headsign.orEmpty())!!,
+        stopNameText = MyTextUtils.formatDisplayText(stopName.orEmpty()).orEmpty(),
+        routeText = MyTextUtils.formatDisplayText(context.getString(R.string.trip_info_route, routeName.orEmpty())).orEmpty(),
+        headsignText = MyTextUtils.formatDisplayText(headsign.orEmpty()).orEmpty(),
         departureText = context.getString(
             R.string.trip_info_depart,
             DateUtils.formatDateTime(

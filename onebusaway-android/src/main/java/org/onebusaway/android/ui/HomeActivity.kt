@@ -43,7 +43,6 @@ import org.onebusaway.android.ui.home.donation.DonationViewModel
 import org.onebusaway.android.ui.home.weather.WeatherViewModel
 import org.onebusaway.android.ui.home.AccessibilityAnalyticsEffect
 import org.onebusaway.android.ui.home.HomeAnalyticsEffect
-import org.onebusaway.android.ui.home.focusedStopFromExtras
 import org.onebusaway.android.ui.home.help.HelpAction
 import org.onebusaway.android.ui.home.help.HelpViewModel
 import org.onebusaway.android.ui.home.HomeCallbacks
@@ -419,24 +418,12 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
-     * Sets up the initial map state from the ViewModel's restored focus (process death / rotation,
-     * via SavedStateHandle) or from an Intent that deep-links into a specific stop.
+     * Sets up the initial map focus. A restored focus (SavedStateHandle: process death / rotation)
+     * already drives the arrivals sheet via HomeScreen; otherwise adopt a stop deep-linked through the
+     * intent (makeIntent). The VM decides which applies and marks the focus pending so the map recenters
+     * and adds the marker once arrivals load.
      */
-    private fun setupMapState() {
-        // A restored focus (SavedStateHandle) already drives the arrivals sheet via HomeScreen; otherwise
-        // adopt a stop deep-linked through the intent (makeIntent). The VM decides which applies + marks
-        // the focus pending so the map recenters + adds the marker once arrivals load.
-        val b = intent.extras
-        viewModel.applyInitialFocus(
-            focusedStopFromExtras(
-                stopId = b?.getString(MapParams.STOP_ID),
-                stopName = b?.getString(MapParams.STOP_NAME),
-                stopCode = b?.getString(MapParams.STOP_CODE),
-                lat = b?.getDouble(MapParams.CENTER_LAT) ?: 0.0,
-                lon = b?.getDouble(MapParams.CENTER_LON) ?: 0.0,
-            )
-        )
-    }
+    private fun setupMapState() = viewModel.applyInitialFocus(FocusedStop.fromIntent(intent))
 
     companion object {
         /**
@@ -457,4 +444,18 @@ class HomeActivity : AppCompatActivity() {
         fun navIntent(context: Context, route: String): Intent =
             Intent(context, HomeActivity::class.java).putExtra(NavRoutes.EXTRA_NAV_ROUTE, route)
     }
+}
+
+/**
+ * The [FocusedStop] a launch intent deep-links into (makeIntent's STOP_ID + CENTER_LAT/LON), or null
+ * when it carries no usable stop — an id plus a real (non-zero) location. A plain launch carries
+ * neither, so focus stays null. Parsing lives here with the intent contract, off HomeModels.
+ */
+private fun FocusedStop.Companion.fromIntent(intent: Intent): FocusedStop? {
+    val extras = intent.extras ?: return null
+    val id = extras.getString(MapParams.STOP_ID) ?: return null
+    val lat = extras.getDouble(MapParams.CENTER_LAT)
+    val lon = extras.getDouble(MapParams.CENTER_LON)
+    if (lat == 0.0 || lon == 0.0) return null
+    return FocusedStop(id, extras.getString(MapParams.STOP_NAME), extras.getString(MapParams.STOP_CODE), lat, lon)
 }

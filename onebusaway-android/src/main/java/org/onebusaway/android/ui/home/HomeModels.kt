@@ -76,24 +76,11 @@ data class FocusedStop(
     val code: String?,
     val lat: Double,
     val lon: Double,
-)
-
-/**
- * Builds a [FocusedStop] from launch-intent extras, or null when they don't carry a usable stop — a
- * stop id plus a real (non-zero) location. Mirrors HomeActivity.makeIntent's STOP_ID + CENTER_LAT/LON.
- */
-internal fun focusedStopFromExtras(
-    stopId: String?,
-    stopName: String?,
-    stopCode: String?,
-    lat: Double,
-    lon: Double,
-): FocusedStop? =
-    if (stopId != null && lat != 0.0 && lon != 0.0) {
-        FocusedStop(stopId, stopName, stopCode, lat, lon)
-    } else {
-        null
-    }
+) {
+    // Empty companion so intent/extras parsing can hang off it as a `FocusedStop.fromIntent(...)`
+    // extension where that contract lives (HomeActivity), without HomeModels knowing about intents.
+    companion object
+}
 
 /**
  * The target of a "send feedback / report a problem" launch, derived by [HomeViewModel.reportTarget]:

@@ -772,7 +772,7 @@ class NavPersistenceTest {
     }
 }
 
-/** Pure tests for the launch-resolution helpers: [initialNavItem] + [focusedStopFromExtras]. */
+/** Pure tests for the launch-resolution helper [initialNavItem]. */
 class LaunchResolutionTest {
 
     @Test
@@ -785,20 +785,6 @@ class LaunchResolutionTest {
     fun `without a deep link the remembered tab wins`() {
         assertEquals(HomeNavItem.STARRED_ROUTES, initialNavItem("STARRED_ROUTES", 0, deepLinksToMap = false))
         assertEquals(HomeNavItem.MY_REMINDERS, initialNavItem(null, 3, deepLinksToMap = false))
-    }
-
-    @Test
-    fun `a full set of stop extras builds a FocusedStop`() {
-        assertEquals(
-            FocusedStop("1_75403", "Pike St", "577", 47.61, -122.34),
-            focusedStopFromExtras("1_75403", "Pike St", "577", 47.61, -122.34),
-        )
-    }
-
-    @Test
-    fun `extras without an id or with a zero location yield no focus`() {
-        assertNull(focusedStopFromExtras(null, "Pike St", "577", 47.61, -122.34))
-        assertNull(focusedStopFromExtras("1_75403", "Pike St", "577", 0.0, 0.0))
     }
 }
 

@@ -200,6 +200,24 @@ class HomeActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIncomingIntent(intent)
+        applyWarmRouteMode(intent)
+    }
+
+    /**
+     * A warm singleTop re-launch carrying a "show route on map" intent ([MapParams.MODE_ROUTE] — the
+     * starred-route tap and the various "show on map" actions, all in-app via [makeIntent]). On a cold
+     * launch the [MapViewModel] seeds route mode from the intent extras via its `SavedStateHandle`, but
+     * that seed runs once at VM creation; on a warm re-launch the VM already exists and never sees the
+     * new intent, so the tap appeared to do nothing. Apply it here: surface the map and enter route mode.
+     *
+     * (The deeper cleanup — retiring this in-app-only intent for direct VM calls — spans several NavHost
+     * destinations that fire it; this seam fixes every caller at the one place they share.)
+     */
+    private fun applyWarmRouteMode(intent: Intent) {
+        if (intent.getStringExtra(MapParams.MODE) != MapParams.MODE_ROUTE) return
+        val routeId = intent.getStringExtra(MapParams.ROUTE_ID) ?: return
+        onHomeNavItemSelected(HomeNavItem.NEARBY)
+        mapViewModel.showRoute(routeId)
     }
 
     /**

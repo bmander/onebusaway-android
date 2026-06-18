@@ -200,24 +200,41 @@ class HomeActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIncomingIntent(intent)
-        applyWarmRouteMode(intent)
+        applyWarmMapIntent(intent)
     }
 
     /**
-     * A warm singleTop re-launch carrying a "show route on map" intent ([MapParams.MODE_ROUTE] — the
-     * starred-route tap and the various "show on map" actions, all in-app via [makeIntent]). On a cold
-     * launch the [MapViewModel] seeds route mode from the intent extras via its `SavedStateHandle`, but
-     * that seed runs once at VM creation; on a warm re-launch the VM already exists and never sees the
-     * new intent, so the tap appeared to do nothing. Apply it here: surface the map and enter route mode.
+     * A warm singleTop re-launch carrying a "show on map" intent built by [makeIntent] — route mode
+     * ([MapParams.MODE_ROUTE]) or a focused stop ([MapParams.STOP_ID]), fired in-app by the starred-route/
+     * stop taps and the various "show on map" actions. On a cold launch the [MapViewModel] seeds route
+     * mode from the intent extras (its `SavedStateHandle`) and [setupMapState] adopts the stop focus, but
+     * both run once at startup; on a warm re-launch the already-built VM never sees the new intent, so the
+     * tap appeared to do nothing. Re-apply it here: surface the map and enter route mode / focus the stop
+     * at runtime. (Cold launches keep their startup path, so there's no double-apply.)
      *
-     * (The deeper cleanup — retiring this in-app-only intent for direct VM calls — spans several NavHost
-     * destinations that fire it; this seam fixes every caller at the one place they share.)
+     * (The deeper cleanup — retiring these in-app-only intents for direct VM calls — spans several NavHost
+     * destinations that fire them; this seam fixes every caller at the one place they share.)
      */
-    private fun applyWarmRouteMode(intent: Intent) {
-        if (intent.getStringExtra(MapParams.MODE) != MapParams.MODE_ROUTE) return
-        val routeId = intent.getStringExtra(MapParams.ROUTE_ID) ?: return
+    private fun applyWarmMapIntent(intent: Intent) {
+        if (intent.getStringExtra(MapParams.MODE) == MapParams.MODE_ROUTE) {
+            intent.getStringExtra(MapParams.ROUTE_ID)?.let { routeId ->
+                onHomeNavItemSelected(HomeNavItem.NEARBY)
+                mapViewModel.showRoute(routeId)
+            }
+            return
+        }
+        val focus = focusedStopFromExtras(
+            stopId = intent.getStringExtra(MapParams.STOP_ID),
+            stopName = intent.getStringExtra(MapParams.STOP_NAME),
+            stopCode = intent.getStringExtra(MapParams.STOP_CODE),
+            lat = intent.getDoubleExtra(MapParams.CENTER_LAT, 0.0),
+            lon = intent.getDoubleExtra(MapParams.CENTER_LON, 0.0),
+        ) ?: return
+        // Unlike the cold-launch [applyInitialFocus] (which only adopts a stop when none is focused yet),
+        // an explicit "show on map" should focus this stop and recenter even if another is already up.
         onHomeNavItemSelected(HomeNavItem.NEARBY)
-        mapViewModel.showRoute(routeId)
+        viewModel.onStopFocused(focus)
+        viewModel.markPendingMapFocus()
     }
 
     /**

@@ -667,9 +667,9 @@ class MapViewModel @Inject constructor(
 
     // ----- "Show route on map" / leave route mode (replaces ShowRoute / ExitRouteMode commands) -----
 
-    /** Enter route mode for [routeId], framing the nearest vehicle (the "show route on map" action). */
+    /** Enter route mode for [routeId], framing the route's bounding box (the "show route on map" action). */
     fun showRoute(routeId: String) {
-        setMode(MapMode.Route(routeId, zoomToRoute = false, zoomIncludeClosestVehicle = true))
+        setMode(MapMode.Route(routeId, zoomToRoute = true, zoomIncludeClosestVehicle = false))
     }
 
     /** Leave route mode back to stop mode, preserving the current camera (the route header's cancel). */

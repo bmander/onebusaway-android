@@ -17,7 +17,7 @@ package org.onebusaway.android.ui.search
 
 import android.content.Context
 import android.util.Log
-import org.onebusaway.android.app.di.NetworkEntryPoint
+import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.RouteReference
 import org.onebusaway.android.io.client.listOrEmpty
 import org.onebusaway.android.util.LocationUtils
@@ -44,20 +44,22 @@ interface RouteSearchRepository {
 }
 
 /**
- * Default implementation backed by the modernized [org.onebusaway.android.io.client.ObaWebService]:
- * queries around the user's location first and falls back to a wide-radius search around the
- * region's default center when that returns nothing usable (the legacy route-search behavior). The
- * service is resolved from the [Context] via [NetworkEntryPoint] because this repository is built
- * by hand at a Compose call site rather than Hilt-injected.
+ * Default implementation backed by the modernized [ObaWebService]: queries around the user's
+ * location first and falls back to a wide-radius search around the region's default center when
+ * that returns nothing usable (the legacy route-search behavior). [context] is still needed for the
+ * in-memory location lookups; [service] is constructor-injected (resolved at the Compose call site)
+ * so this repository declares its dependency and is swappable in tests.
  *
  * Unlike the legacy version, a transport/parse failure surfaces as [Result.failure] (so the UI can
  * show an error) rather than being silently rendered as "no results"; a server error *code* is
  * still treated as no results, matching the legacy screens.
  */
-class DefaultRouteSearchRepository(private val context: Context) : RouteSearchRepository {
+class DefaultRouteSearchRepository(
+    private val context: Context,
+    private val service: ObaWebService,
+) : RouteSearchRepository {
 
     override suspend fun search(query: String): Result<List<RouteSearchResult>> = runCatching {
-        val service = NetworkEntryPoint.get(context)
         val center = LocationUtils.getSearchCenter(context)
         var routes = service.routesForLocation(center.latitude, center.longitude, query = query)
             .listOrEmpty()

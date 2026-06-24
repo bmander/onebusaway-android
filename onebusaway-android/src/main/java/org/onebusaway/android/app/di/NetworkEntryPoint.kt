@@ -24,12 +24,18 @@ import org.onebusaway.android.io.client.ObaWebService
 
 /**
  * A Hilt [EntryPoint] that lets code which can't be constructor- or field-injected reach the
- * shared [ObaWebService] (e.g. repositories still built by hand from a [Context] at a Compose call
- * site). It needs a [Context] only to resolve the singleton graph; the returned service is the
- * same app-singleton every injected consumer shares.
+ * shared [ObaWebService]. It needs a [Context] only to resolve the singleton graph; the returned
+ * service is the same app-singleton every injected consumer shares.
  *
- * Use it only where injection genuinely isn't available — Hilt-reachable classes should inject
- * [ObaWebService] (or a repository) directly.
+ * Seam rule for reaching the modernized REST client (io/client), in order of preference:
+ * 1. **An io/client repository** (e.g. `RouteRepository`) when a domain model is shared across
+ *    features or the consumer is another repository — depend on that, not on [ObaWebService].
+ * 2. **Constructor-inject [ObaWebService]** directly into Hilt-reachable consumers (most feature
+ *    repositories, `@HiltViewModel`s, services).
+ * 3. **This EntryPoint** only where injection genuinely isn't available — e.g. a repository
+ *    hand-built from a [Context] at a Compose call site (the `MyListScreens` search repos). Resolve
+ *    it at the construction boundary and pass [ObaWebService] into the constructor; don't bury the
+ *    lookup inside the repository's business logic (keeps the dependency declared and testable).
  */
 @EntryPoint
 @InstallIn(SingletonComponent::class)

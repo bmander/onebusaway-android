@@ -16,9 +16,7 @@
 package org.onebusaway.android.io.client
 
 import android.util.Log
-import java.io.IOException
 import javax.inject.Inject
-import org.onebusaway.android.io.ObaApi
 
 /** Fetches route details from the modernized OBA REST client. */
 interface RouteRepository {
@@ -40,12 +38,7 @@ class DefaultRouteRepository @Inject constructor(
 ) : RouteRepository {
 
     override suspend fun getRoute(routeId: String): Result<RouteDetails> = runCatching {
-        val envelope = service.route(routeId)
-        val data = envelope.data
-        if (envelope.code != ObaApi.OBA_OK || data == null) {
-            throw IOException("route-details request failed (OBA code ${envelope.code})")
-        }
-        data.toRouteDetails()
+        service.route(routeId).requireData().toRouteDetails()
     }.onFailure { Log.e(TAG, "getRoute($routeId) failed", it) }
 
     private companion object {

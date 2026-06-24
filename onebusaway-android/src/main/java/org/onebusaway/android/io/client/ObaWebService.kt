@@ -36,4 +36,12 @@ interface ObaWebService {
     suspend fun route(
         @Path("routeId") routeId: String,
     ): ObaEnvelope<EntryWithReferences<RouteReference>>
+
+    /**
+     * agencies-with-coverage — every agency the current region covers, with full agency details
+     * in the references.
+     * {http://developer.onebusaway.org/.../api/where/methods/agencies-with-coverage.html}
+     */
+    @GET("api/where/agencies-with-coverage.json")
+    suspend fun agenciesWithCoverage(): ObaEnvelope<ListWithReferences<AgencyCoverage>>
 }

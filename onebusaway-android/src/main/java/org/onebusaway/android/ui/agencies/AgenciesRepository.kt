@@ -15,18 +15,16 @@
  */
 package org.onebusaway.android.ui.agencies
 
-import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
+import android.util.Log
 import javax.inject.Inject
-import java.io.IOException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.request.ObaAgenciesWithCoverageRequest
+import org.onebusaway.android.io.client.AgencyCoverage
+import org.onebusaway.android.io.client.ListWithReferences
+import org.onebusaway.android.io.client.ObaWebService
+import org.onebusaway.android.io.client.requireData
 
 /**
  * A transit agency as displayed on the supported agencies screen, decoupled from the
- * io/elements response types.
+ * io/client response types.
  *
  * @param url the agency's website, or null if it has none (never blank)
  */
@@ -43,27 +41,34 @@ interface AgenciesRepository {
 }
 
 /**
- * Default implementation wrapping the blocking OBA REST call. Note that RequestBase.call()
- * never throws — errors surface as a response with a non-OBA_OK code — so failures are mapped
- * to [Result.failure] here.
+ * Default implementation backed by the modernized [ObaWebService]. Retrofit suspend functions are
+ * main-safe, so no manual `withContext(Dispatchers.IO)` is needed; failures (IO/HTTP/serialization
+ * or a non-OK OBA code, via [requireData]) are mapped to [Result.failure].
  */
-class DefaultAgenciesRepository @Inject constructor(@ApplicationContext private val context: Context) : AgenciesRepository {
+class DefaultAgenciesRepository @Inject constructor(
+    private val service: ObaWebService
+) : AgenciesRepository {
 
-    override suspend fun getAgencies(): Result<List<AgencyItem>> = withContext(Dispatchers.IO) {
-        val response = ObaAgenciesWithCoverageRequest.newRequest(context).call()
-        if (response == null || response.code != ObaApi.OBA_OK) {
-            return@withContext Result.failure(
-                IOException("Agencies request failed with code " + response?.code)
-            )
-        }
-        Result.success(response.agencies.mapNotNull { agencyWithCoverage ->
-            val agency = response.getAgency(agencyWithCoverage.id) ?: return@mapNotNull null
-            AgencyItem(
-                id = agency.id,
-                name = agency.name,
-                // Normalize blank URLs to null so consumers only need one check
-                url = agency.url?.takeIf { it.isNotEmpty() }
-            )
-        })
+    override suspend fun getAgencies(): Result<List<AgencyItem>> = runCatching {
+        service.agenciesWithCoverage().requireData().toAgencyItems()
+    }.onFailure { Log.e(TAG, "getAgencies failed", it) }
+
+    private companion object {
+        const val TAG = "AgenciesRepository"
     }
 }
+
+/**
+ * Maps the agencies-with-coverage payload to display [AgencyItem]s, resolving each coverage entry's
+ * agency from the references by id (skipping any unresolved entry) and normalizing blank URLs to
+ * null. Pure, so it is exercised directly in JVM unit tests.
+ */
+fun ListWithReferences<AgencyCoverage>.toAgencyItems(): List<AgencyItem> =
+    list.mapNotNull { coverage ->
+        val agency = references.agency(coverage.agencyId) ?: return@mapNotNull null
+        AgencyItem(
+            id = agency.id,
+            name = agency.name,
+            url = agency.url?.takeIf { it.isNotEmpty() }
+        )
+    }

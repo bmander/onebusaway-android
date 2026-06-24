@@ -49,6 +49,17 @@ data class EntryWithReferences<T>(
 )
 
 /**
+ * The common `data` shape for list endpoints: a [list] of entries plus the shared [references].
+ * [limitExceeded] is true when the API truncated the result to its maximum response size.
+ */
+@Serializable
+data class ListWithReferences<T>(
+    val list: List<T> = emptyList(),
+    val references: References = References(),
+    val limitExceeded: Boolean = false,
+)
+
+/**
  * The shared reference pool returned alongside an entry. Only the reference kinds a migrated
  * endpoint actually consumes are modeled; unmodeled kinds (stops, trips, situations, routes) are
  * tolerated on the wire via `ignoreUnknownKeys` and get added as endpoints need them.
@@ -56,7 +67,10 @@ data class EntryWithReferences<T>(
 @Serializable
 data class References(
     val agencies: List<AgencyReference> = emptyList(),
-)
+) {
+    /** Resolves an agency in this pool by id, or null when absent. */
+    fun agency(id: String): AgencyReference? = agencies.firstOrNull { it.id == id }
+}
 
 /** Wire model for a route, as it appears in an entry or the references pool. */
 @Serializable
@@ -75,4 +89,13 @@ data class AgencyReference(
     val id: String = "",
     val name: String = "",
     val url: String? = null,
+)
+
+/**
+ * Wire model for an agencies-with-coverage list entry. Identifies an agency in [References] by
+ * [agencyId]; the coverage geometry (lat/lon/spans) is unmodeled until a consumer needs it.
+ */
+@Serializable
+data class AgencyCoverage(
+    val agencyId: String = "",
 )

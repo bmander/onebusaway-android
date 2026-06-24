@@ -41,7 +41,7 @@ data class AgencyDetails(
  */
 fun EntryWithReferences<RouteReference>.toRouteDetails(): RouteDetails {
     val route = entry
-    val agency = references.agencies.firstOrNull { it.id == route.agencyId }
+    val agency = references.agency(route.agencyId)
     return RouteDetails(
         id = route.id,
         shortName = route.shortName,

@@ -17,6 +17,7 @@ package org.onebusaway.android.io.client
 
 import retrofit2.http.GET
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 /**
  * The modernized OBA REST ("where") API contract. Each method maps to one endpoint; Retrofit +
@@ -44,4 +45,17 @@ interface ObaWebService {
      */
     @GET("api/where/agencies-with-coverage.json")
     suspend fun agenciesWithCoverage(): ObaEnvelope<ListWithReferences<AgencyCoverage>>
+
+    /**
+     * routes-for-location — routes near [lat]/[lon], optionally filtered by a short-name [query]
+     * and bounded by [radius] (meters). Omitted (null) parameters are dropped from the request.
+     * {http://developer.onebusaway.org/.../api/where/methods/routes-for-location.html}
+     */
+    @GET("api/where/routes-for-location.json")
+    suspend fun routesForLocation(
+        @Query("lat") lat: Double,
+        @Query("lon") lon: Double,
+        @Query("query") query: String? = null,
+        @Query("radius") radius: Int? = null,
+    ): ObaEnvelope<ListWithReferences<RouteReference>>
 }

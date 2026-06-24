@@ -29,3 +29,13 @@ fun <T> ObaEnvelope<T>.requireData(): T {
     }
     return data
 }
+
+/**
+ * The list payload of a list endpoint, or empty when the app-level [ObaEnvelope.code] is not OK.
+ * Unlike [requireData], a server error *code* yields no results rather than a failure — the
+ * behavior list/search screens want (an error reads as "nothing found", not a crash). A transport
+ * or parse failure still throws before reaching here, so callers' `runCatching` maps that to
+ * `Result.failure`.
+ */
+fun <T> ObaEnvelope<ListWithReferences<T>>.listOrEmpty(): List<T> =
+    if (code == ObaApi.OBA_OK) data?.list.orEmpty() else emptyList()

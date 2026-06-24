@@ -16,12 +16,10 @@
 package org.onebusaway.android.ui.search
 
 import android.content.Context
-import java.io.IOException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.request.ObaRoutesForLocationRequest
+import android.util.Log
+import org.onebusaway.android.app.di.NetworkEntryPoint
+import org.onebusaway.android.io.client.RouteReference
+import org.onebusaway.android.io.client.listOrEmpty
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.routeDisplayNames
 
@@ -46,47 +44,45 @@ interface RouteSearchRepository {
 }
 
 /**
- * Default implementation wrapping the blocking OBA routes-for-location request: queries around
- * the user's location first and falls back to a wide-radius search around the region's default
- * center when that returns nothing usable (the legacy route-search behavior).
+ * Default implementation backed by the modernized [org.onebusaway.android.io.client.ObaWebService]:
+ * queries around the user's location first and falls back to a wide-radius search around the
+ * region's default center when that returns nothing usable (the legacy route-search behavior). The
+ * service is resolved from the [Context] via [NetworkEntryPoint] because this repository is built
+ * by hand at a Compose call site rather than Hilt-injected.
+ *
+ * Unlike the legacy version, a transport/parse failure surfaces as [Result.failure] (so the UI can
+ * show an error) rather than being silently rendered as "no results"; a server error *code* is
+ * still treated as no results, matching the legacy screens.
  */
 class DefaultRouteSearchRepository(private val context: Context) : RouteSearchRepository {
 
-    override suspend fun search(query: String): Result<List<RouteSearchResult>> =
-        withContext(Dispatchers.IO) {
-            var response = ObaRoutesForLocationRequest.Builder(context, LocationUtils.getSearchCenter(context))
-                .setQuery(query)
-                .build()
-                .call()
-            if (response == null || response.code != ObaApi.OBA_OK
-                || response.routesForLocation.isEmpty()
-            ) {
-                val defaultCenter = LocationUtils.getDefaultSearchCenter(context)
-                if (defaultCenter != null) {
-                    response = ObaRoutesForLocationRequest.Builder(context, defaultCenter)
-                        .setRadius(LocationUtils.DEFAULT_SEARCH_RADIUS)
-                        .setQuery(query)
-                        .build()
-                        .call()
-                }
-            }
-            when {
-                // Never reached the server (or got an unparseable reply)
-                response == null || response.code == 0 ->
-                    Result.failure(IOException("Route search failed"))
-                // Server replied with an error code — legacy screens show "no results"
-                response.code != ObaApi.OBA_OK -> Result.success(emptyList())
-                else -> Result.success(response.routesForLocation.map(::toResult))
+    override suspend fun search(query: String): Result<List<RouteSearchResult>> = runCatching {
+        val service = NetworkEntryPoint.get(context)
+        val center = LocationUtils.getSearchCenter(context)
+        var routes = service.routesForLocation(center.latitude, center.longitude, query = query)
+            .listOrEmpty()
+        if (routes.isEmpty()) {
+            LocationUtils.getDefaultSearchCenter(context)?.let { fallback ->
+                routes = service.routesForLocation(
+                    fallback.latitude, fallback.longitude,
+                    query = query, radius = LocationUtils.DEFAULT_SEARCH_RADIUS
+                ).listOrEmpty()
             }
         }
+        routes.map(::toResult)
+    }.onFailure { Log.e(TAG, "route search failed", it) }
 
-    private fun toResult(route: ObaRoute): RouteSearchResult {
-        val names = routeDisplayNames(route)
+    private fun toResult(route: RouteReference): RouteSearchResult {
+        val names = routeDisplayNames(route.shortName, route.longName, route.description)
         return RouteSearchResult(
             id = route.id,
             shortName = names.shortName,
             longName = names.longName,
             url = route.url?.takeIf { it.isNotEmpty() }
         )
+    }
+
+    private companion object {
+        const val TAG = "RouteSearchRepository"
     }
 }

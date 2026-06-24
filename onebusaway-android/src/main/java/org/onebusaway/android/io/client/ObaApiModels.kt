@@ -99,3 +99,16 @@ data class AgencyReference(
 data class AgencyCoverage(
     val agencyId: String = "",
 )
+
+/**
+ * Wire model for a stop, as it appears in a list entry or the references pool. Only the fields a
+ * consumer reads are modeled so far (code, locationType, routeIds, etc. are added when needed).
+ */
+@Serializable
+data class StopReference(
+    val id: String = "",
+    val name: String? = null,
+    val direction: String? = null,
+    val lat: Double = 0.0,
+    val lon: Double = 0.0,
+)

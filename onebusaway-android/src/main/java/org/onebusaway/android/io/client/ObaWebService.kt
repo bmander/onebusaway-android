@@ -58,4 +58,17 @@ interface ObaWebService {
         @Query("query") query: String? = null,
         @Query("radius") radius: Int? = null,
     ): ObaEnvelope<ListWithReferences<RouteReference>>
+
+    /**
+     * stops-for-location — stops near [lat]/[lon], optionally filtered by a code/name [query] and
+     * bounded by [radius] (meters). Omitted (null) parameters are dropped from the request.
+     * {http://developer.onebusaway.org/.../api/where/methods/stops-for-location.html}
+     */
+    @GET("api/where/stops-for-location.json")
+    suspend fun stopsForLocation(
+        @Query("lat") lat: Double,
+        @Query("lon") lon: Double,
+        @Query("query") query: String? = null,
+        @Query("radius") radius: Int? = null,
+    ): ObaEnvelope<ListWithReferences<StopReference>>
 }

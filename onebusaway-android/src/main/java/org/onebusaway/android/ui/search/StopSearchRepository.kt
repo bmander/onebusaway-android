@@ -16,12 +16,12 @@
 package org.onebusaway.android.ui.search
 
 import android.content.Context
-import java.io.IOException
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.elements.ObaStop
-import org.onebusaway.android.io.request.ObaStopsForLocationRequest
+import org.onebusaway.android.app.di.NetworkEntryPoint
+import org.onebusaway.android.io.client.StopReference
+import org.onebusaway.android.io.client.listOrEmpty
 import org.onebusaway.android.provider.StopUserInfo
 import org.onebusaway.android.provider.loadStopUserInfo
 import org.onebusaway.android.provider.stopDisplayName
@@ -52,38 +52,41 @@ interface StopSearchRepository {
 }
 
 /**
- * Default implementation wrapping the blocking OBA stops-for-location request, decorated with
- * the user's stop favorites and custom names from the ContentProvider (the same query the
- * legacy UIUtils.StopUserInfoMap ran).
+ * Default implementation backed by the modernized [org.onebusaway.android.io.client.ObaWebService]
+ * (resolved from the [Context] via [NetworkEntryPoint], since this repository is built by hand at a
+ * Compose call site), decorated with the user's stop favorites and custom names from the
+ * ContentProvider (the same query the legacy UIUtils.StopUserInfoMap ran).
+ *
+ * Stays on [Dispatchers.IO]: unlike the route search, the [loadStopUserInfo] ContentProvider query
+ * is blocking. As with the route search, a transport/parse failure surfaces as [Result.failure]
+ * while a server error code yields no results (via [listOrEmpty]).
  */
 class DefaultStopSearchRepository(private val context: Context) : StopSearchRepository {
 
     override suspend fun search(query: String): Result<List<StopSearchResult>> =
         withContext(Dispatchers.IO) {
-            val response = ObaStopsForLocationRequest.Builder(context, LocationUtils.getSearchCenter(context))
-                .setQuery(query)
-                .build()
-                .call()
-            when {
-                // Never reached the server (or got an unparseable reply)
-                response == null || response.code == 0 ->
-                    Result.failure(IOException("Stop search failed"))
-                // Server replied with an error code — legacy screens show "no results"
-                response.code != ObaApi.OBA_OK -> Result.success(emptyList())
-                else -> {
-                    val userInfo = loadStopUserInfo(context)
-                    Result.success(response.stops.map { toResult(it, userInfo[it.id]) })
-                }
-            }
+            runCatching {
+                val service = NetworkEntryPoint.get(context)
+                val center = LocationUtils.getSearchCenter(context)
+                val stops = service.stopsForLocation(center.latitude, center.longitude, query = query)
+                    .listOrEmpty()
+                val userInfo = loadStopUserInfo(context)
+                stops.map { it.toStopSearchResult(userInfo[it.id]) }
+            }.onFailure { Log.e(TAG, "stop search failed", it) }
         }
 
-    private fun toResult(stop: ObaStop, userInfo: StopUserInfo?) = StopSearchResult(
-        id = stop.id,
-        name = stopDisplayName(stop, userInfo),
-        serverName = stop.name,
-        direction = stop.direction.orEmpty(),
-        isFavorite = userInfo?.isFavorite == true,
-        latitude = stop.latitude,
-        longitude = stop.longitude
-    )
+    private companion object {
+        const val TAG = "StopSearchRepository"
+    }
 }
+
+/** Maps a stop entry to its display result, applying the user's custom name / favorite. */
+internal fun StopReference.toStopSearchResult(userInfo: StopUserInfo?) = StopSearchResult(
+    id = id,
+    name = stopDisplayName(name, userInfo),
+    serverName = name,
+    direction = direction.orEmpty(),
+    isFavorite = userInfo?.isFavorite == true,
+    latitude = lat,
+    longitude = lon
+)

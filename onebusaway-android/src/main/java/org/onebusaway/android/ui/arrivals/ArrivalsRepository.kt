@@ -24,11 +24,11 @@ import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.ObaApi
+import org.onebusaway.android.io.client.RouteRepository
 import org.onebusaway.android.io.elements.ObaSituation
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoRequest
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse
-import org.onebusaway.android.io.request.ObaRouteRequest
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.provider.loadStopUserInfo
 import org.onebusaway.android.region.RegionRepository
@@ -123,7 +123,8 @@ interface ArrivalsRepository {
  */
 class DefaultArrivalsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val regionRepository: RegionRepository
+    private val regionRepository: RegionRepository,
+    private val routeRepository: RouteRepository
 ) : ArrivalsRepository {
 
     private var lastGood: ObaArrivalInfoResponse? = null
@@ -312,27 +313,26 @@ class DefaultArrivalsRepository @Inject constructor(
         fetchAndStoreRouteDetails(routeId, regionId)
     }
 
-    /** Blocking route-details fetch (already on IO via [favoriteRoute]); writes name/url back. */
-    private fun fetchAndStoreRouteDetails(routeId: String, regionId: Long?) {
-        val response = ObaRouteRequest.newRequest(context, routeId).call() ?: return
-        if (response.code != ObaApi.OBA_OK) return
+    /** Route-details fetch via the modernized client; writes name/url back. */
+    private suspend fun fetchAndStoreRouteDetails(routeId: String, regionId: Long?) {
+        val route = routeRepository.getRoute(routeId).getOrNull() ?: return
 
-        var shortName = response.shortName
-        var longName = response.longName
+        var shortName = route.shortName
+        var longName = route.longName
         if (shortName.isNullOrEmpty()) {
             shortName = longName
         }
         if (longName.isNullOrEmpty() || shortName == longName) {
-            longName = response.description
+            longName = route.description
         }
 
         val values = ContentValues().apply {
             put(ObaContract.Routes.SHORTNAME, shortName)
             put(ObaContract.Routes.LONGNAME, longName)
-            put(ObaContract.Routes.URL, response.url)
+            put(ObaContract.Routes.URL, route.url)
             regionId?.let { put(ObaContract.Routes.REGION_ID, it) }
         }
-        ObaContract.Routes.insertOrUpdate(context, response.id, values, true)
+        ObaContract.Routes.insertOrUpdate(context, route.id, values, true)
     }
 
     override suspend fun setRouteFilter(stopId: String, filter: Set<String>) {

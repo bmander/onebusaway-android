@@ -19,6 +19,7 @@ import org.apache.tools.ant.filters.ConcatFilter
 
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+apply plugin: 'org.jetbrains.kotlin.plugin.serialization'
 apply plugin: 'com.google.devtools.ksp'
 apply plugin: 'com.google.dagger.hilt.android'
 apply plugin: 'com.github.triplet.play'
@@ -243,10 +244,18 @@ dependencies {
     implementation 'org.apache.commons:commons-lang3:3.0'
     // Open311 client library
     implementation 'com.github.OneBusAway:open311-client:1.0.10'
-    // JSON data binding for OBA REST API responses
+    // JSON data binding for OBA REST API responses (legacy hand-rolled client)
     implementation 'com.fasterxml.jackson.core:jackson-core:2.12.4'
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.12.4'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.12.4'
+    // Modernized REST stack (io/client): Retrofit + OkHttp + kotlinx.serialization. Being migrated
+    // to incrementally, endpoint by endpoint; coexists with the Jackson client above during the
+    // transition.
+    implementation 'com.squareup.retrofit2:retrofit:2.11.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
+    implementation 'com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3'
     // For sorting alphanumeric route names
     implementation 'org.onebusaway.util:comparators:1.0.0'
     // POJOs used for full data-binding via Jackson

@@ -1,0 +1,78 @@
+/*
+ * Copyright (C) 2026 Open Transit Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.onebusaway.android.io.client
+
+import kotlinx.serialization.Serializable
+
+/**
+ * The OBA REST API envelope wrapping every `/api/where` response:
+ * `{version, code, currentTime, text, data}`.
+ *
+ * [code] is the OBA status code (see `ObaApi.OBA_*`), **not** the HTTP status. [T] is the shape of
+ * the `data` payload for a given endpoint (e.g. [EntryWithReferences]).
+ *
+ * This is the modernized, kotlinx.serialization-backed replacement for the hand-rolled Jackson
+ * `ObaResponse` hierarchy; new endpoints model their payloads as Kotlin data classes and migrate
+ * to it one at a time.
+ */
+@Serializable
+data class ObaEnvelope<T>(
+    // The OBA API returns `version` as a JSON number (e.g. 2), not a string.
+    val version: Int = 0,
+    val code: Int = 0,
+    val currentTime: Long = 0,
+    val text: String = "",
+    val data: T? = null,
+)
+
+/**
+ * The common `data` shape for single-entry endpoints: one [entry] plus the shared [references]
+ * pool that entries point into by id.
+ */
+@Serializable
+data class EntryWithReferences<T>(
+    val entry: T,
+    val references: References = References(),
+)
+
+/**
+ * The shared reference pool returned alongside an entry. Only the reference kinds a migrated
+ * endpoint actually consumes are modeled; unmodeled kinds (stops, trips, situations, routes) are
+ * tolerated on the wire via `ignoreUnknownKeys` and get added as endpoints need them.
+ */
+@Serializable
+data class References(
+    val agencies: List<AgencyReference> = emptyList(),
+)
+
+/** Wire model for a route, as it appears in an entry or the references pool. */
+@Serializable
+data class RouteReference(
+    val id: String = "",
+    val shortName: String? = null,
+    val longName: String? = null,
+    val description: String? = null,
+    val url: String? = null,
+    val agencyId: String = "",
+)
+
+/** Wire model for an agency in the references pool. */
+@Serializable
+data class AgencyReference(
+    val id: String = "",
+    val name: String = "",
+    val url: String? = null,
+)

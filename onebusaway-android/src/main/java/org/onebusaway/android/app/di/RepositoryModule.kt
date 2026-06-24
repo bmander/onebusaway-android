@@ -30,6 +30,8 @@ import org.onebusaway.android.extrapolation.data.DefaultTripObservationFetcher
 import org.onebusaway.android.extrapolation.data.DefaultTripObservationRepository
 import org.onebusaway.android.extrapolation.data.TripObservationFetcher
 import org.onebusaway.android.extrapolation.data.TripObservationRepository
+import org.onebusaway.android.io.client.DefaultRouteRepository
+import org.onebusaway.android.io.client.RouteRepository
 import org.onebusaway.android.ui.agencies.AgenciesRepository
 import org.onebusaway.android.ui.agencies.DefaultAgenciesRepository
 import org.onebusaway.android.ui.arrivals.ArrivalsRepository
@@ -87,6 +89,11 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindAgenciesRepository(impl: DefaultAgenciesRepository): AgenciesRepository
+
+    // Modernized Retrofit/kotlinx.serialization route-details fetcher (io/client). Stateless, so
+    // unscoped like the other per-call fetchers.
+    @Binds
+    abstract fun bindRouteRepository(impl: DefaultRouteRepository): RouteRepository
 
     @Binds
     abstract fun bindSearchResultsRepository(impl: DefaultSearchResultsRepository): SearchResultsRepository

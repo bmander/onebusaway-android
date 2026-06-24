@@ -71,4 +71,16 @@ interface ObaWebService {
         @Query("query") query: String? = null,
         @Query("radius") radius: Int? = null,
     ): ObaEnvelope<ListWithReferences<StopReference>>
+
+    /**
+     * stops-for-route — a route's stops grouped by direction, with the stops themselves in the
+     * references. [includePolylines] is false by default since callers that only need the stop
+     * list don't want the (large) shape geometry.
+     * {http://developer.onebusaway.org/.../api/where/methods/stops-for-route.html}
+     */
+    @GET("api/where/stops-for-route/{routeId}.json")
+    suspend fun stopsForRoute(
+        @Path("routeId") routeId: String,
+        @Query("includePolylines") includePolylines: Boolean = false,
+    ): ObaEnvelope<EntryWithReferences<StopsForRoute>>
 }

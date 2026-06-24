@@ -67,6 +67,7 @@ data class ListWithReferences<T>(
 @Serializable
 data class References(
     val agencies: List<AgencyReference> = emptyList(),
+    val stops: List<StopReference> = emptyList(),
 ) {
     /** Resolves an agency in this pool by id, or null when absent. */
     fun agency(id: String): AgencyReference? = agencies.firstOrNull { it.id == id }
@@ -111,4 +112,38 @@ data class StopReference(
     val direction: String? = null,
     val lat: Double = 0.0,
     val lon: Double = 0.0,
+)
+
+/**
+ * Wire model for the stops-for-route entry. Only [stopGroupings] (the directional grouping of
+ * stops) is modeled; the stops themselves are resolved by id from [References.stops].
+ */
+@Serializable
+data class StopsForRoute(
+    val stopGroupings: List<StopGrouping> = emptyList(),
+)
+
+/** A grouping of stops (typically by direction) within a route. */
+@Serializable
+data class StopGrouping(
+    val stopGroups: List<StopGroup> = emptyList(),
+)
+
+/** One directional group: a display [name] and the ordered [stopIds] it contains. */
+@Serializable
+data class StopGroup(
+    val name: StopGroupName = StopGroupName(),
+    val stopIds: List<String> = emptyList(),
+) {
+    /** The group's display name — the first entry of the name object's `names` array, like legacy. */
+    val displayName: String? get() = name.names.firstOrNull()
+}
+
+/**
+ * The group's name object. The canonical OBA field is the `names` array (the scalar `name` some
+ * servers also emit is non-standard); [StopGroup.displayName] reads `names[0]` to match legacy.
+ */
+@Serializable
+data class StopGroupName(
+    val names: List<String> = emptyList(),
 )

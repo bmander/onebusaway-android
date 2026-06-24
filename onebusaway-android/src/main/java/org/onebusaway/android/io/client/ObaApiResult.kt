@@ -19,13 +19,22 @@ import java.io.IOException
 import org.onebusaway.android.io.ObaApi
 
 /**
- * Unwraps an OBA envelope to its payload, throwing when the app-level [ObaEnvelope.code] is not OK
- * or the body is absent. Centralizes the success policy so every repository's `runCatching` maps
- * the same failures to `Result.failure` instead of re-checking the code/null per endpoint.
+ * Thrown when an OBA response carries a non-OK app-level [code] (one of the `ObaApi.OBA_*`
+ * constants), or its body is absent. Carrying the [code] lets callers that need to distinguish
+ * outcomes (e.g. 404 not-found vs a server error) map it to the right user message; it extends
+ * [IOException] so callers that only care about "the request failed" still catch it uniformly.
+ */
+class ObaApiException(val code: Int) : IOException("OBA request failed (code $code)")
+
+/**
+ * Unwraps an OBA envelope to its payload, throwing [ObaApiException] when the app-level
+ * [ObaEnvelope.code] is not OK or the body is absent. Centralizes the success policy so every
+ * repository's `runCatching` maps the same failures to `Result.failure` instead of re-checking the
+ * code/null per endpoint.
  */
 fun <T> ObaEnvelope<T>.requireData(): T {
     if (code != ObaApi.OBA_OK || data == null) {
-        throw IOException("OBA request failed (code $code)")
+        throw ObaApiException(code)
     }
     return data
 }

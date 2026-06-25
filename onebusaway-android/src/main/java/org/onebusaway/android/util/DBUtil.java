@@ -42,18 +42,18 @@ public class DBUtil {
 
         ContentValues routeValues = new ContentValues();
 
-        String shortName = arrivalInfo.getInfo().getShortName();
-        String longName = arrivalInfo.getInfo().getRouteLongName();
+        String shortName = arrivalInfo.getShortName();
+        String longName = arrivalInfo.getRouteLongName();
 
         if (TextUtils.isEmpty(longName)) {
-            longName = MyTextUtils.formatDisplayText(arrivalInfo.getInfo().getHeadsign());
+            longName = MyTextUtils.formatDisplayText(arrivalInfo.getHeadsign());
         }
 
         routeValues.put(ObaContract.Routes.SHORTNAME, shortName);
         routeValues.put(ObaContract.Routes.LONGNAME, longName);
         routeValues.put(ObaContract.Routes.REGION_ID, Application.get().getCurrentRegion().getId());
 
-        ObaContract.Routes.insertOrUpdate(ctx, arrivalInfo.getInfo().getRouteId(), routeValues, true);
+        ObaContract.Routes.insertOrUpdate(ctx, arrivalInfo.getRouteId(), routeValues, true);
     }
 
     public static void addRouteToDB(Context ctx, ObaRoute route){

@@ -23,8 +23,6 @@ import org.onebusaway.android.ui.arrivals.dialogs.showSituationDialog
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import org.onebusaway.android.R
-import org.onebusaway.android.report.TripReportContext
-import org.onebusaway.android.report.toTripReportContext
 import org.onebusaway.android.report.ui.InfrastructureIssueLauncher
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.ExternalIntents
@@ -140,10 +138,3 @@ fun createArrivalActionHandler(
         )
     }
 }
-
-/**
- * Flattens an arrival into the report flow's scalar [TripReportContext]. Encapsulates the last use
- * of the wrapped legacy ObaArrivalInfo in this flow; it re-sources from the new model when the
- * arrivals fetch migrates.
- */
-private fun ArrivalInfo.toTripReportContext(): TripReportContext = info.toTripReportContext()

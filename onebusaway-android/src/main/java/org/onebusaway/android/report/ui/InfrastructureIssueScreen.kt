@@ -87,7 +87,6 @@ import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.report.ReportContext
 import org.onebusaway.android.report.TripReportContext
-import org.onebusaway.android.report.toTripReportContext
 import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
@@ -463,7 +462,7 @@ private fun ArrivalsPickerInline(
         },
     )
     SimpleArrivalsPicker(arrivalsViewModel) { arrival ->
-        issueViewModel.onArrivalSelected(arrival.info.toTripReportContext())
+        issueViewModel.onArrivalSelected(arrival.toTripReportContext())
     }
 }
 

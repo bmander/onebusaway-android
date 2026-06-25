@@ -421,7 +421,7 @@ private fun ArrivalInfo.toBadge(context: Context): ArrivalBadge {
     }
     return ArrivalBadge(
         text = context.getString(
-            R.string.starred_stop_arrival_badge, getRouteDisplayName(info), etaText
+            R.string.starred_stop_arrival_badge, getRouteDisplayName(shortName, routeLongName), etaText
         ),
         colorRes = badgeColor(color)
     )

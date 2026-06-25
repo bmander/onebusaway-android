@@ -22,6 +22,7 @@ import android.content.res.Resources;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.di.PreferencesEntryPoint;
 import org.onebusaway.android.io.elements.ObaArrivalInfo;
+import org.onebusaway.android.ui.arrivals.ArrivalDataKt;
 import org.onebusaway.android.ui.arrivals.ArrivalInfo;
 
 import java.util.ArrayList;
@@ -62,8 +63,8 @@ public class ArrivalInfoUtils {
             // Only add routes that haven't been filtered out
             for (ObaArrivalInfo arrival : arrivalInfo) {
                 if (filter.contains(arrival.getRouteId())) {
-                    ArrivalInfo info = new ArrivalInfo(context, arrival, ms,
-                            includeArrivalDepartureInStatusLabel);
+                    ArrivalInfo info = new ArrivalInfo(context, ArrivalDataKt.asArrivalData(arrival),
+                            ms, includeArrivalDepartureInStatusLabel);
                     if (shouldAddEta(info, showNegativeArrivals)) {
                         result.add(info);
                     }
@@ -72,8 +73,8 @@ public class ArrivalInfoUtils {
         } else {
             // Add arrivals for all routes
             for (ObaArrivalInfo obaArrivalInfo : arrivalInfo) {
-                ArrivalInfo info = new ArrivalInfo(context, obaArrivalInfo, ms,
-                        includeArrivalDepartureInStatusLabel);
+                ArrivalInfo info = new ArrivalInfo(context, ArrivalDataKt.asArrivalData(obaArrivalInfo),
+                        ms, includeArrivalDepartureInStatusLabel);
                 if (shouldAddEta(info, showNegativeArrivals)) {
                     result.add(info);
                 }

@@ -57,6 +57,8 @@ data class ListWithReferences<T>(
     val list: List<T> = emptyList(),
     val references: References = References(),
     val limitExceeded: Boolean = false,
+    // True when the query point lies outside the served region (the *-for-location endpoints).
+    val outOfRange: Boolean = false,
 )
 
 /**
@@ -181,7 +183,11 @@ data class StopGroupName(
     val names: List<String> = emptyList(),
 )
 
-/** Wire model for a trip in the references pool. Names match the wire (`tripHeadsign`/`tripShortName`). */
+/**
+ * Wire model for a trip — the full trip record returned by the `trip` endpoint and carried (with
+ * just routeId/headsign/blockId typically consumed) in the references pool of other responses.
+ * Names match the wire (`tripHeadsign`/`tripShortName`/`timeZone`).
+ */
 @Serializable
 data class TripReference(
     val id: String = "",
@@ -189,6 +195,10 @@ data class TripReference(
     val tripHeadsign: String? = null,
     val tripShortName: String? = null,
     val blockId: String? = null,
+    val directionId: String? = null,
+    val serviceId: String? = null,
+    val shapeId: String? = null,
+    val timeZone: String? = null,
 )
 
 /** Wire model for the trip-details entry: real-time [status] and the [schedule] of stop times. */
@@ -314,4 +324,47 @@ data class SituationWindow(
 @Serializable
 data class SituationAffects(
     val routeId: String? = null,
+)
+
+/** The current-time entry: server [time] (epoch millis) and its [readableTime] ISO-8601 rendering. */
+@Serializable
+data class CurrentTime(
+    val time: Long = 0,
+    val readableTime: String = "",
+)
+
+/**
+ * The schedule-for-stop entry: a stop's scheduled service for a [date], grouped by route in
+ * [stopRouteSchedules]. [timeZone] is the stop's zone; times below are epoch millis.
+ */
+@Serializable
+data class StopSchedule(
+    val stopId: String = "",
+    val timeZone: String = "",
+    val date: Long = 0,
+    val stopRouteSchedules: List<RouteSchedule> = emptyList(),
+)
+
+/** A route's scheduled service at a stop, split by direction in [stopRouteDirectionSchedules]. */
+@Serializable
+data class RouteSchedule(
+    val routeId: String = "",
+    val stopRouteDirectionSchedules: List<DirectionSchedule> = emptyList(),
+)
+
+/** One direction's scheduled stop times ([scheduleStopTimes]) under a [tripHeadsign]. */
+@Serializable
+data class DirectionSchedule(
+    val tripHeadsign: String = "",
+    val scheduleStopTimes: List<ScheduleStopTime> = emptyList(),
+)
+
+/** One scheduled visit of a trip to the stop; [arrivalTime]/[departureTime] are epoch millis. */
+@Serializable
+data class ScheduleStopTime(
+    val tripId: String = "",
+    val serviceId: String? = null,
+    val stopHeadsign: String? = null,
+    val arrivalTime: Long = 0,
+    val departureTime: Long = 0,
 )

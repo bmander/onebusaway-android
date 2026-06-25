@@ -123,4 +123,62 @@ interface ObaWebService {
         @Path("stopId") stopId: String,
         @Query("minutesAfter") minutesAfter: Int? = null,
     ): ObaEnvelope<EntryWithReferences<ArrivalsForStop>>
+
+    /**
+     * current-time — the OBA server's current time, used to sync the client clock to the server.
+     * {http://developer.onebusaway.org/.../api/where/methods/current-time.html}
+     */
+    @GET("api/where/current-time.json")
+    suspend fun currentTime(): ObaEnvelope<EntryWithReferences<CurrentTime>>
+
+    /**
+     * route-ids-for-agency — the ids of every route operated by [agencyId] (resolve via `route`).
+     * {http://developer.onebusaway.org/.../api/where/methods/route-ids-for-agency.html}
+     */
+    @GET("api/where/route-ids-for-agency/{agencyId}.json")
+    suspend fun routeIdsForAgency(
+        @Path("agencyId") agencyId: String,
+    ): ObaEnvelope<ListWithReferences<String>>
+
+    /**
+     * stop-ids-for-agency — the ids of every stop operated by [agencyId] (resolve via `stop`).
+     * {http://developer.onebusaway.org/.../api/where/methods/stop-ids-for-agency.html}
+     */
+    @GET("api/where/stop-ids-for-agency/{agencyId}.json")
+    suspend fun stopIdsForAgency(
+        @Path("agencyId") agencyId: String,
+    ): ObaEnvelope<ListWithReferences<String>>
+
+    /**
+     * trip — the static details of a single trip (the full [TripReference] record), with its route
+     * in the references.
+     * {http://developer.onebusaway.org/.../api/where/methods/trip.html}
+     */
+    @GET("api/where/trip/{tripId}.json")
+    suspend fun trip(
+        @Path("tripId") tripId: String,
+    ): ObaEnvelope<EntryWithReferences<TripReference>>
+
+    /**
+     * trips-for-location — trips active near [lat]/[lon] (bounded by [radius] meters), with their
+     * trip/route/stop in the references.
+     * {http://developer.onebusaway.org/.../api/where/methods/trips-for-location.html}
+     */
+    @GET("api/where/trips-for-location.json")
+    suspend fun tripsForLocation(
+        @Query("lat") lat: Double,
+        @Query("lon") lon: Double,
+        @Query("radius") radius: Int? = null,
+    ): ObaEnvelope<ListWithReferences<TripDetailsEntry>>
+
+    /**
+     * schedule-for-stop — a stop's scheduled service, grouped by route and direction, for [date]
+     * (yyyy-MM-dd; omitted means today).
+     * {http://developer.onebusaway.org/.../api/where/methods/schedule-for-stop.html}
+     */
+    @GET("api/where/schedule-for-stop/{stopId}.json")
+    suspend fun scheduleForStop(
+        @Path("stopId") stopId: String,
+        @Query("date") date: String? = null,
+    ): ObaEnvelope<EntryWithReferences<StopSchedule>>
 }

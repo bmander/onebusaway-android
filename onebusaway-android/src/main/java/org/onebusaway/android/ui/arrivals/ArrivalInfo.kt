@@ -86,6 +86,16 @@ class ArrivalInfo(
      */
     val status: Status?
 
+    // Identity/display fields the UI and repository read directly (instead of reaching into the
+    // wrapped [info]). Delegating for now; when the fetch migrates off ObaArrivalInfo these re-source
+    // from the new model while consumers stay unchanged.
+    val routeId: String get() = info.routeId
+    val tripId: String get() = info.tripId
+    val stopId: String get() = info.stopId
+    val headsign: String? get() = info.headsign
+    val shortName: String? get() = info.shortName
+    val routeLongName: String? get() = info.routeLongName
+
     init {
         // First, all times have to be converted to 'minutes'
         val nowMins = now / MS_IN_MINS

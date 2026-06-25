@@ -252,18 +252,17 @@ class DefaultArrivalsRepository @Inject constructor(
         response: ObaArrivalInfoResponse,
         arrivals: List<ArrivalInfo>
     ): Map<String, ArrivalActions> = arrivals.associate { arrival ->
-        val info = arrival.info
-        val route = response.getRoute(info.routeId)
-        info.tripId to ArrivalActions(
-            tripId = info.tripId,
-            routeId = info.routeId,
-            headsign = info.headsign.orEmpty(),
-            stopId = info.stopId,
+        val route = response.getRoute(arrival.routeId)
+        arrival.tripId to ArrivalActions(
+            tripId = arrival.tripId,
+            routeId = arrival.routeId,
+            headsign = arrival.headsign.orEmpty(),
+            stopId = arrival.stopId,
             routeShortName = route?.shortName,
-            routeLongName = info.routeLongName,
+            routeLongName = arrival.routeLongName,
             scheduleUrl = route?.url,
             agencyName = route?.agencyId?.let { response.getAgency(it)?.name },
-            blockId = response.getTrip(info.tripId)?.blockId,
+            blockId = response.getTrip(arrival.tripId)?.blockId,
             isRouteFavorite = arrival.isRouteAndHeadsignFavorite
         )
     }

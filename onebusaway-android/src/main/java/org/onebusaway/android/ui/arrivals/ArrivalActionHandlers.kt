@@ -60,12 +60,12 @@ fun createArrivalActionHandler(
 
     override fun onShowVehiclesOnMap(arrival: ArrivalInfo) {
         DBUtil.addRouteToDB(activity, arrival)
-        onShowRouteOnMap(arrival.info.routeId)
+        onShowRouteOnMap(arrival.routeId)
     }
 
     override fun onShowTripStatus(arrival: ArrivalInfo) {
         DBUtil.addRouteToDB(activity, arrival)
-        onShowTrip(arrival.info.tripId, arrival.info.stopId)
+        onShowTrip(arrival.tripId, arrival.stopId)
     }
 
     override fun onSetReminder(arrival: ArrivalInfo) {
@@ -95,7 +95,7 @@ fun createArrivalActionHandler(
 
     override fun onReportArrivalProblem(actions: ArrivalActions) {
         val content = currentContent() ?: return
-        val info = content.arrivals.firstOrNull { it.info.tripId == actions.tripId }?.info ?: return
+        val info = content.arrivals.firstOrNull { it.tripId == actions.tripId }?.info ?: return
         InfrastructureIssueLauncher.startWithService(
             activity,
             activity.getString(R.string.ri_selected_service_trip),

@@ -21,7 +21,6 @@ import org.junit.Test;
 import org.onebusaway.android.io.JacksonSerializer;
 import org.onebusaway.android.io.ObaApi;
 import org.onebusaway.android.io.request.ObaResponse;
-import org.onebusaway.android.io.request.ObaStopsForLocationResponse;
 import org.onebusaway.android.mock.Resources;
 
 import android.util.Log;
@@ -70,17 +69,6 @@ public class JacksonTest extends ObaTestCase {
                 .format("{\"code\":%d,\"version\":\"2\",\"text\":\"%s\"}", mCode, mErrText);
         Log.d("*** expect", expected);
         assertEquals(expected, errJson);
-    }
-
-    @Test
-    public void testStopsForLocation() throws Exception {
-        Reader reader = Resources
-                .read(getTargetContext(), Resources.getTestUri("stops_for_location_downtown_seattle"));
-        ObaApi.SerializationHandler serializer = ObaApi
-                .getSerializer(ObaStopsForLocationResponse.class);
-        ObaStopsForLocationResponse response = serializer
-                .deserialize(reader, ObaStopsForLocationResponse.class);
-        assertNotNull(response);
     }
 
     @JsonPropertyOrder(value = {"code", "version", "text"})

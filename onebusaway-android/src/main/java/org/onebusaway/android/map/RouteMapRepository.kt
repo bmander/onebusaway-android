@@ -15,30 +15,52 @@
  */
 package org.onebusaway.android.map
 
-import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
-import org.onebusaway.android.io.request.ObaStopsForRouteRequest
-import org.onebusaway.android.io.request.ObaStopsForRouteResponse
+import org.onebusaway.android.io.client.DtoRoute
+import org.onebusaway.android.io.client.DtoStop
+import org.onebusaway.android.io.client.ObaWebService
+import org.onebusaway.android.io.client.requireData
+import org.onebusaway.android.io.elements.ObaRoute
+import org.onebusaway.android.io.elements.ObaShapeElement
+import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.map.render.GeoPoint
+
+/** A route's stops, the serving routes (for stop-marker icons), the route + agency name, and its shape. */
+data class RouteMap(
+    val route: ObaRoute?,
+    val agencyName: String?,
+    val stops: List<ObaStop>,
+    val routes: List<ObaRoute>,
+    val polylines: List<List<GeoPoint>>,
+)
 
 /**
- * Loads a route's stops + shapes (one-shot) for the route/stop overlays. Replaces the `RoutesLoader`
- * `AsyncTaskLoader` formerly nested in `RouteMapController`. (Route-mode real-time vehicles are polled
- * via the trip-observation repository's `routeVehiclesStream`, which also backfills each trip's
- * schedule + shape for extrapolation.)
+ * Loads a route's stops + shapes (one-shot, stops-for-route with polylines) for the route/stop
+ * overlays. (Route-mode real-time vehicles are polled via the trip-observation repository's
+ * `routeVehiclesStream`, which also backfills each trip's schedule + shape for extrapolation.)
  */
 interface RouteMapRepository {
-    /** @return the stops-for-route response, or `success(null)` when there is no API endpoint. */
-    suspend fun getRoute(routeId: String): Result<ObaStopsForRouteResponse?>
+    /** @return the route's stops/shape, or `success(null)` when there is no API endpoint. */
+    suspend fun getRoute(routeId: String): Result<RouteMap?>
 }
 
-class DefaultRouteMapRepository @Inject constructor(@ApplicationContext private val context: Context) : RouteMapRepository {
+class DefaultRouteMapRepository @Inject constructor(
+    private val service: ObaWebService
+) : RouteMapRepository {
 
-    override suspend fun getRoute(routeId: String): Result<ObaStopsForRouteResponse?> =
+    override suspend fun getRoute(routeId: String): Result<RouteMap?> =
         obaApiCall {
-            ObaStopsForRouteRequest.Builder(context, routeId)
-                .setIncludeShapes(true)
-                .build()
-                .call()
+            val data = service.stopsForRoute(routeId, includePolylines = true).requireData()
+            val route = data.references.route(routeId)?.let(::DtoRoute)
+            RouteMap(
+                route = route,
+                agencyName = route?.agencyId?.let { data.references.agency(it)?.name },
+                stops = data.references.stops.map(::DtoStop),
+                routes = data.references.routes.map(::DtoRoute),
+                polylines = data.entry.polylines.map { shape ->
+                    ObaShapeElement.decodeLine(shape.points, shape.length)
+                        .map { GeoPoint(it.latitude, it.longitude) }
+                },
+            )
         }
 }

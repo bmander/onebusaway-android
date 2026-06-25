@@ -15,41 +15,55 @@
  */
 package org.onebusaway.android.map
 
-import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import android.location.Location
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.io.request.ObaStopsForLocationRequest
-import org.onebusaway.android.io.request.ObaStopsForLocationResponse
+import org.onebusaway.android.io.client.DtoRoute
+import org.onebusaway.android.io.client.DtoStop
+import org.onebusaway.android.io.client.ObaWebService
+import org.onebusaway.android.io.client.requireData
+import org.onebusaway.android.io.elements.ObaRoute
+import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.map.render.CameraSnapshot
 
+/** The stops visible in a viewport + the routes serving them (for the marker route-type icons). */
+data class NearbyStops(
+    val stops: List<ObaStop>,
+    val routes: List<ObaRoute>,
+    val outOfRange: Boolean,
+    val limitExceeded: Boolean,
+)
+
 /**
- * Loads the stops visible in the current map viewport. Replaces the `StopsLoader`
- * `AsyncTaskLoader` formerly nested in `StopMapController`; couriers the raw
- * [ObaStopsForLocationResponse] because the stop overlay consumes the raw `io/elements` types.
+ * Loads the stops visible in the current map viewport (stops-for-location). DTO-backed stops/routes
+ * are presented as the `io/elements` interfaces the stop overlay consumes.
  */
 interface StopsRepository {
     /**
-     * @return the stops-for-location response, or `success(null)` when there is no OBA REST API
-     * endpoint to contact yet (no current region and no custom API URL) — the legacy loader
-     * returned a null-bodied response in that case and the controller treated it as a no-op.
+     * @return the nearby stops, or `success(null)` when there is no OBA REST API endpoint to contact
+     * yet (no current region and no custom API URL) — the controller treats null as a no-op.
      */
-    suspend fun getStops(center: Location, latSpan: Double, lonSpan: Double):
-            Result<ObaStopsForLocationResponse?>
+    suspend fun getStops(center: Location, latSpan: Double, lonSpan: Double): Result<NearbyStops?>
 }
 
-class DefaultStopsRepository @Inject constructor(@ApplicationContext private val context: Context) : StopsRepository {
+class DefaultStopsRepository @Inject constructor(
+    private val service: ObaWebService
+) : StopsRepository {
 
-    override suspend fun getStops(center: Location, latSpan: Double, lonSpan: Double):
-            Result<ObaStopsForLocationResponse?> = obaApiCall {
-        ObaStopsForLocationRequest.Builder(context, center)
-            .setSpan(latSpan, lonSpan)
-            .build()
-            .call()
-    }
+    override suspend fun getStops(center: Location, latSpan: Double, lonSpan: Double): Result<NearbyStops?> =
+        obaApiCall {
+            val data = service.stopsForLocation(
+                lat = center.latitude, lon = center.longitude, latSpan = latSpan, lonSpan = lonSpan,
+            ).requireData()
+            NearbyStops(
+                stops = data.list.map(::DtoStop),
+                routes = data.references.routes.map(::DtoRoute),
+                outOfRange = data.outOfRange,
+                limitExceeded = data.limitExceeded,
+            )
+        }
 }
 
 /**
@@ -58,7 +72,7 @@ class DefaultStopsRepository @Inject constructor(@ApplicationContext private val
  * URL) — the legacy map loaders produced a null-bodied response there and the controllers treat it
  * as a no-op. Shared by the map repositories that gate on an OBA endpoint.
  */
-internal suspend fun <T> obaApiCall(block: () -> T): Result<T?> =
+internal suspend fun <T> obaApiCall(block: suspend () -> T): Result<T?> =
     withContext(Dispatchers.IO) {
         runCatching { if (!hasObaApiEndpoint()) null else block() }
     }

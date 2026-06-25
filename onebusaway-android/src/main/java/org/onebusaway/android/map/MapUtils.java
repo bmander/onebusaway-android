@@ -36,13 +36,12 @@ public class MapUtils {
      * @param response the response from the server, or null if the response object was null
      */
     public static void showMapError(ObaResponse response) {
+        showMapError(response != null ? response.getCode() : ObaApi.OBA_INTERNAL_ERROR);
+    }
+
+    /** Shows the map error toast for an OBA status [code] (used by the modernized io/client callers). */
+    public static void showMapError(int code) {
         Context context = Application.get().getApplicationContext();
-        int code;
-        if (response != null) {
-            code = response.getCode();
-        } else {
-            code = ObaApi.OBA_INTERNAL_ERROR;
-        }
         Toast.makeText(context,
                 ObaRequestErrors.getMapErrorString(context, code),
                 Toast.LENGTH_LONG).show();

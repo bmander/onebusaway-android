@@ -15,14 +15,9 @@
  */
 package org.onebusaway.android.ui.report.customerservice
 
-import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
-import java.io.IOException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.request.ObaAgenciesWithCoverageRequest
+import org.onebusaway.android.io.client.ObaWebService
+import org.onebusaway.android.io.client.requireData
 
 /**
  * A transit agency's customer-service contact options, decoupled from the io/elements response
@@ -43,21 +38,18 @@ interface CustomerServiceRepository {
 }
 
 /**
- * Default implementation wrapping the blocking OBA REST call (replacing the legacy AgenciesLoader).
- * RequestBase.call() never throws — errors surface as a non-OBA_OK code — so failures map to
- * [Result.failure] here.
+ * Default implementation over the modernized [ObaWebService] (replacing the legacy AgenciesLoader).
+ * A non-OK app-level code or a transport failure maps to [Result.failure] via requireData +
+ * runCatching.
  */
-class DefaultCustomerServiceRepository @Inject constructor(@ApplicationContext private val context: Context) : CustomerServiceRepository {
+class DefaultCustomerServiceRepository @Inject constructor(
+    private val service: ObaWebService
+) : CustomerServiceRepository {
 
-    override suspend fun getAgencies(): Result<List<AgencyContact>> = withContext(Dispatchers.IO) {
-        val response = ObaAgenciesWithCoverageRequest.newRequest(context).call()
-        if (response == null || response.code != ObaApi.OBA_OK) {
-            return@withContext Result.failure(
-                IOException("Agencies request failed with code " + response?.code)
-            )
-        }
-        Result.success(response.agencies.mapNotNull { coverage ->
-            val agency = response.getAgency(coverage.id) ?: return@mapNotNull null
+    override suspend fun getAgencies(): Result<List<AgencyContact>> = runCatching {
+        val data = service.agenciesWithCoverage().requireData()
+        data.list.mapNotNull { coverage ->
+            val agency = data.references.agency(coverage.agencyId) ?: return@mapNotNull null
             AgencyContact(
                 id = agency.id,
                 name = agency.name,
@@ -65,6 +57,6 @@ class DefaultCustomerServiceRepository @Inject constructor(@ApplicationContext p
                 url = agency.url?.takeIf { it.isNotEmpty() },
                 phone = agency.phone?.takeIf { it.isNotEmpty() }
             )
-        })
+        }
     }
 }

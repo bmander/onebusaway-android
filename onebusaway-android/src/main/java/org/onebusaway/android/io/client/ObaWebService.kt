@@ -190,4 +190,16 @@ interface ObaWebService {
     suspend fun shape(
         @Path("shapeId") shapeId: String,
     ): ObaEnvelope<EntryWithReferences<ShapeEntry>>
+
+    /**
+     * trips-for-route — every active trip on a route, each as a trip-details entry (real-time
+     * [TripStatus] when [includeStatus]), with the trips/routes in the references.
+     * {http://developer.onebusaway.org/.../api/where/methods/trips-for-route.html}
+     */
+    @GET("api/where/trips-for-route/{routeId}.json")
+    suspend fun tripsForRoute(
+        @Path("routeId") routeId: String,
+        @Query("includeStatus") includeStatus: Boolean = true,
+        @Query("includeSchedule") includeSchedule: Boolean = false,
+    ): ObaEnvelope<ListWithReferences<TripDetailsEntry>>
 }

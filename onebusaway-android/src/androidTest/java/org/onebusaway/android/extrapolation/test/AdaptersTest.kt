@@ -23,10 +23,8 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.extrapolation.data.asRouteTrips
 import org.onebusaway.android.extrapolation.data.toObservations
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
-import org.onebusaway.android.io.request.ObaTripsForRouteRequest
 import org.onebusaway.android.io.test.ObaTestCase
 import org.onebusaway.android.mock.MockRegion
 
@@ -39,7 +37,6 @@ class AdaptersTest : ObaTestCase() {
 
     companion object {
         private const val HART_TRIP_ID = "Hillsborough Area Regional Transit_1389962"
-        private const val HART_ROUTE_ID = "Hillsborough Area Regional Transit_5"
     }
 
     // --- ObaTripDetailsResponse.toObservations ---
@@ -92,42 +89,6 @@ class AdaptersTest : ObaTestCase() {
         assertTrue(response.toObservations().isEmpty())
     }
 
-    // --- ObaTripsForRouteResponse.toObservations ---
-
-    @Test
-    fun tripsForRouteResponseDistillsOneObservationPerActiveTrip() {
-        Application.get().setCurrentRegion(MockRegion.getTampa(getTargetContext()))
-        val response =
-                ObaTripsForRouteRequest.Builder(getTargetContext(), HART_ROUTE_ID)
-                        .setIncludeStatus(true)
-                        .build()
-                        .call()
-        assertOK(response)
-
-        val observations = response.asRouteTrips().toObservations()
-        assertEquals(38, observations.size)
-
-        val first = observations[0]
-        assertEquals("Hillsborough Area Regional Transit_101446", first.tripId)
-        assertEquals(response.currentTime, first.serverTimeMs)
-        assertEquals(1444017600000L, first.serviceDate)
-        assertEquals(3, first.routeType ?: -1)
-
-        // Each observation is keyed by the trip its vehicle reported as active
-        for (observation in observations) {
-            assertEquals(observation.status.activeTripId, observation.tripId)
-        }
-    }
-
-    @Test
-    fun tripsForRouteResponseWithoutStatusesYieldsNoObservations() {
-        Application.get().setCurrentRegion(MockRegion.getTampa(getTargetContext()))
-        val response =
-                ObaTripsForRouteRequest.Builder(getTargetContext(), HART_ROUTE_ID)
-                        .build()
-                        .call()
-        assertOK(response)
-
-        assertTrue(response.asRouteTrips().toObservations().isEmpty())
-    }
+    // trips-for-route's toObservations moved to the JVM TripsForRouteDecodeTest when that endpoint
+    // migrated to the io/client DTO path.
 }

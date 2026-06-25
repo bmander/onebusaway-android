@@ -26,14 +26,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.requireData
 import org.onebusaway.android.io.elements.ObaShapeElement
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
-import org.onebusaway.android.io.request.ObaTripsForRouteRequest
 import org.onebusaway.android.util.Polyline
 import org.onebusaway.android.util.SingleFlight
 
@@ -94,14 +92,8 @@ class DefaultTripObservationFetcher @Inject constructor(
 
     override suspend fun tripsForRoute(routeId: String): RouteTrips? =
             guarded("trips for route $routeId") {
-                withContext(fetchDispatcher) {
-                    ObaTripsForRouteRequest.Builder(context, routeId)
-                            .setIncludeStatus(true)
-                            .build()
-                            .call()
-                            .takeIf { it.code == ObaApi.OBA_OK }
-                            ?.asRouteTrips()
-                }
+                // requireData (inside asRouteTrips) throws on a non-OK code; guarded maps it to null.
+                obaWebService.tripsForRoute(routeId).asRouteTrips()
             }
 
     /**

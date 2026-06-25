@@ -17,6 +17,7 @@ package org.onebusaway.android.extrapolation.test
 
 import androidx.test.InstrumentationRegistry.getTargetContext
 import androidx.test.runner.AndroidJUnit4
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -24,7 +25,9 @@ import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripState
 import org.onebusaway.android.extrapolation.data.asRouteTrips
 import org.onebusaway.android.extrapolation.extrapolatedVehicles
-import org.onebusaway.android.io.request.ObaTripsForRouteResponse
+import org.onebusaway.android.io.client.ListWithReferences
+import org.onebusaway.android.io.client.ObaEnvelope
+import org.onebusaway.android.io.client.TripDetailsEntry
 import org.onebusaway.android.mock.Resources
 
 /**
@@ -47,12 +50,12 @@ class ExtrapolatedVehiclesTest {
 
     private val noState: (String?) -> TripState? = { null }
 
-    private fun response(): ObaTripsForRouteResponse =
-        Resources.readAs(
-            getTargetContext(),
-            Resources.getTestUri("trips_for_route_extrapolation"),
-            ObaTripsForRouteResponse::class.java,
-        )
+    private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
+
+    // Decode the same fixture through the io/client DTO path the production fetch now uses.
+    private fun response(): ObaEnvelope<ListWithReferences<TripDetailsEntry>> =
+        Resources.read(getTargetContext(), Resources.getTestUri("trips_for_route_extrapolation"))
+            .use { json.decodeFromString(it.readText()) }
 
     @Test
     fun skipsCanceledMissingRefAndPositionlessVehiclesWithoutCrashing() {

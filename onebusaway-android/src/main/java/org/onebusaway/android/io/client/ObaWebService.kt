@@ -89,6 +89,9 @@ interface ObaWebService {
         @Query("lon") lon: Double,
         @Query("query") query: String? = null,
         @Query("radius") radius: Int? = null,
+        // The map fetches by bounding-box span instead of radius; both are optional and dropped when null.
+        @Query("latSpan") latSpan: Double? = null,
+        @Query("lonSpan") lonSpan: Double? = null,
     ): ObaEnvelope<ListWithReferences<StopReference>>
 
     /**

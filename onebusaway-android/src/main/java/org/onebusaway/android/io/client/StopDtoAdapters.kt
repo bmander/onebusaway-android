@@ -1,0 +1,37 @@
+/*
+ * Copyright (C) 2026 Open Transit Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.onebusaway.android.io.client
+
+import android.location.Location
+import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.util.LocationUtils
+
+/**
+ * Presents a [StopReference] DTO as the legacy [ObaStop] interface, so consumers that work through
+ * the interface — the map stop overlay, search results — accept the modernized fetch unchanged
+ * (the same one-DTO-implements-the-legacy-interface pattern as DtoRoute/DtoTripStatus).
+ */
+class DtoStop(private val ref: StopReference) : ObaStop {
+    override fun getId(): String = ref.id
+    override fun getStopCode(): String? = ref.code
+    override fun getName(): String? = ref.name
+    override fun getLocation(): Location = LocationUtils.makeLocation(ref.lat, ref.lon)
+    override fun getLatitude(): Double = ref.lat
+    override fun getLongitude(): Double = ref.lon
+    override fun getDirection(): String? = ref.direction
+    override fun getLocationType(): Int = ref.locationType
+    override fun getRouteIds(): Array<String> = ref.routeIds.toTypedArray()
+}

@@ -150,12 +150,14 @@ data class StopReference(
 )
 
 /**
- * Wire model for the stops-for-route entry. Only [stopGroupings] (the directional grouping of
- * stops) is modeled; the stops themselves are resolved by id from [References.stops].
+ * Wire model for the stops-for-route entry: the directional [stopGroupings] and (when
+ * `includePolylines=true`) the route [polylines] (encoded shapes). Stops/routes/agency are resolved
+ * by id from the references pool.
  */
 @Serializable
 data class StopsForRoute(
     val stopGroupings: List<StopGrouping> = emptyList(),
+    val polylines: List<ShapeEntry> = emptyList(),
 )
 
 /** A grouping of stops (typically by direction) within a route. */

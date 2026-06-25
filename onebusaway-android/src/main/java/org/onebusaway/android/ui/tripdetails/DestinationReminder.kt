@@ -59,7 +59,6 @@ import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.compose.components.OptOutInfoDialog
 import org.onebusaway.android.ui.compose.findActivity
-import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.PermissionUtils.NOTIFICATION_PERMISSION_REQUEST
 
@@ -136,19 +135,13 @@ internal fun rememberDestinationReminderAction(
 
     /** Builds the NavigationService intent for the destination at [position]; flags the stop. */
     fun setUpNavigationService(position: Int): Intent? {
-        val response = viewModel.lastResponse() ?: return null
-        val stopTimes = response.schedule?.stopTimes ?: return null
-        if (position < 1 || position >= stopTimes.size) return null
-        val destStop = response.refs.getStop(stopTimes[position].stopId)
-        val lastStop = response.refs.getStop(stopTimes[position - 1].stopId)
-        DBUtil.addToDB(lastStop)
-        DBUtil.addToDB(destStop)
+        val stops = viewModel.destinationStops(position) ?: return null
         val serviceIntent = Intent(context, NavigationService::class.java).apply {
-            putExtra(NavigationService.DESTINATION_ID, destStop.id)
-            putExtra(NavigationService.BEFORE_STOP_ID, lastStop.id)
+            putExtra(NavigationService.DESTINATION_ID, stops.destinationStopId)
+            putExtra(NavigationService.BEFORE_STOP_ID, stops.beforeStopId)
             putExtra(NavigationService.TRIP_ID, tripId)
         }
-        viewModel.setDestinationId(destStop.id)
+        viewModel.setDestinationId(stops.destinationStopId)
         pendingServiceIntent = serviceIntent
         return serviceIntent
     }
@@ -190,7 +183,7 @@ internal fun rememberDestinationReminderAction(
         Toast.makeText(
             context, resources.getString(R.string.destination_reminder_title), Toast.LENGTH_LONG
         ).show()
-        val currentTime = viewModel.lastResponse()?.currentTime ?: System.currentTimeMillis()
+        val currentTime = viewModel.lastLoadedTime() ?: System.currentTimeMillis()
         TravelBehaviorManager.saveDestinationReminders(
             stopId, serviceIntent.getStringExtra(NavigationService.DESTINATION_ID),
             tripId, viewModel.routeId(), currentTime

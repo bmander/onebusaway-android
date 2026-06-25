@@ -35,6 +35,7 @@ import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.util.ArrivalInfoUtils
+import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.DisplayFormat
 import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.ObaRequestErrors
@@ -63,9 +64,21 @@ interface TripDetailsRepository {
         destinationId: String?
     ): Result<TripDetailsData>
 
-    /** The last good response, for the host to resolve stops when setting a destination reminder. */
-    fun lastResponse(): ObaTripDetailsResponse?
+    /**
+     * Resolves the before/destination stops for [position] in the last loaded trip — persisting both
+     * to the provider so [org.onebusaway.android.directions.NavigationService] can resolve them when
+     * the reminder fires — or null if unavailable. A narrow, intent-revealing replacement for
+     * exposing the whole response to the destination-reminder flow (so the response type can be
+     * migrated without touching that flow).
+     */
+    fun destinationStops(position: Int): DestinationReminderStops?
+
+    /** The server `currentTime` of the last good response, or null if none has loaded yet. */
+    fun lastLoadedTime(): Long?
 }
+
+/** The before/destination stop ids the destination-reminder flow needs for a chosen trip position. */
+data class DestinationReminderStops(val beforeStopId: String, val destinationStopId: String)
 
 /**
  * Default implementation wrapping the blocking trip-details request. Ports
@@ -99,7 +112,19 @@ class DefaultTripDetailsRepository @Inject constructor(
         }
     }
 
-    override fun lastResponse(): ObaTripDetailsResponse? = lastGood
+    override fun destinationStops(position: Int): DestinationReminderStops? {
+        val response = lastGood ?: return null
+        val stopTimes = response.schedule?.stopTimes ?: return null
+        if (position < 1 || position >= stopTimes.size) return null
+        val destStop = response.refs.getStop(stopTimes[position].stopId)
+        val beforeStop = response.refs.getStop(stopTimes[position - 1].stopId)
+        // Persist both so NavigationService can resolve them when the reminder fires (legacy parity).
+        DBUtil.addToDB(beforeStop)
+        DBUtil.addToDB(destStop)
+        return DestinationReminderStops(beforeStop.id, destStop.id)
+    }
+
+    override fun lastLoadedTime(): Long? = lastGood?.currentTime
 
     private fun toData(
         response: ObaTripDetailsResponse,

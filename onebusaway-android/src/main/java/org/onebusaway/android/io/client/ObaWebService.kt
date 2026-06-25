@@ -39,6 +39,16 @@ interface ObaWebService {
     ): ObaEnvelope<EntryWithReferences<RouteReference>>
 
     /**
+     * stop — details for a single stop (the [StopReference] entry), with the routes serving it in
+     * the references.
+     * {http://developer.onebusaway.org/.../api/where/methods/stop.html}
+     */
+    @GET("api/where/stop/{stopId}.json")
+    suspend fun stop(
+        @Path("stopId") stopId: String,
+    ): ObaEnvelope<EntryWithReferences<StopReference>>
+
+    /**
      * agencies-with-coverage — every agency the current region covers, with full agency details
      * in the references.
      * {http://developer.onebusaway.org/.../api/where/methods/agencies-with-coverage.html}

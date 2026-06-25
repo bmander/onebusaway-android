@@ -23,7 +23,7 @@ import org.onebusaway.android.io.elements.ObaTripSchedule;
 import org.onebusaway.android.io.elements.ObaTripStatus;
 
 /**
- * Response object for ObaStopRequest requests.
+ * Response object for ObaTripDetailsRequest requests.
  *
  * @author Paul Watts (paulcwatts@gmail.com)
  */

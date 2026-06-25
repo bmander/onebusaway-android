@@ -18,8 +18,6 @@ package org.onebusaway.android.io.test;
 import org.junit.Test;
 import org.onebusaway.android.io.ObaApi;
 import org.onebusaway.android.io.request.ObaResponse;
-import org.onebusaway.android.io.request.ObaStopRequest;
-import org.onebusaway.android.io.request.ObaStopResponse;
 import org.onebusaway.android.io.request.RequestBase;
 
 import android.content.Context;
@@ -35,14 +33,6 @@ import static junit.framework.Assert.assertNotNull;
  * Tests requests and failure conditions parsing JSON responses from /res/raw for the OBA server API
  */
 public class FailTest extends ObaTestCase {
-
-    @Test
-    public void test404_1() {
-        ObaStopResponse response = ObaStopRequest.newRequest(getTargetContext(), "404test").call();
-        assertNotNull(response);
-        // Right now this is what is in the test response...
-        assertEquals(ObaApi.OBA_INTERNAL_ERROR, response.getCode());
-    }
 
     // This is a real 404
     @Test

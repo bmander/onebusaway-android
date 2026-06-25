@@ -21,6 +21,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import org.onebusaway.android.io.client.ObaWebService
+import org.onebusaway.android.io.client.RegionsWebService
 
 /**
  * A Hilt [EntryPoint] that lets code which can't be constructor- or field-injected reach the
@@ -43,11 +44,19 @@ interface NetworkEntryPoint {
 
     fun obaWebService(): ObaWebService
 
+    fun regionsWebService(): RegionsWebService
+
     companion object {
         /** Resolves the shared [ObaWebService] from any [context] (its application is used). */
         @JvmStatic
         fun get(context: Context): ObaWebService =
             EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
                 .obaWebService()
+
+        /** Resolves the shared [RegionsWebService] from any [context] (its application is used). */
+        @JvmStatic
+        fun getRegions(context: Context): RegionsWebService =
+            EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
+                .regionsWebService()
     }
 }

@@ -368,3 +368,63 @@ data class ScheduleStopTime(
     val arrivalTime: Long = 0,
     val departureTime: Long = 0,
 )
+
+/**
+ * Wire model for one OneBusAway region from the regions directory (`regions-vN.json`). Field names
+ * mirror the legacy `ObaRegionElement` (the persistence/domain type this maps to via
+ * `RegionDto.toObaRegion()`); `ignoreUnknownKeys` tolerates fields no consumer reads.
+ */
+@Serializable
+data class RegionDto(
+    val id: Long = 0,
+    val regionName: String = "",
+    val active: Boolean = false,
+    val obaBaseUrl: String? = null,
+    val sidecarBaseUrl: String? = null,
+    val plausibleAnalyticsServerUrl: String? = null,
+    val umamiAnalytics: UmamiAnalyticsDto? = null,
+    val siriBaseUrl: String? = null,
+    val bounds: List<RegionBoundsDto> = emptyList(),
+    val open311Servers: List<Open311ServerDto> = emptyList(),
+    val language: String? = null,
+    val contactEmail: String? = null,
+    val supportsObaDiscoveryApis: Boolean = false,
+    val supportsObaRealtimeApis: Boolean = false,
+    val supportsSiriRealtimeApis: Boolean = false,
+    val twitterUrl: String? = null,
+    val experimental: Boolean = false,
+    val stopInfoUrl: String? = null,
+    val otpBaseUrl: String? = null,
+    val otpContactEmail: String? = null,
+    val supportsOtpBikeshare: Boolean = false,
+    val supportsEmbeddedSocial: Boolean = false,
+    val paymentAndroidAppId: String? = null,
+    val paymentWarningTitle: String? = null,
+    val paymentWarningBody: String? = null,
+    val travelBehaviorDataCollectionEnabled: Boolean = false,
+    val enrollParticipantsInStudy: Boolean = false,
+)
+
+/** One bounding box of a region (center [lat]/[lon] and its [latSpan]/[lonSpan]). */
+@Serializable
+data class RegionBoundsDto(
+    val lat: Double = 0.0,
+    val lon: Double = 0.0,
+    val latSpan: Double = 0.0,
+    val lonSpan: Double = 0.0,
+)
+
+/** An Open311 (issue-reporting) server configured for a region. */
+@Serializable
+data class Open311ServerDto(
+    val jurisdictionId: String? = null,
+    val apiKey: String? = null,
+    val baseUrl: String? = null,
+)
+
+/** A region's Umami analytics config (`{url, id}`); absent when the region isn't instrumented. */
+@Serializable
+data class UmamiAnalyticsDto(
+    val url: String? = null,
+    val id: String? = null,
+)

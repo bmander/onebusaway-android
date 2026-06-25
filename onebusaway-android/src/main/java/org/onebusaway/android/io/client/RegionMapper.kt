@@ -1,0 +1,59 @@
+/*
+ * Copyright (C) 2026 Open Transit Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.onebusaway.android.io.client
+
+import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.io.elements.ObaRegionElement
+
+/**
+ * Maps a wire [RegionDto] to the legacy [ObaRegionElement] (the persistence/domain type the rest of
+ * the app — `RegionUtils.saveToProvider`, `RegionRepository`, the picker — consumes as [ObaRegion]).
+ * Pure and JVM-unit-tested; constructing the existing element keeps the region migration confined to
+ * the fetch/decode boundary without touching any [ObaRegion] consumer.
+ */
+fun RegionDto.toObaRegion(): ObaRegionElement = ObaRegionElement(
+    id,
+    regionName,
+    active,
+    obaBaseUrl,
+    siriBaseUrl,
+    bounds.map { ObaRegionElement.Bounds(it.lat, it.lon, it.latSpan, it.lonSpan) }
+        .toTypedArray(),
+    open311Servers.map { ObaRegionElement.Open311Server(it.jurisdictionId, it.apiKey, it.baseUrl) }
+        .toTypedArray(),
+    language,
+    contactEmail,
+    supportsObaDiscoveryApis,
+    supportsObaRealtimeApis,
+    supportsSiriRealtimeApis,
+    twitterUrl,
+    experimental,
+    stopInfoUrl,
+    otpBaseUrl,
+    otpContactEmail,
+    supportsOtpBikeshare,
+    supportsEmbeddedSocial,
+    paymentAndroidAppId,
+    paymentWarningTitle,
+    paymentWarningBody,
+    travelBehaviorDataCollectionEnabled,
+    enrollParticipantsInStudy,
+    sidecarBaseUrl,
+    plausibleAnalyticsServerUrl,
+    // Match getRegionsFromProvider: only build a config when something is actually set.
+    umamiAnalytics?.takeIf { it.url != null || it.id != null }
+        ?.let { ObaRegionElement.UmamiAnalyticsConfig(it.url, it.id) },
+)

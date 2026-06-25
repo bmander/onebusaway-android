@@ -20,10 +20,9 @@ package org.onebusaway.android.util;
 import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
+import org.onebusaway.android.io.client.RegionsClient;
 import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.io.elements.ObaRegionElement;
-import org.onebusaway.android.io.request.ObaRegionsRequest;
-import org.onebusaway.android.io.request.ObaRegionsResponse;
 import org.onebusaway.android.provider.ObaContract;
 
 import android.content.ContentResolver;
@@ -31,14 +30,12 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.location.Location;
-import android.net.Uri;
 import android.util.Log;
 
 import java.security.MessageDigest;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -602,8 +599,7 @@ public class RegionUtils {
     }
 
     private synchronized static ArrayList<ObaRegion> getRegionsFromServer(Context context) {
-        ObaRegionsResponse response = ObaRegionsRequest.newRequest(context).call();
-        return new ArrayList<ObaRegion>(Arrays.asList(response.getRegions()));
+        return new ArrayList<ObaRegion>(RegionsClient.fetchRegionsFromServer(context));
     }
 
     /**
@@ -621,12 +617,7 @@ public class RegionUtils {
      * @return list of regions retrieved from the regions file in app resources
      */
     public static ArrayList<ObaRegion> getRegionsFromResources(Context context) {
-        final Uri.Builder builder = new Uri.Builder();
-        builder.scheme(ContentResolver.SCHEME_ANDROID_RESOURCE);
-        builder.authority(context.getPackageName());
-        builder.path(Integer.toString(R.raw.regions_v3));
-        ObaRegionsResponse response = ObaRegionsRequest.newRequest(context, builder.build()).call();
-        return new ArrayList<ObaRegion>(Arrays.asList(response.getRegions()));
+        return new ArrayList<ObaRegion>(RegionsClient.parseBundledRegions(context));
     }
 
     /**

@@ -18,69 +18,22 @@
 package org.onebusaway.android.io.test;
 
 import org.junit.Test;
-import org.onebusaway.android.R;
 import org.onebusaway.android.io.elements.ObaRegion;
-import org.onebusaway.android.io.request.ObaRegionsRequest;
-import org.onebusaway.android.io.request.ObaRegionsResponse;
-import org.onebusaway.android.mock.Resources;
 import org.onebusaway.android.provider.ObaContract;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
-import android.net.Uri;
 
 import static androidx.test.InstrumentationRegistry.getTargetContext;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
-import static junit.framework.Assert.assertNull;
-import static junit.framework.Assert.assertTrue;
 
 /**
- * Tests requests and parsing JSON responses from /res/raw for the OBA Regions API
- * to get available regions
+ * Instrumented coverage for region ContentProvider persistence. The wire parsing of the `regions`
+ * endpoint moved to the JVM RegionsDecodeTest when the endpoint migrated to the Retrofit client;
+ * what remains here is the DB round-trip, which genuinely needs the provider.
  */
 public class RegionsTest extends ObaTestCase {
-
-    @Test
-    public void testRequest() {
-        final Uri.Builder builder = new Uri.Builder();
-        builder.scheme(ContentResolver.SCHEME_ANDROID_RESOURCE);
-        builder.authority(getTargetContext().getPackageName());
-        builder.path(String.valueOf(R.raw.regions_v3));
-
-        ObaRegionsRequest request =
-                ObaRegionsRequest.newRequest(getTargetContext(), builder.build());
-        ObaRegionsResponse response = request.call();
-        assertOK(response);
-        final ObaRegion[] list = response.getRegions();
-        assertTrue(list.length > 0);
-        for (ObaRegion region : list) {
-            assertNotNull(region.getName());
-        }
-    }
-
-    @Test
-    public void testBuilder() {
-        ObaRegionsRequest.Builder builder =
-                new ObaRegionsRequest.Builder(getTargetContext());
-        ObaRegionsRequest request = builder.build();
-        assertNotNull(request);
-    }
-
-    @Test
-    public void testUmamiAnalyticsParsing() throws Exception {
-        ObaRegionsResponse response = Resources.readAs(getTargetContext(),
-                Resources.getTestUri("regions_umami_test"), ObaRegionsResponse.class);
-        ObaRegion[] regions = response.getRegions();
-
-        ObaRegion withUmami = regions[0];
-        assertEquals("https://umami.example.com", withUmami.getUmamiAnalyticsUrl());
-        assertEquals("abc-123-uuid", withUmami.getUmamiAnalyticsId());
-
-        ObaRegion withoutUmami = regions[1];
-        assertNull(withoutUmami.getUmamiAnalyticsUrl());
-        assertNull(withoutUmami.getUmamiAnalyticsId());
-    }
 
     @Test
     public void testUmamiAnalyticsPersistenceRoundTrip() {

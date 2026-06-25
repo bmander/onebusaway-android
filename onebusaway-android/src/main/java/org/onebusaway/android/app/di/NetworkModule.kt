@@ -29,6 +29,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.io.client.ObaUrlInterceptor
 import org.onebusaway.android.io.client.ObaWebService
+import org.onebusaway.android.io.client.RegionsWebService
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.Retrofit
 
@@ -75,4 +76,29 @@ object NetworkModule {
     @Singleton
     fun provideObaWebService(retrofit: Retrofit): ObaWebService =
         retrofit.create(ObaWebService::class.java)
+
+    /**
+     * The regions-directory client. Built with its **own** OkHttpClient — deliberately WITHOUT
+     * [ObaUrlInterceptor], since regions is fetched from a fixed directory host (the full URL is
+     * passed per call via `@Url`), not the selected region's OBA host. The base URL is a throwaway.
+     */
+    @Provides
+    @Singleton
+    fun provideRegionsWebService(json: Json): RegionsWebService {
+        val client = OkHttpClient.Builder()
+            .apply {
+                if (BuildConfig.DEBUG) {
+                    addInterceptor(
+                        HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
+                    )
+                }
+            }
+            .build()
+        return Retrofit.Builder()
+            .baseUrl("https://localhost/")
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(RegionsWebService::class.java)
+    }
 }

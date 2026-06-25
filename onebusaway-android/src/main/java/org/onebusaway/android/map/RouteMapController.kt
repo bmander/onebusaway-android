@@ -26,12 +26,12 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.onebusaway.android.extrapolation.ExtrapolatedVehicle
 import org.onebusaway.android.extrapolation.extrapolatedVehicles
+import org.onebusaway.android.extrapolation.data.RouteTrips
 import org.onebusaway.android.extrapolation.data.TripObservationRepository
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.isLocationRealtime
 import org.onebusaway.android.io.request.ObaStopsForRouteResponse
-import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.map.render.MapRenderState
 import org.onebusaway.android.map.render.MapVehicles
 import org.onebusaway.android.map.render.RoutePolyline
@@ -216,7 +216,7 @@ class RouteMapController(
 }
 
 /** The latest trips-for-route [response] and the device clock ([loadNanos]) when it landed. */
-private data class VehiclePoll(val response: ObaTripsForRouteResponse, val loadNanos: Long)
+private data class VehiclePoll(val response: RouteTrips, val loadNanos: Long)
 
 /**
  * The raw route-load state [RouteMapController] publishes (null when not in route mode); [MapViewModel]

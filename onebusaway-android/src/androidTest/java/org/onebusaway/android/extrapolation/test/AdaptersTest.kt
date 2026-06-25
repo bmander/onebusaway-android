@@ -23,6 +23,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.onebusaway.android.app.Application
+import org.onebusaway.android.extrapolation.data.asRouteTrips
 import org.onebusaway.android.extrapolation.data.toObservations
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripsForRouteRequest
@@ -103,7 +104,7 @@ class AdaptersTest : ObaTestCase() {
                         .call()
         assertOK(response)
 
-        val observations = response.toObservations()
+        val observations = response.asRouteTrips().toObservations()
         assertEquals(38, observations.size)
 
         val first = observations[0]
@@ -127,6 +128,6 @@ class AdaptersTest : ObaTestCase() {
                         .call()
         assertOK(response)
 
-        assertTrue(response.toObservations().isEmpty())
+        assertTrue(response.asRouteTrips().toObservations().isEmpty())
     }
 }

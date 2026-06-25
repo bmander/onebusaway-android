@@ -22,6 +22,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripState
+import org.onebusaway.android.extrapolation.data.asRouteTrips
 import org.onebusaway.android.extrapolation.extrapolatedVehicles
 import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.mock.Resources
@@ -57,14 +58,14 @@ class ExtrapolatedVehiclesTest {
     fun skipsCanceledMissingRefAndPositionlessVehiclesWithoutCrashing() {
         // route_1 + route_2 requested: only trip_A and trip_B survive; the canceled, ref-less, and
         // positionless trips are dropped rather than throwing.
-        val vehicles = extrapolatedVehicles(response(), setOf("route_1", "route_2"), nowMs = 1_000_000L, noState)
+        val vehicles = extrapolatedVehicles(response().asRouteTrips(),setOf("route_1", "route_2"), nowMs = 1_000_000L, noState)
 
         assertEquals(listOf("trip_A", "trip_B"), vehicles.map { it.status.activeTripId })
     }
 
     @Test
     fun placesVehicleAtLastKnownLocationAndReportsFixTimeWhenNoState() {
-        val vehicles = extrapolatedVehicles(response(), setOf("route_1"), nowMs = 1_000_000L, noState)
+        val vehicles = extrapolatedVehicles(response().asRouteTrips(),setOf("route_1"), nowMs = 1_000_000L, noState)
 
         assertEquals(1, vehicles.size)
         val vehicle = vehicles[0]
@@ -80,7 +81,7 @@ class ExtrapolatedVehiclesTest {
 
     @Test
     fun fallsBackToPositionWhenNoLastKnownLocation() {
-        val vehicles = extrapolatedVehicles(response(), setOf("route_2"), nowMs = 1_000_000L, noState)
+        val vehicles = extrapolatedVehicles(response().asRouteTrips(),setOf("route_2"), nowMs = 1_000_000L, noState)
 
         assertEquals(1, vehicles.size)
         val vehicle = vehicles[0]
@@ -92,9 +93,9 @@ class ExtrapolatedVehiclesTest {
     @Test
     fun filtersToRequestedRoutesOnly() {
         // route_3 serves none of the trips.
-        assertTrue(extrapolatedVehicles(response(), setOf("route_3"), nowMs = 1_000_000L, noState).isEmpty())
+        assertTrue(extrapolatedVehicles(response().asRouteTrips(),setOf("route_3"), nowMs = 1_000_000L, noState).isEmpty())
         // Empty request -> nothing.
-        assertTrue(extrapolatedVehicles(response(), emptySet(), nowMs = 1_000_000L, noState).isEmpty())
+        assertTrue(extrapolatedVehicles(response().asRouteTrips(),emptySet(), nowMs = 1_000_000L, noState).isEmpty())
     }
 
     @Test
@@ -105,7 +106,7 @@ class ExtrapolatedVehiclesTest {
             if (tripId == "trip_A") TripState("trip_A", anchorLocalTimeMs = 999_000L) else null
         }
 
-        val vehicle = extrapolatedVehicles(response(), setOf("route_1"), nowMs = 1_000_000L, anchored).single()
+        val vehicle = extrapolatedVehicles(response().asRouteTrips(),setOf("route_1"), nowMs = 1_000_000L, anchored).single()
 
         assertEquals(999_000L, vehicle.fixTimeMs)
         assertEquals(47.20, vehicle.point.latitude, 1e-6)

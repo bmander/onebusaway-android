@@ -24,7 +24,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
-import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.util.Polyline
 import org.junit.Test
 
@@ -49,7 +48,7 @@ class TripObservationRepositoryTest {
             return details()
         }
 
-        override suspend fun tripsForRoute(routeId: String): ObaTripsForRouteResponse? = null
+        override suspend fun tripsForRoute(routeId: String): RouteTrips? = null
 
         override suspend fun tripSchedule(tripId: String): ObaTripSchedule? = null
 

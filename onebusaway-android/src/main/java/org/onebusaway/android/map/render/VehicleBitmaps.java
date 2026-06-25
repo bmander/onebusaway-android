@@ -27,7 +27,7 @@ import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaTripStatus;
-import org.onebusaway.android.io.request.ObaTripsForRouteResponse;
+import org.onebusaway.android.extrapolation.data.RouteTrips;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.BitmapUtils;
 import org.onebusaway.android.util.MathUtils;
@@ -80,10 +80,10 @@ public final class VehicleBitmaps {
      * the extrapolation glide — and falls back to the status's reported orientation off-shape (NaN bearing).
      */
     public static Bitmap vehicleBitmap(Context context, VehicleMarker vehicle,
-                                       ObaTripsForRouteResponse response) {
+                                       RouteTrips response) {
         ObaTripStatus status = vehicle.getStatus();
-        String routeId = response.getTrip(status.getActiveTripId()).getRouteId();
-        ObaRoute route = response.getRoute(routeId);
+        String routeId = response.trip(status.getActiveTripId()).getRouteId();
+        ObaRoute route = response.route(routeId);
         int vehicleType = route.getType();
 
         int colorResource;

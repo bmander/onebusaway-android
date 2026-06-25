@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
-import org.onebusaway.android.io.request.ObaTripsForRouteResponse
 import org.onebusaway.android.util.Polyline
 
 const val DEFAULT_POLL_INTERVAL_MS = 10_000L
@@ -76,7 +75,7 @@ interface TripObservationRepository {
     fun routeVehiclesStream(
             routeId: String,
             intervalMs: Long = DEFAULT_POLL_INTERVAL_MS
-    ): Flow<ObaTripsForRouteResponse>
+    ): Flow<RouteTrips>
 
     /**
      * Returns the trip's polyline, fetching and recording it when absent. Shared by the route
@@ -109,13 +108,14 @@ class DefaultTripObservationRepository @Inject constructor(
                 }
             }
 
-    override fun routeVehiclesStream(routeId: String, intervalMs: Long): Flow<ObaTripsForRouteResponse> =
+    override fun routeVehiclesStream(routeId: String, intervalMs: Long): Flow<RouteTrips> =
             channelFlow {
                 var delayMs = intervalMs
                 while (true) {
+                    // The fetcher resolves failures and non-OK codes to null (logged once).
                     val response = fetcher.tripsForRoute(routeId)
-                    val ok = response?.code == ObaApi.OBA_OK
-                    if (response != null && ok) {
+                    val ok = response != null
+                    if (response != null) {
                         recordTripsForRoute(response)
                         prefetchSchedulesAndShapes(response) // launched into this channelFlow scope
                         send(response)
@@ -138,7 +138,7 @@ class DefaultTripObservationRepository @Inject constructor(
         response.toObservations().forEach { cache.record(it, localTimeMs) }
     }
 
-    private fun recordTripsForRoute(response: ObaTripsForRouteResponse) {
+    private fun recordTripsForRoute(response: RouteTrips) {
         val localTimeMs = System.currentTimeMillis()
         response.toObservations().forEach { cache.record(it, localTimeMs) }
     }
@@ -148,7 +148,7 @@ class DefaultTripObservationRepository @Inject constructor(
      * doesn't already have them, launching the fetches into the receiver scope (the channelFlow's)
      * so they're cancelled with the collection.
      */
-    private fun CoroutineScope.prefetchSchedulesAndShapes(response: ObaTripsForRouteResponse) {
+    private fun CoroutineScope.prefetchSchedulesAndShapes(response: RouteTrips) {
         response.forEachActiveTrip { tripId, _, activeTrip ->
             if (cache.lookupTripState(tripId)?.schedule == null) {
                 launch { fetcher.tripSchedule(tripId)?.let { cache.putSchedule(tripId, it) } }

@@ -24,7 +24,9 @@ import org.onebusaway.android.io.elements.ObaStop;
 import java.util.List;
 
 /**
- * Response object for ObaArrivalInfoRequest requests.
+ * Response object for the legacy arrivals-and-departures-for-stop request. Retained only as the
+ * Jackson-parsed fixture holder for instrumented tests (UIUtilTest) — production fetches arrivals
+ * via the modernized io/client ObaWebService.
  *
  * @author Paul Watts (paulcwatts@gmail.com)
  */

@@ -30,10 +30,10 @@ import org.onebusaway.android.io.elements.ObaRegion;
 import org.onebusaway.android.io.elements.ObaRoute;
 import org.onebusaway.android.io.elements.ObaSituation;
 import org.onebusaway.android.io.elements.ObaStop;
-import org.onebusaway.android.io.request.ObaArrivalInfoRequest;
 import org.onebusaway.android.io.request.ObaArrivalInfoResponse;
 import org.onebusaway.android.io.test.ObaTestCase;
 import org.onebusaway.android.mock.MockRegion;
+import org.onebusaway.android.mock.Resources;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.ui.arrivals.ArrivalInfo;
 import org.onebusaway.android.ui.arrivals.dialogs.StopDetailsDialog;
@@ -228,15 +228,16 @@ public class UIUtilTest extends ObaTestCase {
     }
 
     @Test
-    public void testArrivalTimeIndexSearch() {
+    public void testArrivalTimeIndexSearch() throws Exception {
         // Initial setup to get an ObaArrivalInfo object from a test response
         ObaRegion tampa = MockRegion.getTampa(getTargetContext());
         assertNotNull(tampa);
         Application.get().setCurrentRegion(tampa);
 
         ObaArrivalInfoResponse response =
-                new ObaArrivalInfoRequest.Builder(getTargetContext(),
-                        "Hillsborough Area Regional Transit_6497").build().call();
+                Resources.readAs(getTargetContext(),
+                        Resources.getTestUri("arrivals_and_departures_for_stop_hart_6497"),
+                        ObaArrivalInfoResponse.class);
         assertOK(response);
         ObaStop stop = response.getStop();
         assertNotNull(stop);
@@ -358,15 +359,16 @@ public class UIUtilTest extends ObaTestCase {
      * Tests the status and time labels for arrival info
      */
     @Test
-    public void testArrivalInfoLabels() {
+    public void testArrivalInfoLabels() throws Exception {
         // Initial setup to get an ObaArrivalInfo object from a test response
         ObaRegion tampa = MockRegion.getTampa(getTargetContext());
         assertNotNull(tampa);
         Application.get().setCurrentRegion(tampa);
 
         ObaArrivalInfoResponse response =
-                new ObaArrivalInfoRequest.Builder(getTargetContext(),
-                        "Hillsborough Area Regional Transit_6497").build().call();
+                Resources.readAs(getTargetContext(),
+                        Resources.getTestUri("arrivals_and_departures_for_stop_hart_6497"),
+                        ObaArrivalInfoResponse.class);
         assertOK(response);
         ObaStop stop = response.getStop();
         assertNotNull(stop);
@@ -648,14 +650,16 @@ public class UIUtilTest extends ObaTestCase {
      * ones specific to routes
      */
     @Test
-    public void testGetAllSituations() {
+    public void testGetAllSituations() throws Exception {
         Application.get().setCustomApiUrl("sdmts.onebusway.org/api");
 
         /**
          * Test route-specific alerts only
          */
         ObaArrivalInfoResponse response =
-                new ObaArrivalInfoRequest.Builder(getTargetContext(), "MTS_11670").build().call();
+                Resources.readAs(getTargetContext(),
+                        Resources.getTestUri("arrivals_and_departures_for_stop_mts_11670_route_alerts"),
+                        ObaArrivalInfoResponse.class);
         assertOK(response);
         List<ObaSituation> situations = response.getSituations();
         assertNotNull(situations);
@@ -698,7 +702,9 @@ public class UIUtilTest extends ObaTestCase {
          * Test route and stop alerts
          */
 
-        response = new ObaArrivalInfoRequest.Builder(getTargetContext(), "MTS_13353").build().call();
+        response = Resources.readAs(getTargetContext(),
+                Resources.getTestUri("arrivals_and_departures_for_stop_mts_13353_route_and_stop_alerts"),
+                ObaArrivalInfoResponse.class);
         assertOK(response);
         situations = response.getSituations();
         assertNotNull(situations);
@@ -740,7 +746,9 @@ public class UIUtilTest extends ObaTestCase {
         /*
         Test filtering routes alerts
          */
-        response = new ObaArrivalInfoRequest.Builder(getTargetContext(), "MTS_11671").build().call();
+        response = Resources.readAs(getTargetContext(),
+                Resources.getTestUri("arrivals_and_departures_for_stop_mts_11671_filter_route_alerts"),
+                ObaArrivalInfoResponse.class);
         assertOK(response);
 
         List<String> routeFilters = new ArrayList<>();

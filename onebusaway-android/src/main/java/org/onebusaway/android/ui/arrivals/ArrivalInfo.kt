@@ -95,6 +95,14 @@ class ArrivalInfo(
     val headsign: String? get() = info.headsign
     val shortName: String? get() = info.shortName
     val routeLongName: String? get() = info.routeLongName
+    val stopSequence: Int get() = info.stopSequence
+    val serviceDate: Long get() = info.serviceDate
+    val vehicleId: String? get() = info.vehicleId
+
+    /** The departure time to set a reminder for: the predicted time if known, else the scheduled. */
+    val reminderDepartureTime: Long
+        get() = if (info.predictedDepartureTime != 0L) info.predictedDepartureTime
+        else info.scheduledDepartureTime
 
     init {
         // First, all times have to be converted to 'minutes'

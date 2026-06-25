@@ -17,7 +17,6 @@ package org.onebusaway.android.util;
 
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
-import org.onebusaway.android.io.elements.ObaArrivalInfo;
 import org.onebusaway.android.io.request.reminders.DeleteRequestListener;
 import org.onebusaway.android.io.request.reminders.ObaReminderDeleteRequest;
 import org.onebusaway.android.provider.ObaContract;
@@ -216,14 +215,5 @@ public class ReminderUtils {
         }
 
         return validTimes.toArray(new String[0]);
-    }
-
-    /**
-     * Returns the departure time of the reminder based on the provided arrival information.
-     * @param info the arrival information
-     * @return the departure time of the reminder
-     */
-    public static long getReminderDepartureTime(ObaArrivalInfo info){
-        return info.getPredictedDepartureTime() != 0 ? info.getPredictedDepartureTime() : info.getScheduledDepartureTime();
     }
 }

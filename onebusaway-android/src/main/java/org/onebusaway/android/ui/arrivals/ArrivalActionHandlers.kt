@@ -73,19 +73,18 @@ fun createArrivalActionHandler(
             Toast.makeText(activity, R.string.reminder_not_enabled, Toast.LENGTH_SHORT).show()
             return
         }
-        val info = arrival.info
         TripInfoLauncher.start(
             activity,
-            info.tripId,
-            info.stopId,
-            info.routeId,
-            info.shortName,
+            arrival.tripId,
+            arrival.stopId,
+            arrival.routeId,
+            arrival.shortName,
             currentContent()?.header?.name.orEmpty(),
-            ReminderUtils.getReminderDepartureTime(info),
-            info.headsign,
-            info.stopSequence,
-            info.serviceDate,
-            info.vehicleId
+            arrival.reminderDepartureTime,
+            arrival.headsign,
+            arrival.stopSequence,
+            arrival.serviceDate,
+            arrival.vehicleId
         )
     }
 

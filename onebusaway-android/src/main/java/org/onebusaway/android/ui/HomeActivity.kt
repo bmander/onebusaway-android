@@ -28,7 +28,7 @@ import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import org.onebusaway.android.R
-import org.onebusaway.android.io.request.ObaArrivalInfoResponse
+import org.onebusaway.android.ui.arrivals.ArrivalsLoaded
 import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.MapViewModel
@@ -381,9 +381,9 @@ class HomeActivity : AppCompatActivity() {
      * loaded stop. The arrivals-panel onboarding spotlights (ETA / panel / star / overflow) are now driven in
      * Compose by [org.onebusaway.android.ui.tutorial.ArrivalTutorial] off the same responses collector.
      */
-    private fun onArrivalsLoaded(response: ObaArrivalInfoResponse) {
-        val stop = response.stop ?: return
-        viewModel.onArrivalsLoaded(stop, response.routes)
+    private fun onArrivalsLoaded(loaded: ArrivalsLoaded) {
+        val stop = loaded.stop ?: return
+        viewModel.onArrivalsLoaded(stop, loaded.routes)
     }
 
     private fun goToSendFeedBack() {

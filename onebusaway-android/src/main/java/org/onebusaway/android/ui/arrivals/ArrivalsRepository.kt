@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.client.RouteRepository
+import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaSituation
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.io.request.ObaArrivalInfoRequest
@@ -102,12 +103,32 @@ interface ArrivalsRepository {
     /** Un-hides every service alert (the "show hidden alerts" action). */
     suspend fun showAllAlerts()
 
-    /** The full situation for an alert id, from the last good response (for the alert dialog). */
-    fun situation(id: String): ObaSituation?
+    /** The service-alert dialog's content for an alert id, from the last good response, or null. */
+    fun alertDetails(id: String): AlertDetails?
 
-    /** The last good response, for the map panel's tutorials / map recentering. */
-    fun lastResponse(): ObaArrivalInfoResponse?
+    /** The map-relevant snapshot from the last good load, for the map panel's recentering/tutorials. */
+    fun lastLoaded(): ArrivalsLoaded?
 }
+
+/**
+ * What the map host needs after each arrivals load: the focused [stop] to recenter on, its [routes]
+ * (rendered on the map), and whether there are [hasArrivals] (gates the onboarding tutorial).
+ * Decouples the host from the raw `ObaArrivalInfoResponse`. ([stop]/[routes] are still the legacy
+ * element types the map subsystem consumes — a separate axis from this envelope decoupling.)
+ */
+data class ArrivalsLoaded(
+    val stop: ObaStop?,
+    val routes: List<ObaRoute>?,
+    val hasArrivals: Boolean,
+)
+
+/** The fields the service-alert dialog shows, decoupled from `ObaSituation`. */
+data class AlertDetails(
+    val id: String,
+    val summary: String?,
+    val description: String?,
+    val url: String?,
+)
 
 /**
  * Default implementation wrapping the blocking arrivals-and-departures request. Ports
@@ -361,9 +382,13 @@ class DefaultArrivalsRepository @Inject constructor(
         }
     }
 
-    override fun situation(id: String): ObaSituation? = lastGood?.refs?.getSituation(id)
+    override fun alertDetails(id: String): AlertDetails? =
+        lastGood?.refs?.getSituation(id)?.let {
+            AlertDetails(it.id, it.summary, it.description, it.url)
+        }
 
-    override fun lastResponse(): ObaArrivalInfoResponse? = lastGood
+    override fun lastLoaded(): ArrivalsLoaded? =
+        lastGood?.let { ArrivalsLoaded(it.stop, it.routes, !it.arrivalInfo.isNullOrEmpty()) }
 
     companion object {
 

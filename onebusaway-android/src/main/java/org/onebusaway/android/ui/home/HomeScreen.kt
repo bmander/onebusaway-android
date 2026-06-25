@@ -59,7 +59,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.io.request.ObaArrivalInfoResponse
+import org.onebusaway.android.ui.arrivals.ArrivalsLoaded
 import org.onebusaway.android.map.RouteHeader
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
@@ -116,7 +116,7 @@ class HomeCallbacks(
     val onRegionChosen: (ObaRegion) -> Unit,
     val onSheetSettled: (ArrivalsSheetState, Int) -> Unit,
     val onClearFocus: () -> Unit,
-    val onArrivalsLoaded: (ObaArrivalInfoResponse) -> Unit,
+    val onArrivalsLoaded: (ArrivalsLoaded) -> Unit,
     val onShowRouteOnMap: (String) -> Unit,
     val onToggleSheet: () -> Unit,
     val onCancelRouteMode: () -> Unit,

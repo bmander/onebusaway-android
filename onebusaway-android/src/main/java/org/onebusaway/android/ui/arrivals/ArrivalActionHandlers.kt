@@ -111,10 +111,10 @@ fun createArrivalActionHandler(
     }
 
     override fun onShowAlert(alertId: String) {
-        val situation = viewModel.situation(alertId) ?: return
+        val alert = viewModel.alertDetails(alertId) ?: return
         showSituationDialog(
             activity = activity,
-            situation = situation,
+            alert = alert,
             onDismiss = { isAlertHidden -> if (isAlertHidden) viewModel.manualRefresh() },
             onUndo = { viewModel.manualRefresh() },
             showUndoSnackbar = showUndoSnackbar

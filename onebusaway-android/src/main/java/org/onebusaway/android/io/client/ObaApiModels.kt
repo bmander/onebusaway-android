@@ -70,6 +70,7 @@ data class References(
     val stops: List<StopReference> = emptyList(),
     val routes: List<RouteReference> = emptyList(),
     val trips: List<TripReference> = emptyList(),
+    val situations: List<SituationReference> = emptyList(),
 ) {
     /** Resolves an agency in this pool by id, or null when absent. */
     fun agency(id: String): AgencyReference? = agencies.firstOrNull { it.id == id }
@@ -82,6 +83,9 @@ data class References(
 
     /** Resolves a trip in this pool by id, or null when absent. */
     fun trip(id: String): TripReference? = trips.firstOrNull { it.id == id }
+
+    /** Resolves a situation in this pool by id, or null when absent. */
+    fun situation(id: String): SituationReference? = situations.firstOrNull { it.id == id }
 }
 
 /** Wire model for a route, as it appears in an entry or the references pool. */
@@ -91,10 +95,12 @@ data class RouteReference(
     val shortName: String? = null,
     val longName: String? = null,
     val description: String? = null,
+    val type: Int = 0,
     val url: String? = null,
-    // Raw hex string as returned by the API (e.g. "FDB71A"), or null; parsed to an Android color by
-    // the consumer that needs it (trip-details line color).
+    // Raw hex strings as returned by the API (e.g. "FDB71A"), or null; parsed to an Android color by
+    // the consumer that needs it (trip-details / arrivals line color).
     val color: String? = null,
+    val textColor: String? = null,
     val agencyId: String = "",
 )
 
@@ -127,6 +133,8 @@ data class StopReference(
     val direction: String? = null,
     val lat: Double = 0.0,
     val lon: Double = 0.0,
+    val locationType: Int = 0,
+    val routeIds: List<String> = emptyList(),
 )
 
 /**
@@ -195,6 +203,14 @@ data class TripStatus(
     val nextStop: String? = null,
     val vehicleId: String? = null,
     val lastUpdateTime: Long = 0,
+    val lastKnownLocation: Position? = null,
+)
+
+/** A lat/lon point (e.g. a trip's last-known vehicle location). */
+@Serializable
+data class Position(
+    val lat: Double = 0.0,
+    val lon: Double = 0.0,
 )
 
 /** The scheduled stop times of a trip, in order. */
@@ -208,4 +224,83 @@ data class TripSchedule(
 data class StopTime(
     val stopId: String = "",
     val arrivalTime: Long = 0,
+)
+
+/**
+ * The arrivals-and-departures-for-stop entry: the [arrivalsAndDepartures] at [stopId], plus the
+ * [nearbyStopIds] and stop-level [situationIds] (resolved against [References]).
+ */
+@Serializable
+data class ArrivalsForStop(
+    val stopId: String = "",
+    val arrivalsAndDepartures: List<ArrivalDeparture> = emptyList(),
+    val nearbyStopIds: List<String> = emptyList(),
+    val situationIds: List<String> = emptyList(),
+)
+
+/**
+ * One predicted/scheduled arrival-departure at a stop. Wire names `tripHeadsign`/`routeShortName`
+ * match the API; times are epoch millis; occupancy/status are wire strings mapped to the display
+ * enums by the projection. Only the fields the arrivals projection reads are modeled.
+ */
+@Serializable
+data class ArrivalDeparture(
+    val routeId: String = "",
+    val tripId: String = "",
+    val stopId: String = "",
+    val tripHeadsign: String? = null,
+    val routeShortName: String? = null,
+    val routeLongName: String? = null,
+    val stopSequence: Int = 0,
+    val serviceDate: Long = 0,
+    val vehicleId: String? = null,
+    val predicted: Boolean = false,
+    val scheduledArrivalTime: Long = 0,
+    val predictedArrivalTime: Long = 0,
+    val scheduledDepartureTime: Long = 0,
+    val predictedDepartureTime: Long = 0,
+    val tripStatus: TripStatus? = null,
+    val frequency: Frequency? = null,
+    val historicalOccupancy: String? = null,
+    val occupancyStatus: String? = null,
+    val situationIds: List<String> = emptyList(),
+)
+
+/** Headway-based (exact_times=0) service window for a frequency trip; all epoch millis / seconds. */
+@Serializable
+data class Frequency(
+    val startTime: Long = 0,
+    val endTime: Long = 0,
+    val headway: Long = 0,
+)
+
+/** Wire model for a service alert (situation) in the references pool. */
+@Serializable
+data class SituationReference(
+    val id: String = "",
+    val summary: SituationText = SituationText(),
+    val description: SituationText = SituationText(),
+    val url: SituationText = SituationText(),
+    val severity: String? = null,
+    val activeWindows: List<SituationWindow> = emptyList(),
+    val allAffects: List<SituationAffects> = emptyList(),
+)
+
+/** An OBA localized-string wrapper (`{value, lang}`); only the [value] is modeled. */
+@Serializable
+data class SituationText(
+    val value: String? = null,
+)
+
+/** A situation active window; [from]/[to] are epoch seconds (to == 0 means no end). */
+@Serializable
+data class SituationWindow(
+    val from: Long = 0,
+    val to: Long = 0,
+)
+
+/** A situation's affects clause; only [routeId] is modeled (for route-filtered alerts). */
+@Serializable
+data class SituationAffects(
+    val routeId: String? = null,
 )

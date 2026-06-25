@@ -93,4 +93,15 @@ interface ObaWebService {
     suspend fun tripDetails(
         @Path("tripId") tripId: String,
     ): ObaEnvelope<EntryWithReferences<TripDetailsEntry>>
+
+    /**
+     * arrivals-and-departures-for-stop — real-time arrivals at a stop within the next
+     * [minutesAfter] minutes, with the stop/routes/trips/situations in the references.
+     * {http://developer.onebusaway.org/.../api/where/methods/arrivals-and-departures-for-stop.html}
+     */
+    @GET("api/where/arrivals-and-departures-for-stop/{stopId}.json")
+    suspend fun arrivalsAndDeparturesForStop(
+        @Path("stopId") stopId: String,
+        @Query("minutesAfter") minutesAfter: Int? = null,
+    ): ObaEnvelope<EntryWithReferences<ArrivalsForStop>>
 }

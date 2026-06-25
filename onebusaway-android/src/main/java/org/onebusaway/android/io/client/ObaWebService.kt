@@ -202,4 +202,42 @@ interface ObaWebService {
         @Query("includeStatus") includeStatus: Boolean = true,
         @Query("includeSchedule") includeSchedule: Boolean = false,
     ): ObaEnvelope<ListWithReferences<TripDetailsEntry>>
+
+    /**
+     * report-problem-with-stop — submit a rider-reported problem for a stop. [data] is the legacy
+     * JSON-encoded `{"code":"…"}` form the API still expects alongside [code]. The response carries
+     * no payload (only the status code). Like the legacy request, this is a GET with query params.
+     * {http://developer.onebusaway.org/.../api/where/methods/report-problem-with-stop.html}
+     */
+    @GET("api/where/report-problem-with-stop.json")
+    suspend fun reportProblemWithStop(
+        @Query("stopId") stopId: String,
+        @Query("code") code: String,
+        @Query("data") data: String,
+        @Query("userComment") userComment: String? = null,
+        @Query("userLat") userLat: Double? = null,
+        @Query("userLon") userLon: Double? = null,
+        @Query("userLocationAccuracy") userLocationAccuracy: Int? = null,
+    ): ObaEnvelope<NoData>
+
+    /**
+     * report-problem-with-trip — submit a rider-reported problem for a trip. [data] is the legacy
+     * JSON-encoded `{"code":"…"}` form alongside [code]; the response carries no payload.
+     * {http://developer.onebusaway.org/.../api/where/methods/report-problem-with-trip.html}
+     */
+    @GET("api/where/report-problem-with-trip.json")
+    suspend fun reportProblemWithTrip(
+        @Query("tripId") tripId: String,
+        @Query("code") code: String,
+        @Query("data") data: String,
+        @Query("stopId") stopId: String? = null,
+        @Query("serviceDate") serviceDate: Long? = null,
+        @Query("vehicleId") vehicleId: String? = null,
+        @Query("userComment") userComment: String? = null,
+        @Query("userLat") userLat: Double? = null,
+        @Query("userLon") userLon: Double? = null,
+        @Query("userLocationAccuracy") userLocationAccuracy: Int? = null,
+        @Query("userOnVehicle") userOnVehicle: Boolean? = null,
+        @Query("userVehicleNumber") userVehicleNumber: String? = null,
+    ): ObaEnvelope<NoData>
 }

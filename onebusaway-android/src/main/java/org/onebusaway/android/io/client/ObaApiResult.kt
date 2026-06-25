@@ -40,6 +40,17 @@ fun <T> ObaEnvelope<T>.requireData(): T {
 }
 
 /**
+ * Asserts an OK app-level code, throwing [ObaApiException] otherwise — for endpoints whose response
+ * carries no data payload (e.g. report-problem), where [requireData] can't be used because there's
+ * nothing to return. Lets the caller's `runCatching` map a non-OK code to `Result.failure`.
+ */
+fun ObaEnvelope<*>.requireOk() {
+    if (code != ObaApi.OBA_OK) {
+        throw ObaApiException(code)
+    }
+}
+
+/**
  * The list payload of a list endpoint, or empty when the app-level [ObaEnvelope.code] is not OK.
  * Unlike [requireData], a server error *code* yields no results rather than a failure — the
  * behavior list/search screens want (an error reads as "nothing found", not a crash). A transport

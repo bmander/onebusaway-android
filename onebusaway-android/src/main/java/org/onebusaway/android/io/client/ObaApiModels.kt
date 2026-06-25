@@ -351,6 +351,10 @@ data class SituationAffects(
     val routeId: String? = null,
 )
 
+/** Marker payload for endpoints whose response carries no data — only the envelope code matters (e.g. report-problem). */
+@Serializable
+class NoData
+
 /** The current-time entry: server [time] (epoch millis) and its [readableTime] ISO-8601 rendering. */
 @Serializable
 data class CurrentTime(

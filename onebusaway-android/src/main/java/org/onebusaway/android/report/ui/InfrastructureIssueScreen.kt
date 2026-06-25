@@ -83,6 +83,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import org.onebusaway.android.app.Application
+import org.onebusaway.android.app.di.NetworkEntryPoint
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.report.ReportContext
@@ -472,7 +473,8 @@ private fun createProblemReportViewModel(
     stop: ObaStop,
     arrival: TripReportContext?,
 ): ProblemReportViewModel {
-    val repository = DefaultProblemReportRepository(context.applicationContext)
+    val repository =
+        DefaultProblemReportRepository(NetworkEntryPoint.get(context.applicationContext))
     return if (arrival != null) {
         ProblemReportViewModel(
             params = ProblemParams.Trip(

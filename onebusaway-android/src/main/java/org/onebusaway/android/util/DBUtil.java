@@ -15,19 +15,26 @@ import android.text.TextUtils;
  */
 public class DBUtil {
     public static void addToDB(ObaStop stop) {
-        String name = MyTextUtils.formatDisplayText(stop.getName());
+        addToDB(stop.getId(), stop.getStopCode(), stop.getName(), stop.getDirection(),
+                stop.getLatitude(), stop.getLongitude());
+    }
 
-        // Update the database
+    /**
+     * Field-based overload, for callers (e.g. the modernized io/client DTOs) that don't have an
+     * {@link ObaStop}. The {@link ObaStop} overload delegates here.
+     */
+    public static void addToDB(String id, String code, String name, String direction,
+            double latitude, double longitude) {
         ContentValues values = new ContentValues();
-        values.put(ObaContract.Stops.CODE, stop.getStopCode());
-        values.put(ObaContract.Stops.NAME, name);
-        values.put(ObaContract.Stops.DIRECTION, stop.getDirection());
-        values.put(ObaContract.Stops.LATITUDE, stop.getLatitude());
-        values.put(ObaContract.Stops.LONGITUDE, stop.getLongitude());
+        values.put(ObaContract.Stops.CODE, code);
+        values.put(ObaContract.Stops.NAME, MyTextUtils.formatDisplayText(name));
+        values.put(ObaContract.Stops.DIRECTION, direction);
+        values.put(ObaContract.Stops.LATITUDE, latitude);
+        values.put(ObaContract.Stops.LONGITUDE, longitude);
         if (Application.get().getCurrentRegion() != null) {
             values.put(ObaContract.Stops.REGION_ID, Application.get().getCurrentRegion().getId());
         }
-        ObaContract.Stops.insertOrUpdate(stop.getId(), values, true);
+        ObaContract.Stops.insertOrUpdate(id, values, true);
     }
 
     public static void addRouteToDB(Context ctx, ArrivalInfo arrivalInfo){

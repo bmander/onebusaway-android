@@ -68,9 +68,20 @@ data class ListWithReferences<T>(
 data class References(
     val agencies: List<AgencyReference> = emptyList(),
     val stops: List<StopReference> = emptyList(),
+    val routes: List<RouteReference> = emptyList(),
+    val trips: List<TripReference> = emptyList(),
 ) {
     /** Resolves an agency in this pool by id, or null when absent. */
     fun agency(id: String): AgencyReference? = agencies.firstOrNull { it.id == id }
+
+    /** Resolves a stop in this pool by id, or null when absent. */
+    fun stop(id: String): StopReference? = stops.firstOrNull { it.id == id }
+
+    /** Resolves a route in this pool by id, or null when absent. */
+    fun route(id: String): RouteReference? = routes.firstOrNull { it.id == id }
+
+    /** Resolves a trip in this pool by id, or null when absent. */
+    fun trip(id: String): TripReference? = trips.firstOrNull { it.id == id }
 }
 
 /** Wire model for a route, as it appears in an entry or the references pool. */
@@ -81,6 +92,9 @@ data class RouteReference(
     val longName: String? = null,
     val description: String? = null,
     val url: String? = null,
+    // Raw hex string as returned by the API (e.g. "FDB71A"), or null; parsed to an Android color by
+    // the consumer that needs it (trip-details line color).
+    val color: String? = null,
     val agencyId: String = "",
 )
 
@@ -109,6 +123,7 @@ data class AgencyCoverage(
 data class StopReference(
     val id: String = "",
     val name: String? = null,
+    val code: String? = null,
     val direction: String? = null,
     val lat: Double = 0.0,
     val lon: Double = 0.0,
@@ -146,4 +161,51 @@ data class StopGroup(
 @Serializable
 data class StopGroupName(
     val names: List<String> = emptyList(),
+)
+
+/** Wire model for a trip in the references pool. Names match the wire (`tripHeadsign`/`tripShortName`). */
+@Serializable
+data class TripReference(
+    val id: String = "",
+    val routeId: String = "",
+    val tripHeadsign: String? = null,
+    val tripShortName: String? = null,
+)
+
+/** Wire model for the trip-details entry: real-time [status] and the [schedule] of stop times. */
+@Serializable
+data class TripDetailsEntry(
+    val tripId: String = "",
+    val status: TripStatus? = null,
+    val schedule: TripSchedule? = null,
+)
+
+/**
+ * Real-time status for a trip. Only the fields the trip-details screen reads are modeled; times are
+ * epoch millis, [scheduleDeviation] is seconds (+late/−early), [status] is the wire string (e.g.
+ * "CANCELED"), and [activeTripId] is the trip the vehicle is currently serving.
+ */
+@Serializable
+data class TripStatus(
+    val activeTripId: String = "",
+    val predicted: Boolean = false,
+    val scheduleDeviation: Long = 0,
+    val serviceDate: Long = 0,
+    val status: String = "",
+    val nextStop: String? = null,
+    val vehicleId: String? = null,
+    val lastUpdateTime: Long = 0,
+)
+
+/** The scheduled stop times of a trip, in order. */
+@Serializable
+data class TripSchedule(
+    val stopTimes: List<StopTime> = emptyList(),
+)
+
+/** One scheduled stop on a trip; [arrivalTime] is seconds since the service-date midnight. */
+@Serializable
+data class StopTime(
+    val stopId: String = "",
+    val arrivalTime: Long = 0,
 )

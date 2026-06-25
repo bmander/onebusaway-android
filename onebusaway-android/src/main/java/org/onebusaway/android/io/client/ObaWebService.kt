@@ -83,4 +83,14 @@ interface ObaWebService {
         @Path("routeId") routeId: String,
         @Query("includePolylines") includePolylines: Boolean = false,
     ): ObaEnvelope<EntryWithReferences<StopsForRoute>>
+
+    /**
+     * trip-details — a trip's real-time status + schedule, with its trip/route/stop/agency in the
+     * references.
+     * {http://developer.onebusaway.org/.../api/where/methods/trip-details.html}
+     */
+    @GET("api/where/trip-details/{tripId}.json")
+    suspend fun tripDetails(
+        @Path("tripId") tripId: String,
+    ): ObaEnvelope<EntryWithReferences<TripDetailsEntry>>
 }

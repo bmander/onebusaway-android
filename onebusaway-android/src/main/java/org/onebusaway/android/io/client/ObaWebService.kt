@@ -181,4 +181,13 @@ interface ObaWebService {
         @Path("stopId") stopId: String,
         @Query("date") date: String? = null,
     ): ObaEnvelope<EntryWithReferences<StopSchedule>>
+
+    /**
+     * shape — the encoded-polyline geometry of a trip's path, by shape id.
+     * {http://developer.onebusaway.org/.../api/where/methods/shape.html}
+     */
+    @GET("api/where/shape/{shapeId}.json")
+    suspend fun shape(
+        @Path("shapeId") shapeId: String,
+    ): ObaEnvelope<EntryWithReferences<ShapeEntry>>
 }

@@ -428,3 +428,14 @@ data class UmamiAnalyticsDto(
     val url: String? = null,
     val id: String? = null,
 )
+
+/**
+ * The shape (trip path) entry: an encoded-polyline string ([points], Google's algorithm) of
+ * [length] points, plus optional zoom [levels]. Decode with `ObaShapeElement.decodeLine`.
+ */
+@Serializable
+data class ShapeEntry(
+    val points: String = "",
+    val length: Int = 0,
+    val levels: String? = null,
+)

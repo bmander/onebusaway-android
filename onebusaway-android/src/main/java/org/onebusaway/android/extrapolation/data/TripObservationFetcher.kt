@@ -26,8 +26,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
+import org.onebusaway.android.io.client.ObaWebService
+import org.onebusaway.android.io.client.requireData
+import org.onebusaway.android.io.elements.ObaShapeElement
 import org.onebusaway.android.io.elements.ObaTripSchedule
-import org.onebusaway.android.io.request.ObaShapeRequest
 import org.onebusaway.android.io.request.ObaTripDetailsRequest
 import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.io.request.ObaTripsForRouteRequest
@@ -65,7 +67,8 @@ private const val TAG = "TripObservationFetcher"
 
 @Singleton
 class DefaultTripObservationFetcher @Inject constructor(
-        @ApplicationContext private val context: Context
+        @ApplicationContext private val context: Context,
+        private val obaWebService: ObaWebService
 ) : TripObservationFetcher {
 
     /** Process-lifetime scope confined to the main thread; the SingleFlight maps live under it. */
@@ -133,10 +136,16 @@ class DefaultTripObservationFetcher @Inject constructor(
     override suspend fun shape(shapeId: String): Polyline? =
             shapeFetches.run(shapeId) {
                 withContext(fetchDispatcher) {
-                    val points = ObaShapeRequest.newRequest(context, shapeId).call()?.points
-                    if (points != null && points.isNotEmpty()) Polyline(points) else null
+                    // ObaShapeElement.decodeLine is the shared (Google-algorithm) polyline decoder,
+                    // so the geometry matches the legacy path exactly. Error codes throw in
+                    // requireData and resolve to null below, like the old null-coalescing path did.
+                    runCatching {
+                        val entry = obaWebService.shape(shapeId).requireData().entry
+                        ObaShapeElement.decodeLine(entry.points, entry.length)
+                    }.getOrNull()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?.let { Polyline(it) }
                 }.also {
-                    // Error-coded responses resolve to null without throwing; make that visible.
                     if (it == null) Log.w(TAG, "Shape fetch for $shapeId yielded no polyline")
                 }
             }

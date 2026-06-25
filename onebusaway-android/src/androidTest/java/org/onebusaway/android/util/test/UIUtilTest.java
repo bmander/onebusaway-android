@@ -532,69 +532,69 @@ public class UIUtilTest extends ObaTestCase {
          * Test notification texts
          */
 
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(0).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(0).getShortName(), arrivalInfo.get(0).getRouteLongName())
                 + " has arrived.", arrivalInfo.get(0).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(1).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(1).getShortName(), arrivalInfo.get(1).getRouteLongName())
                 + " has departed.", arrivalInfo.get(1).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(2).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(2).getShortName(), arrivalInfo.get(2).getRouteLongName())
                 + " has departed.", arrivalInfo.get(2).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(3).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(3).getShortName(), arrivalInfo.get(3).getRouteLongName())
                 + " has arrived.", arrivalInfo.get(3).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(4).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(4).getShortName(), arrivalInfo.get(4).getRouteLongName())
                 + " has departed.", arrivalInfo.get(4).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(5).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(5).getShortName(), arrivalInfo.get(5).getRouteLongName())
                 + " is departing now!", arrivalInfo.get(5).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(6).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(6).getShortName(), arrivalInfo.get(6).getRouteLongName())
                 + " is arriving now!", arrivalInfo.get(6).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(7).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(7).getShortName(), arrivalInfo.get(7).getRouteLongName())
                 + " is arriving in 3 min!", arrivalInfo.get(7).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(8).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(8).getShortName(), arrivalInfo.get(8).getRouteLongName())
                 + " is departing in 5 min!", arrivalInfo.get(8).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(9).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(9).getShortName(), arrivalInfo.get(9).getRouteLongName())
                 + " is departing in 5 min!", arrivalInfo.get(9).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(10).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(10).getShortName(), arrivalInfo.get(10).getRouteLongName())
                 + " is arriving in 6 min!", arrivalInfo.get(10).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(11).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(11).getShortName(), arrivalInfo.get(11).getRouteLongName())
                 + " is arriving in 7 min!", arrivalInfo.get(11).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(12).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(12).getShortName(), arrivalInfo.get(12).getRouteLongName())
                 + " is arriving in 10 min!", arrivalInfo.get(12).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(13).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(13).getShortName(), arrivalInfo.get(13).getRouteLongName())
                 + " is departing in 14 min!", arrivalInfo.get(13).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(14).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(14).getShortName(), arrivalInfo.get(14).getRouteLongName())
                 + " is arriving in 17 min!", arrivalInfo.get(14).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(15).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(15).getShortName(), arrivalInfo.get(15).getRouteLongName())
                 + " is arriving in 20 min!", arrivalInfo.get(15).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(16).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(16).getShortName(), arrivalInfo.get(16).getRouteLongName())
                 + " is departing in 20 min!", arrivalInfo.get(16).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(17).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(17).getShortName(), arrivalInfo.get(17).getRouteLongName())
                 + " is arriving in 23 min!", arrivalInfo.get(17).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(18).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(18).getShortName(), arrivalInfo.get(18).getRouteLongName())
                 + " is departing in 25 min!", arrivalInfo.get(18).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(19).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(19).getShortName(), arrivalInfo.get(19).getRouteLongName())
                 + " is arriving in 26 min!", arrivalInfo.get(19).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(20).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(20).getShortName(), arrivalInfo.get(20).getRouteLongName())
                 + " is departing in 27 min!", arrivalInfo.get(20).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(21).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(21).getShortName(), arrivalInfo.get(21).getRouteLongName())
                 + " is arriving in 28 min!", arrivalInfo.get(21).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(22).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(22).getShortName(), arrivalInfo.get(22).getRouteLongName())
                 + " is arriving in 30 min!", arrivalInfo.get(22).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(23).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(23).getShortName(), arrivalInfo.get(23).getRouteLongName())
                 + " is departing in 30 min!", arrivalInfo.get(23).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(24).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(24).getShortName(), arrivalInfo.get(24).getRouteLongName())
                 + " is arriving in 32 min!", arrivalInfo.get(24).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(25).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(25).getShortName(), arrivalInfo.get(25).getRouteLongName())
                 + " is arriving in 32 min!", arrivalInfo.get(25).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(26).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(26).getShortName(), arrivalInfo.get(26).getRouteLongName())
                 + " is arriving in 34 min!", arrivalInfo.get(26).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(27).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(27).getShortName(), arrivalInfo.get(27).getRouteLongName())
                 + " is arriving in 34 min!", arrivalInfo.get(27).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(28).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(28).getShortName(), arrivalInfo.get(28).getRouteLongName())
                 + " is departing in 35 min!", arrivalInfo.get(28).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(29).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(29).getShortName(), arrivalInfo.get(29).getRouteLongName())
                 + " is departing in 35 min!", arrivalInfo.get(29).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(30).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(30).getShortName(), arrivalInfo.get(30).getRouteLongName())
                 + " is arriving in 35 min!", arrivalInfo.get(30).getNotifyText());
-        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(31).getInfo())
+        assertEquals("Route " + RouteDisplay.getRouteDisplayName(arrivalInfo.get(31).getShortName(), arrivalInfo.get(31).getRouteLongName())
                 + " is departing in 35 min!", arrivalInfo.get(31).getNotifyText());
     }
 

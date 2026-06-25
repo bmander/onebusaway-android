@@ -15,9 +15,7 @@
  */
 package org.onebusaway.android.extrapolation.data
 
-import android.content.Context
 import android.util.Log
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -28,10 +26,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.requireData
+import org.onebusaway.android.io.client.toObaTripSchedule
 import org.onebusaway.android.io.elements.ObaShapeElement
 import org.onebusaway.android.io.elements.ObaTripSchedule
-import org.onebusaway.android.io.request.ObaTripDetailsRequest
-import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.util.Polyline
 import org.onebusaway.android.util.SingleFlight
 
@@ -51,7 +48,7 @@ import org.onebusaway.android.util.SingleFlight
  */
 interface TripObservationFetcher {
 
-    suspend fun tripDetails(tripId: String): ObaTripDetailsResponse?
+    suspend fun tripDetails(tripId: String): TripDetails?
 
     suspend fun tripsForRoute(routeId: String): RouteTrips?
 
@@ -60,12 +57,24 @@ interface TripObservationFetcher {
     suspend fun shape(shapeId: String): Polyline?
 }
 
+/**
+ * What one trip-details poll distilled for the store: the vehicle [observations], the trip [schedule]
+ * and [serviceDate], the [shapeId] of the polled trip (for on-demand shape activation), and the trip
+ * the vehicle currently reports active ([vehicleActiveTripId], null without a status).
+ */
+data class TripDetails(
+    val observations: List<TripObservation>,
+    val schedule: ObaTripSchedule?,
+    val serviceDate: Long,
+    val vehicleActiveTripId: String?,
+    val shapeId: String?,
+)
+
 private const val MAX_CONCURRENT_FETCHES = 2
 private const val TAG = "TripObservationFetcher"
 
 @Singleton
 class DefaultTripObservationFetcher @Inject constructor(
-        @ApplicationContext private val context: Context,
         private val obaWebService: ObaWebService
 ) : TripObservationFetcher {
 
@@ -83,11 +92,19 @@ class DefaultTripObservationFetcher @Inject constructor(
     private val scheduleFetches = SingleFlight<String, ObaTripSchedule>(fetchScope)
     private val shapeFetches = SingleFlight<String, Polyline>(fetchScope)
 
-    override suspend fun tripDetails(tripId: String): ObaTripDetailsResponse? =
+    override suspend fun tripDetails(tripId: String): TripDetails? =
             guarded("trip details for $tripId") {
-                withContext(fetchDispatcher) {
-                    ObaTripDetailsRequest.newRequest(context, tripId).call()
-                }
+                // requireData throws on a non-OK code; guarded maps it to null.
+                val envelope = obaWebService.tripDetails(tripId)
+                val routeTrips = envelope.asRouteTrips()
+                val entry = envelope.requireData().entry
+                TripDetails(
+                    observations = routeTrips.toObservations(),
+                    schedule = entry.schedule?.toObaTripSchedule(),
+                    serviceDate = entry.status?.serviceDate ?: 0,
+                    vehicleActiveTripId = entry.status?.activeTripId?.ifBlank { null },
+                    shapeId = routeTrips.trip(tripId)?.shapeId?.takeIf { it.isNotEmpty() },
+                )
             }
 
     override suspend fun tripsForRoute(routeId: String): RouteTrips? =
@@ -113,16 +130,9 @@ class DefaultTripObservationFetcher @Inject constructor(
 
     override suspend fun tripSchedule(tripId: String): ObaTripSchedule? =
             scheduleFetches.run(tripId) {
-                withContext(fetchDispatcher) {
-                    ObaTripDetailsRequest.Builder(context, tripId)
-                            .setIncludeSchedule(true)
-                            .setIncludeStatus(false)
-                            .setIncludeTrip(false)
-                            .build()
-                            .call()
-                            ?.schedule
+                guarded("schedule for $tripId") {
+                    obaWebService.tripDetails(tripId).requireData().entry.schedule?.toObaTripSchedule()
                 }.also {
-                    // Error-coded responses resolve to null without throwing; make that visible.
                     if (it == null) Log.w(TAG, "Schedule fetch for $tripId yielded no schedule")
                 }
             }

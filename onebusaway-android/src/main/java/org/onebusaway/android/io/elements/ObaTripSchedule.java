@@ -48,6 +48,19 @@ public final class ObaTripSchedule {
             distanceAlongTrip = 0;
         }
 
+        /** Builds a stop time directly (used when mapping from the modernized io/client schedule DTO). */
+        public StopTime(String stopId, String stopHeadsign, long arrivalTime, long departureTime,
+                        String historicalOccupancy, String predictedOccupancy,
+                        double distanceAlongTrip) {
+            this.stopId = stopId;
+            this.stopHeadsign = stopHeadsign;
+            this.arrivalTime = arrivalTime;
+            this.departureTime = departureTime;
+            this.historicalOccupancy = historicalOccupancy;
+            this.predictedOccupancy = predictedOccupancy;
+            this.distanceAlongTrip = distanceAlongTrip;
+        }
+
         /**
          * @return The stop ID of the stop visited during the trip.
          */
@@ -113,6 +126,15 @@ public final class ObaTripSchedule {
         timeZone = "";
         previousTripId = "";
         nextTripId = "";
+    }
+
+    /** Builds a schedule directly (used when mapping from the modernized io/client schedule DTO). */
+    public ObaTripSchedule(StopTime[] stopTimes, String timeZone, String previousTripId,
+                           String nextTripId) {
+        this.stopTimes = stopTimes;
+        this.timeZone = timeZone;
+        this.previousTripId = previousTripId;
+        this.nextTripId = nextTripId;
     }
 
     /**

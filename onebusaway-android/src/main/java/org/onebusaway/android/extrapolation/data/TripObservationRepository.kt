@@ -23,8 +23,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
-import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.util.Polyline
 
 const val DEFAULT_POLL_INTERVAL_MS = 10_000L
@@ -57,15 +55,16 @@ interface TripObservationRepository {
     fun lookupTripState(tripId: String?): TripState?
 
     /**
-     * Polls trip details for [tripId] every [intervalMs] while collected, records each OK response
-     * into the store, and emits every completed response — error-coded ones included, so a
-     * collector can render failures. Consecutive failures back off exponentially (see
-     * [nextPollDelayMs]).
+     * Keeps [tripId]'s data fresh in the store: while collected, polls trip details every [intervalMs]
+     * and records each successful poll (status/schedule/shape) into the store, which callers read via
+     * [lookupTripState]. Collect it to drive the polling for the trip's lifetime on screen; each
+     * emission is a "polled" tick (the payload is [Unit] — the data lives in the store, not the
+     * stream). Consecutive failures back off exponentially (see [nextPollDelayMs]).
      */
     fun tripDetailsStream(
             tripId: String,
             intervalMs: Long = DEFAULT_POLL_INTERVAL_MS
-    ): Flow<ObaTripDetailsResponse>
+    ): Flow<Unit>
 
     /**
      * Polls trips-for-route for [routeId] every [intervalMs] while collected, records each OK
@@ -93,16 +92,18 @@ class DefaultTripObservationRepository @Inject constructor(
 
     override fun lookupTripState(tripId: String?): TripState? = cache.lookupTripState(tripId)
 
-    override fun tripDetailsStream(tripId: String, intervalMs: Long): Flow<ObaTripDetailsResponse> =
+    override fun tripDetailsStream(tripId: String, intervalMs: Long): Flow<Unit> =
             flow {
                 var delayMs = intervalMs
                 while (true) {
-                    val response = fetcher.tripDetails(tripId)
-                    val ok = response?.code == ObaApi.OBA_OK
-                    if (response != null && ok) recordTripDetails(tripId, response)
-                    // Emitted outside the recording, error responses included: a collector pacing
-                    // its own UI can render the failure, and a bug in it propagates loudly.
-                    if (response != null) emit(response)
+                    // The fetcher resolves failures and non-OK codes to null (logged once).
+                    val details = fetcher.tripDetails(tripId)
+                    val ok = details != null
+                    if (details != null) {
+                        recordTripDetails(tripId, details)
+                        // Emit a tick so a collector can react to a fresh poll (the store holds the data).
+                        emit(Unit)
+                    }
                     delayMs = nextPollDelayMs(delayMs, ok, intervalMs)
                     delay(delayMs)
                 }
@@ -129,13 +130,13 @@ class DefaultTripObservationRepository @Inject constructor(
             cache.lookupTripState(tripId)?.polyline
                     ?: fetcher.shape(shapeId)?.also { cache.putPolyline(tripId, it) }
 
-    /** Records everything a trip details response carries: response, schedule, service date, status. */
-    private fun recordTripDetails(tripId: String, response: ObaTripDetailsResponse) {
+    /** Records everything a trip details poll carries: shapeId/active-trip, schedule, service date, observations. */
+    private fun recordTripDetails(tripId: String, details: TripDetails) {
         val localTimeMs = System.currentTimeMillis()
-        cache.putTripDetailsResponse(tripId, response.status?.activeTripId, response)
-        cache.putSchedule(tripId, response.schedule)
-        cache.putServiceDate(tripId, response.status?.serviceDate ?: 0)
-        response.toObservations().forEach { cache.record(it, localTimeMs) }
+        cache.putTripDetails(tripId, details.vehicleActiveTripId, details.shapeId)
+        cache.putSchedule(tripId, details.schedule)
+        cache.putServiceDate(tripId, details.serviceDate)
+        details.observations.forEach { cache.record(it, localTimeMs) }
     }
 
     private fun recordTripsForRoute(response: RouteTrips) {

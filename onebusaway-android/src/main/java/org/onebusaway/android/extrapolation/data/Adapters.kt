@@ -19,15 +19,13 @@ package org.onebusaway.android.extrapolation.data
 
 import org.onebusaway.android.io.elements.ObaTrip
 import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.request.ObaResponseWithRefs
-import org.onebusaway.android.io.request.ObaTripDetailsResponse
 
 /*
- * The adapters between OBA API response shapes and the trip store's standard vocabulary. Each
- * response type gets a pure toObservations extension that distills what the response says about
- * each trip's vehicle into TripObservations — the store (TripStateCache.kt) never sees response
- * shapes, and the adapters never touch the cache. The hydrating call sites that compose the two
- * live in TripObservationRepository.kt.
+ * The adapter between a trips-for-route / trip-details fetch and the trip store's standard
+ * vocabulary: a pure toObservations extension that distills what the poll says about each trip's
+ * vehicle into TripObservations — the store (TripStateCache.kt) never sees wire shapes, and the
+ * adapters never touch the cache. The hydrating call sites that compose the two live in
+ * TripObservationRepository.kt.
  */
 
 /**
@@ -43,25 +41,12 @@ data class TripObservation(
         val routeType: Int?
 )
 
-/** The observation of the vehicle's active trip, or empty when the response carries no status. */
-fun ObaTripDetailsResponse.toObservations(): List<TripObservation> {
-    val status = status ?: return emptyList()
-    val tripId = status.activeTripId ?: return emptyList()
-    return listOf(
-            TripObservation(tripId, status, currentTime, status.serviceDate, routeTypeForTrip(tripId))
-    )
-}
-
-/** One observation per active trip in the route's vehicles. */
+/** One observation per active trip in the route's vehicles (one for a single trip-details poll). */
 fun RouteTrips.toObservations(): List<TripObservation> = buildList {
     forEachActiveTrip { tripId, status, _ ->
         add(TripObservation(tripId, status, currentTimeMs, status.serviceDate, routeTypeForTrip(tripId)))
     }
 }
-
-/** Resolves [tripId]'s route type from the response refs, or null when they don't include it. */
-private fun ObaResponseWithRefs.routeTypeForTrip(tripId: String): Int? =
-        getTrip(tripId)?.routeId?.let { getRoute(it) }?.type
 
 /** Resolves [tripId]'s route type from the [RouteTrips] refs, or null when they don't include it. */
 private fun RouteTrips.routeTypeForTrip(tripId: String): Int? =

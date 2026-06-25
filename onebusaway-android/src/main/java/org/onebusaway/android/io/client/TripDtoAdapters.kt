@@ -21,6 +21,7 @@ import org.onebusaway.android.io.elements.ObaTrip
 import org.onebusaway.android.io.elements.ObaTripDetails
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.io.elements.ObaTripSchedule.StopTime as ObaStopTime
 import org.onebusaway.android.io.elements.Occupancy
 import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.util.LocationUtils
@@ -89,9 +90,27 @@ class DtoRoute(private val ref: RouteReference) : ObaRoute {
     override fun getAgencyId(): String = ref.agencyId
 }
 
-/** Presents a [TripDetailsEntry] as an [ObaTripDetails] (schedule omitted; fetched separately). */
+/** Presents a [TripDetailsEntry] as an [ObaTripDetails]. */
 class DtoTripDetails(private val entry: TripDetailsEntry) : ObaTripDetails {
     override fun getId(): String = entry.tripId
     override fun getStatus(): ObaTripStatus? = entry.status?.let { DtoTripStatus(it) }
-    override fun getSchedule(): ObaTripSchedule? = null
+    override fun getSchedule(): ObaTripSchedule? = entry.schedule?.toObaTripSchedule()
 }
+
+/** Maps the io/client [TripSchedule] DTO to the legacy [ObaTripSchedule] (consumed by schedule replay). */
+fun TripSchedule.toObaTripSchedule(): ObaTripSchedule = ObaTripSchedule(
+    stopTimes.map {
+        ObaStopTime(
+            it.stopId,
+            it.stopHeadsign,
+            it.arrivalTime,
+            it.departureTime,
+            it.historicalOccupancy,
+            it.predictedOccupancy,
+            it.distanceAlongTrip,
+        )
+    }.toTypedArray(),
+    timeZone,
+    previousTripId,
+    nextTripId,
+)

@@ -29,7 +29,6 @@ import org.junit.Rule
 import org.onebusaway.android.extrapolation.data.RouteTrips
 import org.onebusaway.android.extrapolation.data.TripObservationRepository
 import org.onebusaway.android.extrapolation.data.TripState
-import org.onebusaway.android.io.request.ObaTripDetailsResponse
 import org.onebusaway.android.testing.MainDispatcherRule
 import org.onebusaway.android.ui.nav.NavRoutes
 import org.onebusaway.android.util.Polyline
@@ -47,7 +46,7 @@ class TripTrajectoryViewModelTest {
 
         override fun lookupTripState(tripId: String?): TripState? = state
 
-        override fun tripDetailsStream(tripId: String, intervalMs: Long): Flow<ObaTripDetailsResponse> =
+        override fun tripDetailsStream(tripId: String, intervalMs: Long): Flow<Unit> =
             flow {
                 detailsCollections++
                 awaitCancellation()

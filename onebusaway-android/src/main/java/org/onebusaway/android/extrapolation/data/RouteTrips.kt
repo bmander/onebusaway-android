@@ -18,8 +18,10 @@ package org.onebusaway.android.extrapolation.data
 import org.onebusaway.android.io.client.DtoRoute
 import org.onebusaway.android.io.client.DtoTrip
 import org.onebusaway.android.io.client.DtoTripDetails
+import org.onebusaway.android.io.client.EntryWithReferences
 import org.onebusaway.android.io.client.ListWithReferences
 import org.onebusaway.android.io.client.ObaEnvelope
+import org.onebusaway.android.io.client.References
 import org.onebusaway.android.io.client.TripDetailsEntry
 import org.onebusaway.android.io.client.requireData
 import org.onebusaway.android.io.elements.ObaRoute
@@ -51,13 +53,28 @@ interface RouteTrips {
     val currentTimeMs: Long
 }
 
-/** Adapts a modernized trips-for-route envelope to [RouteTrips] (DTOs presented as the legacy interfaces). */
+/** Presents trip-details entries + their references as [RouteTrips] (DTOs as the legacy interfaces). */
+private fun routeTripsOf(
+    entries: List<TripDetailsEntry>,
+    references: References,
+    serverTimeMs: Long,
+): RouteTrips = object : RouteTrips {
+    override val trips: List<ObaTripDetails> = entries.map { DtoTripDetails(it) }
+    override fun trip(tripId: String): ObaTrip? = references.trip(tripId)?.let { DtoTrip(it) }
+    override fun route(routeId: String): ObaRoute? = references.route(routeId)?.let { DtoRoute(it) }
+    override val currentTimeMs: Long = serverTimeMs
+}
+
+/** Adapts a modernized trips-for-route envelope (a list of vehicles) to [RouteTrips]. */
+@JvmName("listAsRouteTrips")
 internal fun ObaEnvelope<ListWithReferences<TripDetailsEntry>>.asRouteTrips(): RouteTrips {
     val data = requireData()
-    return object : RouteTrips {
-        override val trips: List<ObaTripDetails> = data.list.map { DtoTripDetails(it) }
-        override fun trip(tripId: String): ObaTrip? = data.references.trip(tripId)?.let { DtoTrip(it) }
-        override fun route(routeId: String): ObaRoute? = data.references.route(routeId)?.let { DtoRoute(it) }
-        override val currentTimeMs: Long = currentTime
-    }
+    return routeTripsOf(data.list, data.references, currentTime)
+}
+
+/** Adapts a modernized trip-details envelope (a single trip) to [RouteTrips]. */
+@JvmName("entryAsRouteTrips")
+internal fun ObaEnvelope<EntryWithReferences<TripDetailsEntry>>.asRouteTrips(): RouteTrips {
+    val data = requireData()
+    return routeTripsOf(listOf(data.entry), data.references, currentTime)
 }

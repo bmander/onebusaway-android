@@ -248,17 +248,28 @@ data class Position(
     val lon: Double = 0.0,
 )
 
-/** The scheduled stop times of a trip, in order. */
+/** The scheduled stop times of a trip, in order, plus the adjacent block trips and zone. */
 @Serializable
 data class TripSchedule(
     val stopTimes: List<StopTime> = emptyList(),
+    val timeZone: String? = null,
+    val previousTripId: String? = null,
+    val nextTripId: String? = null,
 )
 
-/** One scheduled stop on a trip; [arrivalTime] is seconds since the service-date midnight. */
+/**
+ * One scheduled stop on a trip; [arrivalTime]/[departureTime] are epoch millis and
+ * [distanceAlongTrip] is meters (used by the schedule-replay extrapolator).
+ */
 @Serializable
 data class StopTime(
     val stopId: String = "",
+    val stopHeadsign: String? = null,
     val arrivalTime: Long = 0,
+    val departureTime: Long = 0,
+    val historicalOccupancy: String? = null,
+    val predictedOccupancy: String? = null,
+    val distanceAlongTrip: Double = 0.0,
 )
 
 /**

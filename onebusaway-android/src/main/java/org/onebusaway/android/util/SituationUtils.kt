@@ -17,9 +17,9 @@
 
 package org.onebusaway.android.util
 
-import org.onebusaway.android.io.elements.ObaArrivalInfo
-import org.onebusaway.android.io.elements.ObaSituation
-import org.onebusaway.android.io.request.ObaArrivalInfoResponse
+import org.onebusaway.android.io.client.ArrivalsForStop
+import org.onebusaway.android.io.client.EntryWithReferences
+import org.onebusaway.android.io.client.SituationReference
 import java.util.concurrent.TimeUnit
 
 /**
@@ -45,33 +45,30 @@ object SituationUtils {
      * filter list are excluded).
      */
     @JvmStatic
-    fun getAllSituations(response: ObaArrivalInfoResponse?, filter: List<String>?): List<ObaSituation> {
-        val allSituations: MutableList<ObaSituation> = ArrayList()
-
-        if (response == null) {
-            return allSituations
-        }
-
-        // Add agency-wide and stop-specific alerts
-        allSituations.addAll(response.situations)
-
+    fun getAllSituations(
+        data: EntryWithReferences<ArrivalsForStop>,
+        filter: List<String>?
+    ): List<SituationReference> {
+        val refs = data.references
+        val allSituations = mutableListOf<SituationReference>()
         // Track seen ids in a HashSet for O(1) retrieval (mutated below as route alerts are added).
-        val allIds = allSituations.mapTo(HashSet()) { it.id }
+        val allIds = HashSet<String>()
+
+        // Add agency-wide and stop-specific alerts.
+        for (id in data.entry.situationIds) {
+            refs.situation(id)?.let { if (allIds.add(it.id)) allSituations.add(it) }
+        }
 
         // The filter route-ids as a set (empty == no filter).
         val filterIds = filter.orEmpty().toHashSet()
 
-        // Scan through the routes, and if a route-specific situation hasn't been added yet, add it
-        // If a filter list exists and a route_id is not included in the filter list, don't included
-        // it's situations in the returned list.
-        val info: Array<ObaArrivalInfo> = response.arrivalInfo ?: return allSituations
-        for (i in info) {
-            val situationIds = i.situationIds ?: continue
-            if (filterIds.isEmpty() || filterIds.contains(i.routeId)) {
-                for (situationId in situationIds) {
-                    if (!allIds.contains(situationId)) {
-                        allIds.add(situationId)
-                        allSituations.add(response.getSituation(situationId))
+        // Scan the arrivals; add a route-specific situation if not already added, unless a filter
+        // list exists and the route_id isn't in it (route-scoped alerts only; stop/agency unaffected).
+        for (arrival in data.entry.arrivalsAndDepartures) {
+            if (filterIds.isEmpty() || filterIds.contains(arrival.routeId)) {
+                for (situationId in arrival.situationIds) {
+                    if (situationId !in allIds) {
+                        refs.situation(situationId)?.let { allIds.add(it.id); allSituations.add(it) }
                     }
                 }
             }
@@ -91,8 +88,8 @@ object SituationUtils {
      * falls outside of the situation's active windows
      */
     @JvmStatic
-    fun isActiveWindowForSituation(situation: ObaSituation, currentTime: Long): Boolean {
-        if (situation.activeWindows.size == 0) {
+    fun isActiveWindowForSituation(situation: SituationReference, currentTime: Long): Boolean {
+        if (situation.activeWindows.isEmpty()) {
             // We assume a situation is active if it doesn't contain any active window information
             return true
         }

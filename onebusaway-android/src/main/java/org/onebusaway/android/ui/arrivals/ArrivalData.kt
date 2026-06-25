@@ -15,9 +15,14 @@
  */
 package org.onebusaway.android.ui.arrivals
 
+import android.content.Context
+import org.onebusaway.android.R
+import org.onebusaway.android.app.di.PreferencesEntryPoint
+import org.onebusaway.android.io.client.ArrivalDeparture
 import org.onebusaway.android.io.elements.ObaArrivalInfo
 import org.onebusaway.android.io.elements.Occupancy
 import org.onebusaway.android.io.elements.Status
+import org.onebusaway.android.util.ArrivalInfoUtils
 
 /**
  * The arrival fields [ArrivalInfo] needs to compute its display model, abstracted from the wire
@@ -81,4 +86,57 @@ private class LegacyArrivalData(private val a: ObaArrivalInfo) : ArrivalData {
     override val scheduleDeviation get() = a.tripStatus?.scheduleDeviation ?: 0L
     override val lastKnownLat get() = a.tripStatus?.lastKnownLocation?.latitude
     override val lastKnownLon get() = a.tripStatus?.lastKnownLocation?.longitude
+}
+
+/** Adapts a modernized [ArrivalDeparture] DTO (new arrivals fetch) to [ArrivalData]. */
+fun ArrivalDeparture.asArrivalData(): ArrivalData = DtoArrivalData(this)
+
+private class DtoArrivalData(private val d: ArrivalDeparture) : ArrivalData {
+    override val routeId get() = d.routeId
+    override val tripId get() = d.tripId
+    override val stopId get() = d.stopId
+    override val headsign get() = d.tripHeadsign
+    override val shortName get() = d.routeShortName
+    override val routeLongName get() = d.routeLongName
+    override val stopSequence get() = d.stopSequence
+    override val serviceDate get() = d.serviceDate
+    override val vehicleId get() = d.vehicleId
+    override val predicted get() = d.predicted
+    override val scheduledArrivalTime get() = d.scheduledArrivalTime
+    override val predictedArrivalTime get() = d.predictedArrivalTime
+    override val scheduledDepartureTime get() = d.scheduledDepartureTime
+    override val predictedDepartureTime get() = d.predictedDepartureTime
+    override val status get() = d.tripStatus?.status?.let { Status.fromString(it) }
+    override val frequency
+        get() = d.frequency?.let { FrequencyWindow(it.startTime, it.endTime, it.headway) }
+    override val historicalOccupancy
+        get() = d.historicalOccupancy?.takeIf { it.isNotEmpty() }?.let { Occupancy.fromString(it) }
+    override val predictedOccupancy
+        get() = d.occupancyStatus?.takeIf { it.isNotEmpty() }?.let { Occupancy.fromString(it) }
+    override val hasTripStatus get() = d.tripStatus != null
+    override val scheduleDeviation get() = d.tripStatus?.scheduleDeviation ?: 0L
+    override val lastKnownLat get() = d.tripStatus?.lastKnownLocation?.lat
+    override val lastKnownLon get() = d.tripStatus?.lastKnownLocation?.lon
+}
+
+/**
+ * Builds the display [ArrivalInfo]s from [arrivals]: filters to [filter] routes (empty == all),
+ * drops past arrivals unless the user opted in, and sorts by ETA. Replaces the legacy
+ * `ArrivalInfoUtils.convertObaArrivalInfo`; both the legacy (My Lists) and modernized fetch feed it
+ * via their respective `asArrivalData()` adapters.
+ */
+fun convertArrivals(
+    context: Context,
+    arrivals: List<ArrivalData>,
+    filter: Collection<String>?,
+    ms: Long,
+    includeArrivalDepartureInStatusLabel: Boolean,
+): List<ArrivalInfo> {
+    val showNegativeArrivals = PreferencesEntryPoint.get(context)
+        .getBoolean(R.string.preference_key_show_negative_arrivals, true)
+    val selected = if (!filter.isNullOrEmpty()) arrivals.filter { it.routeId in filter } else arrivals
+    return selected
+        .map { ArrivalInfo(context, it, ms, includeArrivalDepartureInStatusLabel) }
+        .filter { it.eta >= 0 || showNegativeArrivals }
+        .sortedWith(ArrivalInfoUtils.InfoComparator())
 }

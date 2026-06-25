@@ -178,6 +178,7 @@ data class TripReference(
     val routeId: String = "",
     val tripHeadsign: String? = null,
     val tripShortName: String? = null,
+    val blockId: String? = null,
 )
 
 /** Wire model for the trip-details entry: real-time [status] and the [schedule] of stop times. */

@@ -22,8 +22,13 @@ import android.graphics.Color
  * when absent or malformed. The canonical reader for the shared `color` field — mirrors the legacy
  * `ObaRouteElement.getColor()` parse — so color consumers don't re-implement `Color.parseColor`.
  */
-fun RouteReference.colorArgb(): Int? =
-    color?.takeIf { it.isNotEmpty() }?.let {
+fun RouteReference.colorArgb(): Int? = parseObaHexColor(color)
+
+/** Parses [RouteReference.textColor] to an Android ARGB int, or null when absent/invalid. */
+fun RouteReference.textColorArgb(): Int? = parseObaHexColor(textColor)
+
+private fun parseObaHexColor(hex: String?): Int? =
+    hex?.takeIf { it.isNotEmpty() }?.let {
         try {
             Color.parseColor("#${it.trim()}")
         } catch (e: IllegalArgumentException) {

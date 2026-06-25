@@ -57,6 +57,15 @@ interface ObaWebService {
     suspend fun agenciesWithCoverage(): ObaEnvelope<ListWithReferences<AgencyCoverage>>
 
     /**
+     * agency — details for a single transit agency (the [AgencyReference] entry).
+     * {http://developer.onebusaway.org/.../api/where/methods/agency.html}
+     */
+    @GET("api/where/agency/{agencyId}.json")
+    suspend fun agency(
+        @Path("agencyId") agencyId: String,
+    ): ObaEnvelope<EntryWithReferences<AgencyReference>>
+
+    /**
      * routes-for-location — routes near [lat]/[lon], optionally filtered by a short-name [query]
      * and bounded by [radius] (meters). Omitted (null) parameters are dropped from the request.
      * {http://developer.onebusaway.org/.../api/where/methods/routes-for-location.html}

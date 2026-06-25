@@ -104,12 +104,22 @@ data class RouteReference(
     val agencyId: String = "",
 )
 
-/** Wire model for an agency in the references pool. */
+/**
+ * Wire model for a transit agency — the full agency record returned by the `agency` endpoint and
+ * carried (typically with just id/name/url consumed) in the references pool of other responses.
+ */
 @Serializable
 data class AgencyReference(
     val id: String = "",
     val name: String = "",
     val url: String? = null,
+    val timezone: String? = null,
+    val lang: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val fareUrl: String? = null,
+    val disclaimer: String? = null,
+    val privateService: Boolean = false,
 )
 
 /**

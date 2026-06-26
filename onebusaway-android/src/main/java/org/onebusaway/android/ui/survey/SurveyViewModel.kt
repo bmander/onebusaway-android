@@ -21,7 +21,6 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -30,16 +29,12 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import org.onebusaway.android.R
-import org.onebusaway.android.io.request.survey.ObaStudyRequest
-import org.onebusaway.android.io.request.survey.model.StudyResponse
-import org.onebusaway.android.io.request.survey.model.SubmitSurveyResponse
-import org.onebusaway.android.io.request.survey.submit.ObaSubmitSurveyRequest
-import org.onebusaway.android.io.request.survey.submit.SubmitSurveyRequestListener
+import org.onebusaway.android.io.client.StudyResponse
+import org.onebusaway.android.io.client.SubmitSurveyResponse
+import org.onebusaway.android.io.client.SurveyWebService
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.database.survey.SurveyDbHelper
@@ -89,6 +84,7 @@ class SurveyViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val regionRepository: RegionRepository,
     private val prefs: PreferencesRepository,
+    private val surveyService: SurveyWebService,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SurveyUiState())
@@ -129,10 +125,11 @@ class SurveyViewModel @Inject constructor(
         val studiesEnabled = prefs.getBoolean(R.string.preference_key_show_available_studies, true)
         if (!studiesEnabled || !SurveyUtils.shouldShowSurveyView(context, false)) return
         requested = true
+        val url = studyUrl() ?: return
         viewModelScope.launch {
-            val response = withContext(Dispatchers.IO) {
-                runCatching { ObaStudyRequest.newRequest(context).call() }.getOrNull()
-            }
+            val response = runCatching {
+                surveyService.getStudy(url, SurveyPreferences.getUserUUID(context))
+            }.getOrNull()
             if (response != null) onStudyResponse(response)
         }
     }
@@ -282,6 +279,14 @@ class SurveyViewModel @Inject constructor(
         _effects.tryEmit(SurveyEffect.OpenExternalSurvey(url, embedded))
     }
 
+    /** Builds the study-list URL from the current region's sidecar host, or null if none is resolved. */
+    private fun studyUrl(): String? {
+        val region = regionRepository.region.value ?: return null
+        val base = region.sidecarBaseUrl ?: return null
+        return base + context.getString(R.string.studies_api_endpoint)
+            .replace("regionID", region.id.toString())
+    }
+
     private fun submitUrl(hero: Boolean): String {
         // A survey can only be loaded once a region is present, so region is non-null on this path.
         val base = regionRepository.region.value?.sidecarBaseUrl.orEmpty()
@@ -291,28 +296,17 @@ class SurveyViewModel @Inject constructor(
     }
 
     private suspend fun submit(apiUrl: String, surveyId: Int, body: JSONArray): SubmitSurveyResponse? =
-        withContext(Dispatchers.IO) {
-            suspendCancellableCoroutine { cont ->
-                val request = ObaSubmitSurveyRequest.Builder(context, apiUrl)
-                    .setUserIdentifier(SurveyPreferences.getUserUUID(context))
-                    .setSurveyId(surveyId)
-                    .setStopIdentifier(null)
-                    .setStopLatitude(0.0)
-                    .setStopLongitude(0.0)
-                    .setResponses(body)
-                    .setListener(object : SubmitSurveyRequestListener {
-                        override fun onSubmitSurveyResponseReceived(response: SubmitSurveyResponse?) {
-                            if (cont.isActive) cont.resumeWith(Result.success(response))
-                        }
-
-                        override fun onSubmitSurveyFail() {
-                            if (cont.isActive) cont.resumeWith(Result.success(null))
-                        }
-                    })
-                    .build()
-                request.call()
-            }
-        }
+        runCatching {
+            surveyService.submitSurvey(
+                url = apiUrl,
+                userIdentifier = SurveyPreferences.getUserUUID(context),
+                surveyId = surveyId,
+                stopIdentifier = null,
+                stopLatitude = 0.0,
+                stopLongitude = 0.0,
+                responses = body.toString(),
+            )
+        }.getOrNull()
 
     /** Builds the single-question JSON body for the hero question, or null if its answer is missing. */
     private fun heroAnswerBody(hero: StudyResponse.Surveys.Questions): JSONArray? {

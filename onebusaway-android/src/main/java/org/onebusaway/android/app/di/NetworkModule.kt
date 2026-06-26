@@ -30,6 +30,7 @@ import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.io.client.ObaUrlInterceptor
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.RegionsWebService
+import org.onebusaway.android.io.client.SurveyWebService
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.Retrofit
 
@@ -78,13 +79,28 @@ object NetworkModule {
         retrofit.create(ObaWebService::class.java)
 
     /**
-     * The regions-directory client. Built with its **own** OkHttpClient — deliberately WITHOUT
-     * [ObaUrlInterceptor], since regions is fetched from a fixed directory host (the full URL is
-     * passed per call via `@Url`), not the selected region's OBA host. The base URL is a throwaway.
+     * The regions-directory client. Built with a plain client (NO [ObaUrlInterceptor]) since regions
+     * is fetched from a fixed directory host via `@Url`, not the selected region's OBA host.
      */
     @Provides
     @Singleton
-    fun provideRegionsWebService(json: Json): RegionsWebService {
+    fun provideRegionsWebService(json: Json): RegionsWebService =
+        plainRetrofit(json).create(RegionsWebService::class.java)
+
+    /**
+     * The surveys client. Like regions, it targets a non-OBA host (the region's sidecar) via `@Url`,
+     * so it uses a plain client without [ObaUrlInterceptor].
+     */
+    @Provides
+    @Singleton
+    fun provideSurveyWebService(json: Json): SurveyWebService =
+        plainRetrofit(json).create(SurveyWebService::class.java)
+
+    /**
+     * A Retrofit built on a plain OkHttp client (debug logging only, no [ObaUrlInterceptor]) for
+     * services that pass an absolute `@Url` per call rather than relying on the region host rewrite.
+     */
+    private fun plainRetrofit(json: Json): Retrofit {
         val client = OkHttpClient.Builder()
             .apply {
                 if (BuildConfig.DEBUG) {
@@ -99,6 +115,5 @@ object NetworkModule {
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
-            .create(RegionsWebService::class.java)
     }
 }

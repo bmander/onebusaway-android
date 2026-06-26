@@ -121,8 +121,8 @@ interface ArrivalsRepository {
 /**
  * What the map host needs after each arrivals load: the focused [stop] to recenter on, its [routes]
  * (rendered on the map), and whether there are [hasArrivals] (gates the onboarding tutorial).
- * Decouples the host from the raw `ObaArrivalInfoResponse`. ([stop]/[routes] are still the legacy
- * element types the map subsystem consumes — a separate axis from this envelope decoupling.)
+ * Decouples the host from the raw arrivals envelope. ([stop]/[routes] are still the legacy element
+ * types the map subsystem consumes — a separate axis from this envelope decoupling.)
  */
 data class ArrivalsLoaded(
     val stop: ObaStop?,

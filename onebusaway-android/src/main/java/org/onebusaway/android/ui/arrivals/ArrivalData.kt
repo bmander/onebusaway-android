@@ -19,7 +19,6 @@ import android.content.Context
 import org.onebusaway.android.R
 import org.onebusaway.android.app.di.PreferencesEntryPoint
 import org.onebusaway.android.io.client.ArrivalDeparture
-import org.onebusaway.android.io.elements.ObaArrivalInfo
 import org.onebusaway.android.io.elements.Occupancy
 import org.onebusaway.android.io.elements.Status
 import org.onebusaway.android.util.ArrivalInfoUtils
@@ -59,35 +58,6 @@ interface ArrivalData {
 /** Headway-based (exact_times=0) service window; epoch millis / seconds, matching the wire. */
 data class FrequencyWindow(val startTime: Long, val endTime: Long, val headway: Long)
 
-/** Adapts the legacy [ObaArrivalInfo] (still produced by the My Lists badge fetch) to [ArrivalData]. */
-fun ObaArrivalInfo.asArrivalData(): ArrivalData = LegacyArrivalData(this)
-
-private class LegacyArrivalData(private val a: ObaArrivalInfo) : ArrivalData {
-    override val routeId get() = a.routeId
-    override val tripId get() = a.tripId
-    override val stopId get() = a.stopId
-    override val headsign get() = a.headsign
-    override val shortName get() = a.shortName
-    override val routeLongName get() = a.routeLongName
-    override val stopSequence get() = a.stopSequence
-    override val serviceDate get() = a.serviceDate
-    override val vehicleId get() = a.vehicleId
-    override val predicted get() = a.predicted
-    override val scheduledArrivalTime get() = a.scheduledArrivalTime
-    override val predictedArrivalTime get() = a.predictedArrivalTime
-    override val scheduledDepartureTime get() = a.scheduledDepartureTime
-    override val predictedDepartureTime get() = a.predictedDepartureTime
-    override val status get() = a.tripStatus?.status
-    override val frequency
-        get() = a.frequency?.let { FrequencyWindow(it.startTime, it.endTime, it.headway) }
-    override val historicalOccupancy get() = a.historicalOccupancy
-    override val predictedOccupancy get() = a.occupancyStatus
-    override val hasTripStatus get() = a.tripStatus != null
-    override val scheduleDeviation get() = a.tripStatus?.scheduleDeviation ?: 0L
-    override val lastKnownLat get() = a.tripStatus?.lastKnownLocation?.latitude
-    override val lastKnownLon get() = a.tripStatus?.lastKnownLocation?.longitude
-}
-
 /** Adapts a modernized [ArrivalDeparture] DTO (new arrivals fetch) to [ArrivalData]. */
 fun ArrivalDeparture.asArrivalData(): ArrivalData = DtoArrivalData(this)
 
@@ -121,9 +91,8 @@ private class DtoArrivalData(private val d: ArrivalDeparture) : ArrivalData {
 
 /**
  * Builds the display [ArrivalInfo]s from [arrivals]: filters to [filter] routes (empty == all),
- * drops past arrivals unless the user opted in, and sorts by ETA. Replaces the legacy
- * `ArrivalInfoUtils.convertObaArrivalInfo`; both the legacy (My Lists) and modernized fetch feed it
- * via their respective `asArrivalData()` adapters.
+ * drops past arrivals unless the user opted in, and sorts by ETA. Callers feed it [ArrivalData] via
+ * `ArrivalDeparture.asArrivalData()`.
  */
 fun convertArrivals(
     context: Context,

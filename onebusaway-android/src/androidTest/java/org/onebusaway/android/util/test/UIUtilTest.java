@@ -24,16 +24,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
-import org.onebusaway.android.io.elements.ObaAgency;
-import org.onebusaway.android.io.elements.ObaArrivalInfo;
+import org.onebusaway.android.io.client.ArrivalsForStop;
+import org.onebusaway.android.io.client.EntryWithReferences;
+import org.onebusaway.android.io.client.ObaEnvelope;
+import org.onebusaway.android.io.client.SituationReference;
 import org.onebusaway.android.io.elements.ObaRegion;
-import org.onebusaway.android.io.elements.ObaRoute;
-import org.onebusaway.android.io.elements.ObaSituation;
-import org.onebusaway.android.io.elements.ObaStop;
-import org.onebusaway.android.io.request.ObaArrivalInfoResponse;
 import org.onebusaway.android.io.test.ObaTestCase;
+import org.onebusaway.android.mock.ArrivalsFixtures;
 import org.onebusaway.android.mock.MockRegion;
-import org.onebusaway.android.mock.Resources;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.ui.arrivals.ArrivalInfo;
 import org.onebusaway.android.ui.arrivals.dialogs.StopDetailsDialog;
@@ -41,7 +39,6 @@ import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.DisplayFormat;
 import org.onebusaway.android.util.MyTextUtils;
 import org.onebusaway.android.util.RouteDisplay;
-import org.onebusaway.android.util.SituationUtils;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -229,95 +226,83 @@ public class UIUtilTest extends ObaTestCase {
 
     @Test
     public void testArrivalTimeIndexSearch() throws Exception {
-        // Initial setup to get an ObaArrivalInfo object from a test response
+        // Load a captured arrivals fixture and project it via the production DTO path
         ObaRegion tampa = MockRegion.getTampa(getTargetContext());
         assertNotNull(tampa);
         Application.get().setCurrentRegion(tampa);
 
-        ObaArrivalInfoResponse response =
-                Resources.readAs(getTargetContext(),
-                        Resources.getTestUri("arrivals_and_departures_for_stop_hart_6497"),
-                        ObaArrivalInfoResponse.class);
-        assertOK(response);
-        ObaStop stop = response.getStop();
-        assertNotNull(stop);
-        assertEquals("Hillsborough Area Regional Transit_6497", stop.getId());
-        List<ObaRoute> routes = response.getRoutes(stop.getRouteIds());
-        assertTrue(routes.size() > 0);
-        ObaAgency agency = response.getAgency(routes.get(0).getAgencyId());
-        assertEquals("Hillsborough Area Regional Transit", agency.getId());
+        ObaEnvelope<EntryWithReferences<ArrivalsForStop>> env =
+                ArrivalsFixtures.load(getTargetContext(), "arrivals_and_departures_for_stop_hart_6497");
+        String stopId = "Hillsborough Area Regional Transit_6497";
 
         // First de-select any existing route favorites, to make sure the test returns correct results
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_2",
                 "UATC to Downtown via Nebraska Ave",
-                stop.getId(),
+                stopId,
                 false);
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_1",
                 "UATC to Downtown via Florida Ave",
-                stop.getId(),
+                stopId,
                 false);
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_18",
                 "North to UATC/Livingston",
-                stop.getId(),
+                stopId,
                 false);
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_5",
                 "South to Downtown/MTC",
-                stop.getId(),
+                stopId,
                 false);
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_2",
                 "UATC to Downtown via Nebraska Ave",
-                stop.getId(),
+                stopId,
                 false);
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_18",
                 "South to UATC/Downtown/MTC",
-                stop.getId(),
+                stopId,
                 false);
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_12",
                 "North to University Area TC",
-                stop.getId(),
+                stopId,
                 false);
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_9",
                 "UATC to Downtown via 15th St",
-                stop.getId(),
+                stopId,
                 false);
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_12",
                 "South to Downtown/MTC",
-                stop.getId(),
+                stopId,
                 false);
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_5",
                 "North to University Area TC",
-                stop.getId(),
+                stopId,
                 false);
 
         // Now mark 2 favorites - first non-negative index for this route/headsign will be index 11
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_6",
                 "North to University Area TC",
-                stop.getId(),
+                stopId,
                 true);
 
         // First non-negative index for this route/headsign will be index 13
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_6",
                 "South to Downtown/MTC",
-                stop.getId(),
+                stopId,
                 true);
 
-        // Get the response
-        ObaArrivalInfo[] arrivals = response.getArrivalInfo();
-        assertNotNull(arrivals);
-        ArrayList<ArrivalInfo> arrivalInfo = ArrivalInfoUtils.convertObaArrivalInfo(getTargetContext(),
-                arrivals, null, response.getCurrentTime(), true);
+        // Project the fixture's arrivals via the production path.
+        ArrayList<ArrivalInfo> arrivalInfo = ArrivalsFixtures.convert(getTargetContext(), env, true);
 
         // Now confirm that we have the correct number of elements, and values for ETAs for the test
         validateUatcArrivalInfo(arrivalInfo);
@@ -337,17 +322,16 @@ public class UIUtilTest extends ObaTestCase {
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_6",
                 "North to University Area TC",
-                stop.getId(),
+                stopId,
                 false);
         ObaContract.RouteHeadsignFavorites.markAsFavorite(getTargetContext(),
                 "Hillsborough Area Regional Transit_6",
                 "South to Downtown/MTC",
-                stop.getId(),
+                stopId,
                 false);
 
-        // Process the response again (resetting the included favorite info)
-        arrivalInfo = ArrivalInfoUtils.convertObaArrivalInfo(getTargetContext(),
-                arrivals, null, response.getCurrentTime(), true);
+        // Process again (re-reading the now-cleared favorite info from the DB).
+        arrivalInfo = ArrivalsFixtures.convert(getTargetContext(), env, true);
         preferredArrivalIndexes = ArrivalInfoUtils.findPreferredArrivalIndexes(arrivalInfo);
 
         // Now the first two non-negative arrival times should be returned - indexes 5 and 6
@@ -360,35 +344,18 @@ public class UIUtilTest extends ObaTestCase {
      */
     @Test
     public void testArrivalInfoLabels() throws Exception {
-        // Initial setup to get an ObaArrivalInfo object from a test response
+        // Load a captured arrivals fixture and project it via the production DTO path
         ObaRegion tampa = MockRegion.getTampa(getTargetContext());
         assertNotNull(tampa);
         Application.get().setCurrentRegion(tampa);
 
-        ObaArrivalInfoResponse response =
-                Resources.readAs(getTargetContext(),
-                        Resources.getTestUri("arrivals_and_departures_for_stop_hart_6497"),
-                        ObaArrivalInfoResponse.class);
-        assertOK(response);
-        ObaStop stop = response.getStop();
-        assertNotNull(stop);
-        assertEquals("Hillsborough Area Regional Transit_6497", stop.getId());
-        List<ObaRoute> routes = response.getRoutes(stop.getRouteIds());
-        assertTrue(routes.size() > 0);
-        ObaAgency agency = response.getAgency(routes.get(0).getAgencyId());
-        assertEquals("Hillsborough Area Regional Transit", agency.getId());
-
-        // Get the response
-        ObaArrivalInfo[] arrivals = response.getArrivalInfo();
-        assertNotNull(arrivals);
+        ObaEnvelope<EntryWithReferences<ArrivalsForStop>> env =
+                ArrivalsFixtures.load(getTargetContext(), "arrivals_and_departures_for_stop_hart_6497");
 
         /**
          * Labels *with* arrive/depart included, and time labels
          */
-        boolean includeArriveDepartLabels = true;
-        ArrayList<ArrivalInfo> arrivalInfo = ArrivalInfoUtils.convertObaArrivalInfo(
-                getTargetContext(),
-                arrivals, null, response.getCurrentTime(), includeArriveDepartLabels);
+        ArrayList<ArrivalInfo> arrivalInfo = ArrivalsFixtures.convert(getTargetContext(), env, true);
 
         // Now confirm that we have the correct number of elements, and values for ETAs for the test
         validateUatcArrivalInfo(arrivalInfo);
@@ -489,9 +456,7 @@ public class UIUtilTest extends ObaTestCase {
         /**
          * Status labels *without* arrive/depart included
          */
-        includeArriveDepartLabels = false;
-        arrivalInfo = ArrivalInfoUtils.convertObaArrivalInfo(getTargetContext(), arrivals, null,
-                response.getCurrentTime(), includeArriveDepartLabels);
+        arrivalInfo = ArrivalsFixtures.convert(getTargetContext(), env, false);
 
         // Now confirm that we have the correct number of elements, and values for ETAs for the test
         validateUatcArrivalInfo(arrivalInfo);
@@ -656,31 +621,20 @@ public class UIUtilTest extends ObaTestCase {
         /**
          * Test route-specific alerts only
          */
-        ObaArrivalInfoResponse response =
-                Resources.readAs(getTargetContext(),
-                        Resources.getTestUri("arrivals_and_departures_for_stop_mts_11670_route_alerts"),
-                        ObaArrivalInfoResponse.class);
-        assertOK(response);
-        List<ObaSituation> situations = response.getSituations();
-        assertNotNull(situations);
-        // No stop-specific alerts, and route-specific situations don't appear in the main situations element - see #700
-        assertEquals(0, situations.size());
+        ObaEnvelope<EntryWithReferences<ArrivalsForStop>> env = ArrivalsFixtures.load(
+                getTargetContext(), "arrivals_and_departures_for_stop_mts_11670_route_alerts");
+        // No stop-specific alerts; route alerts don't appear in the entry's situations - see #700.
+        assertEquals(0, ArrivalsFixtures.stopSituations(env).size());
 
-        // They do appear, however, in the references list and are referenced by each arrival info
-        // Make sure we build a list of all situations
-        List<ObaSituation> allSituations = SituationUtils.getAllSituations(response, null);
-
-        // Build a set of all IDs returned
+        // They do appear in the references and are referenced by each arrival; getAllSituations gathers them.
+        List<SituationReference> allSituations = ArrivalsFixtures.allSituations(env, null);
         HashSet<String> situationIds = new HashSet<>();
-        for (ObaSituation situation : allSituations) {
+        for (SituationReference situation : allSituations) {
             situationIds.add(situation.getId());
         }
-
-        // There are 7 route-specific alerts, and 0 stop-specific alert, so we should have 7 total
+        // 7 route-specific alerts + 0 stop-specific = 7 total.
         assertEquals(7, allSituations.size());
         assertEquals(7, situationIds.size());
-
-        // Make sure all IDs are contained in list
         assertTrue(situationIds.contains("MTS_38"));
         assertTrue(situationIds.contains("MTS_37"));
         assertTrue(situationIds.contains("MTS_28"));
@@ -689,104 +643,60 @@ public class UIUtilTest extends ObaTestCase {
         assertTrue(situationIds.contains("MTS_33"));
         assertTrue(situationIds.contains("MTS_3"));
 
-        // Make sure all objects exist in list
-        assertTrue(allSituations.contains(response.getSituation("MTS_38")));
-        assertTrue(allSituations.contains(response.getSituation("MTS_37")));
-        assertTrue(allSituations.contains(response.getSituation("MTS_28")));
-        assertTrue(allSituations.contains(response.getSituation("MTS_34")));
-        assertTrue(allSituations.contains(response.getSituation("MTS_11")));
-        assertTrue(allSituations.contains(response.getSituation("MTS_33")));
-        assertTrue(allSituations.contains(response.getSituation("MTS_3")));
-
         /**
          * Test route and stop alerts
          */
 
-        response = Resources.readAs(getTargetContext(),
-                Resources.getTestUri("arrivals_and_departures_for_stop_mts_13353_route_and_stop_alerts"),
-                ObaArrivalInfoResponse.class);
-        assertOK(response);
-        situations = response.getSituations();
-        assertNotNull(situations);
-        // We should see the one stop alert, but not the route alerts - see #700
-        assertEquals(1, situations.size());
+        env = ArrivalsFixtures.load(
+                getTargetContext(), "arrivals_and_departures_for_stop_mts_13353_route_and_stop_alerts");
+        // One stop alert in the entry; route alerts excluded - see #700.
+        assertEquals(1, ArrivalsFixtures.stopSituations(env).size());
 
-        // They do appear, however, in the references list and are referenced by each arrival info
-        // Make sure we build a list of all situations
-        allSituations = SituationUtils.getAllSituations(response, null);
-
-        // Build a set of all IDs returned
+        allSituations = ArrivalsFixtures.allSituations(env, null);
         situationIds = new HashSet<>();
-        for (ObaSituation situation : allSituations) {
+        for (SituationReference situation : allSituations) {
             situationIds.add(situation.getId());
         }
-
-        // There are 4 route-specific alerts, and 1 stop-specific alert, so we should have 5 total
+        // 4 route-specific alerts + 1 stop-specific = 5 total.
         assertEquals(5, allSituations.size());
         assertEquals(5, situationIds.size());
-
-        // Make sure all route alert IDs are contained in list
         assertTrue(situationIds.contains("MTS_32"));
         assertTrue(situationIds.contains("MTS_34"));
         assertTrue(situationIds.contains("MTS_14"));
         assertTrue(situationIds.contains("MTS_13"));
-
-        // Make sure stop alert ID is in list
+        // The one stop alert is included.
         assertTrue(situationIds.contains("MTS_9c943ee8-d566-4cd8-8a89-a2a535ebe4fe"));
-
-        // Make sure all route situation objects exist in list
-        assertTrue(allSituations.contains(response.getSituation("MTS_32")));
-        assertTrue(allSituations.contains(response.getSituation("MTS_34")));
-        assertTrue(allSituations.contains(response.getSituation("MTS_14")));
-        assertTrue(allSituations.contains(response.getSituation("MTS_13")));
-
-        // Make sure the stop situation object exist in list
-        assertTrue(allSituations.contains(response.getSituations().get(0)));
+        assertTrue(situationIds.contains(ArrivalsFixtures.stopSituations(env).get(0).getId()));
 
         /*
         Test filtering routes alerts
          */
-        response = Resources.readAs(getTargetContext(),
-                Resources.getTestUri("arrivals_and_departures_for_stop_mts_11671_filter_route_alerts"),
-                ObaArrivalInfoResponse.class);
-        assertOK(response);
+        env = ArrivalsFixtures.load(
+                getTargetContext(), "arrivals_and_departures_for_stop_mts_11671_filter_route_alerts");
 
         List<String> routeFilters = new ArrayList<>();
         routeFilters.add("MTS_1");
 
-        List<ObaSituation> filteredSituations = SituationUtils.getAllSituations(response, routeFilters);
+        List<SituationReference> filteredSituations = ArrivalsFixtures.allSituations(env, routeFilters);
 
         List<String> allIds = new ArrayList<>();
-        allSituations = SituationUtils.getAllSituations(response, null);
-        for (ObaSituation situation : allSituations) {
+        for (SituationReference situation : ArrivalsFixtures.allSituations(env, null)) {
             allIds.add(situation.getId());
         }
 
         List<String> filteredIds = new ArrayList<>();
-        for (ObaSituation situation : filteredSituations) {
+        for (SituationReference situation : filteredSituations) {
             filteredIds.add(situation.getId());
         }
 
-        // Should have two service alerts one for route 1 and one for route 11
+        // Two alerts (routes 1 and 11) unfiltered; only the route-1 alert after filtering to MTS_1.
         assertEquals(2, allIds.size());
-        assertEquals(2, allSituations.size());
-
-        // Should contain only the alert for route 1
         assertEquals(1, filteredIds.size());
         assertEquals(1, filteredSituations.size());
 
-        // Should contain route 1 situation ID
+        // The route-1 alert is kept; the route-11 alert is present unfiltered but filtered out.
         assertTrue(filteredIds.contains("MTS_RTA:11569670"));
-
-        // route 11 situation ID should be in all IDs but not filteredIds
         assertTrue(allIds.contains("MTS_RTA:11569666"));
         assertFalse(filteredIds.contains("MTS_RTA:11569666"));
-
-        // Make sure filtered situation object exists
-        assertTrue(filteredSituations.contains(response.getSituation("MTS_RTA:11569670")));
-
-        // Make sure filtered out situation object is in all situations but not in filtered situations
-        assertTrue(allSituations.contains(response.getSituation("MTS_RTA:11569666")));
-        assertFalse(filteredSituations.contains(response.getSituation("MTS_RTA:11569666")));
     }
 }

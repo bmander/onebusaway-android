@@ -20,9 +20,6 @@ package org.onebusaway.android.util
 import org.onebusaway.android.io.client.ArrivalsForStop
 import org.onebusaway.android.io.client.EntryWithReferences
 import org.onebusaway.android.io.client.SituationReference
-import org.onebusaway.android.io.elements.ObaArrivalInfo
-import org.onebusaway.android.io.elements.ObaSituation
-import org.onebusaway.android.io.request.ObaArrivalInfoResponse
 import java.util.concurrent.TimeUnit
 
 /**
@@ -80,35 +77,6 @@ object SituationUtils {
     }
 
     /**
-     * Legacy overload over [ObaArrivalInfoResponse]/[ObaSituation], kept for the still-legacy fetch
-     * paths (e.g. instrumented tests built on raw-response fixtures). Same logic as the modernized
-     * overload above.
-     */
-    @JvmStatic
-    fun getAllSituations(response: ObaArrivalInfoResponse?, filter: List<String>?): List<ObaSituation> {
-        val allSituations: MutableList<ObaSituation> = ArrayList()
-        if (response == null) {
-            return allSituations
-        }
-        allSituations.addAll(response.situations)
-        val allIds = allSituations.mapTo(HashSet()) { it.id }
-        val filterIds = filter.orEmpty().toHashSet()
-        val info: Array<ObaArrivalInfo> = response.arrivalInfo ?: return allSituations
-        for (i in info) {
-            val situationIds = i.situationIds ?: continue
-            if (filterIds.isEmpty() || filterIds.contains(i.routeId)) {
-                for (situationId in situationIds) {
-                    if (!allIds.contains(situationId)) {
-                        allIds.add(situationId)
-                        allSituations.add(response.getSituation(situationId))
-                    }
-                }
-            }
-        }
-        return allSituations
-    }
-
-    /**
      * Returns true if the provided currentTime falls within the situation's (i.e., alert's) active
      * windows or if the situation does not provide an active window, and false if the currentTime
      * falls outside of the situation's active windows
@@ -142,26 +110,6 @@ object SituationUtils {
             }
         }
         return isActiveWindowForSituation
-    }
-
-    /** Legacy overload over [ObaSituation], kept for the raw-response fetch paths. */
-    @JvmStatic
-    fun isActiveWindowForSituation(situation: ObaSituation, currentTime: Long): Boolean {
-        if (situation.activeWindows.isEmpty()) {
-            return true
-        }
-        var currentTimeConverted = TimeUnit.MILLISECONDS.toSeconds(currentTime)
-        for (activeWindow in situation.activeWindows) {
-            val from = activeWindow.from
-            val to = activeWindow.to
-            if (!isTimestampInSeconds(from)) {
-                currentTimeConverted = currentTime
-            }
-            if (from <= currentTimeConverted && (to == 0L || currentTimeConverted <= to)) {
-                return true
-            }
-        }
-        return false
     }
 
     /**

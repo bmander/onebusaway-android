@@ -20,9 +20,6 @@ import android.content.Context;
 import android.content.res.Resources;
 
 import org.onebusaway.android.R;
-import org.onebusaway.android.io.elements.ObaArrivalInfo;
-import org.onebusaway.android.ui.arrivals.ArrivalData;
-import org.onebusaway.android.ui.arrivals.ArrivalDataKt;
 import org.onebusaway.android.ui.arrivals.ArrivalInfo;
 
 import java.util.ArrayList;
@@ -36,23 +33,6 @@ public class ArrivalInfoUtils {
         public int compare(ArrivalInfo lhs, ArrivalInfo rhs) {
             return (int) (lhs.getEta() - rhs.getEta());
         }
-    }
-
-    /**
-     * Convenience converter for callers that hold a legacy {@link ObaArrivalInfo} array (the
-     * still-legacy fetch paths, e.g. instrumented tests): adapts each to {@link ArrivalData} and
-     * delegates to the modernized {@code convertArrivals}, which filters, drops past arrivals per
-     * the user pref, and sorts by ETA.
-     */
-    public static ArrayList<ArrivalInfo> convertObaArrivalInfo(Context context,
-            ObaArrivalInfo[] arrivalInfo, ArrayList<String> filter, long ms,
-            boolean includeArrivalDepartureInStatusLabel) {
-        List<ArrivalData> data = new ArrayList<>(arrivalInfo.length);
-        for (ObaArrivalInfo arrival : arrivalInfo) {
-            data.add(ArrivalDataKt.asArrivalData(arrival));
-        }
-        return new ArrayList<>(ArrivalDataKt.convertArrivals(
-                context, data, filter, ms, includeArrivalDepartureInStatusLabel));
     }
 
     /**

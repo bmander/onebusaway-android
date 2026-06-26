@@ -53,7 +53,6 @@ import org.onebusaway.android.io.elements.Occupancy
 import org.onebusaway.android.io.elements.ObaTripStatus
 import org.onebusaway.android.extrapolation.data.RouteTrips
 import kotlinx.coroutines.delay
-import org.onebusaway.android.map.render.VehicleBitmaps
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.getRouteDisplayName
@@ -73,7 +72,7 @@ fun VehicleInfoWindow(status: ObaTripStatus, response: RouteTrips) {
     // guard the unreachable null instead of dereferencing (the legacy getTrip/getRoute would NPE).
     val trip = response.trip(status.activeTripId) ?: return
     val route = response.route(trip.routeId) ?: return
-    val realtime = VehicleBitmaps.isLocationRealtime(status)
+    val realtime = status.isLocationRealtime
     val deviationMin = TimeUnit.SECONDS.toMinutes(status.scheduleDeviation)
 
     VehicleInfoWindowContent(

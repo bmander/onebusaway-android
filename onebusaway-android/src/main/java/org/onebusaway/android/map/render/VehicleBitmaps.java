@@ -110,15 +110,6 @@ public final class VehicleBitmaps {
         return MathUtils.getHalfWindIndex((float) direction, NUM_DIRECTIONS - 1);
     }
 
-    /** True if there is real-time location info for the status (last-known location + predicted). */
-    public static boolean isLocationRealtime(ObaTripStatus status) {
-        boolean isRealtime = status.getLastKnownLocation() != null;
-        if (!status.isPredicted()) {
-            isRealtime = false;
-        }
-        return isRealtime;
-    }
-
     private static Bitmap getBitmap(Context context, int vehicleType, int colorResource, int halfWind) {
         int color = ContextCompat.getColor(context, colorResource);
 

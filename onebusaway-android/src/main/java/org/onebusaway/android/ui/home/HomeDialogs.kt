@@ -30,7 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import org.onebusaway.android.R
-import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.region.Region
 
 /**
  * Which shared Home dialog is showing. The help / what's-new / legend dialogs are their own feature
@@ -40,12 +40,12 @@ sealed interface HomeDialog {
     object None : HomeDialog
 
     /** The forced-choice region picker (old ObaRegionsTask.haveUserChooseRegion), keyed by [regions]. */
-    data class ChooseRegion(val regions: List<ObaRegion>) : HomeDialog
+    data class ChooseRegion(val regions: List<Region>) : HomeDialog
 }
 
 /** Renders the shared Home dialogs, keyed by [HomeUiState.dialog] — just the region picker. */
 @Composable
-fun HomeDialogs(dialog: HomeDialog, onRegionChosen: (ObaRegion) -> Unit) {
+fun HomeDialogs(dialog: HomeDialog, onRegionChosen: (Region) -> Unit) {
     when (dialog) {
         is HomeDialog.ChooseRegion -> RegionChooserDialog(dialog.regions, onRegionChosen)
         HomeDialog.None -> Unit
@@ -58,7 +58,7 @@ fun HomeDialogs(dialog: HomeDialog, onRegionChosen: (ObaRegion) -> Unit) {
  * is no cancel, and back/scrim do nothing, since the app can't function without a region.
  */
 @Composable
-private fun RegionChooserDialog(regions: List<ObaRegion>, onRegionChosen: (ObaRegion) -> Unit) {
+private fun RegionChooserDialog(regions: List<Region>, onRegionChosen: (Region) -> Unit) {
     AlertDialog(
         onDismissRequest = { },
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),

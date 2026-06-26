@@ -20,7 +20,7 @@ import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
-import org.onebusaway.android.io.elements.ObaRegion;
+import org.onebusaway.android.region.Region;
 
 import androidx.test.runner.AndroidJUnit4;
 
@@ -34,7 +34,7 @@ import static androidx.test.InstrumentationRegistry.getTargetContext;
 @RunWith(AndroidJUnit4.class)
 public abstract class ObaTestCase {
 
-    private ObaRegion mOldRegion;
+    private Region mOldRegion;
 
     private String mOldCustomApiUrl;
 

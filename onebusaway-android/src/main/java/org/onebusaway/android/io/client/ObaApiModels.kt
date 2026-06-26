@@ -401,7 +401,7 @@ data class ScheduleStopTime(
 
 /**
  * Wire model for one OneBusAway region from the regions directory (`regions-vN.json`). Field names
- * mirror the legacy `ObaRegionElement` (the persistence/domain type this maps to via
+ * mirror the legacy `Region` (the persistence/domain type this maps to via
  * `RegionDto.toObaRegion()`); `ignoreUnknownKeys` tolerates fields no consumer reads.
  */
 @Serializable

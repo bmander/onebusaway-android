@@ -22,7 +22,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import org.onebusaway.android.R
-import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.region.Region
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.location.LocationRepository
@@ -104,8 +104,8 @@ class HomeViewModel @Inject constructor(
 
     // The region whose fare-payment warning dialog is showing (PAY_FARE), or null when none — dialog UI
     // state the host's PaymentWarningDialog observes; set by [showPaymentWarning], cleared by [dismissPaymentWarning].
-    private val _paymentWarning = MutableStateFlow<ObaRegion?>(null)
-    val paymentWarning: StateFlow<ObaRegion?> = _paymentWarning.asStateFlow()
+    private val _paymentWarning = MutableStateFlow<Region?>(null)
+    val paymentWarning: StateFlow<Region?> = _paymentWarning.asStateFlow()
 
     // A NavHost route staged from a non-composable entry point (an incoming intent, or the nav-drawer /
     // search / recent-stops actions) for the host's DeepLinkEffect to navigate to once the NavHost is
@@ -167,7 +167,7 @@ class HomeViewModel @Inject constructor(
 
     /** PAY_FARE needs a fare-payment warning shown before launching: record the [region] the dialog
      *  should warn about (the host's PaymentWarningDialog observes [paymentWarning]). */
-    fun showPaymentWarning(region: ObaRegion) {
+    fun showPaymentWarning(region: Region) {
         _paymentWarning.value = region
     }
 
@@ -379,7 +379,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /** The user picked a region in the forced-choice dialog (old haveUserChooseRegion onClick). */
-    fun onRegionChosen(region: ObaRegion) {
+    fun onRegionChosen(region: Region) {
         viewModelScope.launch {
             regionRepo.choose(region)
             _uiState.update { it.copy(dialog = HomeDialog.None) }

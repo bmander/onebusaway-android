@@ -27,7 +27,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.R
-import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.region.Region
 import org.onebusaway.android.io.elements.ObaStopElement
 import org.onebusaway.android.location.FakeLocationRepository
 import org.onebusaway.android.region.FakeRegionRepository

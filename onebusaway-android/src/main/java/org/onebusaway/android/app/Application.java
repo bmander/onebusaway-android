@@ -39,7 +39,7 @@ import org.onebusaway.android.R;
 import org.onebusaway.android.donations.DonationsManager;
 import org.onebusaway.android.io.ObaAnalytics;
 import org.onebusaway.android.io.ObaApi;
-import org.onebusaway.android.io.elements.ObaRegion;
+import org.onebusaway.android.region.Region;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.app.di.LocationEntryPoint;
 import org.onebusaway.android.app.di.RegionEntryPoint;
@@ -225,7 +225,7 @@ public class Application extends android.app.Application {
     //
     // Helper to get/set the regions
     //
-    public synchronized ObaRegion getCurrentRegion() {
+    public synchronized Region getCurrentRegion() {
         return ObaApi.getDefaultContext().getRegion();
     }
 
@@ -235,11 +235,11 @@ public class Application extends android.app.Application {
      * as the instrumented-test seam (the io/* request tests that pin a known region synchronously). It
      * delegates the canonical region write to {@code RegionRepository.applyRegion}.
      */
-    public synchronized void setCurrentRegion(ObaRegion region) {
+    public synchronized void setCurrentRegion(Region region) {
         setCurrentRegion(region, true);
     }
 
-    public synchronized void setCurrentRegion(ObaRegion region, boolean regionChanged) {
+    public synchronized void setCurrentRegion(Region region, boolean regionChanged) {
         // The canonical region write lives in RegionRepository as of A7; the region-derived subsystems
         // (Plausible, Umami, Open311) re-init reactively via RegionSubsystems observing the published flow.
         RegionEntryPoint.get(this).applyRegion(region, regionChanged);
@@ -251,7 +251,7 @@ public class Application extends android.app.Application {
      * {@link org.onebusaway.android.region.RegionSubsystems}, which observes the region flow (A7), rather
      * than poked imperatively by a region write transaction.
      */
-    public void onRegionChanged(ObaRegion region) {
+    public void onRegionChanged(Region region) {
         buildPlausibleInstance(region);
         buildUmamiInstance(region);
         initOpen311(region);
@@ -273,7 +273,7 @@ public class Application extends android.app.Application {
      * Include the domain and the plausible server url for the current region
      * @param region
      */
-    private void buildPlausibleInstance(ObaRegion region) {
+    private void buildPlausibleInstance(Region region) {
         mPlausible = null;
         if (region == null || region.getObaBaseUrl() == null || region.getPlausibleAnalyticsServerUrl() == null) return;
         String domain;
@@ -292,7 +292,7 @@ public class Application extends android.app.Application {
         return mUmami;
     }
 
-    private void buildUmamiInstance(ObaRegion region) {
+    private void buildUmamiInstance(Region region) {
         mUmami = null;
         if (region == null
                 || region.getObaBaseUrl() == null
@@ -489,7 +489,7 @@ public class Application extends android.app.Application {
             return;
         }
 
-        ObaRegion region = ObaContract.Regions.get(this, (int) id);
+        Region region = ObaContract.Regions.get(this, (int) id);
         if (region == null) {
             Log.d(TAG, "Regions preference is null, returning...");
             return;
@@ -499,7 +499,7 @@ public class Application extends android.app.Application {
         ObaApi.getDefaultContext().setRegion(region);
     }
 
-    private void initOpen311(ObaRegion region) {
+    private void initOpen311(Region region) {
         if (BuildConfig.DEBUG) {
             Open311Manager.getSettings().setDebugMode(true);
             Open311Manager.getSettings().setDryRun(true);
@@ -512,7 +512,7 @@ public class Application extends android.app.Application {
 
         // Read the open311 preferences from the region and set
         if (region != null && region.getOpen311Servers() != null) {
-            for (ObaRegion.Open311Server open311Server : region.getOpen311Servers()) {
+            for (Region.Open311Server open311Server : region.getOpen311Servers()) {
                 String jurisdictionId = open311Server.getJuridisctionId();
 
                 Open311Option option = new Open311Option(open311Server.getBaseUrl(),

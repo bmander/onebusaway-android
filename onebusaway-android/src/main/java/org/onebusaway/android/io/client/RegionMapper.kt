@@ -15,24 +15,23 @@
  */
 package org.onebusaway.android.io.client
 
-import org.onebusaway.android.io.elements.ObaRegion
-import org.onebusaway.android.io.elements.ObaRegionElement
+import org.onebusaway.android.region.Region
 
 /**
- * Maps a wire [RegionDto] to the legacy [ObaRegionElement] (the persistence/domain type the rest of
- * the app — `RegionUtils.saveToProvider`, `RegionRepository`, the picker — consumes as [ObaRegion]).
+ * Maps a wire [RegionDto] to the legacy [Region] (the persistence/domain type the rest of
+ * the app — `RegionUtils.saveToProvider`, `RegionRepository`, the picker — consumes as [Region]).
  * Pure and JVM-unit-tested; constructing the existing element keeps the region migration confined to
- * the fetch/decode boundary without touching any [ObaRegion] consumer.
+ * the fetch/decode boundary without touching any [Region] consumer.
  */
-fun RegionDto.toObaRegion(): ObaRegionElement = ObaRegionElement(
+fun RegionDto.toObaRegion(): Region = Region(
     id,
     regionName,
     active,
     obaBaseUrl,
     siriBaseUrl,
-    bounds.map { ObaRegionElement.Bounds(it.lat, it.lon, it.latSpan, it.lonSpan) }
+    bounds.map { Region.Bounds(it.lat, it.lon, it.latSpan, it.lonSpan) }
         .toTypedArray(),
-    open311Servers.map { ObaRegionElement.Open311Server(it.jurisdictionId, it.apiKey, it.baseUrl) }
+    open311Servers.map { Region.Open311Server(it.jurisdictionId, it.apiKey, it.baseUrl) }
         .toTypedArray(),
     language,
     contactEmail,
@@ -55,5 +54,5 @@ fun RegionDto.toObaRegion(): ObaRegionElement = ObaRegionElement(
     plausibleAnalyticsServerUrl,
     // Match getRegionsFromProvider: only build a config when something is actually set.
     umamiAnalytics?.takeIf { it.url != null || it.id != null }
-        ?.let { ObaRegionElement.UmamiAnalyticsConfig(it.url, it.id) },
+        ?.let { Region.UmamiAnalyticsConfig(it.url, it.id) },
 )

@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
 import org.onebusaway.android.io.ObaAnalytics
-import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.region.Region
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
@@ -84,7 +84,7 @@ class SettingsViewModel @Inject constructor(
     private val _effects = Channel<SettingsEffect>(Channel.BUFFERED)
     val effects: Flow<SettingsEffect> = _effects.receiveAsFlow()
 
-    private fun compute(region: ObaRegion?): SettingsUiState = buildSettingsUiState(
+    private fun compute(region: Region?): SettingsUiState = buildSettingsUiState(
         prefs = readSnapshot(),
         region = region?.let { RegionSummaryInfo(it.name.orEmpty(), !it.otpBaseUrl.isNullOrEmpty()) },
         env = env,

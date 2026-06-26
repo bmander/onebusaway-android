@@ -18,7 +18,7 @@
 package org.onebusaway.android.io.test;
 
 import org.junit.Test;
-import org.onebusaway.android.io.elements.ObaRegion;
+import org.onebusaway.android.region.Region;
 import org.onebusaway.android.provider.ObaContract;
 
 import android.content.ContentResolver;
@@ -54,7 +54,7 @@ public class RegionsTest extends ObaTestCase {
         values.put(ObaContract.Regions.UMAMI_ANALYTICS_ID, "uuid-persist-1");
         ObaContract.Regions.insertOrUpdate(getTargetContext(), id, values);
 
-        ObaRegion region = ObaContract.Regions.get(cr, id);
+        Region region = ObaContract.Regions.get(cr, id);
         assertNotNull(region);
         assertEquals("https://umami.example.com", region.getUmamiAnalyticsUrl());
         assertEquals("uuid-persist-1", region.getUmamiAnalyticsId());

@@ -17,7 +17,7 @@ package org.onebusaway.android.io;
 
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.di.PreferencesEntryPoint;
-import org.onebusaway.android.io.elements.ObaRegion;
+import org.onebusaway.android.region.Region;
 
 import android.content.Context;
 import android.net.Uri;
@@ -37,7 +37,7 @@ public class ObaContext {
 
     private String mAppUid = null;
 
-    private ObaRegion mRegion;
+    private Region mRegion;
 
     public ObaContext() {
     }
@@ -64,11 +64,11 @@ public class ObaContext {
         return mApiKey;
     }
 
-    public void setRegion(ObaRegion region) {
+    public void setRegion(Region region) {
         mRegion = region;
     }
 
-    public ObaRegion getRegion() {
+    public Region getRegion() {
         return mRegion;
     }
 

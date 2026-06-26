@@ -21,12 +21,12 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.onebusaway.android.R
 import org.onebusaway.android.app.di.NetworkEntryPoint
-import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.region.Region
 
 /**
  * Java-callable bridge over the modernized [RegionsWebService] for `RegionUtils` (a static util that
  * can't be injected). Both helpers run the fetch/decode and map each [RegionDto] to the legacy
- * [ObaRegion] the rest of the app consumes, returning an empty list on any failure so
+ * [Region] the rest of the app consumes, returning an empty list on any failure so
  * `RegionUtils.getRegions`' existing source-fallback chain (server -> provider -> bundled) is
  * preserved unchanged. Callers are already on a background thread, so blocking here is expected.
  */
@@ -38,7 +38,7 @@ object RegionsClient {
 
     /** Fetches the live regions directory from the fixed regions host; empty list on failure. */
     @JvmStatic
-    fun fetchRegionsFromServer(context: Context): List<ObaRegion> = runCatching {
+    fun fetchRegionsFromServer(context: Context): List<Region> = runCatching {
         val url = context.getString(R.string.regions_api_url)
         val service = NetworkEntryPoint.getRegions(context)
         runBlocking { service.getRegions(url) }.requireData().list.map { it.toObaRegion() }
@@ -49,7 +49,7 @@ object RegionsClient {
 
     /** Parses the bundled offline fail-safe regions file (R.raw.regions_v3); empty list on failure. */
     @JvmStatic
-    fun parseBundledRegions(context: Context): List<ObaRegion> = runCatching {
+    fun parseBundledRegions(context: Context): List<Region> = runCatching {
         val body = context.resources.openRawResource(R.raw.regions_v3)
             .bufferedReader().use { it.readText() }
         val envelope = json.decodeFromString<ObaEnvelope<ListWithReferences<RegionDto>>>(body)

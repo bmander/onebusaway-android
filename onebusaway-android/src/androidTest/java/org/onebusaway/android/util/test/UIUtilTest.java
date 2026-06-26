@@ -28,7 +28,7 @@ import org.onebusaway.android.io.client.ArrivalsForStop;
 import org.onebusaway.android.io.client.EntryWithReferences;
 import org.onebusaway.android.io.client.ObaEnvelope;
 import org.onebusaway.android.io.client.SituationReference;
-import org.onebusaway.android.io.elements.ObaRegion;
+import org.onebusaway.android.region.Region;
 import org.onebusaway.android.io.test.ObaTestCase;
 import org.onebusaway.android.mock.ArrivalsFixtures;
 import org.onebusaway.android.mock.MockRegion;
@@ -227,7 +227,7 @@ public class UIUtilTest extends ObaTestCase {
     @Test
     public void testArrivalTimeIndexSearch() throws Exception {
         // Load a captured arrivals fixture and project it via the production DTO path
-        ObaRegion tampa = MockRegion.getTampa(getTargetContext());
+        Region tampa = MockRegion.getTampa(getTargetContext());
         assertNotNull(tampa);
         Application.get().setCurrentRegion(tampa);
 
@@ -345,7 +345,7 @@ public class UIUtilTest extends ObaTestCase {
     @Test
     public void testArrivalInfoLabels() throws Exception {
         // Load a captured arrivals fixture and project it via the production DTO path
-        ObaRegion tampa = MockRegion.getTampa(getTargetContext());
+        Region tampa = MockRegion.getTampa(getTargetContext());
         assertNotNull(tampa);
         Application.get().setCurrentRegion(tampa);
 

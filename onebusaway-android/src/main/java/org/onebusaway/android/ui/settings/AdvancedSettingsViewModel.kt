@@ -31,7 +31,7 @@ import kotlinx.coroutines.channels.Channel
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.region.Region
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.ApiUrlValidator
 import org.onebusaway.android.region.RegionRepository
@@ -74,7 +74,7 @@ class AdvancedSettingsViewModel @Inject constructor(
     private val _effects = Channel<AdvancedSettingsEffect>(Channel.BUFFERED)
     val effects: Flow<AdvancedSettingsEffect> = _effects.receiveAsFlow()
 
-    private fun compute(region: ObaRegion?): AdvancedSettingsUiState = buildAdvancedSettingsUiState(
+    private fun compute(region: Region?): AdvancedSettingsUiState = buildAdvancedSettingsUiState(
         prefs = AdvancedPrefSnapshot(
             experimentalRegionsEnabled = prefs.getBoolean(R.string.preference_key_experimental_regions, false),
             displayTestAlerts = prefs.getBoolean(R.string.preferences_display_test_alerts, false),

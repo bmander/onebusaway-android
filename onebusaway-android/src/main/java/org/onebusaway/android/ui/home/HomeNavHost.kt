@@ -45,7 +45,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
-import org.onebusaway.android.io.elements.ObaRegion
+import org.onebusaway.android.region.Region
 import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.report.ui.reportGraph
 import org.onebusaway.android.ui.HomeActivity
@@ -260,7 +260,7 @@ internal fun SettingsRehomeEffect(navController: NavHostController) {
  */
 @Composable
 internal fun PaymentWarningDialog(
-    paymentWarning: StateFlow<ObaRegion?>,
+    paymentWarning: StateFlow<Region?>,
     onDismiss: () -> Unit,
 ) {
     val activity = LocalContext.current.findActivity()

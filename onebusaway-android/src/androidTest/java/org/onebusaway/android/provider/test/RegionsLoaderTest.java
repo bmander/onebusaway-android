@@ -16,9 +16,11 @@
 package org.onebusaway.android.provider.test;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.onebusaway.android.io.elements.ObaRegion;
-import org.onebusaway.android.io.test.ObaLoaderTestCase;
 import org.onebusaway.android.util.RegionUtils;
+
+import androidx.test.runner.AndroidJUnit4;
 
 import java.util.ArrayList;
 
@@ -28,9 +30,11 @@ import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertNull;
 
 /**
- * Tests loading regions
+ * Tests loading regions from the bundled resources and round-tripping them through the
+ * ContentProvider (no network — exercises {@link RegionUtils} + the provider directly).
  */
-public class RegionsLoaderTest extends ObaLoaderTestCase {
+@RunWith(AndroidJUnit4.class)
+public class RegionsLoaderTest {
 
     @Test
     public void testLoader() {

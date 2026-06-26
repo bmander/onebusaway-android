@@ -24,9 +24,8 @@ import kotlinx.serialization.Serializable
  * [code] is the OBA status code (see `ObaApi.OBA_*`), **not** the HTTP status. [T] is the shape of
  * the `data` payload for a given endpoint (e.g. [EntryWithReferences]).
  *
- * This is the modernized, kotlinx.serialization-backed replacement for the hand-rolled Jackson
- * `ObaResponse` hierarchy; new endpoints model their payloads as Kotlin data classes and migrate
- * to it one at a time.
+ * This is the kotlinx.serialization-backed envelope that replaced the former hand-rolled Jackson
+ * response hierarchy; every endpoint models its payload as a Kotlin data class.
  */
 @Serializable
 data class ObaEnvelope<T>(

@@ -19,17 +19,10 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 import org.junit.Test;
 import org.onebusaway.android.io.JacksonSerializer;
-import org.onebusaway.android.io.ObaApi;
-import org.onebusaway.android.io.request.ObaResponse;
-import org.onebusaway.android.mock.Resources;
 
 import android.util.Log;
 
-import java.io.Reader;
-
-import static androidx.test.InstrumentationRegistry.getTargetContext;
 import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertNotNull;
 
 /**
  * Tests use of the Jackson library for parsing JSON related to OBA
@@ -50,14 +43,6 @@ public class JacksonTest extends ObaTestCase {
 
         test = mSerializer.toJson("a\\b\\c");
         assertEquals("\"a\\\\b\\\\c\"", test);
-    }
-
-    @Test
-    public void testError() {
-        mSerializer = (JacksonSerializer) JacksonSerializer.getInstance();
-        ObaResponse response = mSerializer.createFromError(ObaResponse.class, mCode, mErrText);
-        assertEquals(mCode, response.getCode());
-        assertEquals(mErrText, response.getText());
     }
 
     @Test

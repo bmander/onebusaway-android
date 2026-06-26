@@ -27,11 +27,9 @@ import org.onebusaway.android.io.ObaApi
  * shared query parameters.
  *
  * The Retrofit client is built with a throwaway base URL; only the request's path and any
- * endpoint-specific query parameters survive. This interceptor reuses the legacy
- * [org.onebusaway.android.io.ObaContext] (the same instance `RegionRepository` keeps updated) to
- * resolve the region / custom API URL / api key, so the new client and the hand-rolled
- * [org.onebusaway.android.io.request.RequestBase] resolve endpoints identically — one source of
- * truth, no drift while both clients coexist.
+ * endpoint-specific query parameters survive. This interceptor reuses [org.onebusaway.android.io.ObaContext]
+ * (the same instance `RegionRepository` keeps updated) to resolve the region / custom API URL /
+ * api key and append the version + app identifiers — one source of truth for endpoint resolution.
  */
 class ObaUrlInterceptor(private val context: Context) : Interceptor {
 

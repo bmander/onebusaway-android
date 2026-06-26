@@ -37,8 +37,6 @@ public class ObaContext {
 
     private String mAppUid = null;
 
-    private ObaConnectionFactory mConnectionFactory = ObaDefaultConnectionFactory.getInstance();
-
     private ObaRegion mRegion;
 
     public ObaContext() {
@@ -72,20 +70,6 @@ public class ObaContext {
 
     public ObaRegion getRegion() {
         return mRegion;
-    }
-
-    /**
-     * Connection factory
-     *
-     */
-    public ObaConnectionFactory setConnectionFactory(ObaConnectionFactory factory) {
-        ObaConnectionFactory prev = mConnectionFactory;
-        mConnectionFactory = factory;
-        return prev;
-    }
-
-    public ObaConnectionFactory getConnectionFactory() {
-        return mConnectionFactory;
     }
 
     public void setBaseUrl(Context context, Uri.Builder builder) {
@@ -131,8 +115,7 @@ public class ObaContext {
         Uri baseUrl = null;
         if (!TextUtils.isEmpty(serverName)) {
             // TODO - Right now the below log statement is needed for OBA custom APIs, but not OTP
-            // custom APIs (those are already logged in setBaseOtpUrl.  This should be cleaned up,
-            // and all OTP requests should extend RequestBase
+            // custom APIs (those are already logged in setBaseOtpUrl). This should be cleaned up.
             Log.d(TAG, "Using API URL '" + serverName + "'.");
             try {
                 // URI.parse() doesn't tell us if the scheme is missing, so use URL() instead (#126)
@@ -167,7 +150,6 @@ public class ObaContext {
         ObaContext result = new ObaContext();
         result.setApiKey(mApiKey);
         result.setAppInfo(mAppVer, mAppUid);
-        result.setConnectionFactory(mConnectionFactory);
         return result;
     }
 }

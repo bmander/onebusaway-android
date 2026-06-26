@@ -20,35 +20,32 @@ import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
-import org.onebusaway.android.io.ObaApi;
-import org.onebusaway.android.io.request.ObaResponse;
-import org.onebusaway.android.mock.ObaMock;
+import org.onebusaway.android.io.elements.ObaRegion;
 
 import androidx.test.runner.AndroidJUnit4;
 
 import static androidx.test.InstrumentationRegistry.getTargetContext;
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertNotNull;
 
 /**
- * Base test class extended for most OBA unit tests
+ * Base test class extended for most OBA unit tests. Sets the OBA theme (needed for {@code attr/?}
+ * elements, see #279) and defaults the API region to Puget Sound for backwards compatibility with
+ * older tests, saving and restoring the previous region / custom API URL so tests stay isolated.
  */
 @RunWith(AndroidJUnit4.class)
 public abstract class ObaTestCase {
 
-    private ObaMock mMock;
+    private ObaRegion mOldRegion;
 
-    public static void assertOK(ObaResponse response) {
-        assertNotNull(response);
-        assertEquals(ObaApi.OBA_OK, response.getCode());
-    }
+    private String mOldCustomApiUrl;
 
     @Before
     public void before() {
         // The theme needs to be set when using "attr/?" elements - see #279
         getTargetContext().setTheme(R.style.Theme_OneBusAway);
 
-        mMock = new ObaMock(getTargetContext());
+        // Save the current region / custom API URL so the override below can be undone in after().
+        mOldRegion = Application.get().getCurrentRegion();
+        mOldCustomApiUrl = mOldRegion == null ? Application.get().getCustomApiUrl() : null;
 
         /*
          * Assume Puget Sound API, mainly for backwards compatibility with older tests
@@ -60,6 +57,13 @@ public abstract class ObaTestCase {
 
     @After
     public void after() {
-        mMock.finish();
+        if (mOldRegion != null) {
+            Application.get().setCurrentRegion(mOldRegion);
+        } else if (mOldCustomApiUrl != null) {
+            Application.get().setCustomApiUrl(mOldCustomApiUrl);
+        } else {
+            Application.get().setCustomApiUrl(null);
+            Application.get().setCurrentRegion(null);
+        }
     }
 }

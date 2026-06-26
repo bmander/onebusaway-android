@@ -27,6 +27,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.onebusaway.android.BuildConfig
+import org.onebusaway.android.io.client.BikeWebService
 import org.onebusaway.android.io.client.ObaUrlInterceptor
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.RegionsWebService
@@ -95,6 +96,15 @@ object NetworkModule {
     @Singleton
     fun provideSurveyWebService(json: Json): SurveyWebService =
         plainRetrofit(json).create(SurveyWebService::class.java)
+
+    /**
+     * The bike-rental client. Targets an OpenTripPlanner host (the region's `otpBaseUrl`) via `@Url`,
+     * so like regions/surveys it uses a plain client without [ObaUrlInterceptor].
+     */
+    @Provides
+    @Singleton
+    fun provideBikeWebService(json: Json): BikeWebService =
+        plainRetrofit(json).create(BikeWebService::class.java)
 
     /**
      * A Retrofit built on a plain OkHttp client (debug logging only, no [ObaUrlInterceptor]) for

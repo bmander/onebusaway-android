@@ -15,13 +15,13 @@
  */
 package org.onebusaway.android.map.bike
 
-import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import android.location.Location
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.onebusaway.android.io.request.bike.OtpBikeStationRequest
+import org.onebusaway.android.R
+import org.onebusaway.android.io.client.BikeWebService
+import org.onebusaway.android.io.client.toBikeRentalStations
+import org.onebusaway.android.preferences.PreferencesRepository
+import org.onebusaway.android.region.RegionRepository
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 /**
@@ -35,13 +35,32 @@ interface BikeStationsRepository {
             Result<List<BikeRentalStation>>
 }
 
-class DefaultBikeStationsRepository @Inject constructor(@ApplicationContext private val context: Context) : BikeStationsRepository {
+class DefaultBikeStationsRepository @Inject constructor(
+    private val bikeService: BikeWebService,
+    private val regionRepository: RegionRepository,
+    private val prefs: PreferencesRepository,
+) : BikeStationsRepository {
 
     override suspend fun getStations(southWest: Location, northEast: Location):
-            Result<List<BikeRentalStation>> = withContext(Dispatchers.IO) {
-        runCatching {
-            OtpBikeStationRequest.newRequest(context, southWest, northEast).call().stations
-        }
+            Result<List<BikeRentalStation>> = runCatching {
+        val url = bikeStationsUrl(southWest, northEast)
+            ?: error("No OTP base URL for the current region")
+        bikeService.getBikeStations(url).toBikeRentalStations()
+    }
+
+    /**
+     * Builds the OTP bike-rental URL for the viewport: the custom OTP url (advanced setting) or the
+     * region's `otpBaseUrl`, then `routers/default/bike_rental` with the bbox corners in OTP's
+     * lowerLeft/upperRight terms. Null when no OTP base URL is configured.
+     */
+    private fun bikeStationsUrl(southWest: Location, northEast: Location): String? {
+        val custom = prefs.getString(R.string.preference_key_otp_api_url, null)
+        val base = custom?.takeIf { it.isNotEmpty() }
+            ?: regionRepository.region.value?.otpBaseUrl?.takeIf { it.isNotEmpty() }
+            ?: return null
+        return base.trimEnd('/') + "/routers/default/bike_rental" +
+            "?lowerLeft=${southWest.latitude},${southWest.longitude}" +
+            "&upperRight=${northEast.latitude},${northEast.longitude}"
     }
 }
 

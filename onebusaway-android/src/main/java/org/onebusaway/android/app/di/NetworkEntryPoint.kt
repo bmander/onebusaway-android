@@ -22,6 +22,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.RegionsWebService
+import org.onebusaway.android.io.client.ReminderWebService
 
 /**
  * A Hilt [EntryPoint] that lets code which can't be constructor- or field-injected reach the
@@ -46,6 +47,8 @@ interface NetworkEntryPoint {
 
     fun regionsWebService(): RegionsWebService
 
+    fun reminderWebService(): ReminderWebService
+
     companion object {
         /** Resolves the shared [ObaWebService] from any [context] (its application is used). */
         @JvmStatic
@@ -58,5 +61,11 @@ interface NetworkEntryPoint {
         fun getRegions(context: Context): RegionsWebService =
             EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
                 .regionsWebService()
+
+        /** Resolves the shared [ReminderWebService] from any [context] (its application is used). */
+        @JvmStatic
+        fun getReminder(context: Context): ReminderWebService =
+            EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
+                .reminderWebService()
     }
 }

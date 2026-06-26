@@ -31,6 +31,7 @@ import org.onebusaway.android.io.client.BikeWebService
 import org.onebusaway.android.io.client.ObaUrlInterceptor
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.RegionsWebService
+import org.onebusaway.android.io.client.ReminderWebService
 import org.onebusaway.android.io.client.SurveyWebService
 import org.onebusaway.android.io.client.WeatherWebService
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -115,6 +116,15 @@ object NetworkModule {
     @Singleton
     fun provideWeatherWebService(json: Json): WeatherWebService =
         plainRetrofit(json).create(WeatherWebService::class.java)
+
+    /**
+     * The arrivals-reminders client. Targets the region's sidecar host via `@Url`, so like surveys
+     * it uses a plain client without [ObaUrlInterceptor].
+     */
+    @Provides
+    @Singleton
+    fun provideReminderWebService(json: Json): ReminderWebService =
+        plainRetrofit(json).create(ReminderWebService::class.java)
 
     /**
      * A Retrofit built on a plain OkHttp client (debug logging only, no [ObaUrlInterceptor]) for

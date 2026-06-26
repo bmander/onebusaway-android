@@ -15,8 +15,6 @@
  */
 package org.onebusaway.android.io.elements;
 
-import org.onebusaway.android.io.ObaApi;
-
 public final class ObaStopGroup {
 
     public static final ObaStopGroup EMPTY_OBJECT = new ObaStopGroup();
@@ -103,10 +101,5 @@ public final class ObaStopGroup {
      */
     public ObaShape[] getShapes() {
         return polylines;
-    }
-
-    @Override
-    public String toString() {
-        return ObaApi.getSerializer(ObaStopGroup.class).serialize(this);
     }
 }

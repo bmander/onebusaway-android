@@ -15,8 +15,6 @@
  */
 package org.onebusaway.android.io;
 
-import java.io.Reader;
-
 public final class ObaApi {
 
     //private static final String TAG = "ObaApi";
@@ -49,20 +47,5 @@ public final class ObaApi {
 
     public static ObaContext getDefaultContext() {
         return mDefaultContext;
-    }
-
-    public interface SerializationHandler {
-
-        <T> T deserialize(Reader reader, Class<T> cls);
-
-        <T> T deserializeFromResponse(String response, Class<T> cls);
-
-        String serialize(Object obj);
-
-        <T> T createFromError(Class<T> cls, int code, String error);
-    }
-
-    public static <T> SerializationHandler getSerializer(Class<T> cls) {
-        return JacksonSerializer.getInstance();
     }
 }

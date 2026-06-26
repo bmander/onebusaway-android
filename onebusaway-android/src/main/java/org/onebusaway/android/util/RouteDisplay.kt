@@ -17,7 +17,6 @@
 
 package org.onebusaway.android.util
 
-import org.onebusaway.android.io.elements.ObaArrivalInfo
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.util.comparators.AlphanumComparator
 
@@ -56,10 +55,6 @@ fun getRouteDisplayName(routeShortName: String?, routeLongName: String?): String
 
 fun getRouteDisplayName(route: ObaRoute): String {
     return getRouteDisplayName(route.shortName, route.longName)
-}
-
-fun getRouteDisplayName(arrivalInfo: ObaArrivalInfo): String {
-    return getRouteDisplayName(arrivalInfo.shortName, arrivalInfo.routeLongName)
 }
 
 fun getRouteDescription(route: ObaRoute): String? =

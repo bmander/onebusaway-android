@@ -15,8 +15,6 @@
  */
 package org.onebusaway.android.io.elements;
 
-import org.onebusaway.android.io.ObaApi;
-
 
 public final class ObaStopGrouping {
 
@@ -66,10 +64,5 @@ public final class ObaStopGrouping {
      */
     public ObaStopGroup[] getStopGroups() {
         return stopGroups;
-    }
-
-    @Override
-    public String toString() {
-        return ObaApi.getSerializer(ObaStopGrouping.class).serialize(this);
     }
 }

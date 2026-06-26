@@ -13,18 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.elements;
+package org.onebusaway.android.io.elements
 
-
-public interface ObaTripDetails extends ObaElement {
-
-    /**
-     * @return Details on the trip's schedule. Can be null if the schedule isn't included.
-     */
-    public ObaTripSchedule getSchedule();
-
-    /**
-     * @return Details on the trip's status. Can be null if the status isn't included.
-     */
-    public ObaTripStatus getStatus();
+/**
+ * Base interface for any element that has an ID.
+ */
+interface ObaElement {
+    /** The ID of this element. */
+    val id: String
 }

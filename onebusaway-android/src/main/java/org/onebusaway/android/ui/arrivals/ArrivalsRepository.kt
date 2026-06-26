@@ -436,26 +436,26 @@ class DefaultArrivalsRepository @Inject constructor(
  * types is a separate, deferred campaign.
  */
 private class DtoStop(private val s: StopReference) : ObaStop {
-    override fun getId(): String = s.id
-    override fun getStopCode(): String? = s.code
-    override fun getName(): String? = s.name
-    override fun getLocation(): Location = LocationUtils.makeLocation(s.lat, s.lon)
-    override fun getLatitude(): Double = s.lat
-    override fun getLongitude(): Double = s.lon
-    override fun getDirection(): String? = s.direction
-    override fun getLocationType(): Int = s.locationType
-    override fun getRouteIds(): Array<String> = s.routeIds.toTypedArray()
+    override val id: String get() = s.id
+    override val stopCode: String? get() = s.code
+    override val name: String? get() = s.name
+    override val location: Location get() = LocationUtils.makeLocation(s.lat, s.lon)
+    override val latitude: Double get() = s.lat
+    override val longitude: Double get() = s.lon
+    override val direction: String? get() = s.direction
+    override val locationType: Int get() = s.locationType
+    override val routeIds: Array<String> get() = s.routeIds.toTypedArray()
 }
 
 /** Adapts a [RouteReference] DTO to the legacy [ObaRoute] the map subsystem consumes. */
 private class DtoRoute(private val r: RouteReference) : ObaRoute {
-    override fun getId(): String = r.id
-    override fun getShortName(): String? = r.shortName
-    override fun getLongName(): String? = r.longName
-    override fun getDescription(): String? = r.description
-    override fun getType(): Int = r.type
-    override fun getUrl(): String? = r.url
-    override fun getColor(): Int? = r.colorArgb()
-    override fun getTextColor(): Int? = r.textColorArgb()
-    override fun getAgencyId(): String = r.agencyId
+    override val id: String get() = r.id
+    override val shortName: String? get() = r.shortName
+    override val longName: String? get() = r.longName
+    override val description: String? get() = r.description
+    override val type: Int get() = r.type
+    override val url: String? get() = r.url
+    override val color: Int? get() = r.colorArgb()
+    override val textColor: Int? get() = r.textColorArgb()
+    override val agencyId: String get() = r.agencyId
 }

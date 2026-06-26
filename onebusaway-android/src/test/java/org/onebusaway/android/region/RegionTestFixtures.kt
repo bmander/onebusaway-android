@@ -65,8 +65,8 @@ internal fun region(
         true,          // active
         null,          // obaBaseUrl
         null,          // siriBaseUrl
-        null,          // bounds
-        null,          // open311Servers
+        emptyArray(),  // bounds
+        emptyArray(),  // open311Servers
         null,          // lang
         null,          // contactEmail
         true,          // supportsObaDiscoveryApis

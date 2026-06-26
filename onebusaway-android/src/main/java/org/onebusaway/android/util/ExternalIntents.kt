@@ -280,7 +280,8 @@ object ExternalIntents {
      */
     fun startPaymentIntent(activity: Activity, region: ObaRegion) {
         val manager = activity.packageManager
-        var intent = manager.getLaunchIntentForPackage(region.paymentAndroidAppId)
+        val paymentAndroidAppId = region.paymentAndroidAppId.orEmpty()
+        var intent = manager.getLaunchIntentForPackage(paymentAndroidAppId)
         if (intent != null) {
             // Launch installed app
             intent.addCategory(Intent.CATEGORY_LAUNCHER)
@@ -295,7 +296,7 @@ object ExternalIntents {
         } else {
             // Go to Play Store listing to download app
             intent = Intent(Intent.ACTION_VIEW)
-            intent.setData(Uri.parse(Application.get().getString(R.string.google_play_listing_prefix, region.paymentAndroidAppId)))
+            intent.setData(Uri.parse(Application.get().getString(R.string.google_play_listing_prefix, paymentAndroidAppId)))
             activity.startActivity(intent)
             ObaAnalytics.reportUiEvent(
                 FirebaseAnalytics.getInstance(activity),

@@ -37,64 +37,64 @@ private fun Position.toLocation(): Location = LocationUtils.makeLocation(lat, lo
 
 /** Presents a [TripStatus] DTO as an [ObaTripStatus]. */
 class DtoTripStatus(private val dto: TripStatus) : ObaTripStatus {
-    override fun getServiceDate(): Long = dto.serviceDate
-    override fun isPredicted(): Boolean = dto.predicted
-    override fun getScheduleDeviation(): Long = dto.scheduleDeviation
-    override fun getVehicleId(): String? = dto.vehicleId
-    override fun getClosestStop(): String? = dto.closestStop
-    override fun getClosestStopTimeOffset(): Long = dto.closestStopTimeOffset
-    override fun getPosition(): Location? = dto.position?.toLocation()
+    override val serviceDate: Long get() = dto.serviceDate
+    override val isPredicted: Boolean get() = dto.predicted
+    override val scheduleDeviation: Long get() = dto.scheduleDeviation
+    override val vehicleId: String? get() = dto.vehicleId
+    override val closestStop: String? get() = dto.closestStop
+    override val closestStopTimeOffset: Long get() = dto.closestStopTimeOffset
+    override val position: Location? get() = dto.position?.toLocation()
     // Absent active-trip id reads as null, like the legacy element (callers skip on it).
-    override fun getActiveTripId(): String? = dto.activeTripId.ifBlank { null }
-    override fun getDistanceAlongTrip(): Double? = dto.distanceAlongTrip
-    override fun getScheduledDistanceAlongTrip(): Double? = dto.scheduledDistanceAlongTrip
-    override fun getTotalDistanceAlongTrip(): Double? = dto.totalDistanceAlongTrip
-    override fun getOrientation(): Double? = dto.orientation
-    override fun getNextStop(): String? = dto.nextStop
-    override fun getNextStopTimeOffset(): Long? = dto.nextStopTimeOffset
-    override fun getPhase(): String? = dto.phase
-    override fun getStatus(): Status? = Status.fromString(dto.status)
-    override fun getLastUpdateTime(): Long = dto.lastUpdateTime
-    override fun getLastKnownLocation(): Location? = dto.lastKnownLocation?.toLocation()
-    override fun getLastLocationUpdateTime(): Long = dto.lastLocationUpdateTime
-    override fun getLastKnownDistanceAlongTrip(): Double? = dto.lastKnownDistanceAlongTrip
-    override fun getLastKnownOrientation(): Double? = dto.lastKnownOrientation
-    override fun getBlockTripSequence(): Int = dto.blockTripSequence
-    override fun getOccupancyStatus(): Occupancy? =
-        dto.occupancyStatus?.takeIf { it.isNotEmpty() }?.let { Occupancy.fromString(it) }
+    override val activeTripId: String? get() = dto.activeTripId.ifBlank { null }
+    override val distanceAlongTrip: Double? get() = dto.distanceAlongTrip
+    override val scheduledDistanceAlongTrip: Double? get() = dto.scheduledDistanceAlongTrip
+    override val totalDistanceAlongTrip: Double? get() = dto.totalDistanceAlongTrip
+    override val orientation: Double? get() = dto.orientation
+    override val nextStop: String? get() = dto.nextStop
+    override val nextStopTimeOffset: Long? get() = dto.nextStopTimeOffset
+    override val phase: String? get() = dto.phase
+    override val status: Status? get() = Status.fromString(dto.status)
+    override val lastUpdateTime: Long get() = dto.lastUpdateTime
+    override val lastKnownLocation: Location? get() = dto.lastKnownLocation?.toLocation()
+    override val lastLocationUpdateTime: Long get() = dto.lastLocationUpdateTime
+    override val lastKnownDistanceAlongTrip: Double? get() = dto.lastKnownDistanceAlongTrip
+    override val lastKnownOrientation: Double? get() = dto.lastKnownOrientation
+    override val blockTripSequence: Int get() = dto.blockTripSequence
+    override val occupancyStatus: Occupancy?
+        get() = dto.occupancyStatus?.takeIf { it.isNotEmpty() }?.let { Occupancy.fromString(it) }
 }
 
 /** Presents a [TripReference] as an [ObaTrip]. */
 class DtoTrip(private val ref: TripReference) : ObaTrip {
-    override fun getId(): String = ref.id
-    override fun getShortName(): String? = ref.tripShortName
-    override fun getShapeId(): String? = ref.shapeId
-    override fun getDirectionId(): Int = ref.directionId?.toIntOrNull() ?: 0
-    override fun getServiceId(): String? = ref.serviceId
-    override fun getHeadsign(): String? = ref.tripHeadsign
-    override fun getTimezone(): String? = ref.timeZone
-    override fun getRouteId(): String = ref.routeId
-    override fun getBlockId(): String? = ref.blockId
+    override val id: String get() = ref.id
+    override val shortName: String? get() = ref.tripShortName
+    override val shapeId: String? get() = ref.shapeId
+    override val directionId: Int get() = ref.directionId?.toIntOrNull() ?: 0
+    override val serviceId: String? get() = ref.serviceId
+    override val headsign: String? get() = ref.tripHeadsign
+    override val timezone: String? get() = ref.timeZone
+    override val routeId: String get() = ref.routeId
+    override val blockId: String? get() = ref.blockId
 }
 
 /** Presents a [RouteReference] as an [ObaRoute]. */
 class DtoRoute(private val ref: RouteReference) : ObaRoute {
-    override fun getId(): String = ref.id
-    override fun getShortName(): String? = ref.shortName
-    override fun getLongName(): String? = ref.longName
-    override fun getDescription(): String? = ref.description
-    override fun getType(): Int = ref.type
-    override fun getUrl(): String? = ref.url
-    override fun getColor(): Int? = ref.colorArgb()
-    override fun getTextColor(): Int? = ref.textColorArgb()
-    override fun getAgencyId(): String = ref.agencyId
+    override val id: String get() = ref.id
+    override val shortName: String? get() = ref.shortName
+    override val longName: String? get() = ref.longName
+    override val description: String? get() = ref.description
+    override val type: Int get() = ref.type
+    override val url: String? get() = ref.url
+    override val color: Int? get() = ref.colorArgb()
+    override val textColor: Int? get() = ref.textColorArgb()
+    override val agencyId: String get() = ref.agencyId
 }
 
 /** Presents a [TripDetailsEntry] as an [ObaTripDetails]. */
 class DtoTripDetails(private val entry: TripDetailsEntry) : ObaTripDetails {
-    override fun getId(): String = entry.tripId
-    override fun getStatus(): ObaTripStatus? = entry.status?.let { DtoTripStatus(it) }
-    override fun getSchedule(): ObaTripSchedule? = entry.schedule?.toObaTripSchedule()
+    override val id: String get() = entry.tripId
+    override val status: ObaTripStatus? get() = entry.status?.let { DtoTripStatus(it) }
+    override val schedule: ObaTripSchedule? get() = entry.schedule?.toObaTripSchedule()
 }
 
 /** Maps the io/client [TripSchedule] DTO to the legacy [ObaTripSchedule] (consumed by schedule replay). */

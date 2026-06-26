@@ -13,16 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.elements;
+package org.onebusaway.android.io.elements
 
 /**
  * The occupancy of the vehicle, based on the OccupancyStatus element from GTFS-realtime
  * (https://github.com/google/transit/blob/master/gtfs-realtime/spec/en/reference.md#enum-occupancystatus)
- * <p>
+ *
  * Also supports WMATA's extensions for occupancy of "MANY_SEATS_AVAILABLE", "FEW_SEATS_AVAILABLE",
  * "MANY_SEATS_AVAILABLE" - #1059
  */
-public enum Occupancy {
+enum class Occupancy(private val value: String) {
     EMPTY("EMPTY"),
     MANY_SEATS_AVAILABLE("MANY_SEATS_AVAILABLE"),
     FEW_SEATS_AVAILABLE("FEW_SEATS_AVAILABLE"),
@@ -31,40 +31,14 @@ public enum Occupancy {
     FULL("FULL"),
     NOT_ACCEPTING_PASSENGERS("NOT_ACCEPTING_PASSENGERS");
 
-    private final String mOccupancy;
+    override fun toString(): String = value
 
-    Occupancy(String occupancy) {
-        mOccupancy = occupancy;
-    }
-
-    public String toString() {
-        return mOccupancy;
-    }
-
-    /**
-     * Converts from the string representation of occupancy to the enumeration, or null if occupancy isn't provided
-     *
-     * @param occupancy the string representation of occupancy
-     * @return the occupancy enumeration, or null if occupancy isn't provided
-     */
-    public static Occupancy fromString(String occupancy) {
-        switch (occupancy) {
-            case "EMPTY":
-                return EMPTY;
-            case "MANY_SEATS_AVAILABLE":
-                return MANY_SEATS_AVAILABLE;
-            case "FEW_SEATS_AVAILABLE":
-                return FEW_SEATS_AVAILABLE;
-            case "STANDING_ROOM_ONLY":
-                return STANDING_ROOM_ONLY;
-            case "CRUSHED_STANDING_ROOM_ONLY":
-                return CRUSHED_STANDING_ROOM_ONLY;
-            case "FULL":
-                return FULL;
-            case "NOT_ACCEPTING_PASSENGERS":
-                return NOT_ACCEPTING_PASSENGERS;
-            default:
-                return null;
-        }
+    companion object {
+        /**
+         * Converts from the string representation of occupancy to the enumeration, or null if
+         * [occupancy] isn't a recognized value.
+         */
+        @JvmStatic
+        fun fromString(occupancy: String?): Occupancy? = entries.firstOrNull { it.value == occupancy }
     }
 }

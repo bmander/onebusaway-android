@@ -537,37 +537,37 @@ class TripStateTest {
  * so that android.location.Location stub methods are never called.
  */
 private class TestTripStatus(
-        private val distanceAlongTrip: Double?,
-        private val totalDistanceAlongTrip: Double?,
-        private val lastUpdateTime: Long,
-        private val predicted: Boolean,
+        distanceAlongTrip: Double?,
+        totalDistanceAlongTrip: Double?,
+        lastUpdateTime: Long,
+        predicted: Boolean,
         private val hasLocation: Boolean,
-        private val activeTripId: String?
+        activeTripId: String?
 ) : ObaTripStatus {
-    override fun getServiceDate(): Long = 0L
-    override fun isPredicted(): Boolean = predicted
-    override fun getScheduleDeviation(): Long = 0L
-    override fun getVehicleId(): String? = null
-    override fun getClosestStop(): String? = null
-    override fun getClosestStopTimeOffset(): Long = 0L
-    override fun getPosition(): Location? = null
-    override fun getActiveTripId(): String? = activeTripId
-    override fun getDistanceAlongTrip(): Double? = distanceAlongTrip
-    override fun getScheduledDistanceAlongTrip(): Double? = null
-    override fun getTotalDistanceAlongTrip(): Double? = totalDistanceAlongTrip
-    override fun getOrientation(): Double? = null
-    override fun getNextStop(): String? = null
-    override fun getNextStopTimeOffset(): Long? = null
-    override fun getPhase(): String? = null
-    override fun getStatus(): Status? = null
-    override fun getLastUpdateTime(): Long = lastUpdateTime
-    override fun getLastKnownLocation(): Location? =
-            if (hasLocation) FAKE_LOCATION else null
-    override fun getLastLocationUpdateTime(): Long = 0L
-    override fun getLastKnownDistanceAlongTrip(): Double? = null
-    override fun getLastKnownOrientation(): Double? = null
-    override fun getBlockTripSequence(): Int = 0
-    override fun getOccupancyStatus(): Occupancy? = null
+    override val serviceDate: Long = 0L
+    override val isPredicted: Boolean = predicted
+    override val scheduleDeviation: Long = 0L
+    override val vehicleId: String? = null
+    override val closestStop: String? = null
+    override val closestStopTimeOffset: Long = 0L
+    override val position: Location? = null
+    override val activeTripId: String? = activeTripId
+    override val distanceAlongTrip: Double? = distanceAlongTrip
+    override val scheduledDistanceAlongTrip: Double? = null
+    override val totalDistanceAlongTrip: Double? = totalDistanceAlongTrip
+    override val orientation: Double? = null
+    override val nextStop: String? = null
+    override val nextStopTimeOffset: Long? = null
+    override val phase: String? = null
+    override val status: Status? = null
+    override val lastUpdateTime: Long = lastUpdateTime
+    override val lastKnownLocation: Location?
+        get() = if (hasLocation) FAKE_LOCATION else null
+    override val lastLocationUpdateTime: Long = 0L
+    override val lastKnownDistanceAlongTrip: Double? = null
+    override val lastKnownOrientation: Double? = null
+    override val blockTripSequence: Int = 0
+    override val occupancyStatus: Occupancy? = null
 
     companion object {
         /**

@@ -209,7 +209,8 @@ class RouteMapController(
      */
     private fun ExtrapolatedVehicle.toMarker(): VehicleMarker =
         VehicleMarker(
-            activeTripId = status.activeTripId,
+            // Vehicles are only built for trips with a resolvable active id, so this is non-null here.
+            activeTripId = status.activeTripId.orEmpty(),
             point = point,
             isRealtime = status.isLocationRealtime,
             status = status,

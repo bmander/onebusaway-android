@@ -13,17 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.elements;
+package org.onebusaway.android.io.elements
 
-/**
- * Base interface for any element that has an ID.
- *
- * @author Paul Watts (paulcwatts@gmail.com)
- */
-public interface ObaElement {
+import android.location.Location
 
-    /**
-     * @return Returns the ID of this element.
-     */
-    public String getId();
+interface ObaShape {
+
+    /** The number of points in the line. */
+    val length: Int
+
+    /** The levels to display this line, or the empty string. */
+    val rawLevels: String?
+
+    /** The decoded levels on which to display this line. */
+    val levels: List<Int>
+
+    /** The list of points in this line. */
+    val points: List<Location>
+
+    /** The string encoding of the points in this line. */
+    val rawPoints: String?
 }

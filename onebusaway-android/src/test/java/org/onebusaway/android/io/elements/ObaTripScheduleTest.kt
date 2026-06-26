@@ -68,29 +68,10 @@ class ObaTripScheduleTest {
         schedule.findSegmentStartIndex(0.0)
     }
 
-    private fun createSchedule(distances: DoubleArray): ObaTripSchedule {
-        val stopTimeClass = ObaTripSchedule.StopTime::class.java
-        val stCtor = stopTimeClass.getDeclaredConstructor()
-        stCtor.isAccessible = true
-
-        val stopTimesArray = java.lang.reflect.Array.newInstance(stopTimeClass, distances.size)
-        for (i in distances.indices) {
-            val st = stCtor.newInstance()
-            setField(st, "distanceAlongTrip", distances[i])
-            setField(st, "stopId", "stop_$i")
-            java.lang.reflect.Array.set(stopTimesArray, i, st)
-        }
-
-        val schedCtor = ObaTripSchedule::class.java.getDeclaredConstructor()
-        schedCtor.isAccessible = true
-        val schedule = schedCtor.newInstance()
-        setField(schedule, "stopTimes", stopTimesArray)
-        return schedule
-    }
-
-    private fun setField(obj: Any, fieldName: String, value: Any?) {
-        val field = obj.javaClass.getDeclaredField(fieldName)
-        field.isAccessible = true
-        field.set(obj, value)
-    }
+    private fun createSchedule(distances: DoubleArray): ObaTripSchedule =
+        ObaTripSchedule(
+            Array(distances.size) { i ->
+                ObaTripSchedule.StopTime(stopId = "stop_$i", distanceAlongTrip = distances[i])
+            },
+        )
 }

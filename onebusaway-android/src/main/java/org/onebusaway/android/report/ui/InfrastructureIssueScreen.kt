@@ -365,7 +365,7 @@ private fun createInfrastructureIssueViewModel(
     val longitude = reportContext.lon
 
     val initialStop: ObaStop? = reportContext.stopId?.let { stopId ->
-        ObaStopElement(stopId, latitude, longitude, reportContext.stopName, reportContext.stopCode)
+        ObaStopElement(stopId, latitude, longitude, reportContext.stopName.orEmpty(), reportContext.stopCode.orEmpty())
     }
 
     val defaultIssueType = when (selectedService) {

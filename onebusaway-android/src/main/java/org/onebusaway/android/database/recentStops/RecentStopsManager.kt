@@ -60,7 +60,7 @@ object RecentStopsManager {
             }
 
             insertRegion(context, regionId)
-            stopDao.insertStop(StopEntity(stop.id, stop.name, regionId, currentTime))
+            stopDao.insertStop(StopEntity(stop.id, stop.name.orEmpty(), regionId, currentTime))
         }
     }
 

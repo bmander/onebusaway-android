@@ -38,7 +38,8 @@ object MapNavigation {
     /** Opens TripDetails for the tapped vehicle, scoped to the focused stop when there is one. */
     @JvmStatic
     fun openVehicleTripDetails(context: Context, status: ObaTripStatus, focusedStopId: String?) {
-        val builder = TripDetailsLauncher.Builder(context, status.activeTripId)
+        val tripId = status.activeTripId ?: return
+        val builder = TripDetailsLauncher.Builder(context, tripId)
             .setScrollMode(TripDetailsLauncher.SCROLL_MODE_VEHICLE)
         focusedStopId?.let { builder.setStopId(it) }
         builder.start()

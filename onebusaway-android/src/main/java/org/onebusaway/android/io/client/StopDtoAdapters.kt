@@ -25,13 +25,13 @@ import org.onebusaway.android.util.LocationUtils
  * (the same one-DTO-implements-the-legacy-interface pattern as DtoRoute/DtoTripStatus).
  */
 class DtoStop(private val ref: StopReference) : ObaStop {
-    override fun getId(): String = ref.id
-    override fun getStopCode(): String? = ref.code
-    override fun getName(): String? = ref.name
-    override fun getLocation(): Location = LocationUtils.makeLocation(ref.lat, ref.lon)
-    override fun getLatitude(): Double = ref.lat
-    override fun getLongitude(): Double = ref.lon
-    override fun getDirection(): String? = ref.direction
-    override fun getLocationType(): Int = ref.locationType
-    override fun getRouteIds(): Array<String> = ref.routeIds.toTypedArray()
+    override val id: String get() = ref.id
+    override val stopCode: String? get() = ref.code
+    override val name: String? get() = ref.name
+    override val location: Location get() = LocationUtils.makeLocation(ref.lat, ref.lon)
+    override val latitude: Double get() = ref.lat
+    override val longitude: Double get() = ref.lon
+    override val direction: String? get() = ref.direction
+    override val locationType: Int get() = ref.locationType
+    override val routeIds: Array<String> get() = ref.routeIds.toTypedArray()
 }

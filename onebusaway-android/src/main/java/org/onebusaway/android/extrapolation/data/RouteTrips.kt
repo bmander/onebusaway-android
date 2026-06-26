@@ -43,8 +43,8 @@ interface RouteTrips {
     /** The active/served trips in this poll; each exposes its vehicle [ObaTripDetails.getStatus]. */
     val trips: List<ObaTripDetails>
 
-    /** Resolves a trip from the references pool by id, or null when absent. */
-    fun trip(tripId: String): ObaTrip?
+    /** Resolves a trip from the references pool by id, or null when the id is null or absent. */
+    fun trip(tripId: String?): ObaTrip?
 
     /** Resolves a route from the references pool by id, or null when absent. */
     fun route(routeId: String): ObaRoute?
@@ -60,7 +60,7 @@ private fun routeTripsOf(
     serverTimeMs: Long,
 ): RouteTrips = object : RouteTrips {
     override val trips: List<ObaTripDetails> = entries.map { DtoTripDetails(it) }
-    override fun trip(tripId: String): ObaTrip? = references.trip(tripId)?.let { DtoTrip(it) }
+    override fun trip(tripId: String?): ObaTrip? = tripId?.let { references.trip(it) }?.let { DtoTrip(it) }
     override fun route(routeId: String): ObaRoute? = references.route(routeId)?.let { DtoRoute(it) }
     override val currentTimeMs: Long = serverTimeMs
 }

@@ -20,9 +20,10 @@ import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.util.LocationUtils
 
 /**
- * Presents a [StopReference] DTO as the legacy [ObaStop] interface, so consumers that work through
- * the interface — the map stop overlay, search results — accept the modernized fetch unchanged
- * (the same one-DTO-implements-the-legacy-interface pattern as DtoRoute/DtoTripStatus).
+ * Presents a [StopReference] DTO as the [ObaStop] model interface, so consumers that work through
+ * the interface — the map stop overlay, search results, the arrivals→map boundary — accept the
+ * modernized fetch unchanged (the same one-DTO-implements-the-interface pattern as DtoRoute/
+ * DtoTripStatus).
  */
 class DtoStop(private val ref: StopReference) : ObaStop {
     override val id: String get() = ref.id

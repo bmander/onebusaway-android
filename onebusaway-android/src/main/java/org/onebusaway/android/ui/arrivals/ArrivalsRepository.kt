@@ -17,7 +17,6 @@ package org.onebusaway.android.ui.arrivals
 
 import android.content.ContentValues
 import android.content.Context
-import android.location.Location
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
@@ -26,15 +25,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.client.ArrivalsForStop
+import org.onebusaway.android.io.client.DtoRoute
+import org.onebusaway.android.io.client.DtoStop
 import org.onebusaway.android.io.client.EntryWithReferences
 import org.onebusaway.android.io.client.ObaEnvelope
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.References
-import org.onebusaway.android.io.client.RouteReference
 import org.onebusaway.android.io.client.RouteRepository
 import org.onebusaway.android.io.client.StopReference
-import org.onebusaway.android.io.client.colorArgb
-import org.onebusaway.android.io.client.textColorArgb
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaSituation
 import org.onebusaway.android.models.ObaStop
@@ -407,8 +405,8 @@ class DefaultArrivalsRepository @Inject constructor(
 
     override fun lastLoaded(): ArrivalsLoaded? {
         val data = lastGood?.data ?: return null
-        // Adapt the focused stop + all referenced routes into the legacy element types the map
-        // subsystem still consumes (its own migration is a separate, deferred campaign).
+        // Adapt the focused stop + all referenced routes into the ObaStop/ObaRoute model interfaces
+        // the map subsystem consumes (its own migration to the DTOs is a separate, deferred campaign).
         val stop = data.references.stop(data.entry.stopId)?.let(::DtoStop)
         val routes = data.references.routes.map(::DtoRoute)
         return ArrivalsLoaded(stop, routes, data.entry.arrivalsAndDepartures.isNotEmpty())
@@ -428,34 +426,4 @@ class DefaultArrivalsRepository @Inject constructor(
             else -> AlertSeverity.WARNING
         }
     }
-}
-
-/**
- * Adapts a [StopReference] DTO to the legacy [ObaStop] the map subsystem consumes (recentering +
- * marker). A localized bridge at the arrivals→map boundary; the map's own migration off the element
- * types is a separate, deferred campaign.
- */
-private class DtoStop(private val s: StopReference) : ObaStop {
-    override val id: String get() = s.id
-    override val stopCode: String? get() = s.code
-    override val name: String? get() = s.name
-    override val location: Location get() = LocationUtils.makeLocation(s.lat, s.lon)
-    override val latitude: Double get() = s.lat
-    override val longitude: Double get() = s.lon
-    override val direction: String? get() = s.direction
-    override val locationType: Int get() = s.locationType
-    override val routeIds: Array<String> get() = s.routeIds.toTypedArray()
-}
-
-/** Adapts a [RouteReference] DTO to the legacy [ObaRoute] the map subsystem consumes. */
-private class DtoRoute(private val r: RouteReference) : ObaRoute {
-    override val id: String get() = r.id
-    override val shortName: String? get() = r.shortName
-    override val longName: String? get() = r.longName
-    override val description: String? get() = r.description
-    override val type: Int get() = r.type
-    override val url: String? get() = r.url
-    override val color: Int? get() = r.colorArgb()
-    override val textColor: Int? get() = r.textColorArgb()
-    override val agencyId: String get() = r.agencyId
 }

@@ -26,10 +26,10 @@ import org.onebusaway.android.models.Status
 import org.onebusaway.android.util.LocationUtils
 
 /*
- * Adapters that present the io/client trip DTOs as the legacy io/elements interfaces
+ * Adapters that present the io/client trip DTOs as the `models` domain interfaces
  * (ObaTripStatus/ObaTrip/ObaRoute/ObaTripDetails), so the speed-estimation/vehicle-render code —
  * which works through those interfaces — consumes the modernized fetch unchanged. The same
- * one-DTO-implements-the-legacy-interface pattern the map boundary used for stops/routes.
+ * one-DTO-implements-the-interface pattern the map boundary uses for stops/routes.
  */
 
 private fun Position.toLocation(): Location = LocationUtils.makeLocation(lat, lon)

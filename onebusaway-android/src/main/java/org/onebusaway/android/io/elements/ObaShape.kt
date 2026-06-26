@@ -22,12 +22,6 @@ interface ObaShape {
     /** The number of points in the line. */
     val length: Int
 
-    /** The levels to display this line, or the empty string. */
-    val rawLevels: String?
-
-    /** The decoded levels on which to display this line. */
-    val levels: List<Int>
-
     /** The list of points in this line. */
     val points: List<Location>
 

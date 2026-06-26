@@ -461,11 +461,10 @@ data class UmamiAnalyticsDto(
 
 /**
  * The shape (trip path) entry: an encoded-polyline string ([points], Google's algorithm) of
- * [length] points, plus optional zoom [levels]. Decode with `PolylineDecoder.decodeLine`.
+ * [length] points. Decode with `PolylineDecoder.decodeLine`.
  */
 @Serializable
 data class ShapeEntry(
     val points: String = "",
     val length: Int = 0,
-    val levels: String? = null,
 )

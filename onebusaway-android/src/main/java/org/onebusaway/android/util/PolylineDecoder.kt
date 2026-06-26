@@ -18,9 +18,9 @@ package org.onebusaway.android.util
 import android.location.Location
 
 /**
- * Decodes Google "encoded polyline" strings (points + levels) used by the OBA shape responses and
- * OTP leg geometry. Extracted from the former `ObaShapeElement` so it lives as the general algorithm
- * it is, not a method on a data model.
+ * Decodes Google "encoded polyline" strings used by the OBA shape responses and OTP leg geometry.
+ * Extracted from the former `ObaShapeElement` so it lives as the general algorithm it is, not a
+ * method on a data model.
  *
  * Algorithm: http://code.google.com/apis/maps/documentation/polylinealgorithm.html
  */
@@ -69,30 +69,6 @@ object PolylineDecoder {
 
             // The polyline encodes in degrees * 1E5, we need decimal degrees
             array.add(LocationUtils.makeLocation(lat / 1E5, lon / 1E5))
-        }
-
-        return array
-    }
-
-    /** Decodes encoded zoom levels. */
-    @JvmStatic
-    fun decodeLevels(encoded: String, numPoints: Int): List<Int> {
-        require(numPoints >= 0) { "numPoints must be >= 0" }
-        val array = ArrayList<Int>(numPoints)
-
-        val len = encoded.length
-        var i = 0
-        while (i < len) {
-            var shift = 0
-            var result = 0
-            var b: Int
-            do {
-                b = encoded[i].code - 63
-                result = result or ((b and 0x1f) shl shift)
-                shift += 5
-                i++
-            } while (b >= 0x20)
-            array.add(result)
         }
 
         return array

@@ -62,21 +62,4 @@ public class PolylineDecoderTest {
         assertEquals(43252000 / 1E6, pt.getLatitude());
         assertEquals(-126453000 / 1E6, pt.getLongitude());
     }
-
-    @Test
-    public void testDecodeLevels() {
-        List<Integer> list = PolylineDecoder.decodeLevels("mD", 1);
-        assertNotNull(list);
-        assertEquals(1, list.size());
-        Integer i = list.get(0);
-        assertEquals(174, (int) i);
-
-        list = PolylineDecoder.decodeLevels("BBBB", 4);
-        assertNotNull(list);
-        assertEquals(4, list.size());
-        assertEquals(3, (int) list.get(0));
-        assertEquals(3, (int) list.get(1));
-        assertEquals(3, (int) list.get(2));
-        assertEquals(3, (int) list.get(3));
-    }
 }

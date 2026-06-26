@@ -129,8 +129,6 @@ class DirectionsMapController(private val host: MapHost) {
     /** An [ObaShape] over an OTP [EncodedPolylineBean] leg geometry (ported from DirectionsMapController). */
     private class LegShape(private val bean: EncodedPolylineBean) : ObaShape {
         override val length: Int get() = bean.length
-        override val rawLevels: String get() = bean.levels
-        override val levels: List<Int> get() = PolylineDecoder.decodeLevels(bean.levels, bean.length)
         override val points: List<Location> get() = PolylineDecoder.decodeLine(bean.points, bean.length)
         override val rawPoints: String get() = bean.points
     }

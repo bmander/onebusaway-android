@@ -18,10 +18,12 @@ package org.onebusaway.android.map.bike
 import javax.inject.Inject
 import android.location.Location
 import org.onebusaway.android.R
+import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.client.BikeWebService
 import org.onebusaway.android.io.client.toBikeRentalStations
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.util.RegionUtils
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 /**
@@ -43,25 +45,60 @@ class DefaultBikeStationsRepository @Inject constructor(
 
     override suspend fun getStations(southWest: Location, northEast: Location):
             Result<List<BikeRentalStation>> = runCatching {
-        val url = bikeStationsUrl(southWest, northEast)
-            ?: error("No OTP base URL for the current region")
-        bikeService.getBikeStations(url).toBikeRentalStations()
+        val base = otpBaseUrl() ?: error("No OTP base URL for the current region")
+
+        // OTP servers differ in how their base URL is rooted (see TripPlanRepository): the "new"
+        // structure roots it at the OTP server and needs the /routers/default prefix; the "old"
+        // structure roots it at the router itself. Some regions' otpBaseUrl already includes
+        // /routers/default (e.g. Puget Sound), so blindly prepending it doubles the path. Try the
+        // recorded structure first, then fall back to the old one and record it (shared with trip
+        // planning via the same flag, reset on region change).
+        val useOld = Application.get().useOldOtpApiUrlVersion
+        try {
+            fetch(base, useOld, southWest, northEast)
+        } catch (e: Exception) {
+            if (useOld) throw e
+            fetch(base, useOldUrlStructure = true, southWest, northEast)
+                .also { Application.get().useOldOtpApiUrlVersion = true }
+        }
     }
 
-    /**
-     * Builds the OTP bike-rental URL for the viewport: the custom OTP url (advanced setting) or the
-     * region's `otpBaseUrl`, then `routers/default/bike_rental` with the bbox corners in OTP's
-     * lowerLeft/upperRight terms. Null when no OTP base URL is configured.
-     */
-    private fun bikeStationsUrl(southWest: Location, northEast: Location): String? {
+    private suspend fun fetch(
+        base: String,
+        useOldUrlStructure: Boolean,
+        southWest: Location,
+        northEast: Location,
+    ): List<BikeRentalStation> = bikeService.getBikeStations(
+        bikeRentalUrl(base, useOldUrlStructure, southWest.latitude, southWest.longitude,
+            northEast.latitude, northEast.longitude)
+    ).toBikeRentalStations()
+
+    /** The custom OTP url (advanced setting) or the region's `otpBaseUrl`, trailing slash stripped. */
+    private fun otpBaseUrl(): String? {
         val custom = prefs.getString(R.string.preference_key_otp_api_url, null)
         val base = custom?.takeIf { it.isNotEmpty() }
             ?: regionRepository.region.value?.otpBaseUrl?.takeIf { it.isNotEmpty() }
             ?: return null
-        return base.trimEnd('/') + "/routers/default/bike_rental" +
-            "?lowerLeft=${southWest.latitude},${southWest.longitude}" +
-            "&upperRight=${northEast.latitude},${northEast.longitude}"
+        return RegionUtils.formatOtpBaseUrl(base)
     }
+}
+
+/**
+ * Builds the OTP bike-rental URL for a viewport bbox. [formattedBase] is the OTP base with its
+ * trailing slash stripped; [useOldUrlStructure] selects whether the base is already rooted at the
+ * router (old: append just `/bike_rental`) or at the OTP server (new: insert `/routers/default`
+ * first). The bbox corners are emitted in OTP's lowerLeft/upperRight terms.
+ */
+internal fun bikeRentalUrl(
+    formattedBase: String,
+    useOldUrlStructure: Boolean,
+    swLat: Double,
+    swLon: Double,
+    neLat: Double,
+    neLon: Double,
+): String {
+    val path = if (useOldUrlStructure) "/bike_rental" else "/routers/default/bike_rental"
+    return "$formattedBase$path?lowerLeft=$swLat,$swLon&upperRight=$neLat,$neLon"
 }
 
 /**

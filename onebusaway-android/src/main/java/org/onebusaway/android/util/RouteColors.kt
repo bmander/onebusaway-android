@@ -13,16 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.client
+@file:JvmName("RouteColors")
 
-import org.onebusaway.android.util.parseObaHexColor
+package org.onebusaway.android.util
+
+import android.graphics.Color
 
 /**
- * Reads [RouteReference.color] / [RouteReference.textColor] as Android ARGB ints (or null when
- * absent/malformed) via the shared [parseObaHexColor] parser, so color consumers don't re-implement
- * `Color.parseColor`.
+ * Parses an OBA route hex color (a bare hex string like "FDB71A") to an Android ARGB int, or null
+ * when absent or malformed. The single canonical parse — shared by the wire DTO color readers
+ * ([org.onebusaway.android.io.client.colorArgb]) and the legacy `ObaRouteElement`.
  */
-fun RouteReference.colorArgb(): Int? = parseObaHexColor(color)
-
-/** Parses [RouteReference.textColor] to an Android ARGB int, or null when absent/invalid. */
-fun RouteReference.textColorArgb(): Int? = parseObaHexColor(textColor)
+fun parseObaHexColor(hex: String?): Int? =
+    hex?.takeIf { it.isNotEmpty() }?.let {
+        try {
+            Color.parseColor("#${it.trim()}")
+        } catch (e: IllegalArgumentException) {
+            null
+        }
+    }

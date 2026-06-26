@@ -26,8 +26,8 @@ import java.io.File
  * Ports the wire coverage of the retired instrumented StopsForLocationTest / StopsForRouteRequestTest
  * onto the modernized map fetch: decodes the same fixtures and asserts the stops list + references
  * resolution (route/agency) and the stops-for-route stopGroupings + encoded polylines. The polyline
- * *decoding* (ObaShapeElement.decodeLine → Location) and DtoStop.getLocation are Android-bound and
- * exercised on-device + by ShapeTest.
+ * *decoding* (PolylineDecoder.decodeLine → Location) and DtoStop.getLocation are Android-bound and
+ * exercised on-device + by PolylineDecoderTest.
  */
 class StopsMapDecodeTest {
 

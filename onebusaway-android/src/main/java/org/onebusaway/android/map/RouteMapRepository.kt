@@ -21,9 +21,9 @@ import org.onebusaway.android.io.client.DtoStop
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.requireData
 import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.elements.ObaShapeElement
 import org.onebusaway.android.io.elements.ObaStop
 import org.onebusaway.android.map.render.GeoPoint
+import org.onebusaway.android.util.PolylineDecoder
 
 /** A route's stops, the serving routes (for stop-marker icons), the route + agency name, and its shape. */
 data class RouteMap(
@@ -58,7 +58,7 @@ class DefaultRouteMapRepository @Inject constructor(
                 stops = data.references.stops.map(::DtoStop),
                 routes = data.references.routes.map(::DtoRoute),
                 polylines = data.entry.polylines.map { shape ->
-                    ObaShapeElement.decodeLine(shape.points, shape.length)
+                    PolylineDecoder.decodeLine(shape.points, shape.length)
                         .map { GeoPoint(it.latitude, it.longitude) }
                 },
             )

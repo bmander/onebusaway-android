@@ -16,8 +16,7 @@
  */
 package org.onebusaway.android.io.elements
 
-import android.graphics.Color
-import android.text.TextUtils
+import org.onebusaway.android.util.parseObaHexColor
 
 /**
  * Object defining a Route element. Equality is by [id] only (preserved from the original).
@@ -35,13 +34,10 @@ class ObaRouteElement(
 ) : ObaRoute {
 
     /** The Android color int for the route line, or null if not included in the API response. */
-    override val color: Int? get() = parseColor(colorHex)
+    override val color: Int? get() = parseObaHexColor(colorHex)
 
     /** The Android color int for the route text, or null if not included in the API response. */
-    override val textColor: Int? get() = parseColor(textColorHex)
-
-    private fun parseColor(hex: String): Int? =
-        if (!TextUtils.isEmpty(hex)) Color.parseColor(COLOR_PREFIX + hex.trim()) else null
+    override val textColor: Int? get() = parseObaHexColor(textColorHex)
 
     override fun hashCode(): Int = 31 + id.hashCode()
 
@@ -54,8 +50,6 @@ class ObaRouteElement(
     override fun toString(): String = "ObaRouteElement [id=$id]"
 
     companion object {
-        const val COLOR_PREFIX = "#"
-
         @JvmField
         val EMPTY_OBJECT = ObaRouteElement()
 

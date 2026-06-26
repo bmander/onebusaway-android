@@ -20,7 +20,7 @@ import android.location.Location
 import android.util.Log
 import org.onebusaway.android.directions.util.OTPConstants
 import org.onebusaway.android.io.elements.ObaShape
-import org.onebusaway.android.io.elements.ObaShapeElement
+import org.onebusaway.android.util.PolylineDecoder
 import org.onebusaway.android.map.render.CameraCommand
 import org.onebusaway.android.map.render.GeoPoint
 import org.onebusaway.android.map.render.RoutePolyline
@@ -130,8 +130,8 @@ class DirectionsMapController(private val host: MapHost) {
     private class LegShape(private val bean: EncodedPolylineBean) : ObaShape {
         override val length: Int get() = bean.length
         override val rawLevels: String get() = bean.levels
-        override val levels: List<Int> get() = ObaShapeElement.decodeLevels(bean.levels, bean.length)
-        override val points: List<Location> get() = ObaShapeElement.decodeLine(bean.points, bean.length)
+        override val levels: List<Int> get() = PolylineDecoder.decodeLevels(bean.levels, bean.length)
+        override val points: List<Location> get() = PolylineDecoder.decodeLine(bean.points, bean.length)
         override val rawPoints: String get() = bean.points
     }
 

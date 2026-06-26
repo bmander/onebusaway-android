@@ -461,7 +461,7 @@ data class UmamiAnalyticsDto(
 
 /**
  * The shape (trip path) entry: an encoded-polyline string ([points], Google's algorithm) of
- * [length] points, plus optional zoom [levels]. Decode with `ObaShapeElement.decodeLine`.
+ * [length] points, plus optional zoom [levels]. Decode with `PolylineDecoder.decodeLine`.
  */
 @Serializable
 data class ShapeEntry(

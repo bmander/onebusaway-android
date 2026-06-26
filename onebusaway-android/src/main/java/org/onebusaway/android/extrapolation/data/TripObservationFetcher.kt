@@ -27,9 +27,9 @@ import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.requireData
 import org.onebusaway.android.io.client.toObaTripSchedule
-import org.onebusaway.android.io.elements.ObaShapeElement
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.util.Polyline
+import org.onebusaway.android.util.PolylineDecoder
 import org.onebusaway.android.util.SingleFlight
 
 /**
@@ -140,12 +140,12 @@ class DefaultTripObservationFetcher @Inject constructor(
     override suspend fun shape(shapeId: String): Polyline? =
             shapeFetches.run(shapeId) {
                 withContext(fetchDispatcher) {
-                    // ObaShapeElement.decodeLine is the shared (Google-algorithm) polyline decoder,
+                    // PolylineDecoder.decodeLine is the shared (Google-algorithm) polyline decoder,
                     // so the geometry matches the legacy path exactly. Error codes throw in
                     // requireData and resolve to null below, like the old null-coalescing path did.
                     runCatching {
                         val entry = obaWebService.shape(shapeId).requireData().entry
-                        ObaShapeElement.decodeLine(entry.points, entry.length)
+                        PolylineDecoder.decodeLine(entry.points, entry.length)
                     }.getOrNull()
                             ?.takeIf { it.isNotEmpty() }
                             ?.let { Polyline(it) }

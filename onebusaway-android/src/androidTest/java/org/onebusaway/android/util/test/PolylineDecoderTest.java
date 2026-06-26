@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.test;
+package org.onebusaway.android.util.test;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.onebusaway.android.io.elements.ObaShapeElement;
+import org.onebusaway.android.util.PolylineDecoder;
 
 import android.location.Location;
 
@@ -29,14 +29,14 @@ import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
 
 /**
- * Tests decoding polylines and levels returned by ShapeRequest
+ * Tests decoding the Google "encoded polyline" points and levels via {@link PolylineDecoder}.
  */
 @RunWith(AndroidJUnit4.class)
-public class ShapeTest {
+public class PolylineDecoderTest {
 
     @Test
     public void testDecodeLines() {
-        List<Location> list = ObaShapeElement.decodeLine("_p~iF~ps|U", 1);
+        List<Location> list = PolylineDecoder.decodeLine("_p~iF~ps|U", 1);
         assertNotNull(list);
         assertEquals(1, list.size());
         Location pt = list.get(0);
@@ -45,7 +45,7 @@ public class ShapeTest {
         assertEquals(38500000 / 1E6, pt.getLatitude());
         assertEquals(-120200000 / 1E6, pt.getLongitude());
 
-        list = ObaShapeElement.decodeLine("_p~iF~ps|U_ulLnnqC", 2);
+        list = PolylineDecoder.decodeLine("_p~iF~ps|U_ulLnnqC", 2);
         assertNotNull(list);
         assertEquals(list.size(), 2);
         pt = list.get(0);
@@ -55,7 +55,7 @@ public class ShapeTest {
         assertEquals(40700000 / 1E6, pt.getLatitude());
         assertEquals(-120950000 / 1E6, pt.getLongitude());
 
-        list = ObaShapeElement.decodeLine("_p~iF~ps|U_ulLnnqC_mqNvxq`@", 3);
+        list = PolylineDecoder.decodeLine("_p~iF~ps|U_ulLnnqC_mqNvxq`@", 3);
         assertNotNull(list);
         assertEquals(3, list.size());
         pt = list.get(2);
@@ -65,13 +65,13 @@ public class ShapeTest {
 
     @Test
     public void testDecodeLevels() {
-        List<Integer> list = ObaShapeElement.decodeLevels("mD", 1);
+        List<Integer> list = PolylineDecoder.decodeLevels("mD", 1);
         assertNotNull(list);
         assertEquals(1, list.size());
         Integer i = list.get(0);
         assertEquals(174, (int) i);
 
-        list = ObaShapeElement.decodeLevels("BBBB", 4);
+        list = PolylineDecoder.decodeLevels("BBBB", 4);
         assertNotNull(list);
         assertEquals(4, list.size());
         assertEquals(3, (int) list.get(0));

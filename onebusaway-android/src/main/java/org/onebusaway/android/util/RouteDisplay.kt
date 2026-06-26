@@ -17,7 +17,7 @@
 
 package org.onebusaway.android.util
 
-import org.onebusaway.android.io.elements.ObaRoute
+import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.util.comparators.AlphanumComparator
 
 /** A route's two display lines: the prominent short name and an optional secondary line. */

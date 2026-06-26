@@ -13,13 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.elements
+package org.onebusaway.android.models
 
-interface ObaTripDetails : ObaElement {
-
-    /** Details on the trip's schedule. Can be null if the schedule isn't included. */
-    val schedule: ObaTripSchedule?
-
-    /** Details on the trip's status. Can be null if the status isn't included. */
-    val status: ObaTripStatus?
+/**
+ * Base interface for any element that has an ID.
+ */
+interface ObaElement {
+    /** The ID of this element. */
+    val id: String
 }

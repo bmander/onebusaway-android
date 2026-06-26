@@ -276,7 +276,7 @@ class DefaultTripDetailsRepository @Inject constructor(
     }.timeInMillis
 
     private companion object {
-        /** The wire value of [org.onebusaway.android.io.elements.Status.CANCELED]. */
+        /** The wire value of [org.onebusaway.android.models.Status.CANCELED]. */
         const val CANCELED = "CANCELED"
     }
 }

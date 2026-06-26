@@ -23,8 +23,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import org.onebusaway.android.extrapolation.data.RouteTrips
-import org.onebusaway.android.io.elements.ObaStop
-import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.models.ObaStop
+import org.onebusaway.android.models.ObaTripStatus
 import org.opentripplanner.routing.bike_rental.BikeRentalStation
 
 /** A geographic point, flavor-neutral (carries no Google/maplibre `LatLng` dependency). */

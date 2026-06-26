@@ -19,7 +19,7 @@ import android.graphics.Color
 import android.location.Location
 import android.util.Log
 import org.onebusaway.android.directions.util.OTPConstants
-import org.onebusaway.android.io.elements.ObaShape
+import org.onebusaway.android.models.ObaShape
 import org.onebusaway.android.util.PolylineDecoder
 import org.onebusaway.android.map.render.CameraCommand
 import org.onebusaway.android.map.render.GeoPoint

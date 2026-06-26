@@ -23,8 +23,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import org.onebusaway.android.R
 import org.onebusaway.android.region.Region
-import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.models.ObaRoute
+import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository

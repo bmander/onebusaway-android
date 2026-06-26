@@ -21,7 +21,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
-import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.models.ObaTripStatus
 import org.onebusaway.android.ui.tripdetails.TripDetailsLauncher
 import org.onebusaway.android.util.ExternalIntents
 import org.onebusaway.android.util.RegionUtils

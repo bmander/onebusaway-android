@@ -16,7 +16,7 @@
 package org.onebusaway.android.provider
 
 import android.content.Context
-import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.util.MyTextUtils
 
 /** A user's customization of a stop: whether it's a favorite, and any custom name. */

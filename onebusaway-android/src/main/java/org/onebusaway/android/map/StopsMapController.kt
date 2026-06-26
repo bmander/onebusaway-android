@@ -28,8 +28,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.client.ObaApiException
-import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.models.ObaRoute
+import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.map.render.CameraCommand
 import org.onebusaway.android.map.render.CameraSnapshot

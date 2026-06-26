@@ -22,7 +22,7 @@ import org.onebusaway.android.extrapolation.math.prob.FrozenDistribution
 import org.onebusaway.android.extrapolation.math.prob.GammaDistribution
 import org.onebusaway.android.extrapolation.math.prob.GammaMixtureDistribution
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
-import org.onebusaway.android.io.elements.ObaTripSchedule
+import org.onebusaway.android.models.ObaTripSchedule
 
 // H34 two-gamma mixture parameters, fitted on span-weighted King County Metro data (in mph).
 private const val START_B0 = 0.571381 // 1/mph

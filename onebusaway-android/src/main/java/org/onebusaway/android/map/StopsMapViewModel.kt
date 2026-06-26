@@ -23,7 +23,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.flow.StateFlow
-import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.map.render.CameraSnapshot
 import org.onebusaway.android.preferences.PreferencesRepository

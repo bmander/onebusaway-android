@@ -13,23 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.elements
+package org.onebusaway.android.models
 
 import android.location.Location
-import org.onebusaway.android.util.LocationUtils
-import java.io.Serializable
 
 interface ObaTripStatus {
-
-    class Position : Serializable {
-        var lat: Double = 0.0
-            private set
-        var lon: Double = 0.0
-            private set
-
-        val location: Location
-            get() = LocationUtils.makeLocation(lat, lon)
-    }
 
     /**
      * The time, in milliseconds since the epoch, of midnight for start of the service day for the

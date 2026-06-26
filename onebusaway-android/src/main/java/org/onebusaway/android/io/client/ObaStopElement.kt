@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.elements
+package org.onebusaway.android.io.client
 
 import android.location.Location
+import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.util.LocationUtils
 
 /**

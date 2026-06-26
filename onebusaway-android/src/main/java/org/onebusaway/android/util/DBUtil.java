@@ -1,8 +1,8 @@
 package org.onebusaway.android.util;
 
 import org.onebusaway.android.app.Application;
-import org.onebusaway.android.io.elements.ObaRoute;
-import org.onebusaway.android.io.elements.ObaStop;
+import org.onebusaway.android.models.ObaRoute;
+import org.onebusaway.android.models.ObaStop;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.ui.arrivals.ArrivalInfo;
 

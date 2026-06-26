@@ -24,9 +24,9 @@ import org.onebusaway.android.io.client.ObaEnvelope
 import org.onebusaway.android.io.client.References
 import org.onebusaway.android.io.client.TripDetailsEntry
 import org.onebusaway.android.io.client.requireData
-import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.elements.ObaTrip
-import org.onebusaway.android.io.elements.ObaTripDetails
+import org.onebusaway.android.models.ObaRoute
+import org.onebusaway.android.models.ObaTrip
+import org.onebusaway.android.models.ObaTripDetails
 
 /**
  * The result of a trips-for-route fetch, narrowed to exactly what the speed-estimation/vehicle-render

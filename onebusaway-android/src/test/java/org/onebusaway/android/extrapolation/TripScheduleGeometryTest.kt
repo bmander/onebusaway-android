@@ -13,12 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.elements
+package org.onebusaway.android.extrapolation
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.onebusaway.android.io.client.StopTimeData
+import org.onebusaway.android.io.client.TripScheduleData
+import org.onebusaway.android.models.ObaTripSchedule
 
-class ObaTripScheduleTest {
+class TripScheduleGeometryTest {
 
     @Test
     fun `findSegmentStartIndex returns 0 for distance in first segment`() {
@@ -68,10 +71,10 @@ class ObaTripScheduleTest {
         schedule.findSegmentStartIndex(0.0)
     }
 
-    private fun createSchedule(distances: DoubleArray): ObaTripSchedule =
-        ObaTripSchedule(
-            Array(distances.size) { i ->
-                ObaTripSchedule.StopTime(stopId = "stop_$i", distanceAlongTrip = distances[i])
-            },
-        )
+    private fun createSchedule(distances: DoubleArray): ObaTripSchedule {
+        val stopTimes: Array<ObaTripSchedule.StopTime> = Array(distances.size) { i ->
+            StopTimeData(stopId = "stop_$i", distanceAlongTrip = distances[i])
+        }
+        return TripScheduleData(stopTimes)
+    }
 }

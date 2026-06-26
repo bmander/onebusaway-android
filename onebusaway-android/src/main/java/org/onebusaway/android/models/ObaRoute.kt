@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.elements
+package org.onebusaway.android.models
 
 /**
  * Interface defining a Route element.

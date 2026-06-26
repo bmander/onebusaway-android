@@ -49,8 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.theme.ObaTheme
-import org.onebusaway.android.io.elements.Occupancy
-import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.models.Occupancy
+import org.onebusaway.android.models.ObaTripStatus
 import org.onebusaway.android.extrapolation.data.RouteTrips
 import kotlinx.coroutines.delay
 import org.onebusaway.android.util.ArrivalInfoUtils

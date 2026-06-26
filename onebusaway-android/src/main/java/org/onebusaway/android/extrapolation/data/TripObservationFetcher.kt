@@ -27,7 +27,7 @@ import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.requireData
 import org.onebusaway.android.io.client.toObaTripSchedule
-import org.onebusaway.android.io.elements.ObaTripSchedule
+import org.onebusaway.android.models.ObaTripSchedule
 import org.onebusaway.android.util.Polyline
 import org.onebusaway.android.util.PolylineDecoder
 import org.onebusaway.android.util.SingleFlight

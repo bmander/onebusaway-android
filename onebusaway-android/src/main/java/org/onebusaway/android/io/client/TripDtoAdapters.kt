@@ -16,14 +16,13 @@
 package org.onebusaway.android.io.client
 
 import android.location.Location
-import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.elements.ObaTrip
-import org.onebusaway.android.io.elements.ObaTripDetails
-import org.onebusaway.android.io.elements.ObaTripSchedule
-import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.ObaTripSchedule.StopTime as ObaStopTime
-import org.onebusaway.android.io.elements.Occupancy
-import org.onebusaway.android.io.elements.Status
+import org.onebusaway.android.models.ObaRoute
+import org.onebusaway.android.models.ObaTrip
+import org.onebusaway.android.models.ObaTripDetails
+import org.onebusaway.android.models.ObaTripSchedule
+import org.onebusaway.android.models.ObaTripStatus
+import org.onebusaway.android.models.Occupancy
+import org.onebusaway.android.models.Status
 import org.onebusaway.android.util.LocationUtils
 
 /*
@@ -97,20 +96,18 @@ class DtoTripDetails(private val entry: TripDetailsEntry) : ObaTripDetails {
     override val schedule: ObaTripSchedule? get() = entry.schedule?.toObaTripSchedule()
 }
 
-/** Maps the io/client [TripSchedule] DTO to the legacy [ObaTripSchedule] (consumed by schedule replay). */
-fun TripSchedule.toObaTripSchedule(): ObaTripSchedule = ObaTripSchedule(
-    stopTimes.map {
-        ObaStopTime(
+/** Maps the io/client [TripSchedule] DTO to the [ObaTripSchedule] model (consumed by schedule replay). */
+fun TripSchedule.toObaTripSchedule(): ObaTripSchedule {
+    val times: List<ObaTripSchedule.StopTime> = stopTimes.map {
+        StopTimeData(
             it.stopId,
             it.stopHeadsign,
             it.arrivalTime,
             it.departureTime,
-            it.historicalOccupancy,
-            it.predictedOccupancy,
+            Occupancy.fromString(it.historicalOccupancy),
+            Occupancy.fromString(it.predictedOccupancy),
             it.distanceAlongTrip,
         )
-    }.toTypedArray(),
-    timeZone,
-    previousTripId,
-    nextTripId,
-)
+    }
+    return TripScheduleData(times.toTypedArray(), timeZone, previousTripId, nextTripId)
+}

@@ -13,12 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.elements
+package org.onebusaway.android.models
 
-/**
- * Base interface for any element that has an ID.
- */
-interface ObaElement {
-    /** The ID of this element. */
-    val id: String
+import android.location.Location
+
+interface ObaShape {
+
+    /** The number of points in the line. */
+    val length: Int
+
+    /** The list of points in this line. */
+    val points: List<Location>
+
+    /** The string encoding of the points in this line. */
+    val rawPoints: String?
 }

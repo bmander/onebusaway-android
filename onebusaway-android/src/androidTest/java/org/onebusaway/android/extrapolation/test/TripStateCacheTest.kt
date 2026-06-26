@@ -28,10 +28,12 @@ import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.data.TripObservation
 import org.onebusaway.android.extrapolation.data.TripStateCache
-import org.onebusaway.android.io.elements.ObaTripSchedule
-import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.Occupancy
-import org.onebusaway.android.io.elements.Status
+import org.onebusaway.android.io.client.StopTimeData
+import org.onebusaway.android.io.client.TripScheduleData
+import org.onebusaway.android.models.ObaTripSchedule
+import org.onebusaway.android.models.ObaTripStatus
+import org.onebusaway.android.models.Occupancy
+import org.onebusaway.android.models.Status
 import org.onebusaway.android.util.Polyline
 
 /** Instrumented tests for the trip-state cache: recording, retention/eviction, and hydration. */
@@ -182,21 +184,21 @@ class TripStateCacheTest {
 
     @Test
     fun testTrackerPutAndGetSchedule() {
-        val schedule = ObaTripSchedule.EMPTY_OBJECT
+        val schedule = TripScheduleData.EMPTY
         cache.putSchedule("trip1", schedule)
         assertNotNull(cache.lookupTripState("trip1")?.schedule)
     }
 
     @Test
     fun testTrackerPutScheduleNullIgnored() {
-        cache.putSchedule(null, ObaTripSchedule.EMPTY_OBJECT)
+        cache.putSchedule(null, TripScheduleData.EMPTY)
         cache.putSchedule("trip1", null)
         assertNull(cache.lookupTripState("trip1")?.schedule)
     }
 
     @Test
     fun testTrackerClearAllClearsScheduleCache() {
-        cache.putSchedule("trip1", ObaTripSchedule.EMPTY_OBJECT)
+        cache.putSchedule("trip1", TripScheduleData.EMPTY)
         assertNotNull(cache.lookupTripState("trip1")?.schedule)
 
         cache.clearAllTrips()
@@ -400,10 +402,9 @@ class TripStateCacheTest {
             distances: DoubleArray,
             arrivalTimes: LongArray,
             departureTimes: LongArray
-    ): ObaTripSchedule =
-        ObaTripSchedule(
-            Array(distances.size) { i ->
-                ObaTripSchedule.StopTime(
+    ): ObaTripSchedule = TripScheduleData(
+            Array<ObaTripSchedule.StopTime>(distances.size) { i ->
+                StopTimeData(
                     stopId = "stop_$i",
                     arrivalTime = arrivalTimes[i],
                     departureTime = departureTimes[i],

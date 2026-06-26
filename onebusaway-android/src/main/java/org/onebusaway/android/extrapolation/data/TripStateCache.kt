@@ -16,7 +16,7 @@
 package org.onebusaway.android.extrapolation.data
 
 import androidx.annotation.VisibleForTesting
-import org.onebusaway.android.io.elements.ObaTripSchedule
+import org.onebusaway.android.models.ObaTripSchedule
 import org.onebusaway.android.util.Polyline
 
 private const val MAX_TRACKED_TRIPS = 100

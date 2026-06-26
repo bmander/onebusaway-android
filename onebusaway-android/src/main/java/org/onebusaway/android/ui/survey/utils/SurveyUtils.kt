@@ -7,7 +7,7 @@ import org.json.JSONException
 import org.json.JSONObject
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.database.survey.SurveyDbHelper
-import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.io.client.StudyResponse
 import org.onebusaway.android.ui.survey.SurveyPreferences
 import java.util.Date

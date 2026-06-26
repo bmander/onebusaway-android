@@ -18,8 +18,8 @@ package org.onebusaway.android.ui.arrivals
 
 import android.content.Context
 import org.onebusaway.android.R
-import org.onebusaway.android.io.elements.Occupancy
-import org.onebusaway.android.io.elements.Status
+import org.onebusaway.android.models.Occupancy
+import org.onebusaway.android.models.Status
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.report.TripReportContext
 import org.onebusaway.android.util.ArrivalInfoUtils

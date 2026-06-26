@@ -21,8 +21,8 @@ import android.graphics.Color
 
 /**
  * Parses an OBA route hex color (a bare hex string like "FDB71A") to an Android ARGB int, or null
- * when absent or malformed. The single canonical parse — shared by the wire DTO color readers
- * ([org.onebusaway.android.io.client.colorArgb]) and the legacy `ObaRouteElement`.
+ * when absent or malformed. The single canonical parse used by the wire DTO color readers
+ * ([org.onebusaway.android.io.client.colorArgb]).
  */
 fun parseObaHexColor(hex: String?): Int? =
     hex?.takeIf { it.isNotEmpty() }?.let {

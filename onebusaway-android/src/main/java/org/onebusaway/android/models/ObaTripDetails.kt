@@ -13,18 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.elements
+package org.onebusaway.android.models
 
-import android.location.Location
+interface ObaTripDetails : ObaElement {
 
-interface ObaShape {
+    /** Details on the trip's schedule. Can be null if the schedule isn't included. */
+    val schedule: ObaTripSchedule?
 
-    /** The number of points in the line. */
-    val length: Int
-
-    /** The list of points in this line. */
-    val points: List<Location>
-
-    /** The string encoding of the points in this line. */
-    val rawPoints: String?
+    /** Details on the trip's status. Can be null if the status isn't included. */
+    val status: ObaTripStatus?
 }

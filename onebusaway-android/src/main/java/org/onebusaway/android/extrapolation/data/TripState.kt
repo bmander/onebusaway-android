@@ -19,9 +19,9 @@ import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.Extrapolator
 import org.onebusaway.android.extrapolation.GammaExtrapolator
 import org.onebusaway.android.extrapolation.ScheduleReplayExtrapolator
-import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.elements.ObaTripSchedule
-import org.onebusaway.android.io.elements.ObaTripStatus
+import org.onebusaway.android.models.ObaRoute
+import org.onebusaway.android.models.ObaTripSchedule
+import org.onebusaway.android.models.ObaTripStatus
 import org.onebusaway.android.util.Polyline
 
 private const val MAX_ENTRIES = 100

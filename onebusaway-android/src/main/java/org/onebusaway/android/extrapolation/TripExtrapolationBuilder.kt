@@ -19,7 +19,7 @@ import android.location.Location
 import org.onebusaway.android.extrapolation.data.RouteTrips
 import org.onebusaway.android.extrapolation.data.TripState
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
-import org.onebusaway.android.io.elements.Status
+import org.onebusaway.android.models.Status
 import org.onebusaway.android.map.render.DataAgeMarker
 import org.onebusaway.android.map.render.GeoPoint
 import org.onebusaway.android.util.Polyline

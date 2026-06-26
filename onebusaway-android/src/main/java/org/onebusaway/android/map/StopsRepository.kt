@@ -24,8 +24,8 @@ import org.onebusaway.android.io.client.DtoRoute
 import org.onebusaway.android.io.client.DtoStop
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.requireData
-import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.models.ObaRoute
+import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.map.render.CameraSnapshot
 
 /** The stops visible in a viewport + the routes serving them (for the marker route-type icons). */

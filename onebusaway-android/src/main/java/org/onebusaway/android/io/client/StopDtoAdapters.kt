@@ -16,7 +16,7 @@
 package org.onebusaway.android.io.client
 
 import android.location.Location
-import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.util.LocationUtils
 
 /**

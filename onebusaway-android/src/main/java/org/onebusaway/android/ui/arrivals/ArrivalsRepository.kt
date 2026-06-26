@@ -35,9 +35,9 @@ import org.onebusaway.android.io.client.RouteRepository
 import org.onebusaway.android.io.client.StopReference
 import org.onebusaway.android.io.client.colorArgb
 import org.onebusaway.android.io.client.textColorArgb
-import org.onebusaway.android.io.elements.ObaRoute
-import org.onebusaway.android.io.elements.ObaSituation
-import org.onebusaway.android.io.elements.ObaStop
+import org.onebusaway.android.models.ObaRoute
+import org.onebusaway.android.models.ObaSituation
+import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.provider.loadStopUserInfo
 import org.onebusaway.android.region.RegionRepository

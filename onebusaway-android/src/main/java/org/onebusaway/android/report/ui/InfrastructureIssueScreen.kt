@@ -67,8 +67,8 @@ import kotlinx.coroutines.withContext
 import edu.usf.cutr.open311client.Open311
 import edu.usf.cutr.open311client.models.Service
 import org.onebusaway.android.R
-import org.onebusaway.android.io.elements.ObaStop
-import org.onebusaway.android.io.elements.ObaStopElement
+import org.onebusaway.android.models.ObaStop
+import org.onebusaway.android.io.client.ObaStopElement
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.StopsMapViewModel
 import org.onebusaway.android.map.compose.ObaMap
@@ -184,7 +184,7 @@ fun InfrastructureIssueDestination(
 
             override fun onBikeClick(station: org.opentripplanner.routing.bike_rental.BikeRentalStation) {}
 
-            override fun onVehicleInfoWindowClick(status: org.onebusaway.android.io.elements.ObaTripStatus) {}
+            override fun onVehicleInfoWindowClick(status: org.onebusaway.android.models.ObaTripStatus) {}
 
             override fun onBikeInfoWindowClick(station: org.opentripplanner.routing.bike_rental.BikeRentalStation) {}
         }

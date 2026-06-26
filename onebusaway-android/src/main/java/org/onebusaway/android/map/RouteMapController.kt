@@ -31,7 +31,6 @@ import org.onebusaway.android.extrapolation.data.TripObservationRepository
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.client.ObaApiException
-import org.onebusaway.android.io.elements.isLocationRealtime
 import org.onebusaway.android.map.render.MapRenderState
 import org.onebusaway.android.map.render.MapVehicles
 import org.onebusaway.android.map.render.RoutePolyline

@@ -115,4 +115,11 @@ interface ObaTripStatus {
 
     /** The real-time occupancy of the vehicle. */
     val occupancyStatus: Occupancy?
+
+    /**
+     * True if the server provided a real-time location for this vehicle — i.e. it has a last-known
+     * location *and* the trip is predicted.
+     */
+    val isLocationRealtime: Boolean
+        get() = lastKnownLocation != null && isPredicted
 }

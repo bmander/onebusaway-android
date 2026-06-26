@@ -22,7 +22,6 @@ import org.onebusaway.android.extrapolation.ScheduleReplayExtrapolator
 import org.onebusaway.android.io.elements.ObaRoute
 import org.onebusaway.android.io.elements.ObaTripSchedule
 import org.onebusaway.android.io.elements.ObaTripStatus
-import org.onebusaway.android.io.elements.isLocationRealtime
 import org.onebusaway.android.util.Polyline
 
 private const val MAX_ENTRIES = 100

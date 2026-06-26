@@ -44,7 +44,6 @@ import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.app.di.LocationEntryPoint;
 import org.onebusaway.android.app.di.RegionEntryPoint;
 import org.onebusaway.android.region.RegionSubsystems;
-import org.onebusaway.android.travelbehavior.TravelBehaviorManager;
 import org.onebusaway.android.util.BuildFlavorUtils;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.PreferenceUtils;
@@ -115,8 +114,6 @@ public class Application extends android.app.Application {
         reportAnalytics();
 
         createNotificationChannels();
-
-        TravelBehaviorManager.startCollectingData(getApplicationContext());
 
         incrementAppLaunchCount();
 

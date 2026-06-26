@@ -35,7 +35,6 @@ import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.ApiUrlValidator
 import org.onebusaway.android.region.RegionRepository
-import org.onebusaway.android.travelbehavior.io.coroutines.FirebaseDataPusher
 
 /** One-shot actions the advanced settings screen routes back to its host. */
 sealed interface AdvancedSettingsEffect {
@@ -144,8 +143,6 @@ class AdvancedSettingsViewModel @Inject constructor(
         prefs.setString(R.string.preference_key_otp_api_url, trimmed)
         return UrlChangeResult.Accepted
     }
-
-    fun onPushFirebaseData() = FirebaseDataPusher().push(context)
 
     fun onResetDonationTimestamps() {
         Application.getDonationsManager().setDonationRequestReminderDate(null)

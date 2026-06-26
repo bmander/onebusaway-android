@@ -35,7 +35,6 @@ import org.onebusaway.android.map.MapViewModel
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.report.ui.ReportLauncher
-import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.nav.NavHelp
 import org.onebusaway.android.ui.arrivals.ArrivalsViewModel
 import org.onebusaway.android.ui.home.donation.DonationViewModel
@@ -142,8 +141,6 @@ class HomeActivity : AppCompatActivity() {
         }
 
         setupMapState()
-
-        TravelBehaviorManager(this, applicationContext).registerTravelBehaviorParticipant()
 
         // The VM owns the startup region-check decision (defer to the map's permission result on a first
         // launch without permission, else check now). The permission read needs a Context, so it stays here.

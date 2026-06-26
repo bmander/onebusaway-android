@@ -124,7 +124,6 @@ fun AdvancedSettingsRoute(
                 else -> true
             }
         },
-        onPushFirebaseData = viewModel::onPushFirebaseData,
         onResetDonationTimestamps = viewModel::onResetDonationTimestamps,
     )
 }
@@ -137,7 +136,6 @@ fun AdvancedSettingsScreen(
     onDisplayTestAlerts: (Boolean) -> Unit,
     onObaUrlChange: (String) -> Boolean,
     onOtpUrlChange: (String) -> Boolean,
-    onPushFirebaseData: () -> Unit,
     onResetDonationTimestamps: () -> Unit,
 ) {
     val appName = stringResource(R.string.app_name)
@@ -183,11 +181,6 @@ fun AdvancedSettingsScreen(
                     currentValue = state.customOtpApiUrl,
                     hint = stringResource(R.string.preferences_otp_api_servername_hint),
                     onValueChange = onOtpUrlChange,
-                )
-                ClickPreferenceItem(
-                    title = stringResource(R.string.preferences_push_firebase_data_title),
-                    summary = stringResource(R.string.preferences_push_firebase_data_summary),
-                    onClick = onPushFirebaseData,
                 )
                 ClickPreferenceItem(
                     title = stringResource(R.string.preferences_reset_donation_timestamps_title),

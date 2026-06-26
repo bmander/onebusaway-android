@@ -56,7 +56,6 @@ import org.onebusaway.android.io.ObaAnalytics
 import org.onebusaway.android.io.PlausibleAnalytics
 import org.onebusaway.android.nav.NavigationService
 import org.onebusaway.android.preferences.PreferencesRepository
-import org.onebusaway.android.travelbehavior.TravelBehaviorManager
 import org.onebusaway.android.ui.compose.components.OptOutInfoDialog
 import org.onebusaway.android.ui.compose.findActivity
 import org.onebusaway.android.util.LocationUtils
@@ -183,11 +182,6 @@ internal fun rememberDestinationReminderAction(
         Toast.makeText(
             context, resources.getString(R.string.destination_reminder_title), Toast.LENGTH_LONG
         ).show()
-        val currentTime = viewModel.lastLoadedTime() ?: System.currentTimeMillis()
-        TravelBehaviorManager.saveDestinationReminders(
-            stopId, serviceIntent.getStringExtra(NavigationService.DESTINATION_ID),
-            tripId, viewModel.routeId(), currentTime
-        )
     }
 
     fun confirmDestinationReminder(position: Int) {

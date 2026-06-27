@@ -67,6 +67,7 @@ types themselves, `ObaApiException`, `Result`. (DI wiring in app/di references W
   data) + TripObservationFetcher fetch (tripDetails/shape) move into io. DEVICE-GATED (vehicles).
 - TripDetails: DONE f679d890 + DEVICE-VERIFIED (trip-details 200, header/stops/markers render, no crash). io.client TripDetails resolved-view model (trip/route/status/schedule + stop/agencyName resolvers + currentTime); TripDetailsDataSource fetches; feature projects off the model.
 - Model-types relocation: DONE e859c765 — ArrivalData/FrequencyWindow/NearbyStops/RouteMapData/RouteStopGroup/AgencyItem/RouteDetails moved io.client -> models (io.client keeps wire DTOs + Dto* adapters + data sources; StopArrivals/TripDetails stay in io.client as resolved-view query results).
+- CustomerService + ProblemReport: DONE 8d5beef8 (CustomerServiceRepository -> io.client + AgencyContact -> models; ProblemReportService io.client wire-submit seam, feature repo unpacks UI params). Compile + unit; no device gate.
 - Survey (re-sized BIG): StudyResponse.Surveys/.Questions threaded through SurveyViewModel (346),
   SurveyOverlay (370, Compose renders Questions directly), SurveyUtils (365), SurveyDbHelper. Needs a
   survey domain model + VM/UI/utils/DB rewrite. Its own campaign. DEVICE-GATED (survey overlay).

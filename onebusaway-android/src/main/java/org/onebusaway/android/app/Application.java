@@ -35,6 +35,7 @@ import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
 import org.onebusaway.android.donations.DonationsManager;
 import org.onebusaway.android.io.ObaAnalytics;
+import org.onebusaway.android.io.ObaApi;
 import org.onebusaway.android.region.Region;
 import org.onebusaway.android.app.di.LocationEntryPoint;
 import org.onebusaway.android.app.di.RegionEntryPoint;
@@ -60,8 +61,6 @@ import dagger.hilt.android.HiltAndroidApp;
 
 @HiltAndroidApp
 public class Application extends android.app.Application {
-
-    public static final String APP_UID = "app_uid";
 
     // Region preference (long id)
     private static final String TAG = "Application";
@@ -414,8 +413,8 @@ public class Application extends android.app.Application {
 
     private void initOba() {
         // Ensure a per-install app UID is persisted; ObaEndpointResolver reads it as app_uid.
-        if (PreferenceUtils.getString(APP_UID) == null) {
-            PreferenceUtils.saveString(APP_UID, getAppUid());
+        if (PreferenceUtils.getString(ObaApi.APP_UID) == null) {
+            PreferenceUtils.saveString(ObaApi.APP_UID, getAppUid());
         }
 
         checkArrivalStylePreferenceDefault();

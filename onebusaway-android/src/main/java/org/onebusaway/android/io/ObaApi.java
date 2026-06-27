@@ -45,4 +45,7 @@ public final class ObaApi {
 
     /** The OBA REST API key appended to every request. */
     public static final String API_KEY = "v1_BktoDJ2gJlu6nLM6LsT9H8IUbWc=cGF1bGN3YXR0c0BnbWFpbC5jb20=";
+
+    /** Preferences key holding the persisted per-install app UID (sent as {@code app_uid}). */
+    public static final String APP_UID = "app_uid";
 }

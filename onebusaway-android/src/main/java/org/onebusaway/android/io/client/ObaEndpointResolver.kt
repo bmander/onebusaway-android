@@ -24,7 +24,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
@@ -66,7 +65,7 @@ class ObaEndpointResolver @Inject constructor(
     /** The app version code (`app_ver`) — a build constant, so no per-request lookup. */
     val appVersion: Int get() = BuildConfig.VERSION_CODE
 
-    /** The persisted per-install app UID (`app_uid`), generated once by [Application]. Invariant per
+    /** The persisted per-install app UID (`app_uid`), generated once at app startup. Invariant per
      * process, so read once at construction rather than on every request. */
-    val appUid: String? = preferences.getString(Application.APP_UID, null)
+    val appUid: String? = preferences.getString(ObaApi.APP_UID, null)
 }

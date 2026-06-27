@@ -20,7 +20,7 @@ package org.onebusaway.android.util;
 import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
-import org.onebusaway.android.io.client.RegionsClient;
+import org.onebusaway.android.io.client.bridge.RegionsClient;
 import org.onebusaway.android.region.Region;
 import org.onebusaway.android.region.RegionCursor;
 import org.onebusaway.android.provider.ObaContract;

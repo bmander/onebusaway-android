@@ -17,6 +17,8 @@ package org.onebusaway.android.io.client
 
 import android.util.Log
 import javax.inject.Inject
+import org.onebusaway.android.io.client.sidecar.StudyResponse
+import org.onebusaway.android.io.client.sidecar.SurveyWebService
 import org.onebusaway.android.models.Survey
 import org.onebusaway.android.models.SurveyContent
 import org.onebusaway.android.models.SurveyQuestion

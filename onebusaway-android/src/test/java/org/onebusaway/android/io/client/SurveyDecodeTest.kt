@@ -15,6 +15,9 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.sidecar.StudyResponse
+import org.onebusaway.android.io.client.sidecar.SubmitSurveyResponse
+
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

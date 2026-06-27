@@ -17,7 +17,7 @@ package org.onebusaway.android.util;
 
 import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
-import org.onebusaway.android.io.client.ReminderClient;
+import org.onebusaway.android.io.client.bridge.ReminderClient;
 import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.provider.ProviderQueries;
 

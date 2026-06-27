@@ -15,6 +15,9 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.sidecar.BikeRentalStationsDto
+import org.onebusaway.android.io.client.sidecar.toBikeRentalStations
+
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

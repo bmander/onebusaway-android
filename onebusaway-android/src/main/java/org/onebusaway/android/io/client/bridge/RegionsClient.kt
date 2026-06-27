@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.client
+package org.onebusaway.android.io.client.bridge
 
 import android.content.Context
 import android.util.Log
@@ -21,6 +21,11 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.onebusaway.android.R
 import org.onebusaway.android.app.di.NetworkEntryPoint
+import org.onebusaway.android.io.client.ListWithReferences
+import org.onebusaway.android.io.client.ObaEnvelope
+import org.onebusaway.android.io.client.RegionDto
+import org.onebusaway.android.io.client.requireData
+import org.onebusaway.android.io.client.toObaRegion
 import org.onebusaway.android.region.Region
 
 /**

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.client
+package org.onebusaway.android.io.client.sidecar
 
 import retrofit2.Response
 import retrofit2.http.DELETE

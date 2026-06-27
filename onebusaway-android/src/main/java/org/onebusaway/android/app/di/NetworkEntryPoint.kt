@@ -24,7 +24,7 @@ import org.onebusaway.android.io.client.LocationSearchDataSource
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.ProblemReportDataSource
 import org.onebusaway.android.io.client.RegionsWebService
-import org.onebusaway.android.io.client.ReminderWebService
+import org.onebusaway.android.io.client.sidecar.ReminderWebService
 import org.onebusaway.android.io.client.StopArrivalsDataSource
 
 /**

@@ -46,9 +46,8 @@ class DefaultMapDataSource @Inject constructor(
 
     override suspend fun nearbyStops(
         lat: Double, lon: Double, latSpan: Double, lonSpan: Double,
-    ): Result<NearbyStops?> = withContext(Dispatchers.IO) {
-        runCatching {
-            val service = api.service() ?: return@runCatching null
+    ): Result<NearbyStops?> = api.callOrNull { service ->
+        withContext(Dispatchers.IO) {
             val data = service.stopsForLocation(lat = lat, lon = lon, latSpan = latSpan, lonSpan = lonSpan)
                 .requireData()
             NearbyStops(
@@ -60,9 +59,8 @@ class DefaultMapDataSource @Inject constructor(
         }
     }
 
-    override suspend fun routeMap(routeId: String): Result<RouteMapData?> = withContext(Dispatchers.IO) {
-        runCatching {
-            val service = api.service() ?: return@runCatching null
+    override suspend fun routeMap(routeId: String): Result<RouteMapData?> = api.callOrNull { service ->
+        withContext(Dispatchers.IO) {
             val data = service.stopsForRoute(routeId, includePolylines = true).requireData()
             val route = data.references.route(routeId)?.let(::DtoRoute)
             RouteMapData(

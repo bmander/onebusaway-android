@@ -40,8 +40,8 @@ class DefaultRouteStopsDataSource @Inject constructor(
     private val api: ObaApiProvider,
 ) : RouteStopsDataSource {
 
-    override suspend fun stopsForRoute(routeId: String): Result<List<RouteStopGroup>> = runCatching {
-        api.requireService().stopsForRoute(routeId).requireData().toRouteStopGroups()
+    override suspend fun stopsForRoute(routeId: String): Result<List<RouteStopGroup>> = api.call {
+        it.stopsForRoute(routeId).requireData().toRouteStopGroups()
     }.onFailure { Log.e(TAG, "stopsForRoute($routeId) failed", it) }
 
     private companion object {

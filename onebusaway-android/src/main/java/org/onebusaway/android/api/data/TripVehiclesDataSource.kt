@@ -88,20 +88,20 @@ class DefaultTripVehiclesDataSource @Inject constructor(
     private val api: ObaApiProvider,
 ) : TripVehiclesDataSource {
 
-    override suspend fun tripsForRoute(routeId: String): Result<RouteTrips> = runCatching {
-        api.requireService().tripsForRoute(routeId).asRouteTrips()
+    override suspend fun tripsForRoute(routeId: String): Result<RouteTrips> = api.call {
+        it.tripsForRoute(routeId).asRouteTrips()
     }.onFailure { Log.e(TAG, "tripsForRoute($routeId) failed", it) }
 
-    override suspend fun tripDetails(tripId: String): Result<RouteTrips> = runCatching {
-        api.requireService().tripDetails(tripId).asRouteTrips()
+    override suspend fun tripDetails(tripId: String): Result<RouteTrips> = api.call {
+        it.tripDetails(tripId).asRouteTrips()
     }.onFailure { Log.e(TAG, "tripDetails($tripId) failed", it) }
 
-    override suspend fun tripSchedule(tripId: String): Result<ObaTripSchedule?> = runCatching {
-        api.requireService().tripDetails(tripId).requireData().entry.schedule?.toObaTripSchedule()
+    override suspend fun tripSchedule(tripId: String): Result<ObaTripSchedule?> = api.call {
+        it.tripDetails(tripId).requireData().entry.schedule?.toObaTripSchedule()
     }.onFailure { Log.e(TAG, "tripSchedule($tripId) failed", it) }
 
-    override suspend fun shape(shapeId: String): Result<Polyline?> = runCatching {
-        val entry = api.requireService().shape(shapeId).requireData().entry
+    override suspend fun shape(shapeId: String): Result<Polyline?> = api.call {
+        val entry = it.shape(shapeId).requireData().entry
         PolylineDecoder.decodeLine(entry.points, entry.length)
             .takeIf { it.isNotEmpty() }
             ?.let { Polyline(it) }

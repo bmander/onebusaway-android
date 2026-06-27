@@ -40,8 +40,8 @@ class DefaultAgenciesDataSource @Inject constructor(
     private val api: ObaApiProvider
 ) : AgenciesDataSource {
 
-    override suspend fun getAgencies(): Result<List<AgencyContact>> = runCatching {
-        api.requireService().agenciesWithCoverage().requireData().toAgencyContacts()
+    override suspend fun getAgencies(): Result<List<AgencyContact>> = api.call {
+        it.agenciesWithCoverage().requireData().toAgencyContacts()
     }.onFailure { Log.e(TAG, "getAgencies failed", it) }
 
     private companion object {

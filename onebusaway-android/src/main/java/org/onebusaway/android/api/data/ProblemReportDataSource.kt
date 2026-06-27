@@ -63,8 +63,8 @@ class DefaultProblemReportDataSource @Inject constructor(
         lat: Double?,
         lon: Double?,
         accuracyMeters: Int?,
-    ): Result<Unit> = runCatching {
-        api.requireService().reportProblemWithStop(
+    ): Result<Unit> = api.call {
+        it.reportProblemWithStop(
             stopId = stopId,
             code = code,
             data = dataJson(code),
@@ -87,8 +87,8 @@ class DefaultProblemReportDataSource @Inject constructor(
         lat: Double?,
         lon: Double?,
         accuracyMeters: Int?,
-    ): Result<Unit> = runCatching {
-        api.requireService().reportProblemWithTrip(
+    ): Result<Unit> = api.call {
+        it.reportProblemWithTrip(
             tripId = tripId,
             code = code,
             data = dataJson(code),

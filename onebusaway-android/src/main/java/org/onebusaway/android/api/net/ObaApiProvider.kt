@@ -45,11 +45,32 @@ class ObaApiProvider @Inject constructor(
     private var cachedService: ObaWebService? = null
 
     /**
+     * Runs [block] against the [ObaWebService] for the current region and maps the outcome to a
+     * [Result]. Yields [Result.failure] when there's no endpoint to contact (no current region and no
+     * custom API URL) or when [block] throws (a non-OK app code, transport, or parse failure) — so the
+     * common "no region is an error" callers get one uniform failure path without a try/catch.
+     */
+    suspend fun <T> call(block: suspend (ObaWebService) -> T): Result<T> {
+        val service = service() ?: return Result.failure(noEndpoint())
+        return runCatching { block(service) }
+    }
+
+    /**
+     * Like [call], but yields `success(null)` when there's no endpoint yet — for callers (e.g. the map)
+     * that treat "no region" as nothing-to-show rather than an error.
+     */
+    suspend fun <T> callOrNull(block: suspend (ObaWebService) -> T): Result<T?> {
+        val service = service() ?: return Result.success(null)
+        return runCatching { block(service) }
+    }
+
+    /**
      * The [ObaWebService] bound to the current region's base URL, or null when there's no endpoint to
-     * contact yet (no current region and no custom API URL). Rebuilds when the base URL has changed.
+     * contact yet. Rebuilds when the base URL has changed. Private: callers go through [call] /
+     * [callOrNull] so the no-endpoint policy lives in one place.
      */
     @Synchronized
-    fun service(): ObaWebService? {
+    private fun service(): ObaWebService? {
         val base = resolver.baseUrl()
         if (base == null) {
             cachedBase = null
@@ -63,12 +84,8 @@ class ObaApiProvider @Inject constructor(
         return cachedService
     }
 
-    /**
-     * Like [service] but throws when no endpoint is configured — the caller's `runCatching` maps it to
-     * a [Result.failure], matching the per-endpoint failure policy.
-     */
-    fun requireService(): ObaWebService =
-        service() ?: throw IOException("No OBA API endpoint: no current region and no custom API URL set")
+    private fun noEndpoint() =
+        IOException("No OBA API endpoint: no current region and no custom API URL set")
 
     private fun build(base: Uri): ObaWebService {
         // Retrofit requires the base URL to end in '/' so the endpoints' relative paths resolve onto it.

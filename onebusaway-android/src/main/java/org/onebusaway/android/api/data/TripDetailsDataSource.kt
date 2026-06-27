@@ -85,8 +85,8 @@ class DefaultTripDetailsDataSource @Inject constructor(
     private val api: ObaApiProvider,
 ) : TripDetailsDataSource {
 
-    override suspend fun tripDetails(tripId: String): Result<TripDetails> = runCatching {
-        val envelope = api.requireService().tripDetails(tripId)
+    override suspend fun tripDetails(tripId: String): Result<TripDetails> = api.call {
+        val envelope = it.tripDetails(tripId)
         TripDetails(envelope.requireData(), envelope.currentTime)
     }.onFailure { Log.e(TAG, "tripDetails($tripId) failed", it) }
 

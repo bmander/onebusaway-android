@@ -43,8 +43,8 @@ class DefaultRouteDataSource @Inject constructor(
     private val api: ObaApiProvider,
 ) : RouteDataSource {
 
-    override suspend fun getRoute(routeId: String): Result<RouteDetails> = runCatching {
-        api.requireService().route(routeId).requireData().toRouteDetails()
+    override suspend fun getRoute(routeId: String): Result<RouteDetails> = api.call {
+        it.route(routeId).requireData().toRouteDetails()
     }.onFailure { Log.e(TAG, "getRoute($routeId) failed", it) }
 
     private companion object {

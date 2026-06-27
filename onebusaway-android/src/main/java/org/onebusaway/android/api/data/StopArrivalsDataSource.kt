@@ -108,8 +108,8 @@ class DefaultStopArrivalsDataSource @Inject constructor(
     private val api: ObaApiProvider,
 ) : StopArrivalsDataSource {
 
-    override suspend fun arrivals(stopId: String, minutesAfter: Int): Result<StopArrivals> = runCatching {
-        val envelope = api.requireService().arrivalsAndDeparturesForStop(stopId, minutesAfter)
+    override suspend fun arrivals(stopId: String, minutesAfter: Int): Result<StopArrivals> = api.call {
+        val envelope = it.arrivalsAndDeparturesForStop(stopId, minutesAfter)
         StopArrivals(envelope.requireData(), envelope.currentTime, minutesAfter)
     }.onFailure { Log.e(TAG, "arrivals($stopId) failed", it) }
 

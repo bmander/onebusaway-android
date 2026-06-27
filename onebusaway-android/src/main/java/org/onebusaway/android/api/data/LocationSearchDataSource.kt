@@ -54,26 +54,26 @@ class DefaultLocationSearchDataSource @Inject constructor(
 
     override suspend fun routesNear(
         lat: Double, lon: Double, query: String?, radius: Int?,
-    ): Result<List<ObaRoute>> = runCatching {
-        api.requireService().routesForLocation(lat, lon, query, radius).requireData().list.map(::DtoRoute)
+    ): Result<List<ObaRoute>> = api.call {
+        it.routesForLocation(lat, lon, query, radius).requireData().list.map(::DtoRoute)
     }.onFailure { Log.e(TAG, "routesNear failed", it) }
 
     override suspend fun stopsNear(
         lat: Double, lon: Double, query: String?, radius: Int?,
-    ): Result<List<ObaStop>> = runCatching {
-        api.requireService().stopsForLocation(lat, lon, query, radius).requireData().list.map(::DtoStop)
+    ): Result<List<ObaStop>> = api.call {
+        it.stopsForLocation(lat, lon, query, radius).requireData().list.map(::DtoStop)
     }.onFailure { Log.e(TAG, "stopsNear failed", it) }
 
     override suspend fun routesNearOrEmpty(
         lat: Double, lon: Double, query: String?, radius: Int?,
-    ): Result<List<ObaRoute>> = runCatching {
-        api.requireService().routesForLocation(lat, lon, query, radius).listOrEmpty().map(::DtoRoute)
+    ): Result<List<ObaRoute>> = api.call {
+        it.routesForLocation(lat, lon, query, radius).listOrEmpty().map(::DtoRoute)
     }.onFailure { Log.e(TAG, "routesNearOrEmpty failed", it) }
 
     override suspend fun stopsNearOrEmpty(
         lat: Double, lon: Double, query: String?, radius: Int?,
-    ): Result<List<ObaStop>> = runCatching {
-        api.requireService().stopsForLocation(lat, lon, query, radius).listOrEmpty().map(::DtoStop)
+    ): Result<List<ObaStop>> = api.call {
+        it.stopsForLocation(lat, lon, query, radius).listOrEmpty().map(::DtoStop)
     }.onFailure { Log.e(TAG, "stopsNearOrEmpty failed", it) }
 
     private companion object {

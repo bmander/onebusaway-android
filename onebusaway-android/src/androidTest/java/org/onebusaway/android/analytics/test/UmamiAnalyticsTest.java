@@ -1,4 +1,4 @@
-package org.onebusaway.android.io.test;
+package org.onebusaway.android.analytics.test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -10,6 +10,7 @@ import org.json.JSONObject;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.onebusaway.android.analytics.UmamiAnalytics;
+import org.onebusaway.android.analytics.UmamiAnalyticsReporter;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -86,8 +87,8 @@ public class UmamiAnalyticsTest {
     @Test
     public void testReporterNullEmitterIsNoOp() {
         // Must not throw when Umami is unconfigured (null emitter).
-        org.onebusaway.android.analytics.UmamiAnalyticsReporter.reportUiEvent(null, "app://localhost/map", "id", "state");
-        org.onebusaway.android.analytics.UmamiAnalyticsReporter.reportSearchEvent(null, "bus");
-        org.onebusaway.android.analytics.UmamiAnalyticsReporter.reportViewStopEvent(null, "stop-1", "DISTANCE_1");
+        UmamiAnalyticsReporter.reportUiEvent(null, "app://localhost/map", "id", "state");
+        UmamiAnalyticsReporter.reportSearchEvent(null, "bus");
+        UmamiAnalyticsReporter.reportViewStopEvent(null, "stop-1", "DISTANCE_1");
     }
 }

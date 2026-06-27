@@ -15,7 +15,6 @@
  */
 package org.onebusaway.android.io.client
 
-import android.content.Context
 import android.net.Uri
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
@@ -27,24 +26,37 @@ import org.onebusaway.android.io.ObaApi
  * shared query parameters.
  *
  * The Retrofit client is built with a throwaway base URL; only the request's path and any
- * endpoint-specific query parameters survive. This interceptor reuses [org.onebusaway.android.io.ObaContext]
- * (the same instance `RegionRepository` keeps updated) to resolve the region / custom API URL /
- * api key and append the version + app identifiers — one source of truth for endpoint resolution.
+ * endpoint-specific query parameters survive. This interceptor asks [ObaEndpointResolver] (backed by
+ * `RegionRepository`) for the resolved host / key / app identity, then layers the REST path and the
+ * version + app params on top — one source of truth for endpoint resolution.
  */
-class ObaUrlInterceptor(private val context: Context) : Interceptor {
+class ObaUrlInterceptor(private val resolver: ObaEndpointResolver) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        val obaContext = ObaApi.getDefaultContext()
 
-        // Seed a Uri.Builder with the REST path Retrofit produced, dropping the leading slash to
-        // match BuilderBase (which sets the path without one). Then layer on the resolved base URL
-        // and the app / version / key params in the same order as BuilderBase.buildUri().
-        val builder = Uri.Builder().encodedPath(request.url.encodedPath.removePrefix("/"))
-        obaContext.setBaseUrl(context, builder)
-        obaContext.setAppInfo(builder)
+        // The REST path Retrofit produced, minus the leading slash, to merge onto the base URL below.
+        val restPath = request.url.encodedPath.removePrefix("/")
+        val builder = Uri.Builder()
+
+        val base = resolver.baseUrl()
+        if (base != null) {
+            builder.scheme(base.scheme).encodedAuthority(base.encodedAuthority)
+            // Keep any partial path on the base URL, then append the REST API method path.
+            val path = Uri.Builder().encodedPath(base.encodedPath).appendEncodedPath(restPath)
+            builder.encodedPath(path.build().encodedPath)
+        } else {
+            // Defensive fallback for the no-region/no-custom-URL case (preserves legacy behavior).
+            builder.scheme("http").authority("api.pugetsound.onebusaway.org").encodedPath(restPath)
+        }
+
+        // App / version / key params, in the same order as the legacy BuilderBase.buildUri().
+        if (resolver.appVersion != 0) {
+            builder.appendQueryParameter("app_ver", resolver.appVersion.toString())
+        }
+        resolver.appUid?.let { builder.appendQueryParameter("app_uid", it) }
         builder.appendQueryParameter("version", ObaApi.VERSION2)
-        builder.appendQueryParameter("key", obaContext.apiKey)
+        builder.appendQueryParameter("key", resolver.apiKey)
 
         // Carry over any endpoint-specific query parameters (e.g. minutesAfter) Retrofit attached.
         val originalUrl = request.url

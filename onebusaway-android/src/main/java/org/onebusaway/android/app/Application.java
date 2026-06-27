@@ -19,9 +19,6 @@ package org.onebusaway.android.app;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
-import android.content.pm.PackageManager.NameNotFoundException;
 import android.hardware.GeomagneticField;
 import android.location.Location;
 import android.os.Build;
@@ -418,26 +415,13 @@ public class Application extends android.app.Application {
     }
 
     private void initOba() {
-        String uuid = PreferenceUtils.getString(APP_UID);
-        if (uuid == null) {
-            // Generate one and save that.
-            uuid = getAppUid();
-            PreferenceUtils.saveString(APP_UID, uuid);
+        // Ensure a per-install app UID is persisted; ObaEndpointResolver reads it as app_uid.
+        if (PreferenceUtils.getString(APP_UID) == null) {
+            PreferenceUtils.saveString(APP_UID, getAppUid());
         }
 
         checkArrivalStylePreferenceDefault();
         checkDarkMode();
-
-        // Get the current app version.
-        PackageManager pm = getPackageManager();
-        PackageInfo appInfo = null;
-        try {
-            appInfo = pm.getPackageInfo(getPackageName(), PackageManager.GET_META_DATA);
-        } catch (NameNotFoundException e) {
-            // Do nothing, perhaps we'll get to show it again? Or never.
-            return;
-        }
-        ObaApi.getDefaultContext().setAppInfo(appInfo.versionCode, uuid);
     }
 
     private void checkArrivalStylePreferenceDefault() {

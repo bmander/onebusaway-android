@@ -31,37 +31,9 @@ public class ObaContext {
 
     private static final String TAG = "ObaContext";
 
-    private String mApiKey = "v1_BktoDJ2gJlu6nLM6LsT9H8IUbWc=cGF1bGN3YXR0c0BnbWFpbC5jb20=";
-
-    private int mAppVer = 0;
-
-    private String mAppUid = null;
-
     private Region mRegion;
 
     public ObaContext() {
-    }
-
-    public void setAppInfo(int version, String uuid) {
-        mAppVer = version;
-        mAppUid = uuid;
-    }
-
-    public void setAppInfo(Uri.Builder builder) {
-        if (mAppVer != 0) {
-            builder.appendQueryParameter("app_ver", String.valueOf(mAppVer));
-        }
-        if (mAppUid != null) {
-            builder.appendQueryParameter("app_uid", mAppUid);
-        }
-    }
-
-    public void setApiKey(String apiKey) {
-        mApiKey = apiKey;
-    }
-
-    public String getApiKey() {
-        return mApiKey;
     }
 
     public void setRegion(Region region) {
@@ -70,23 +42,6 @@ public class ObaContext {
 
     public Region getRegion() {
         return mRegion;
-    }
-
-    public void setBaseUrl(Context context, Uri.Builder builder) {
-        // If there is a custom preference, then use that. Read it from the prefs seam (not the
-        // Application god-object) at build time so it stays current when the user enters/clears one.
-        String serverName = PreferencesEntryPoint.get(context)
-                .getString(R.string.preference_key_oba_api_url, null);
-
-        if (!TextUtils.isEmpty(serverName) || mRegion != null) {
-            setUrl(context, builder, serverName);
-        } else {
-            String fallBack = "api.pugetsound.onebusaway.org";
-            Log.e(TAG, "Accessing default fallback '" + fallBack + "' ...this is wrong!!");
-            // Current fallback for existing users?
-            builder.scheme("http");
-            builder.authority(fallBack);
-        }
     }
 
     public void setBaseOtpUrl(Context context, Uri.Builder builder) {
@@ -143,13 +98,5 @@ public class ObaContext {
         builder.scheme(baseUrl.getScheme());
         builder.encodedAuthority(baseUrl.getEncodedAuthority());
         builder.encodedPath(path.build().getEncodedPath());
-    }
-
-    @Override
-    public ObaContext clone() {
-        ObaContext result = new ObaContext();
-        result.setApiKey(mApiKey);
-        result.setAppInfo(mAppVer, mAppUid);
-        return result;
     }
 }

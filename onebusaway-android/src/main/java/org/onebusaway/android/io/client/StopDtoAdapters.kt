@@ -25,7 +25,7 @@ import org.onebusaway.android.util.LocationUtils
  * modernized fetch unchanged (the same one-DTO-implements-the-interface pattern as DtoRoute/
  * DtoTripStatus).
  */
-class DtoStop(private val ref: StopReference) : ObaStop {
+internal class DtoStop(private val ref: StopReference) : ObaStop {
     override val id: String get() = ref.id
     override val stopCode: String? get() = ref.code
     override val name: String? get() = ref.name

@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.io.client
 
+import android.util.Log
 import javax.inject.Inject
 import org.onebusaway.android.models.Survey
 import org.onebusaway.android.models.SurveyContent
@@ -26,12 +27,12 @@ import org.onebusaway.android.models.SurveySubmitResult
  * Fetches/submits surveys via [SurveyWebService], adapting the wire [StudyResponse] /
  * [SubmitSurveyResponse] to the [Survey] / [SurveySubmitResult] model so the survey feature never
  * sees the DTOs. The caller passes the fully-resolved sidecar URL (built from the region) + the
- * JSON-encoded answer body, exactly as the web service expects. Throws on transport failure; the
- * survey VM wraps these in its own runCatching.
+ * JSON-encoded answer body, exactly as the web service expects. A transport/decode failure maps to
+ * [Result.failure] (consistent with the other io.client data sources).
  */
-interface SurveyRepository {
+interface SurveyDataSource {
 
-    suspend fun studies(url: String, userId: String?): List<Survey>
+    suspend fun studies(url: String, userId: String?): Result<List<Survey>>
 
     suspend fun submit(
         url: String,
@@ -41,15 +42,16 @@ interface SurveyRepository {
         stopLatitude: Double,
         stopLongitude: Double,
         responses: String,
-    ): SurveySubmitResult
+    ): Result<SurveySubmitResult>
 }
 
-class DefaultSurveyRepository @Inject constructor(
+class DefaultSurveyDataSource @Inject constructor(
     private val service: SurveyWebService,
-) : SurveyRepository {
+) : SurveyDataSource {
 
-    override suspend fun studies(url: String, userId: String?): List<Survey> =
+    override suspend fun studies(url: String, userId: String?): Result<List<Survey>> = runCatching {
         service.getStudy(url, userId).toSurveys()
+    }.onFailure { Log.e(TAG, "studies failed", it) }
 
     override suspend fun submit(
         url: String,
@@ -59,15 +61,21 @@ class DefaultSurveyRepository @Inject constructor(
         stopLatitude: Double,
         stopLongitude: Double,
         responses: String,
-    ): SurveySubmitResult = service.submitSurvey(
-        url = url,
-        userIdentifier = userIdentifier,
-        surveyId = surveyId,
-        stopIdentifier = stopIdentifier,
-        stopLatitude = stopLatitude,
-        stopLongitude = stopLongitude,
-        responses = responses,
-    ).let { SurveySubmitResult(it.surveyResponse?.id) }
+    ): Result<SurveySubmitResult> = runCatching {
+        service.submitSurvey(
+            url = url,
+            userIdentifier = userIdentifier,
+            surveyId = surveyId,
+            stopIdentifier = stopIdentifier,
+            stopLatitude = stopLatitude,
+            stopLongitude = stopLongitude,
+            responses = responses,
+        ).let { SurveySubmitResult(it.surveyResponse?.id) }
+    }.onFailure { Log.e(TAG, "submit failed", it) }
+
+    private companion object {
+        const val TAG = "SurveyDataSource"
+    }
 }
 
 /** Maps the wire study list to the [Survey] model. */

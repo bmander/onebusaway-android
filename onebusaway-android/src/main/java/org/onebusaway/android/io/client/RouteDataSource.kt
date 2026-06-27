@@ -20,7 +20,7 @@ import javax.inject.Inject
 import org.onebusaway.android.models.RouteDetails
 
 /** Fetches route details from the modernized OBA REST client. */
-interface RouteRepository {
+interface RouteDataSource {
 
     /**
      * route-details for [routeId]. Returns [Result.failure] (with the IO / HTTP / non-OK-OBA-code
@@ -34,15 +34,15 @@ interface RouteRepository {
  * main-safe (they dispatch onto OkHttp's executor), so unlike the legacy blocking `.call()`
  * repositories this needs no manual `withContext(Dispatchers.IO)` wrapper.
  */
-class DefaultRouteRepository @Inject constructor(
+class DefaultRouteDataSource @Inject constructor(
     private val service: ObaWebService,
-) : RouteRepository {
+) : RouteDataSource {
 
     override suspend fun getRoute(routeId: String): Result<RouteDetails> = runCatching {
         service.route(routeId).requireData().toRouteDetails()
     }.onFailure { Log.e(TAG, "getRoute($routeId) failed", it) }
 
     private companion object {
-        const val TAG = "RouteRepository"
+        const val TAG = "RouteDataSource"
     }
 }

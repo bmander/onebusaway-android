@@ -92,8 +92,8 @@ class DefaultTripObservationFetcher @Inject constructor(
 
     override suspend fun tripDetails(tripId: String): TripDetails? =
             guarded("trip details for $tripId") {
-                // The data source throws on a non-OK code; guarded maps it to null.
-                val routeTrips = dataSource.tripDetails(tripId)
+                // The data source returns Result; getOrThrow re-raises a non-OK code so guarded maps it to null.
+                val routeTrips = dataSource.tripDetails(tripId).getOrThrow()
                 // A single trip-details fetch yields one trip; its ObaTripDetails carries the
                 // schedule + (unfiltered) status the distillation needs.
                 val details = routeTrips.trips.firstOrNull()
@@ -108,8 +108,8 @@ class DefaultTripObservationFetcher @Inject constructor(
 
     override suspend fun tripsForRoute(routeId: String): RouteTrips? =
             guarded("trips for route $routeId") {
-                // The data source throws on a non-OK code; guarded maps it to null.
-                dataSource.tripsForRoute(routeId)
+                // The data source returns Result; getOrThrow re-raises a non-OK code so guarded maps it to null.
+                dataSource.tripsForRoute(routeId).getOrThrow()
             }
 
     /**
@@ -130,7 +130,7 @@ class DefaultTripObservationFetcher @Inject constructor(
     override suspend fun tripSchedule(tripId: String): ObaTripSchedule? =
             scheduleFetches.run(tripId) {
                 guarded("schedule for $tripId") {
-                    dataSource.tripSchedule(tripId)
+                    dataSource.tripSchedule(tripId).getOrThrow()
                 }.also {
                     if (it == null) Log.w(TAG, "Schedule fetch for $tripId yielded no schedule")
                 }
@@ -139,10 +139,10 @@ class DefaultTripObservationFetcher @Inject constructor(
     override suspend fun shape(shapeId: String): Polyline? =
             shapeFetches.run(shapeId) {
                 // Bound concurrent fetches so a route backfill can't fan out into dozens at once;
-                // the data source does the (shared-algorithm) decode. Error codes throw and resolve
-                // to null via guarded, like the old null-coalescing path did.
+                // the data source does the (shared-algorithm) decode. A failed Result re-raises via
+                // getOrThrow and resolves to null in guarded, like the old null-coalescing path did.
                 withContext(fetchDispatcher) {
-                    guarded("shape for $shapeId") { dataSource.shape(shapeId) }
+                    guarded("shape for $shapeId") { dataSource.shape(shapeId).getOrThrow() }
                 }.also {
                     if (it == null) Log.w(TAG, "Shape fetch for $shapeId yielded no polyline")
                 }

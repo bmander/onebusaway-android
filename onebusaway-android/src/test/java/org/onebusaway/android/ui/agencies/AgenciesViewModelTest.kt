@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.ui.agencies
 
-import org.onebusaway.android.io.client.AgenciesRepository
+import org.onebusaway.android.io.client.AgenciesDataSource
 import org.onebusaway.android.models.AgencyContact
 
 import java.io.IOException
@@ -28,9 +28,9 @@ import org.junit.Test
 import org.onebusaway.android.testing.MainDispatcherRule
 import org.onebusaway.android.ui.compose.ListUiState
 
-private class FakeAgenciesRepository(
+private class FakeAgenciesDataSource(
     var result: Result<List<AgencyContact>>
-) : AgenciesRepository {
+) : AgenciesDataSource {
 
     override suspend fun getAgencies(): Result<List<AgencyContact>> = result
 }
@@ -48,14 +48,14 @@ class AgenciesViewModelTest {
 
     @Test
     fun `initial state is Loading before the load completes`() = runTest {
-        val viewModel = AgenciesViewModel(FakeAgenciesRepository(Result.success(agencies)))
+        val viewModel = AgenciesViewModel(FakeAgenciesDataSource(Result.success(agencies)))
 
         assertEquals(ListUiState.Loading, viewModel.state.value)
     }
 
     @Test
     fun `load emits Success with the repository's agencies`() = runTest {
-        val viewModel = AgenciesViewModel(FakeAgenciesRepository(Result.success(agencies)))
+        val viewModel = AgenciesViewModel(FakeAgenciesDataSource(Result.success(agencies)))
 
         advanceUntilIdle()
 
@@ -64,7 +64,7 @@ class AgenciesViewModelTest {
 
     @Test
     fun `load emits Error when the repository fails`() = runTest {
-        val viewModel = AgenciesViewModel(FakeAgenciesRepository(Result.failure(IOException())))
+        val viewModel = AgenciesViewModel(FakeAgenciesDataSource(Result.failure(IOException())))
 
         advanceUntilIdle()
 
@@ -73,7 +73,7 @@ class AgenciesViewModelTest {
 
     @Test
     fun `retry after a failure goes through Loading and recovers`() = runTest {
-        val repository = FakeAgenciesRepository(Result.failure(IOException()))
+        val repository = FakeAgenciesDataSource(Result.failure(IOException()))
         val viewModel = AgenciesViewModel(repository)
         advanceUntilIdle()
         assertEquals(ListUiState.Error, viewModel.state.value)

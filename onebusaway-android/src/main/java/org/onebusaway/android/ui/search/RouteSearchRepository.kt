@@ -17,7 +17,7 @@ package org.onebusaway.android.ui.search
 
 import android.content.Context
 import android.util.Log
-import org.onebusaway.android.io.client.LocationSearchRepository
+import org.onebusaway.android.io.client.LocationSearchDataSource
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.routeDisplayNames
@@ -43,18 +43,18 @@ interface RouteSearchRepository {
 }
 
 /**
- * Default implementation over the io.client [LocationSearchRepository]: queries around the user's
+ * Default implementation over the io.client [LocationSearchDataSource]: queries around the user's
  * location first and falls back to a wide-radius search around the region's default center when that
  * returns nothing usable (the legacy route-search behavior). [context] is still needed for the
  * in-memory location lookups; [search] is constructor-injected (resolved at the Compose call site)
  * so this repository declares its dependency and is swappable in tests.
  *
  * A transport/parse failure surfaces as [Result.failure] (so the UI can show an error); a server
- * error *code* is treated as no results (via [LocationSearchRepository.routesNearOrEmpty]).
+ * error *code* is treated as no results (via [LocationSearchDataSource.routesNearOrEmpty]).
  */
 class DefaultRouteSearchRepository(
     private val context: Context,
-    private val search: LocationSearchRepository,
+    private val search: LocationSearchDataSource,
 ) : RouteSearchRepository {
 
     override suspend fun search(query: String): Result<List<RouteSearchResult>> = runCatching {

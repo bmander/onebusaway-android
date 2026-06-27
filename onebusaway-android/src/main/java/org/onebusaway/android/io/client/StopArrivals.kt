@@ -91,7 +91,7 @@ class StopArrivals internal constructor(
 }
 
 /** Fetches a stop's arrivals-and-departures and resolves it to the [StopArrivals] model. */
-interface StopArrivalsRepository {
+interface StopArrivalsDataSource {
 
     /**
      * One arrivals fetch at [minutesAfter]. [Result.failure] (IO / HTTP / non-OK code via
@@ -100,9 +100,9 @@ interface StopArrivalsRepository {
     suspend fun arrivals(stopId: String, minutesAfter: Int): Result<StopArrivals>
 }
 
-class DefaultStopArrivalsRepository @Inject constructor(
+class DefaultStopArrivalsDataSource @Inject constructor(
     private val service: ObaWebService,
-) : StopArrivalsRepository {
+) : StopArrivalsDataSource {
 
     override suspend fun arrivals(stopId: String, minutesAfter: Int): Result<StopArrivals> = runCatching {
         val envelope = service.arrivalsAndDeparturesForStop(stopId, minutesAfter)
@@ -110,7 +110,7 @@ class DefaultStopArrivalsRepository @Inject constructor(
     }.onFailure { Log.e(TAG, "arrivals($stopId) failed", it) }
 
     private companion object {
-        const val TAG = "StopArrivalsRepository"
+        const val TAG = "StopArrivalsDataSource"
     }
 }
 

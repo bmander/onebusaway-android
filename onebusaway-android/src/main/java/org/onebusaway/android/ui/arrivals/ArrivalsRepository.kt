@@ -25,9 +25,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.client.ObaApiException
-import org.onebusaway.android.io.client.RouteRepository
+import org.onebusaway.android.io.client.RouteDataSource
 import org.onebusaway.android.io.client.StopArrivals
-import org.onebusaway.android.io.client.StopArrivalsRepository
+import org.onebusaway.android.io.client.StopArrivalsDataSource
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaSituation
 import org.onebusaway.android.models.ObaStop
@@ -131,7 +131,7 @@ data class AlertDetails(
 )
 
 /**
- * Default implementation over the io.client [StopArrivalsRepository]. Ports ArrivalsListLoader's
+ * Default implementation over the io.client [StopArrivalsDataSource]. Ports ArrivalsListLoader's
  * behavior: widen the time window until arrivals are found, and fall back to the last good response
  * when a refresh fails. Builds the [ArrivalInfo] display model plus the per-arrival actions, service
  * alerts, and route-filter options on the IO thread (their constructors read ContentProviders). All
@@ -144,8 +144,8 @@ data class AlertDetails(
 class DefaultArrivalsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val regionRepository: RegionRepository,
-    private val routeRepository: RouteRepository,
-    private val stopArrivals: StopArrivalsRepository
+    private val routeRepository: RouteDataSource,
+    private val stopArrivals: StopArrivalsDataSource
 ) : ArrivalsRepository {
 
     private var lastGood: StopArrivals? = null

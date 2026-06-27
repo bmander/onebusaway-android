@@ -21,9 +21,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import org.onebusaway.android.io.client.DefaultMapDataSource
-import org.onebusaway.android.io.client.DefaultRouteStopsRepository
+import org.onebusaway.android.io.client.DefaultRouteStopsDataSource
 import org.onebusaway.android.io.client.MapDataSource
-import org.onebusaway.android.io.client.RouteStopsRepository
+import org.onebusaway.android.io.client.RouteStopsDataSource
 import org.onebusaway.android.map.DefaultRouteMapRepository
 import org.onebusaway.android.map.DefaultStopsRepository
 import org.onebusaway.android.map.RouteMapRepository
@@ -34,18 +34,18 @@ import org.onebusaway.android.extrapolation.data.DefaultTripObservationFetcher
 import org.onebusaway.android.extrapolation.data.DefaultTripObservationRepository
 import org.onebusaway.android.extrapolation.data.TripObservationFetcher
 import org.onebusaway.android.extrapolation.data.TripObservationRepository
-import org.onebusaway.android.io.client.DefaultLocationSearchRepository
-import org.onebusaway.android.io.client.DefaultRouteRepository
-import org.onebusaway.android.io.client.DefaultStopArrivalsRepository
+import org.onebusaway.android.io.client.DefaultLocationSearchDataSource
+import org.onebusaway.android.io.client.DefaultRouteDataSource
+import org.onebusaway.android.io.client.DefaultStopArrivalsDataSource
 import org.onebusaway.android.io.client.DefaultTripDetailsDataSource
-import org.onebusaway.android.io.client.LocationSearchRepository
-import org.onebusaway.android.io.client.RouteRepository
-import org.onebusaway.android.io.client.StopArrivalsRepository
+import org.onebusaway.android.io.client.LocationSearchDataSource
+import org.onebusaway.android.io.client.RouteDataSource
+import org.onebusaway.android.io.client.StopArrivalsDataSource
 import org.onebusaway.android.io.client.TripDetailsDataSource
 import org.onebusaway.android.io.client.DefaultTripVehiclesDataSource
 import org.onebusaway.android.io.client.TripVehiclesDataSource
-import org.onebusaway.android.io.client.AgenciesRepository
-import org.onebusaway.android.io.client.DefaultAgenciesRepository
+import org.onebusaway.android.io.client.AgenciesDataSource
+import org.onebusaway.android.io.client.DefaultAgenciesDataSource
 import org.onebusaway.android.ui.arrivals.ArrivalsRepository
 import org.onebusaway.android.ui.arrivals.DefaultArrivalsRepository
 import org.onebusaway.android.ui.home.drawer.DefaultNavItemsRepository
@@ -63,10 +63,10 @@ import org.onebusaway.android.region.DefaultRegionRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.ui.regions.DefaultRegionsRepository
 import org.onebusaway.android.ui.regions.RegionsRepository
-import org.onebusaway.android.io.client.DefaultProblemReportService
-import org.onebusaway.android.io.client.DefaultSurveyRepository
-import org.onebusaway.android.io.client.ProblemReportService
-import org.onebusaway.android.io.client.SurveyRepository
+import org.onebusaway.android.io.client.DefaultProblemReportDataSource
+import org.onebusaway.android.io.client.DefaultSurveyDataSource
+import org.onebusaway.android.io.client.ProblemReportDataSource
+import org.onebusaway.android.io.client.SurveyDataSource
 import org.onebusaway.android.ui.report.types.DefaultReportTypeRepository
 import org.onebusaway.android.ui.report.types.ReportTypeRepository
 import org.onebusaway.android.ui.routeinfo.DefaultRouteInfoRepository
@@ -102,22 +102,22 @@ abstract class RepositoryModule {
     abstract fun bindRegionsRepository(impl: DefaultRegionsRepository): RegionsRepository
 
     @Binds
-    abstract fun bindAgenciesRepository(impl: DefaultAgenciesRepository): AgenciesRepository
+    abstract fun bindAgenciesDataSource(impl: DefaultAgenciesDataSource): AgenciesDataSource
 
     // Modernized Retrofit/kotlinx.serialization route-details fetcher (io/client). Stateless, so
     // unscoped like the other per-call fetchers.
     @Binds
-    abstract fun bindRouteRepository(impl: DefaultRouteRepository): RouteRepository
+    abstract fun bindRouteDataSource(impl: DefaultRouteDataSource): RouteDataSource
 
     @Binds
-    abstract fun bindLocationSearchRepository(
-        impl: DefaultLocationSearchRepository
-    ): LocationSearchRepository
+    abstract fun bindLocationSearchDataSource(
+        impl: DefaultLocationSearchDataSource
+    ): LocationSearchDataSource
 
     @Binds
-    abstract fun bindStopArrivalsRepository(
-        impl: DefaultStopArrivalsRepository
-    ): StopArrivalsRepository
+    abstract fun bindStopArrivalsDataSource(
+        impl: DefaultStopArrivalsDataSource
+    ): StopArrivalsDataSource
 
     @Binds
     abstract fun bindTripDetailsDataSource(
@@ -133,12 +133,12 @@ abstract class RepositoryModule {
     abstract fun bindSearchResultsRepository(impl: DefaultSearchResultsRepository): SearchResultsRepository
 
     @Binds
-    abstract fun bindProblemReportService(
-        impl: DefaultProblemReportService
-    ): ProblemReportService
+    abstract fun bindProblemReportDataSource(
+        impl: DefaultProblemReportDataSource
+    ): ProblemReportDataSource
 
     @Binds
-    abstract fun bindSurveyRepository(impl: DefaultSurveyRepository): SurveyRepository
+    abstract fun bindSurveyDataSource(impl: DefaultSurveyDataSource): SurveyDataSource
 
     @Binds
     abstract fun bindReportTypeRepository(impl: DefaultReportTypeRepository): ReportTypeRepository
@@ -150,7 +150,7 @@ abstract class RepositoryModule {
     abstract fun bindTripDetailsRepository(impl: DefaultTripDetailsRepository): TripDetailsRepository
 
     @Binds
-    abstract fun bindRouteStopsRepository(impl: DefaultRouteStopsRepository): RouteStopsRepository
+    abstract fun bindRouteStopsDataSource(impl: DefaultRouteStopsDataSource): RouteStopsDataSource
 
     @Binds
     abstract fun bindRouteInfoRepository(impl: DefaultRouteInfoRepository): RouteInfoRepository

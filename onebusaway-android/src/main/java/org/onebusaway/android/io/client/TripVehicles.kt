@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.io.client
 
+import android.util.Log
 import javax.inject.Inject
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaTrip
@@ -53,39 +54,47 @@ internal fun ObaEnvelope<EntryWithReferences<TripDetailsEntry>>.asRouteTrips(): 
 /**
  * The wire-fetch seam for the speed-estimation/vehicle layer: each OBA call the trip data layer
  * needs, adapting the wire response to the model types (so the extrapolation fetcher never touches a
- * DTO). These do the fetch+adapt only and throw on failure (non-OK code / transport); the caller
- * (`DefaultTripObservationFetcher`) owns the null-on-failure + de-duplication policy.
+ * DTO). These do the fetch+adapt only; a non-OK code / transport failure maps to [Result.failure]
+ * (consistent with the other io.client data sources). The caller (`DefaultTripObservationFetcher`)
+ * owns the null-on-failure + de-duplication policy.
  */
 interface TripVehiclesDataSource {
 
-    suspend fun tripsForRoute(routeId: String): RouteTrips
+    suspend fun tripsForRoute(routeId: String): Result<RouteTrips>
 
-    suspend fun tripDetails(tripId: String): RouteTrips
+    suspend fun tripDetails(tripId: String): Result<RouteTrips>
 
     /** The trip's schedule from a trip-details fetch, or null when the response carries none. */
-    suspend fun tripSchedule(tripId: String): ObaTripSchedule?
+    suspend fun tripSchedule(tripId: String): Result<ObaTripSchedule?>
 
     /** The decoded shape polyline, or null when the response carries no usable points. */
-    suspend fun shape(shapeId: String): Polyline?
+    suspend fun shape(shapeId: String): Result<Polyline?>
 }
 
 class DefaultTripVehiclesDataSource @Inject constructor(
     private val service: ObaWebService,
 ) : TripVehiclesDataSource {
 
-    override suspend fun tripsForRoute(routeId: String): RouteTrips =
+    override suspend fun tripsForRoute(routeId: String): Result<RouteTrips> = runCatching {
         service.tripsForRoute(routeId).asRouteTrips()
+    }.onFailure { Log.e(TAG, "tripsForRoute($routeId) failed", it) }
 
-    override suspend fun tripDetails(tripId: String): RouteTrips =
+    override suspend fun tripDetails(tripId: String): Result<RouteTrips> = runCatching {
         service.tripDetails(tripId).asRouteTrips()
+    }.onFailure { Log.e(TAG, "tripDetails($tripId) failed", it) }
 
-    override suspend fun tripSchedule(tripId: String): ObaTripSchedule? =
+    override suspend fun tripSchedule(tripId: String): Result<ObaTripSchedule?> = runCatching {
         service.tripDetails(tripId).requireData().entry.schedule?.toObaTripSchedule()
+    }.onFailure { Log.e(TAG, "tripSchedule($tripId) failed", it) }
 
-    override suspend fun shape(shapeId: String): Polyline? {
+    override suspend fun shape(shapeId: String): Result<Polyline?> = runCatching {
         val entry = service.shape(shapeId).requireData().entry
-        return PolylineDecoder.decodeLine(entry.points, entry.length)
+        PolylineDecoder.decodeLine(entry.points, entry.length)
             .takeIf { it.isNotEmpty() }
             ?.let { Polyline(it) }
+    }.onFailure { Log.e(TAG, "shape($shapeId) failed", it) }
+
+    private companion object {
+        const val TAG = "TripVehiclesDataSource"
     }
 }

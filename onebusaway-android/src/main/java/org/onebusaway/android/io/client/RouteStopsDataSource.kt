@@ -24,21 +24,21 @@ import org.onebusaway.android.models.RouteStopGroup
  * adapting the wire references to [ObaStop] so callers never see the DTOs. Returns [Result.failure]
  * (IO / HTTP / non-OK code) rather than throwing.
  */
-interface RouteStopsRepository {
+interface RouteStopsDataSource {
 
     suspend fun stopsForRoute(routeId: String): Result<List<RouteStopGroup>>
 }
 
-class DefaultRouteStopsRepository @Inject constructor(
+class DefaultRouteStopsDataSource @Inject constructor(
     private val service: ObaWebService,
-) : RouteStopsRepository {
+) : RouteStopsDataSource {
 
     override suspend fun stopsForRoute(routeId: String): Result<List<RouteStopGroup>> = runCatching {
         service.stopsForRoute(routeId).requireData().toRouteStopGroups()
     }.onFailure { Log.e(TAG, "stopsForRoute($routeId) failed", it) }
 
     private companion object {
-        const val TAG = "RouteStopsRepository"
+        const val TAG = "RouteStopsDataSource"
     }
 }
 

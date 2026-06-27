@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import org.onebusaway.android.R
-import org.onebusaway.android.io.client.SurveyRepository
+import org.onebusaway.android.io.client.SurveyDataSource
 import org.onebusaway.android.models.Survey
 import org.onebusaway.android.models.SurveyQuestion
 import org.onebusaway.android.models.SurveySubmitResult
@@ -76,7 +76,7 @@ sealed interface SurveyEffect {
 /**
  * Drives the map survey: requesting the study, showing the hero question + remaining-questions sheet,
  * submitting answers, and persisting completion/skip/remind-later. The network/JSON/DB/filtering
- * logic is reused from the io.client [SurveyRepository] + `SurveyUtils`/`SurveyDbHelper`. Scoped to
+ * logic is reused from the io.client [SurveyDataSource] + `SurveyUtils`/`SurveyDbHelper`. Scoped to
  * the map (the old `isVisibleOnStops = false` path).
  */
 @HiltViewModel
@@ -84,7 +84,7 @@ class SurveyViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val regionRepository: RegionRepository,
     private val prefs: PreferencesRepository,
-    private val surveyRepo: SurveyRepository,
+    private val surveyRepo: SurveyDataSource,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SurveyUiState())
@@ -127,9 +127,7 @@ class SurveyViewModel @Inject constructor(
         requested = true
         val url = studyUrl() ?: return
         viewModelScope.launch {
-            val response = runCatching {
-                surveyRepo.studies(url, SurveyPreferences.getUserUUID(context))
-            }.getOrNull()
+            val response = surveyRepo.studies(url, SurveyPreferences.getUserUUID(context)).getOrNull()
             if (response != null) onStudyResponse(response)
         }
     }
@@ -296,17 +294,15 @@ class SurveyViewModel @Inject constructor(
     }
 
     private suspend fun submit(apiUrl: String, surveyId: Int, body: JSONArray): SurveySubmitResult? =
-        runCatching {
-            surveyRepo.submit(
-                url = apiUrl,
-                userIdentifier = SurveyPreferences.getUserUUID(context),
-                surveyId = surveyId,
-                stopIdentifier = null,
-                stopLatitude = 0.0,
-                stopLongitude = 0.0,
-                responses = body.toString(),
-            )
-        }.getOrNull()
+        surveyRepo.submit(
+            url = apiUrl,
+            userIdentifier = SurveyPreferences.getUserUUID(context),
+            surveyId = surveyId,
+            stopIdentifier = null,
+            stopLatitude = 0.0,
+            stopLongitude = 0.0,
+            responses = body.toString(),
+        ).getOrNull()
 
     /** Builds the single-question JSON body for the hero question, or null if its answer is missing. */
     private fun heroAnswerBody(hero: SurveyQuestion): JSONArray? {

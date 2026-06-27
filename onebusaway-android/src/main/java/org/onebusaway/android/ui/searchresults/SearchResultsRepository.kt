@@ -22,7 +22,7 @@ import android.location.Location
 import java.io.IOException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import org.onebusaway.android.io.client.LocationSearchRepository
+import org.onebusaway.android.io.client.LocationSearchDataSource
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.StopUserInfo
@@ -38,14 +38,14 @@ interface SearchResultsRepository {
 }
 
 /**
- * Default implementation over the io.client [LocationSearchRepository]. Runs the routes-for-location
+ * Default implementation over the io.client [LocationSearchDataSource]. Runs the routes-for-location
  * and stops-for-location requests in parallel (matching the legacy screen's single combined loader)
  * and merges them routes-first. All Android statics are quarantined here so [SearchResultsViewModel]
  * stays JVM-testable.
  */
 class DefaultSearchResultsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val search: LocationSearchRepository,
+    private val search: LocationSearchDataSource,
 ) : SearchResultsRepository {
 
     override suspend fun search(query: String): Result<List<SearchResultItem>> = coroutineScope {

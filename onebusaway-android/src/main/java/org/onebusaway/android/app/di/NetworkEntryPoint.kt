@@ -20,12 +20,12 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import org.onebusaway.android.io.client.LocationSearchRepository
+import org.onebusaway.android.io.client.LocationSearchDataSource
 import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.ProblemReportService
+import org.onebusaway.android.io.client.ProblemReportDataSource
 import org.onebusaway.android.io.client.RegionsWebService
 import org.onebusaway.android.io.client.ReminderWebService
-import org.onebusaway.android.io.client.StopArrivalsRepository
+import org.onebusaway.android.io.client.StopArrivalsDataSource
 
 /**
  * A Hilt [EntryPoint] that lets code which can't be constructor- or field-injected reach the
@@ -33,7 +33,7 @@ import org.onebusaway.android.io.client.StopArrivalsRepository
  * service is the same app-singleton every injected consumer shares.
  *
  * Seam rule for reaching the modernized REST client (io/client), in order of preference:
- * 1. **An io/client repository** (e.g. `RouteRepository`) when a domain model is shared across
+ * 1. **An io/client data source** (e.g. `RouteDataSource`) when a domain model is shared across
  *    features or the consumer is another repository — depend on that, not on [ObaWebService].
  * 2. **Constructor-inject [ObaWebService]** directly into Hilt-reachable consumers (most feature
  *    repositories, `@HiltViewModel`s, services).
@@ -52,11 +52,11 @@ interface NetworkEntryPoint {
 
     fun reminderWebService(): ReminderWebService
 
-    fun locationSearchRepository(): LocationSearchRepository
+    fun locationSearchDataSource(): LocationSearchDataSource
 
-    fun stopArrivalsRepository(): StopArrivalsRepository
+    fun stopArrivalsDataSource(): StopArrivalsDataSource
 
-    fun problemReportService(): ProblemReportService
+    fun problemReportDataSource(): ProblemReportDataSource
 
     companion object {
         /** Resolves the shared [ObaWebService] from any [context] (its application is used). */
@@ -77,22 +77,22 @@ interface NetworkEntryPoint {
             EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
                 .reminderWebService()
 
-        /** Resolves the shared [LocationSearchRepository] from any [context] (its application is used). */
+        /** Resolves the shared [LocationSearchDataSource] from any [context] (its application is used). */
         @JvmStatic
-        fun getLocationSearch(context: Context): LocationSearchRepository =
+        fun getLocationSearch(context: Context): LocationSearchDataSource =
             EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
-                .locationSearchRepository()
+                .locationSearchDataSource()
 
-        /** Resolves the shared [StopArrivalsRepository] from any [context] (its application is used). */
+        /** Resolves the shared [StopArrivalsDataSource] from any [context] (its application is used). */
         @JvmStatic
-        fun getStopArrivals(context: Context): StopArrivalsRepository =
+        fun getStopArrivals(context: Context): StopArrivalsDataSource =
             EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
-                .stopArrivalsRepository()
+                .stopArrivalsDataSource()
 
-        /** Resolves the shared [ProblemReportService] from any [context] (its application is used). */
+        /** Resolves the shared [ProblemReportDataSource] from any [context] (its application is used). */
         @JvmStatic
-        fun getProblemReport(context: Context): ProblemReportService =
+        fun getProblemReport(context: Context): ProblemReportDataSource =
             EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
-                .problemReportService()
+                .problemReportDataSource()
     }
 }

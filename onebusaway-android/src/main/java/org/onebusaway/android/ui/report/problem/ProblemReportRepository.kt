@@ -16,7 +16,7 @@
 package org.onebusaway.android.ui.report.problem
 
 import android.location.Location
-import org.onebusaway.android.io.client.ProblemReportService
+import org.onebusaway.android.io.client.ProblemReportDataSource
 
 /** Submits stop/trip problem reports to the OBA REST API. */
 interface ProblemReportRepository {
@@ -40,11 +40,11 @@ interface ProblemReportRepository {
 
 /**
  * Default implementation that unpacks the UI's report params + [Location] into the plain values the
- * io.client [ProblemReportService] takes, keeping the wire call (and the legacy `data` param) inside
+ * io.client [ProblemReportDataSource] takes, keeping the wire call (and the legacy `data` param) inside
  * io. A non-OK app-level code or a transport failure maps to [Result.failure] in the service.
  */
 class DefaultProblemReportRepository(
-    private val reportService: ProblemReportService
+    private val reportService: ProblemReportDataSource
 ) : ProblemReportRepository {
 
     override suspend fun submitStop(

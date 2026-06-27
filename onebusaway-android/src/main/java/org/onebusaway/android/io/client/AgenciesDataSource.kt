@@ -24,22 +24,22 @@ import org.onebusaway.android.models.AgencyContact
  * agencies list and the customer-service contacts screen (which read different subsets of
  * [AgencyContact]). A non-OK app-level code or a transport failure maps to [Result.failure].
  */
-interface AgenciesRepository {
+interface AgenciesDataSource {
 
     suspend fun getAgencies(): Result<List<AgencyContact>>
 }
 
 /** Default implementation over [ObaWebService], adapting the references to [AgencyContact]. */
-class DefaultAgenciesRepository @Inject constructor(
+class DefaultAgenciesDataSource @Inject constructor(
     private val service: ObaWebService
-) : AgenciesRepository {
+) : AgenciesDataSource {
 
     override suspend fun getAgencies(): Result<List<AgencyContact>> = runCatching {
         service.agenciesWithCoverage().requireData().toAgencyContacts()
     }.onFailure { Log.e(TAG, "getAgencies failed", it) }
 
     private companion object {
-        const val TAG = "AgenciesRepository"
+        const val TAG = "AgenciesDataSource"
     }
 }
 

@@ -28,9 +28,9 @@ import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.client.ObaApiException
 import org.onebusaway.android.models.RouteDetails
-import org.onebusaway.android.io.client.RouteRepository
+import org.onebusaway.android.io.client.RouteDataSource
 import org.onebusaway.android.models.RouteStopGroup
-import org.onebusaway.android.io.client.RouteStopsRepository
+import org.onebusaway.android.io.client.RouteStopsDataSource
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
@@ -46,7 +46,7 @@ interface RouteInfoRepository {
 
 /**
  * Default implementation backed by the modernized client: the route metadata comes from the shared
- * [RouteRepository] and the stops-for-route from [RouteStopsRepository], fetched in parallel (matching
+ * [RouteDataSource] and the stops-for-route from [RouteStopsDataSource], fetched in parallel (matching
  * the legacy screen's two concurrent loaders). Registers the route in the recents/search provider on
  * success. Stays on [Dispatchers.IO] for that blocking provider write; all Android statics are
  * quarantined here so [RouteInfoViewModel] stays JVM-testable.
@@ -54,8 +54,8 @@ interface RouteInfoRepository {
 class DefaultRouteInfoRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val regionRepository: RegionRepository,
-    private val routeRepository: RouteRepository,
-    private val routeStopsRepository: RouteStopsRepository,
+    private val routeRepository: RouteDataSource,
+    private val routeStopsRepository: RouteStopsDataSource,
 ) : RouteInfoRepository {
 
     override suspend fun loadRouteInfo(routeId: String): Result<RouteInfo> =

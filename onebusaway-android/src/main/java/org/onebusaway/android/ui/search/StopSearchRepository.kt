@@ -19,7 +19,7 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.io.client.LocationSearchRepository
+import org.onebusaway.android.io.client.LocationSearchDataSource
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.StopUserInfo
 import org.onebusaway.android.provider.loadStopUserInfo
@@ -51,18 +51,18 @@ interface StopSearchRepository {
 }
 
 /**
- * Default implementation over the io.client [LocationSearchRepository] (constructor-injected,
+ * Default implementation over the io.client [LocationSearchDataSource] (constructor-injected,
  * resolved at the Compose call site), decorated with the user's stop favorites and custom names from
  * the ContentProvider (the same query the legacy UIUtils.StopUserInfoMap ran). [context] is still
  * needed for the location lookup and the provider query.
  *
  * Stays on [Dispatchers.IO]: unlike the route search, the [loadStopUserInfo] ContentProvider query
  * is blocking. As with the route search, a transport/parse failure surfaces as [Result.failure]
- * while a server error code yields no results (via [LocationSearchRepository.stopsNearOrEmpty]).
+ * while a server error code yields no results (via [LocationSearchDataSource.stopsNearOrEmpty]).
  */
 class DefaultStopSearchRepository(
     private val context: Context,
-    private val search: LocationSearchRepository,
+    private val search: LocationSearchDataSource,
 ) : StopSearchRepository {
 
     override suspend fun search(query: String): Result<List<StopSearchResult>> =

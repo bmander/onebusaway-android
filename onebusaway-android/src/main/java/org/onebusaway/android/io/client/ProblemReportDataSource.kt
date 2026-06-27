@@ -22,7 +22,7 @@ import javax.inject.Inject
  * UI params/Location into these) and builds the legacy `data` param internally, so callers never
  * touch [ObaWebService]. A non-OK app-level code or a transport failure maps to [Result.failure].
  */
-interface ProblemReportService {
+interface ProblemReportDataSource {
 
     suspend fun reportStop(
         stopId: String,
@@ -48,9 +48,9 @@ interface ProblemReportService {
     ): Result<Unit>
 }
 
-class DefaultProblemReportService @Inject constructor(
+class DefaultProblemReportDataSource @Inject constructor(
     private val service: ObaWebService
-) : ProblemReportService {
+) : ProblemReportDataSource {
 
     override suspend fun reportStop(
         stopId: String,

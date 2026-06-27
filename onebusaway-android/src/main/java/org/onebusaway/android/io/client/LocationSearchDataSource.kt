@@ -29,7 +29,7 @@ import org.onebusaway.android.models.ObaStop
  * empty list (the My-Lists search screens render it as "no results"). Both map a transport/parse
  * failure to [Result.failure].
  */
-interface LocationSearchRepository {
+interface LocationSearchDataSource {
 
     suspend fun routesNear(lat: Double, lon: Double, query: String?, radius: Int?): Result<List<ObaRoute>>
 
@@ -41,9 +41,9 @@ interface LocationSearchRepository {
 }
 
 /** Default implementation backed by [ObaWebService]; adapts each reference via [DtoRoute]/[DtoStop]. */
-class DefaultLocationSearchRepository @Inject constructor(
+class DefaultLocationSearchDataSource @Inject constructor(
     private val service: ObaWebService,
-) : LocationSearchRepository {
+) : LocationSearchDataSource {
 
     override suspend fun routesNear(
         lat: Double, lon: Double, query: String?, radius: Int?,
@@ -70,6 +70,6 @@ class DefaultLocationSearchRepository @Inject constructor(
     }.onFailure { Log.e(TAG, "stopsNearOrEmpty failed", it) }
 
     private companion object {
-        const val TAG = "LocationSearchRepository"
+        const val TAG = "LocationSearchDataSource"
     }
 }

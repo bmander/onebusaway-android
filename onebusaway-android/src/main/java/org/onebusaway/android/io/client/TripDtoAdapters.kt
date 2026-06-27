@@ -35,7 +35,7 @@ import org.onebusaway.android.util.LocationUtils
 private fun Position.toLocation(): Location = LocationUtils.makeLocation(lat, lon)
 
 /** Presents a [TripStatus] DTO as an [ObaTripStatus]. */
-class DtoTripStatus(private val dto: TripStatus) : ObaTripStatus {
+internal class DtoTripStatus(private val dto: TripStatus) : ObaTripStatus {
     override val serviceDate: Long get() = dto.serviceDate
     override val isPredicted: Boolean get() = dto.predicted
     override val scheduleDeviation: Long get() = dto.scheduleDeviation
@@ -64,7 +64,7 @@ class DtoTripStatus(private val dto: TripStatus) : ObaTripStatus {
 }
 
 /** Presents a [TripReference] as an [ObaTrip]. */
-class DtoTrip(private val ref: TripReference) : ObaTrip {
+internal class DtoTrip(private val ref: TripReference) : ObaTrip {
     override val id: String get() = ref.id
     override val shortName: String? get() = ref.tripShortName
     override val shapeId: String? get() = ref.shapeId
@@ -77,7 +77,7 @@ class DtoTrip(private val ref: TripReference) : ObaTrip {
 }
 
 /** Presents a [RouteReference] as an [ObaRoute]. */
-class DtoRoute(private val ref: RouteReference) : ObaRoute {
+internal class DtoRoute(private val ref: RouteReference) : ObaRoute {
     override val id: String get() = ref.id
     override val shortName: String? get() = ref.shortName
     override val longName: String? get() = ref.longName
@@ -90,7 +90,7 @@ class DtoRoute(private val ref: RouteReference) : ObaRoute {
 }
 
 /** Presents a [TripDetailsEntry] as an [ObaTripDetails]. */
-class DtoTripDetails(private val entry: TripDetailsEntry) : ObaTripDetails {
+internal class DtoTripDetails(private val entry: TripDetailsEntry) : ObaTripDetails {
     override val id: String get() = entry.tripId
     override val status: ObaTripStatus? get() = entry.status?.let { DtoTripStatus(it) }
     override val schedule: ObaTripSchedule? get() = entry.schedule?.toObaTripSchedule()

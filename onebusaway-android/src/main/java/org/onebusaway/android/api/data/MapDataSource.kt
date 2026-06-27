@@ -47,29 +47,29 @@ class DefaultMapDataSource @Inject constructor(
     override suspend fun nearbyStops(
         lat: Double, lon: Double, latSpan: Double, lonSpan: Double,
     ): Result<NearbyStops?> = api.callOrNull { service ->
-        withContext(Dispatchers.IO) {
-            val data = service.stopsForLocation(lat = lat, lon = lon, latSpan = latSpan, lonSpan = lonSpan)
-                .requireData()
-            NearbyStops(
-                stops = data.list.map(::DtoStop),
-                routes = data.references.routes.map(::DtoRoute),
-                outOfRange = data.outOfRange,
-                limitExceeded = data.limitExceeded,
-            )
-        }
+        val data = service.stopsForLocation(lat = lat, lon = lon, latSpan = latSpan, lonSpan = lonSpan)
+            .requireData()
+        NearbyStops(
+            stops = data.list.map(::DtoStop),
+            routes = data.references.routes.map(::DtoRoute),
+            outOfRange = data.outOfRange,
+            limitExceeded = data.limitExceeded,
+        )
     }
 
     override suspend fun routeMap(routeId: String): Result<RouteMapData?> = api.callOrNull { service ->
-        withContext(Dispatchers.IO) {
-            val data = service.stopsForRoute(routeId, includePolylines = true).requireData()
-            val route = data.references.route(routeId)?.let(::DtoRoute)
-            RouteMapData(
-                route = route,
-                agencyName = route?.agencyId?.let { data.references.agency(it)?.name },
-                stops = data.references.stops.map(::DtoStop),
-                routes = data.references.routes.map(::DtoRoute),
-                polylines = data.entry.polylines.map { PolylineDecoder.decodeLine(it.points, it.length) },
-            )
-        }
+        val data = service.stopsForRoute(routeId, includePolylines = true).requireData()
+        val route = data.references.route(routeId)?.let(::DtoRoute)
+        RouteMapData(
+            route = route,
+            agencyName = route?.agencyId?.let { data.references.agency(it)?.name },
+            stops = data.references.stops.map(::DtoStop),
+            routes = data.references.routes.map(::DtoRoute),
+            // Decoding the route's shape polylines is the one bit of non-trivial CPU work in this
+            // layer; offload just it (the Retrofit calls are already main-safe, like the other sources).
+            polylines = withContext(Dispatchers.Default) {
+                data.entry.polylines.map { PolylineDecoder.decodeLine(it.points, it.length) }
+            },
+        )
     }
 }

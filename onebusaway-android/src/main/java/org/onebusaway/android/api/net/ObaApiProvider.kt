@@ -77,7 +77,9 @@ class ObaApiProvider @Inject constructor(
             cachedService = null
             return null
         }
-        if (base != cachedBase || cachedService == null) {
+        // cachedBase and cachedService are only ever set or cleared together, so comparing the base
+        // alone is enough — a real base never equals a null cachedBase.
+        if (base != cachedBase) {
             cachedService = build(base)
             cachedBase = base
         }

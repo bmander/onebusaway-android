@@ -23,6 +23,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.flow.StateFlow
+import org.onebusaway.android.api.data.MapDataSource
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.location.LocationRepository
 import org.onebusaway.android.map.render.CameraSnapshot
@@ -42,7 +43,7 @@ import org.onebusaway.android.region.RegionRepository
 @HiltViewModel
 class StopsMapViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    stopsRepository: StopsRepository,
+    mapDataSource: MapDataSource,
     regionRepo: RegionRepository,
     locationRepository: LocationRepository,
     prefsRepository: PreferencesRepository,
@@ -66,7 +67,7 @@ class StopsMapViewModel @Inject constructor(
 
     private val stopsController = StopsMapController(
         host = mapHost,
-        stopsRepository = stopsRepository,
+        mapDataSource = mapDataSource,
         regionRepo = regionRepo,
         locationRepository = locationRepository,
         scope = viewModelScope,

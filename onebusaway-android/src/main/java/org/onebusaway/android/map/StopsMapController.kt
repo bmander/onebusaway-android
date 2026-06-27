@@ -27,8 +27,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import org.onebusaway.android.api.ObaApi
-import org.onebusaway.android.models.NearbyStops
 import org.onebusaway.android.api.ObaApiException
+import org.onebusaway.android.api.data.MapDataSource
+import org.onebusaway.android.models.NearbyStops
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.location.LocationRepository
@@ -54,7 +55,7 @@ import org.onebusaway.android.util.RegionUtils
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class StopsMapController(
     private val host: MapHost,
-    private val stopsRepository: StopsRepository,
+    private val mapDataSource: MapDataSource,
     private val regionRepo: RegionRepository,
     private val locationRepository: LocationRepository,
     private val scope: CoroutineScope,
@@ -103,8 +104,8 @@ class StopsMapController(
                 // controller's `loadJob?.cancel()`; a cancelled load leaves lastLoad untouched.
                 flow {
                     host.setProgress(true)
-                    val result = stopsRepository
-                        .getStops(snapshot.center.toLocation(), snapshot.latSpan, snapshot.lonSpan)
+                    val result = mapDataSource
+                        .nearbyStops(snapshot.center.latitude, snapshot.center.longitude, snapshot.latSpan, snapshot.lonSpan)
                     // Only a usable load updates the fulfillment gate: a success — OK stops, or a null
                     // no-op (e.g. no stops endpoint, which intentionally fulfills future same-center
                     // viewports). A failure (error code / transport) showed no stops, so leave the gate

@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.ui.report.customerservice
 
-import org.onebusaway.android.io.client.CustomerServiceRepository
+import org.onebusaway.android.io.client.AgenciesRepository
 import org.onebusaway.android.models.AgencyContact
 
 import java.io.IOException
@@ -30,7 +30,7 @@ import org.onebusaway.android.ui.compose.ListUiState
 
 private class FakeCustomerServiceRepository(
     var result: Result<List<AgencyContact>>
-) : CustomerServiceRepository {
+) : AgenciesRepository {
 
     override suspend fun getAgencies(): Result<List<AgencyContact>> = result
 }

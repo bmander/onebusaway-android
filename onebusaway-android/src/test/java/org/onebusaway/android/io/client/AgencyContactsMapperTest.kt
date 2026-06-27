@@ -21,11 +21,11 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Pure-logic coverage for [toAgencyItems] and the list-with-references wire models: agency
+ * Pure-logic coverage for [toAgencyContacts] and the list-with-references wire models: agency
  * resolution from references by id, skipping unresolved entries, blank-URL normalization, and that
  * the real agencies-with-coverage envelope decodes (numeric version, unmodeled coverage geometry).
  */
-class AgencyItemsMapperTest {
+class AgencyContactsMapperTest {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
@@ -41,7 +41,7 @@ class AgencyItemsMapperTest {
             )
         )
 
-        val items = data.toAgencyItems()
+        val items = data.toAgencyContacts()
 
         assertEquals(2, items.size)
         assertEquals("Metro", items[0].name)
@@ -58,7 +58,7 @@ class AgencyItemsMapperTest {
             references = References(agencies = listOf(AgencyReference(id = "1", name = "Metro")))
         )
 
-        val items = data.toAgencyItems()
+        val items = data.toAgencyContacts()
 
         assertEquals(1, items.size)
         assertEquals("1", items[0].id)
@@ -92,7 +92,7 @@ class AgencyItemsMapperTest {
         val envelope: ObaEnvelope<ListWithReferences<AgencyCoverage>> = json.decodeFromString(body)
 
         assertEquals(200, envelope.code)
-        val items = envelope.data!!.toAgencyItems()
+        val items = envelope.data!!.toAgencyContacts()
         assertEquals(1, items.size)
         assertEquals("Metro", items[0].name)
     }

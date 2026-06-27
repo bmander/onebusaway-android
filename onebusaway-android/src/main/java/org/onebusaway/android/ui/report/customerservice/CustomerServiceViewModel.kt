@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.ui.report.customerservice
 
-import org.onebusaway.android.io.client.CustomerServiceRepository
+import org.onebusaway.android.io.client.AgenciesRepository
 import org.onebusaway.android.models.AgencyContact
 
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,7 +24,7 @@ import org.onebusaway.android.ui.compose.ListLoadingViewModel
 
 /** ViewModel for the customer-service contact list. */
 @HiltViewModel
-class CustomerServiceViewModel @Inject constructor(private val repository: CustomerServiceRepository) :
+class CustomerServiceViewModel @Inject constructor(private val repository: AgenciesRepository) :
     ListLoadingViewModel<AgencyContact>() {
 
     init {

@@ -17,25 +17,25 @@ package org.onebusaway.android.io.client
 
 import android.util.Log
 import javax.inject.Inject
-import org.onebusaway.android.models.AgencyItem
-
-/** Provides the list of transit agencies covered by the current region. */
-interface AgenciesRepository {
-
-    suspend fun getAgencies(): Result<List<AgencyItem>>
-}
+import org.onebusaway.android.models.AgencyContact
 
 /**
- * Default implementation backed by the modernized [ObaWebService]. Retrofit suspend functions are
- * main-safe, so no manual `withContext(Dispatchers.IO)` is needed; failures (IO/HTTP/serialization
- * or a non-OK OBA code, via [requireData]) are mapped to [Result.failure].
+ * The agencies-with-coverage fetch for the current region — the single source for both the supported-
+ * agencies list and the customer-service contacts screen (which read different subsets of
+ * [AgencyContact]). A non-OK app-level code or a transport failure maps to [Result.failure].
  */
+interface AgenciesRepository {
+
+    suspend fun getAgencies(): Result<List<AgencyContact>>
+}
+
+/** Default implementation over [ObaWebService], adapting the references to [AgencyContact]. */
 class DefaultAgenciesRepository @Inject constructor(
     private val service: ObaWebService
 ) : AgenciesRepository {
 
-    override suspend fun getAgencies(): Result<List<AgencyItem>> = runCatching {
-        service.agenciesWithCoverage().requireData().toAgencyItems()
+    override suspend fun getAgencies(): Result<List<AgencyContact>> = runCatching {
+        service.agenciesWithCoverage().requireData().toAgencyContacts()
     }.onFailure { Log.e(TAG, "getAgencies failed", it) }
 
     private companion object {
@@ -44,16 +44,18 @@ class DefaultAgenciesRepository @Inject constructor(
 }
 
 /**
- * Maps the agencies-with-coverage payload to display [AgencyItem]s, resolving each coverage entry's
- * agency from the references by id (skipping any unresolved entry) and normalizing blank URLs to
+ * Maps the agencies-with-coverage payload to display [AgencyContact]s, resolving each coverage entry's
+ * agency from the references by id (skipping any unresolved entry) and normalizing blank fields to
  * null. Pure, so it is exercised directly in JVM unit tests.
  */
-fun ListWithReferences<AgencyCoverage>.toAgencyItems(): List<AgencyItem> =
+internal fun ListWithReferences<AgencyCoverage>.toAgencyContacts(): List<AgencyContact> =
     list.mapNotNull { coverage ->
         val agency = references.agency(coverage.agencyId) ?: return@mapNotNull null
-        AgencyItem(
+        AgencyContact(
             id = agency.id,
             name = agency.name,
-            url = agency.url?.takeIf { it.isNotEmpty() }
+            email = agency.email?.takeIf { it.isNotEmpty() },
+            url = agency.url?.takeIf { it.isNotEmpty() },
+            phone = agency.phone?.takeIf { it.isNotEmpty() },
         )
     }

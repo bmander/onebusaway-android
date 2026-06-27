@@ -16,7 +16,7 @@
 package org.onebusaway.android.ui.agencies
 
 import org.onebusaway.android.io.client.AgenciesRepository
-import org.onebusaway.android.models.AgencyItem
+import org.onebusaway.android.models.AgencyContact
 
 import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,10 +29,10 @@ import org.onebusaway.android.testing.MainDispatcherRule
 import org.onebusaway.android.ui.compose.ListUiState
 
 private class FakeAgenciesRepository(
-    var result: Result<List<AgencyItem>>
+    var result: Result<List<AgencyContact>>
 ) : AgenciesRepository {
 
-    override suspend fun getAgencies(): Result<List<AgencyItem>> = result
+    override suspend fun getAgencies(): Result<List<AgencyContact>> = result
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -42,8 +42,8 @@ class AgenciesViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val agencies = listOf(
-        AgencyItem("1", "King County Metro", "https://kingcounty.gov/metro"),
-        AgencyItem("40", "Sound Transit", null)
+        AgencyContact("1", "King County Metro", null, "https://kingcounty.gov/metro", null),
+        AgencyContact("40", "Sound Transit", null, null, null)
     )
 
     @Test

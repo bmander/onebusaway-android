@@ -19,7 +19,7 @@ import androidx.annotation.VisibleForTesting
 import org.onebusaway.android.models.ObaTripSchedule
 import org.onebusaway.android.util.Polyline
 
-private const val MAX_TRACKED_TRIPS = 100
+internal const val MAX_TRACKED_TRIPS = 100
 
 /**
  * An access-ordered LRU cache of immutable [TripState] snapshots keyed by tripId, owned by

@@ -244,12 +244,15 @@ dependencies {
     implementation 'org.apache.commons:commons-lang3:3.0'
     // Open311 client library
     implementation 'com.github.OneBusAway:open311-client:1.0.10'
-    // JSON data binding for OBA REST API responses (legacy hand-rolled client)
-    implementation 'com.fasterxml.jackson.core:jackson-core:2.12.4'
-    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.12.4'
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.12.4'
-    // Modernized REST stack (io/client): Retrofit + OkHttp + kotlinx.serialization. Being migrated
-    // to incrementally, endpoint by endpoint; coexists with the Jackson client above during the
+    // JSON data binding for OBA REST API responses (legacy hand-rolled client, still used by the
+    // endpoints not yet migrated to the api/ stack below).
+    // NOTE: 2.13.x is the last Jackson line supporting Android SDK 21+ (2.14+ requires SDK 26,
+    // and core library desugaring does not help) - do not bump further while minSdk is 21
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.13.5'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.13.5'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.5'
+    // Modernized REST stack (api/): Retrofit + OkHttp + kotlinx.serialization. Migrated to
+    // incrementally, endpoint by endpoint; coexists with the Jackson client above during the
     // transition.
     implementation 'com.squareup.retrofit2:retrofit:2.11.0'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'

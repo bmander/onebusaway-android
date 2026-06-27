@@ -16,14 +16,10 @@
 package org.onebusaway.android.map
 
 import javax.inject.Inject
-import org.onebusaway.android.io.client.DtoRoute
-import org.onebusaway.android.io.client.DtoStop
-import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.requireData
+import org.onebusaway.android.io.client.MapDataSource
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.map.render.GeoPoint
-import org.onebusaway.android.util.PolylineDecoder
 
 /** A route's stops, the serving routes (for stop-marker icons), the route + agency name, and its shape. */
 data class RouteMap(
@@ -36,8 +32,9 @@ data class RouteMap(
 
 /**
  * Loads a route's stops + shapes (one-shot, stops-for-route with polylines) for the route/stop
- * overlays. (Route-mode real-time vehicles are polled via the trip-observation repository's
- * `routeVehiclesStream`, which also backfills each trip's schedule + shape for extrapolation.)
+ * overlays, via the io.client [MapDataSource]. Turns the source's [android.location.Location] shape
+ * points into the render [GeoPoint]s the overlay consumes. (Route-mode real-time vehicles are polled
+ * via the trip-observation repository's `routeVehiclesStream`.)
  */
 interface RouteMapRepository {
     /** @return the route's stops/shape, or `success(null)` when there is no API endpoint. */
@@ -45,22 +42,21 @@ interface RouteMapRepository {
 }
 
 class DefaultRouteMapRepository @Inject constructor(
-    private val service: ObaWebService
+    private val mapDataSource: MapDataSource,
 ) : RouteMapRepository {
 
     override suspend fun getRoute(routeId: String): Result<RouteMap?> =
-        obaApiCall {
-            val data = service.stopsForRoute(routeId, includePolylines = true).requireData()
-            val route = data.references.route(routeId)?.let(::DtoRoute)
-            RouteMap(
-                route = route,
-                agencyName = route?.agencyId?.let { data.references.agency(it)?.name },
-                stops = data.references.stops.map(::DtoStop),
-                routes = data.references.routes.map(::DtoRoute),
-                polylines = data.entry.polylines.map { shape ->
-                    PolylineDecoder.decodeLine(shape.points, shape.length)
-                        .map { GeoPoint(it.latitude, it.longitude) }
-                },
-            )
+        mapDataSource.routeMap(routeId).map { data ->
+            data?.let {
+                RouteMap(
+                    route = it.route,
+                    agencyName = it.agencyName,
+                    stops = it.stops,
+                    routes = it.routes,
+                    polylines = it.polylines.map { line ->
+                        line.map { p -> GeoPoint(p.latitude, p.longitude) }
+                    },
+                )
+            }
         }
 }

@@ -17,28 +17,13 @@ package org.onebusaway.android.map
 
 import javax.inject.Inject
 import android.location.Location
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.onebusaway.android.app.Application
-import org.onebusaway.android.io.client.DtoRoute
-import org.onebusaway.android.io.client.DtoStop
-import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.requireData
-import org.onebusaway.android.models.ObaRoute
-import org.onebusaway.android.models.ObaStop
+import org.onebusaway.android.io.client.MapDataSource
+import org.onebusaway.android.io.client.NearbyStops
 import org.onebusaway.android.map.render.CameraSnapshot
 
-/** The stops visible in a viewport + the routes serving them (for the marker route-type icons). */
-data class NearbyStops(
-    val stops: List<ObaStop>,
-    val routes: List<ObaRoute>,
-    val outOfRange: Boolean,
-    val limitExceeded: Boolean,
-)
-
 /**
- * Loads the stops visible in the current map viewport (stops-for-location). DTO-backed stops/routes
- * are presented as the `io/elements` interfaces the stop overlay consumes.
+ * Loads the stops visible in the current map viewport (stops-for-location), via the io.client
+ * [MapDataSource] which fetches and adapts the wire references to the model interfaces.
  */
 interface StopsRepository {
     /**
@@ -49,41 +34,11 @@ interface StopsRepository {
 }
 
 class DefaultStopsRepository @Inject constructor(
-    private val service: ObaWebService
+    private val mapDataSource: MapDataSource,
 ) : StopsRepository {
 
     override suspend fun getStops(center: Location, latSpan: Double, lonSpan: Double): Result<NearbyStops?> =
-        obaApiCall {
-            val data = service.stopsForLocation(
-                lat = center.latitude, lon = center.longitude, latSpan = latSpan, lonSpan = lonSpan,
-            ).requireData()
-            NearbyStops(
-                stops = data.list.map(::DtoStop),
-                routes = data.references.routes.map(::DtoRoute),
-                outOfRange = data.outOfRange,
-                limitExceeded = data.limitExceeded,
-            )
-        }
-}
-
-/**
- * Runs a blocking OBA REST [block] on the IO dispatcher, wrapped in a [Result]. Returns
- * `success(null)` when there is no endpoint to contact yet (no current region and no custom API
- * URL) — the legacy map loaders produced a null-bodied response there and the controllers treat it
- * as a no-op. Shared by the map repositories that gate on an OBA endpoint.
- */
-internal suspend fun <T> obaApiCall(block: suspend () -> T): Result<T?> =
-    withContext(Dispatchers.IO) {
-        runCatching { if (!hasObaApiEndpoint()) null else block() }
-    }
-
-/**
- * True when there is an OBA REST API endpoint to contact — a current region or a manually entered
- * custom API URL. Mirrors the guard the legacy map loaders applied before calling the server.
- */
-internal fun hasObaApiEndpoint(): Boolean {
-    val app = Application.get()
-    return app.currentRegion != null || !app.customApiUrl.isNullOrEmpty()
+        mapDataSource.nearbyStops(center.latitude, center.longitude, latSpan, lonSpan)
 }
 
 /**

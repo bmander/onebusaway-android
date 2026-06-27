@@ -20,6 +20,8 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import org.onebusaway.android.io.client.DefaultMapDataSource
+import org.onebusaway.android.io.client.MapDataSource
 import org.onebusaway.android.map.DefaultRouteMapRepository
 import org.onebusaway.android.map.DefaultStopsRepository
 import org.onebusaway.android.map.RouteMapRepository
@@ -144,6 +146,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindWeatherRepository(impl: DefaultWeatherRepository): WeatherRepository
+
+    @Binds
+    abstract fun bindMapDataSource(impl: DefaultMapDataSource): MapDataSource
 
     @Binds
     abstract fun bindStopsRepository(impl: DefaultStopsRepository): StopsRepository

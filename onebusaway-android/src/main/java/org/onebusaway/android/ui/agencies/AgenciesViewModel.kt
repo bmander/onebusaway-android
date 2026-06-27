@@ -15,6 +15,9 @@
  */
 package org.onebusaway.android.ui.agencies
 
+import org.onebusaway.android.io.client.AgenciesRepository
+import org.onebusaway.android.io.client.AgencyItem
+
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import org.onebusaway.android.ui.compose.ListLoadingViewModel

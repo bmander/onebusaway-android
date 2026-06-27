@@ -13,14 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.agencies
+package org.onebusaway.android.io.client
 
 import android.util.Log
 import javax.inject.Inject
-import org.onebusaway.android.io.client.AgencyCoverage
-import org.onebusaway.android.io.client.ListWithReferences
-import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.requireData
 
 /**
  * A transit agency as displayed on the supported agencies screen, decoupled from the

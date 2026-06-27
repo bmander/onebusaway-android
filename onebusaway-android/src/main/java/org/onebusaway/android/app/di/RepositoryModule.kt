@@ -38,8 +38,8 @@ import org.onebusaway.android.io.client.DefaultLocationSearchRepository
 import org.onebusaway.android.io.client.DefaultRouteRepository
 import org.onebusaway.android.io.client.LocationSearchRepository
 import org.onebusaway.android.io.client.RouteRepository
-import org.onebusaway.android.ui.agencies.AgenciesRepository
-import org.onebusaway.android.ui.agencies.DefaultAgenciesRepository
+import org.onebusaway.android.io.client.AgenciesRepository
+import org.onebusaway.android.io.client.DefaultAgenciesRepository
 import org.onebusaway.android.ui.arrivals.ArrivalsRepository
 import org.onebusaway.android.ui.arrivals.DefaultArrivalsRepository
 import org.onebusaway.android.ui.home.drawer.DefaultNavItemsRepository

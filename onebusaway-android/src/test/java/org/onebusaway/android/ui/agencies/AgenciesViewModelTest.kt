@@ -15,6 +15,9 @@
  */
 package org.onebusaway.android.ui.agencies
 
+import org.onebusaway.android.io.client.AgenciesRepository
+import org.onebusaway.android.io.client.AgencyItem
+
 import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle

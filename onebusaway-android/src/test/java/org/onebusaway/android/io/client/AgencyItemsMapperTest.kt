@@ -13,17 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.agencies
+package org.onebusaway.android.io.client
 
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import org.onebusaway.android.io.client.AgencyCoverage
-import org.onebusaway.android.io.client.AgencyReference
-import org.onebusaway.android.io.client.ListWithReferences
-import org.onebusaway.android.io.client.ObaEnvelope
-import org.onebusaway.android.io.client.References
 
 /**
  * Pure-logic coverage for [toAgencyItems] and the list-with-references wire models: agency

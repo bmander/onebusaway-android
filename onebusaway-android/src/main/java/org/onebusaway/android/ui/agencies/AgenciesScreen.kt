@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.ui.agencies
 
+import org.onebusaway.android.io.client.AgencyItem
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row

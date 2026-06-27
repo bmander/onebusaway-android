@@ -15,8 +15,8 @@
  */
 package org.onebusaway.android.io.client
 
-import android.net.Uri
-import okhttp3.HttpUrl.Companion.toHttpUrl
+import java.io.IOException
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.Response
 import org.onebusaway.android.io.ObaApi
@@ -26,8 +26,9 @@ import org.onebusaway.android.io.ObaApi
  * shared query parameters.
  *
  * The Retrofit client is built with a throwaway base URL; only the request's path and any
- * endpoint-specific query parameters survive. This interceptor asks [ObaEndpointResolver] (backed by
- * `RegionRepository`) for the resolved host / key / app identity, then layers the REST path and the
+ * endpoint-specific query parameters are meaningful. This interceptor asks [ObaEndpointResolver]
+ * (backed by `RegionRepository`) for the resolved host / key / app identity, grafts the live
+ * scheme+host+port (and any base path prefix) onto the request via [okhttp3.HttpUrl], and layers the
  * version + app params on top — one source of truth for endpoint resolution.
  */
 class ObaUrlInterceptor(private val resolver: ObaEndpointResolver) : Interceptor {
@@ -35,40 +36,36 @@ class ObaUrlInterceptor(private val resolver: ObaEndpointResolver) : Interceptor
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
 
-        // The REST path Retrofit produced, minus the leading slash, to merge onto the base URL below.
-        val restPath = request.url.encodedPath.removePrefix("/")
-        val builder = Uri.Builder()
-
+        // The live endpoint: custom API URL, else the current region's base URL. With neither set
+        // there's nothing to contact — fail loudly rather than silently hitting a default server. The
+        // data sources wrap their calls in runCatching, so this surfaces as a Result.failure.
         val base = resolver.baseUrl()
-        if (base != null) {
-            builder.scheme(base.scheme).encodedAuthority(base.encodedAuthority)
-            // Keep any partial path on the base URL, then append the REST API method path.
-            val path = Uri.Builder().encodedPath(base.encodedPath).appendEncodedPath(restPath)
-            builder.encodedPath(path.build().encodedPath)
-        } else {
-            // Defensive fallback for the no-region/no-custom-URL case (preserves legacy behavior).
-            builder.scheme("http").authority("api.pugetsound.onebusaway.org").encodedPath(restPath)
-        }
+            ?: throw IOException("No OBA API endpoint: no current region and no custom API URL set")
+        val baseUrl = base.toString().toHttpUrlOrNull()
+            ?: throw IOException("Malformed OBA API base URL: $base")
+
+        // Start from the live base (scheme/host/port + any path prefix) and append the REST path
+        // Retrofit produced; HttpUrl collapses the join so a trailing slash on the base can't double up.
+        val builder = baseUrl.newBuilder()
+            .addEncodedPathSegments(request.url.encodedPath.removePrefix("/"))
 
         // App / version / key params, in the same order as the legacy BuilderBase.buildUri().
         if (resolver.appVersion != 0) {
-            builder.appendQueryParameter("app_ver", resolver.appVersion.toString())
+            builder.addQueryParameter("app_ver", resolver.appVersion.toString())
         }
-        resolver.appUid?.let { builder.appendQueryParameter("app_uid", it) }
-        builder.appendQueryParameter("version", ObaApi.VERSION2)
-        builder.appendQueryParameter("key", resolver.apiKey)
+        resolver.appUid?.let { builder.addQueryParameter("app_uid", it) }
+        builder.addQueryParameter("version", ObaApi.VERSION2)
+        builder.addQueryParameter("key", resolver.apiKey)
 
         // Carry over any endpoint-specific query parameters (e.g. minutesAfter) Retrofit attached.
         val originalUrl = request.url
         originalUrl.queryParameterNames.forEach { name ->
             originalUrl.queryParameterValues(name).forEach { value ->
-                value?.let { builder.appendQueryParameter(name, it) }
+                value?.let { builder.addQueryParameter(name, it) }
             }
         }
 
-        val resolved = request.newBuilder()
-            .url(builder.build().toString().toHttpUrl())
-            .build()
+        val resolved = request.newBuilder().url(builder.build()).build()
         return chain.proceed(resolved)
     }
 }

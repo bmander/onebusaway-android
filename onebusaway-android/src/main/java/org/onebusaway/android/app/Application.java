@@ -35,9 +35,7 @@ import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
 import org.onebusaway.android.donations.DonationsManager;
 import org.onebusaway.android.io.ObaAnalytics;
-import org.onebusaway.android.io.ObaApi;
 import org.onebusaway.android.region.Region;
-import org.onebusaway.android.provider.ObaContract;
 import org.onebusaway.android.app.di.LocationEntryPoint;
 import org.onebusaway.android.app.di.RegionEntryPoint;
 import org.onebusaway.android.region.RegionSubsystems;
@@ -95,17 +93,15 @@ public class Application extends android.app.Application {
         mApp = this;
 
         initOba();
-        initObaRegion();
         // The region and location repositories (which own region/location state) are now Hilt
-        // @Singletons, constructed lazily on first injection after onCreate. The
-        // region repo seeds itself from the region initObaRegion just loaded; the location repo starts
-        // empty and fills from setLastKnownLocation (listener updates) / its lazy provider poll. The
-        // legacy setCurrentRegion / setLastKnownLocation writers reach them via their EntryPoints. So
-        // nothing to construct here.
-        // The region-derived subsystems (Plausible, Open311) now observe the region flow (A7) — this
-        // performs their initial init (the StateFlow replays its seeded region) and re-inits on change,
-        // replacing the former explicit initOpen311(getCurrentRegion()) call. Started after initObaRegion
-        // so the repo seeds from the region just loaded.
+        // @Singletons, constructed lazily on first injection after onCreate. The region repo seeds
+        // itself from persistence (the saved region-id → ContentProvider lookup); the location repo
+        // starts empty and fills from setLastKnownLocation (listener updates) / its lazy provider poll.
+        // The legacy setCurrentRegion / setLastKnownLocation writers reach them via their EntryPoints.
+        // So nothing to construct here.
+        // The region-derived subsystems (Plausible, Open311) observe the region flow (A7) — this
+        // performs their initial init (the StateFlow replays the repo's seeded region) and re-inits on
+        // change, replacing the former explicit initOpen311(getCurrentRegion()) call.
         RegionSubsystems.observe(this);
 
         reportAnalytics();
@@ -223,7 +219,9 @@ public class Application extends android.app.Application {
     // Helper to get/set the regions
     //
     public synchronized Region getCurrentRegion() {
-        return ObaApi.getDefaultContext().getRegion();
+        // RegionRepository is the sole owner of the current region; read its current value. (This stays
+        // as a convenience for the remaining non-injectable Java readers that go through Application.)
+        return RegionEntryPoint.get(this).getRegion().getValue();
     }
 
     /**
@@ -463,24 +461,6 @@ public class Application extends android.app.Application {
         if (appThemePref != null) {
             ThemeUtils.setAppTheme(appThemePref);
         }
-    }
-
-    private void initObaRegion() {
-        // Read the region preference, look it up in the DB, then set the region.
-        long id = PreferenceUtils.getLong(getString(R.string.preference_key_region), -1);
-        if (id < 0) {
-            Log.d(TAG, "Regions preference ID is less than 0, returning...");
-            return;
-        }
-
-        Region region = ObaContract.Regions.get(this, (int) id);
-        if (region == null) {
-            Log.d(TAG, "Regions preference is null, returning...");
-            return;
-        }
-
-
-        ObaApi.getDefaultContext().setRegion(region);
     }
 
     private void initOpen311(Region region) {

@@ -32,8 +32,8 @@ import org.onebusaway.android.region.RegionRepository
 /**
  * Resolves the OBA REST endpoint and per-request identity for [ObaUrlInterceptor], reading the
  * active region from [RegionRepository] (and a user-entered custom API URL from
- * [PreferencesRepository]) rather than the legacy mutable `ObaApi.getDefaultContext()` god-object.
- * This is the single source of truth for "which host + key + app identifiers does a request get".
+ * [PreferencesRepository]). This is the single source of truth for "which host + key + app
+ * identifiers does a request get".
  */
 @Singleton
 class ObaEndpointResolver @Inject constructor(

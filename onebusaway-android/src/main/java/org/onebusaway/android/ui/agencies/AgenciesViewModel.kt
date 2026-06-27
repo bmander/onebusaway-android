@@ -15,7 +15,8 @@
  */
 package org.onebusaway.android.ui.agencies
 
-import org.onebusaway.android.api.AgenciesDataSource
+import org.onebusaway.android.api.data.AgenciesDataSource
+
 import org.onebusaway.android.models.AgencyContact
 
 import dagger.hilt.android.lifecycle.HiltViewModel

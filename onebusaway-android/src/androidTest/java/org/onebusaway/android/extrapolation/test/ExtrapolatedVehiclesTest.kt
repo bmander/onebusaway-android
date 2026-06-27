@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.extrapolation.test
 
+import org.onebusaway.android.api.data.asRouteTrips
+
 import androidx.test.InstrumentationRegistry.getTargetContext
 import androidx.test.runner.AndroidJUnit4
 import kotlinx.serialization.json.Json
@@ -23,7 +25,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripState
-import org.onebusaway.android.api.asRouteTrips
 import org.onebusaway.android.extrapolation.extrapolatedVehicles
 import org.onebusaway.android.api.contract.ListWithReferences
 import org.onebusaway.android.api.contract.ObaEnvelope

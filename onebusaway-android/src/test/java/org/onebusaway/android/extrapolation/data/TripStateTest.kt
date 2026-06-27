@@ -15,6 +15,9 @@
  */
 package org.onebusaway.android.extrapolation.data
 
+import org.onebusaway.android.api.adapters.StopTimeData
+import org.onebusaway.android.api.adapters.TripScheduleData
+
 import android.location.Location
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -22,8 +25,6 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.onebusaway.android.extrapolation.ExtrapolationResult
-import org.onebusaway.android.api.StopTimeData
-import org.onebusaway.android.api.TripScheduleData
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaTripSchedule
 import org.onebusaway.android.models.ObaTripStatus

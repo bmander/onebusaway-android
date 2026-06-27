@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.ui.home
 
+import org.onebusaway.android.api.adapters.ObaStopElement
+
 import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -28,7 +30,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.R
 import org.onebusaway.android.region.Region
-import org.onebusaway.android.api.ObaStopElement
 import org.onebusaway.android.location.FakeLocationRepository
 import org.onebusaway.android.region.FakeRegionRepository
 import org.onebusaway.android.region.RegionStatus

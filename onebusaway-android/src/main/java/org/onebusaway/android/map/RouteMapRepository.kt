@@ -15,8 +15,9 @@
  */
 package org.onebusaway.android.map
 
+import org.onebusaway.android.api.data.MapDataSource
+
 import javax.inject.Inject
-import org.onebusaway.android.api.MapDataSource
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.map.render.GeoPoint

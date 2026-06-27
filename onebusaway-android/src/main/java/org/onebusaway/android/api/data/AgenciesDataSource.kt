@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.api
+package org.onebusaway.android.api.data
+
+import org.onebusaway.android.api.requireData
 
 import org.onebusaway.android.api.contract.AgencyCoverage
 import org.onebusaway.android.api.contract.ListWithReferences

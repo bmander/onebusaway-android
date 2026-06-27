@@ -13,7 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.api
+package org.onebusaway.android.api.data
+
+import org.onebusaway.android.api.adapters.DtoStop
+import org.onebusaway.android.api.adapters.DtoRoute
+import org.onebusaway.android.api.net.ObaEndpointResolver
+import org.onebusaway.android.api.requireData
 
 import org.onebusaway.android.api.contract.ObaWebService
 

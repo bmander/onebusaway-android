@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.api
 
+import org.onebusaway.android.api.data.toAgencyContacts
+
 import org.onebusaway.android.api.contract.AgencyCoverage
 import org.onebusaway.android.api.contract.AgencyReference
 import org.onebusaway.android.api.contract.ListWithReferences

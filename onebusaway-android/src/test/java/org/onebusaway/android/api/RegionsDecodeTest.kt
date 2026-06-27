@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.api
 
+import org.onebusaway.android.api.adapters.toObaRegion
+
 import org.onebusaway.android.api.contract.ListWithReferences
 import org.onebusaway.android.api.contract.ObaEnvelope
 import org.onebusaway.android.api.contract.RegionDto

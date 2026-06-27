@@ -15,7 +15,8 @@
  */
 package org.onebusaway.android.ui.report.customerservice
 
-import org.onebusaway.android.api.AgenciesDataSource
+import org.onebusaway.android.api.data.AgenciesDataSource
+
 import org.onebusaway.android.models.AgencyContact
 
 import java.io.IOException

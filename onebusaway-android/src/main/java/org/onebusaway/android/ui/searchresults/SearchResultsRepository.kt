@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.ui.searchresults
 
+import org.onebusaway.android.api.data.LocationSearchDataSource
+
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -22,7 +24,6 @@ import android.location.Location
 import java.io.IOException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import org.onebusaway.android.api.LocationSearchDataSource
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.StopUserInfo

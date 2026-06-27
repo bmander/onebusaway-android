@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.api.bridge
 
+import org.onebusaway.android.api.adapters.toObaRegion
+
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.runBlocking
@@ -25,7 +27,6 @@ import org.onebusaway.android.api.contract.ListWithReferences
 import org.onebusaway.android.api.contract.ObaEnvelope
 import org.onebusaway.android.api.contract.RegionDto
 import org.onebusaway.android.api.requireData
-import org.onebusaway.android.api.toObaRegion
 import org.onebusaway.android.region.Region
 
 /**

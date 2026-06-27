@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.ui.survey
 
+import org.onebusaway.android.api.data.SurveyDataSource
+
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -32,7 +34,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import org.onebusaway.android.R
-import org.onebusaway.android.api.SurveyDataSource
 import org.onebusaway.android.models.Survey
 import org.onebusaway.android.models.SurveyQuestion
 import org.onebusaway.android.models.SurveySubmitResult

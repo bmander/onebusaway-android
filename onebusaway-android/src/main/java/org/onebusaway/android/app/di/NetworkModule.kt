@@ -15,6 +15,9 @@
  */
 package org.onebusaway.android.app.di
 
+import org.onebusaway.android.api.net.ObaUrlInterceptor
+import org.onebusaway.android.api.net.ObaEndpointResolver
+
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -26,8 +29,6 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.api.contract.BikeWebService
-import org.onebusaway.android.api.ObaEndpointResolver
-import org.onebusaway.android.api.ObaUrlInterceptor
 import org.onebusaway.android.api.contract.ObaWebService
 import org.onebusaway.android.api.contract.RegionsWebService
 import org.onebusaway.android.api.contract.ReminderWebService

@@ -16,6 +16,8 @@
  */
 package org.onebusaway.android.report.ui
 
+import org.onebusaway.android.api.adapters.ObaStopElement
+
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -68,7 +70,6 @@ import edu.usf.cutr.open311client.Open311
 import edu.usf.cutr.open311client.models.Service
 import org.onebusaway.android.R
 import org.onebusaway.android.models.ObaStop
-import org.onebusaway.android.api.ObaStopElement
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.StopsMapViewModel
 import org.onebusaway.android.map.compose.ObaMap

@@ -15,6 +15,9 @@
  */
 package org.onebusaway.android.ui.tripdetails
 
+import org.onebusaway.android.api.data.TripDetailsDataSource
+import org.onebusaway.android.api.data.TripDetails
+
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
@@ -28,8 +31,6 @@ import kotlinx.coroutines.withContext
 import org.onebusaway.android.R
 import org.onebusaway.android.api.ObaApi
 import org.onebusaway.android.api.ObaApiException
-import org.onebusaway.android.api.TripDetails
-import org.onebusaway.android.api.TripDetailsDataSource
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaTrip
 import org.onebusaway.android.models.ObaTripSchedule

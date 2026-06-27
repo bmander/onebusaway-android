@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.api
 
+import org.onebusaway.android.api.adapters.toRouteDetails
+
 import org.onebusaway.android.api.contract.AgencyReference
 import org.onebusaway.android.api.contract.EntryWithReferences
 import org.onebusaway.android.api.contract.ObaEnvelope

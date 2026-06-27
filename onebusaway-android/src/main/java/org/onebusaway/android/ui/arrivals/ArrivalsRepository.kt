@@ -15,6 +15,10 @@
  */
 package org.onebusaway.android.ui.arrivals
 
+import org.onebusaway.android.api.data.StopArrivalsDataSource
+import org.onebusaway.android.api.data.StopArrivals
+import org.onebusaway.android.api.data.RouteDataSource
+
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
@@ -25,9 +29,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.api.ObaApi
 import org.onebusaway.android.api.ObaApiException
-import org.onebusaway.android.api.RouteDataSource
-import org.onebusaway.android.api.StopArrivals
-import org.onebusaway.android.api.StopArrivalsDataSource
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaSituation
 import org.onebusaway.android.models.ObaStop

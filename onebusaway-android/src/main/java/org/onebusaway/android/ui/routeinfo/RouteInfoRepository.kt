@@ -15,6 +15,9 @@
  */
 package org.onebusaway.android.ui.routeinfo
 
+import org.onebusaway.android.api.data.RouteDataSource
+import org.onebusaway.android.api.data.RouteStopsDataSource
+
 import android.content.ContentValues
 import android.content.Context
 import android.util.Log
@@ -28,9 +31,7 @@ import kotlinx.coroutines.withContext
 import org.onebusaway.android.api.ObaApi
 import org.onebusaway.android.api.ObaApiException
 import org.onebusaway.android.models.RouteDetails
-import org.onebusaway.android.api.RouteDataSource
 import org.onebusaway.android.models.RouteStopGroup
-import org.onebusaway.android.api.RouteStopsDataSource
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository

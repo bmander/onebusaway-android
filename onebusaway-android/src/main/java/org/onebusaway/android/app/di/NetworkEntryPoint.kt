@@ -15,17 +15,18 @@
  */
 package org.onebusaway.android.app.di
 
+import org.onebusaway.android.api.data.StopArrivalsDataSource
+import org.onebusaway.android.api.data.LocationSearchDataSource
+import org.onebusaway.android.api.data.ProblemReportDataSource
+
 import android.content.Context
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import org.onebusaway.android.api.LocationSearchDataSource
 import org.onebusaway.android.api.contract.ObaWebService
-import org.onebusaway.android.api.ProblemReportDataSource
 import org.onebusaway.android.api.contract.RegionsWebService
 import org.onebusaway.android.api.contract.ReminderWebService
-import org.onebusaway.android.api.StopArrivalsDataSource
 
 /**
  * A Hilt [EntryPoint] that lets code which can't be constructor- or field-injected reach the

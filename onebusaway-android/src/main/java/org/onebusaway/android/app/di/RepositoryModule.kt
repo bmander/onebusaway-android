@@ -15,15 +15,32 @@
  */
 package org.onebusaway.android.app.di
 
+import org.onebusaway.android.api.data.DefaultStopArrivalsDataSource
+import org.onebusaway.android.api.data.StopArrivalsDataSource
+import org.onebusaway.android.api.data.DefaultTripDetailsDataSource
+import org.onebusaway.android.api.data.TripDetailsDataSource
+import org.onebusaway.android.api.data.DefaultAgenciesDataSource
+import org.onebusaway.android.api.data.AgenciesDataSource
+import org.onebusaway.android.api.data.DefaultRouteDataSource
+import org.onebusaway.android.api.data.RouteDataSource
+import org.onebusaway.android.api.data.DefaultRouteStopsDataSource
+import org.onebusaway.android.api.data.RouteStopsDataSource
+import org.onebusaway.android.api.data.DefaultLocationSearchDataSource
+import org.onebusaway.android.api.data.LocationSearchDataSource
+import org.onebusaway.android.api.data.DefaultSurveyDataSource
+import org.onebusaway.android.api.data.SurveyDataSource
+import org.onebusaway.android.api.data.DefaultProblemReportDataSource
+import org.onebusaway.android.api.data.ProblemReportDataSource
+import org.onebusaway.android.api.data.DefaultMapDataSource
+import org.onebusaway.android.api.data.MapDataSource
+import org.onebusaway.android.api.data.DefaultTripVehiclesDataSource
+import org.onebusaway.android.api.data.TripVehiclesDataSource
+
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
-import org.onebusaway.android.api.DefaultMapDataSource
-import org.onebusaway.android.api.DefaultRouteStopsDataSource
-import org.onebusaway.android.api.MapDataSource
-import org.onebusaway.android.api.RouteStopsDataSource
 import org.onebusaway.android.map.DefaultRouteMapRepository
 import org.onebusaway.android.map.DefaultStopsRepository
 import org.onebusaway.android.map.RouteMapRepository
@@ -34,18 +51,6 @@ import org.onebusaway.android.extrapolation.data.DefaultTripObservationFetcher
 import org.onebusaway.android.extrapolation.data.DefaultTripObservationRepository
 import org.onebusaway.android.extrapolation.data.TripObservationFetcher
 import org.onebusaway.android.extrapolation.data.TripObservationRepository
-import org.onebusaway.android.api.DefaultLocationSearchDataSource
-import org.onebusaway.android.api.DefaultRouteDataSource
-import org.onebusaway.android.api.DefaultStopArrivalsDataSource
-import org.onebusaway.android.api.DefaultTripDetailsDataSource
-import org.onebusaway.android.api.LocationSearchDataSource
-import org.onebusaway.android.api.RouteDataSource
-import org.onebusaway.android.api.StopArrivalsDataSource
-import org.onebusaway.android.api.TripDetailsDataSource
-import org.onebusaway.android.api.DefaultTripVehiclesDataSource
-import org.onebusaway.android.api.TripVehiclesDataSource
-import org.onebusaway.android.api.AgenciesDataSource
-import org.onebusaway.android.api.DefaultAgenciesDataSource
 import org.onebusaway.android.ui.arrivals.ArrivalsRepository
 import org.onebusaway.android.ui.arrivals.DefaultArrivalsRepository
 import org.onebusaway.android.ui.home.drawer.DefaultNavItemsRepository
@@ -63,10 +68,6 @@ import org.onebusaway.android.region.DefaultRegionRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.ui.regions.DefaultRegionsRepository
 import org.onebusaway.android.ui.regions.RegionsRepository
-import org.onebusaway.android.api.DefaultProblemReportDataSource
-import org.onebusaway.android.api.DefaultSurveyDataSource
-import org.onebusaway.android.api.ProblemReportDataSource
-import org.onebusaway.android.api.SurveyDataSource
 import org.onebusaway.android.ui.report.types.DefaultReportTypeRepository
 import org.onebusaway.android.ui.report.types.ReportTypeRepository
 import org.onebusaway.android.ui.routeinfo.DefaultRouteInfoRepository

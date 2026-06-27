@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.api
+package org.onebusaway.android.api.data
 
 import android.util.Log
 import javax.inject.Inject

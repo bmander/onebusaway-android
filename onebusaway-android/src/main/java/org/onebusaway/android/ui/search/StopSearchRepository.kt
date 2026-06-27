@@ -15,11 +15,12 @@
  */
 package org.onebusaway.android.ui.search
 
+import org.onebusaway.android.api.data.LocationSearchDataSource
+
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.api.LocationSearchDataSource
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.StopUserInfo
 import org.onebusaway.android.provider.loadStopUserInfo

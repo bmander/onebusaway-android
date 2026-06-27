@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.api
 
+import org.onebusaway.android.api.data.toRouteStopGroups
+
 import org.onebusaway.android.api.contract.EntryWithReferences
 import org.onebusaway.android.api.contract.ObaEnvelope
 import org.onebusaway.android.api.contract.References

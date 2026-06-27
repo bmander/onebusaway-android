@@ -35,7 +35,7 @@ import edu.usf.cutr.open311client.models.ServiceDescriptionRequest
 import edu.usf.cutr.open311client.models.ServiceRequest
 import edu.usf.cutr.open311client.utils.Open311Validator
 import org.onebusaway.android.R
-import org.onebusaway.android.io.ObaApi
+import org.onebusaway.android.api.ObaApi
 import org.onebusaway.android.report.TripReportContext
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.report.constants.ReportConstants

@@ -19,10 +19,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.net.HttpURLConnection
-import org.onebusaway.android.io.client.contract.ListWithReferences
-import org.onebusaway.android.io.client.contract.ObaEnvelope
-import org.onebusaway.android.io.client.contract.RouteReference
-import org.onebusaway.android.io.client.listOrEmpty
+import org.onebusaway.android.api.contract.ListWithReferences
+import org.onebusaway.android.api.contract.ObaEnvelope
+import org.onebusaway.android.api.contract.RouteReference
+import org.onebusaway.android.api.listOrEmpty
 import org.onebusaway.android.util.routeDisplayNames
 
 /**

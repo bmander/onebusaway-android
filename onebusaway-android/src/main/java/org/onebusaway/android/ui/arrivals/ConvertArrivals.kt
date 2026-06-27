@@ -24,7 +24,7 @@ import org.onebusaway.android.util.ArrivalInfoUtils
 /**
  * Builds the display [ArrivalInfo]s from [arrivals]: filters to [filter] routes (empty == all),
  * drops past arrivals unless the user opted in, and sorts by ETA. Callers feed it the [ArrivalData]
- * the io.client arrivals fetch ([org.onebusaway.android.io.client.StopArrivals.arrivals]) produces.
+ * the io.client arrivals fetch ([org.onebusaway.android.api.StopArrivals.arrivals]) produces.
  */
 fun convertArrivals(
     context: Context,

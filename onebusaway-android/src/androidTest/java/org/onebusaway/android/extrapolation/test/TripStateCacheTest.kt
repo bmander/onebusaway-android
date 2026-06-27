@@ -28,8 +28,8 @@ import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.ExtrapolationResult
 import org.onebusaway.android.extrapolation.data.TripObservation
 import org.onebusaway.android.extrapolation.data.TripStateCache
-import org.onebusaway.android.io.client.StopTimeData
-import org.onebusaway.android.io.client.TripScheduleData
+import org.onebusaway.android.api.StopTimeData
+import org.onebusaway.android.api.TripScheduleData
 import org.onebusaway.android.models.ObaTripSchedule
 import org.onebusaway.android.models.ObaTripStatus
 import org.onebusaway.android.models.Occupancy

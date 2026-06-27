@@ -17,7 +17,7 @@ package org.onebusaway.android.ui.search
 
 import android.content.Context
 import android.util.Log
-import org.onebusaway.android.io.client.LocationSearchDataSource
+import org.onebusaway.android.api.LocationSearchDataSource
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.routeDisplayNames

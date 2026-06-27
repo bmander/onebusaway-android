@@ -20,12 +20,12 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import org.onebusaway.android.io.client.LocationSearchDataSource
-import org.onebusaway.android.io.client.contract.ObaWebService
-import org.onebusaway.android.io.client.ProblemReportDataSource
-import org.onebusaway.android.io.client.contract.RegionsWebService
-import org.onebusaway.android.io.client.sidecar.ReminderWebService
-import org.onebusaway.android.io.client.StopArrivalsDataSource
+import org.onebusaway.android.api.LocationSearchDataSource
+import org.onebusaway.android.api.contract.ObaWebService
+import org.onebusaway.android.api.ProblemReportDataSource
+import org.onebusaway.android.api.contract.RegionsWebService
+import org.onebusaway.android.api.sidecar.ReminderWebService
+import org.onebusaway.android.api.StopArrivalsDataSource
 
 /**
  * A Hilt [EntryPoint] that lets code which can't be constructor- or field-injected reach the

@@ -16,7 +16,7 @@
 package org.onebusaway.android.ui.report.problem
 
 import android.location.Location
-import org.onebusaway.android.io.client.ProblemReportDataSource
+import org.onebusaway.android.api.ProblemReportDataSource
 
 /** Submits stop/trip problem reports to the OBA REST API. */
 interface ProblemReportRepository {

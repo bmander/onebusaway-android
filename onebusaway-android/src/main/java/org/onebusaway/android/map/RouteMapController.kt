@@ -29,9 +29,9 @@ import org.onebusaway.android.extrapolation.extrapolatedVehicles
 import org.onebusaway.android.models.RouteTrips
 import org.onebusaway.android.extrapolation.data.TripObservationRepository
 import java.net.HttpURLConnection
-import org.onebusaway.android.io.ObaApi
+import org.onebusaway.android.api.ObaApi
 import org.onebusaway.android.models.ObaRoute
-import org.onebusaway.android.io.client.ObaApiException
+import org.onebusaway.android.api.ObaApiException
 import org.onebusaway.android.map.render.MapRenderState
 import org.onebusaway.android.map.render.MapVehicles
 import org.onebusaway.android.map.render.RoutePolyline

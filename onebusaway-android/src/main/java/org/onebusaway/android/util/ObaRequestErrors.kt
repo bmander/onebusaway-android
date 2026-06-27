@@ -24,7 +24,7 @@ import android.provider.Settings
 import java.net.HttpURLConnection
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.io.ObaApi
+import org.onebusaway.android.api.ObaApi
 
 /**
  * Maps OBA REST API response codes and device connectivity state to user-friendly error messages.

@@ -23,11 +23,11 @@ import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.client.ObaApiException
-import org.onebusaway.android.io.client.RouteDataSource
-import org.onebusaway.android.io.client.StopArrivals
-import org.onebusaway.android.io.client.StopArrivalsDataSource
+import org.onebusaway.android.api.ObaApi
+import org.onebusaway.android.api.ObaApiException
+import org.onebusaway.android.api.RouteDataSource
+import org.onebusaway.android.api.StopArrivals
+import org.onebusaway.android.api.StopArrivalsDataSource
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaSituation
 import org.onebusaway.android.models.ObaStop

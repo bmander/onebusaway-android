@@ -68,7 +68,7 @@ import edu.usf.cutr.open311client.Open311
 import edu.usf.cutr.open311client.models.Service
 import org.onebusaway.android.R
 import org.onebusaway.android.models.ObaStop
-import org.onebusaway.android.io.client.ObaStopElement
+import org.onebusaway.android.api.ObaStopElement
 import org.onebusaway.android.map.MapParams
 import org.onebusaway.android.map.StopsMapViewModel
 import org.onebusaway.android.map.compose.ObaMap

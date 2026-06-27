@@ -25,12 +25,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.client.ObaApiException
+import org.onebusaway.android.api.ObaApi
+import org.onebusaway.android.api.ObaApiException
 import org.onebusaway.android.models.RouteDetails
-import org.onebusaway.android.io.client.RouteDataSource
+import org.onebusaway.android.api.RouteDataSource
 import org.onebusaway.android.models.RouteStopGroup
-import org.onebusaway.android.io.client.RouteStopsDataSource
+import org.onebusaway.android.api.RouteStopsDataSource
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository

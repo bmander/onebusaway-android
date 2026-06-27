@@ -17,7 +17,7 @@ package org.onebusaway.android.ui.routeinfo
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.onebusaway.android.io.client.ObaStopElement
+import org.onebusaway.android.api.ObaStopElement
 import org.onebusaway.android.models.RouteStopGroup
 
 /**

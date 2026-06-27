@@ -26,7 +26,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.onebusaway.android.models.ObaStop
-import org.onebusaway.android.io.client.ObaStopElement
+import org.onebusaway.android.api.ObaStopElement
 import org.onebusaway.android.testing.MainDispatcherRule
 
 private class FakeServiceListRepository(private val result: ServiceListResult) : ServiceListRepository {

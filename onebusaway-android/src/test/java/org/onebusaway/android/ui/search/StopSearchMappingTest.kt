@@ -19,8 +19,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.onebusaway.android.io.client.DtoStop
-import org.onebusaway.android.io.client.contract.StopReference
+import org.onebusaway.android.api.DtoStop
+import org.onebusaway.android.api.contract.StopReference
 import org.onebusaway.android.provider.StopUserInfo
 
 /** Pure-logic coverage for [toStopSearchResult]: custom-name / favorite decoration and defaults. */

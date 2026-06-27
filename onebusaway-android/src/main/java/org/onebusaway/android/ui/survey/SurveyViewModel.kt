@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import org.onebusaway.android.R
-import org.onebusaway.android.io.client.SurveyDataSource
+import org.onebusaway.android.api.SurveyDataSource
 import org.onebusaway.android.models.Survey
 import org.onebusaway.android.models.SurveyQuestion
 import org.onebusaway.android.models.SurveySubmitResult

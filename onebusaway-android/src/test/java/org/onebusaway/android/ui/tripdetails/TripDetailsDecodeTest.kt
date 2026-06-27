@@ -20,9 +20,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.onebusaway.android.io.client.contract.EntryWithReferences
-import org.onebusaway.android.io.client.contract.ObaEnvelope
-import org.onebusaway.android.io.client.contract.TripDetailsEntry
+import org.onebusaway.android.api.contract.EntryWithReferences
+import org.onebusaway.android.api.contract.ObaEnvelope
+import org.onebusaway.android.api.contract.TripDetailsEntry
 
 /**
  * Guards the trip-details wire shape (numeric version, status/schedule, and the trip ref's

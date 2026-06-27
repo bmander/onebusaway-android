@@ -26,10 +26,10 @@ import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.R
-import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.client.ObaApiException
-import org.onebusaway.android.io.client.TripDetails
-import org.onebusaway.android.io.client.TripDetailsDataSource
+import org.onebusaway.android.api.ObaApi
+import org.onebusaway.android.api.ObaApiException
+import org.onebusaway.android.api.TripDetails
+import org.onebusaway.android.api.TripDetailsDataSource
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaTrip
 import org.onebusaway.android.models.ObaTripSchedule

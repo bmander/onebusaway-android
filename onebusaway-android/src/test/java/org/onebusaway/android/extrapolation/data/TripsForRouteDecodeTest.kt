@@ -19,10 +19,10 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.onebusaway.android.io.client.asRouteTrips
-import org.onebusaway.android.io.client.contract.ListWithReferences
-import org.onebusaway.android.io.client.contract.ObaEnvelope
-import org.onebusaway.android.io.client.contract.TripDetailsEntry
+import org.onebusaway.android.api.asRouteTrips
+import org.onebusaway.android.api.contract.ListWithReferences
+import org.onebusaway.android.api.contract.ObaEnvelope
+import org.onebusaway.android.api.contract.TripDetailsEntry
 import java.io.File
 
 /**

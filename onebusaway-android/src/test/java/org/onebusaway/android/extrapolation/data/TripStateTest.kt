@@ -22,8 +22,8 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.onebusaway.android.extrapolation.ExtrapolationResult
-import org.onebusaway.android.io.client.StopTimeData
-import org.onebusaway.android.io.client.TripScheduleData
+import org.onebusaway.android.api.StopTimeData
+import org.onebusaway.android.api.TripScheduleData
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaTripSchedule
 import org.onebusaway.android.models.ObaTripStatus

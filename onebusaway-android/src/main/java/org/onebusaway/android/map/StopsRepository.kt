@@ -17,7 +17,7 @@ package org.onebusaway.android.map
 
 import javax.inject.Inject
 import android.location.Location
-import org.onebusaway.android.io.client.MapDataSource
+import org.onebusaway.android.api.MapDataSource
 import org.onebusaway.android.models.NearbyStops
 import org.onebusaway.android.map.render.CameraSnapshot
 

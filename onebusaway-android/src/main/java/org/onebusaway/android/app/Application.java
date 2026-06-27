@@ -35,7 +35,7 @@ import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
 import org.onebusaway.android.donations.DonationsManager;
 import org.onebusaway.android.analytics.ObaAnalytics;
-import org.onebusaway.android.io.ObaApi;
+import org.onebusaway.android.api.ObaApi;
 import org.onebusaway.android.region.Region;
 import org.onebusaway.android.app.di.LocationEntryPoint;
 import org.onebusaway.android.app.di.RegionEntryPoint;

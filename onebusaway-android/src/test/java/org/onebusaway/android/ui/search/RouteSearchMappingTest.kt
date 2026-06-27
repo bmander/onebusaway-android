@@ -18,7 +18,7 @@ package org.onebusaway.android.ui.search
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import org.onebusaway.android.io.ObaApi
+import java.net.HttpURLConnection
 import org.onebusaway.android.io.client.contract.ListWithReferences
 import org.onebusaway.android.io.client.contract.ObaEnvelope
 import org.onebusaway.android.io.client.contract.RouteReference
@@ -37,19 +37,19 @@ class RouteSearchMappingTest {
     @Test
     fun listOrEmptyReturnsListOnOk() {
         val routes = listOf(RouteReference(id = "1_8", shortName = "8"))
-        assertEquals(routes, envelope(ObaApi.OBA_OK, routes).listOrEmpty())
+        assertEquals(routes, envelope(HttpURLConnection.HTTP_OK, routes).listOrEmpty())
     }
 
     @Test
     fun listOrEmptyReturnsEmptyOnErrorCode() {
         val routes = listOf(RouteReference(id = "1_8", shortName = "8"))
         // A server error code is treated as "no results", not a failure.
-        assertEquals(emptyList<RouteReference>(), envelope(ObaApi.OBA_NOT_FOUND, routes).listOrEmpty())
+        assertEquals(emptyList<RouteReference>(), envelope(HttpURLConnection.HTTP_NOT_FOUND, routes).listOrEmpty())
     }
 
     @Test
     fun listOrEmptyReturnsEmptyWhenDataNull() {
-        val empty = ObaEnvelope<ListWithReferences<RouteReference>>(code = ObaApi.OBA_OK, data = null)
+        val empty = ObaEnvelope<ListWithReferences<RouteReference>>(code = HttpURLConnection.HTTP_OK, data = null)
         assertEquals(emptyList<RouteReference>(), empty.listOrEmpty())
     }
 

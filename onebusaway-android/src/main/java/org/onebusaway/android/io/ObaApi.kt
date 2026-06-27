@@ -16,23 +16,13 @@
 package org.onebusaway.android.io
 
 /**
- * OBA REST API constants: app-level response codes, protocol versions, and per-request identity. The
- * `const val`s compile to static fields, so Java callers keep referencing them as `ObaApi.OBA_OK`.
+ * OBA-specific API constants: the client-side error sentinels the app maps onto error messages,
+ * protocol versions, and per-request identity. (Standard HTTP statuses returned in the envelope's
+ * `code` field are referenced directly from [java.net.HttpURLConnection] at the call sites.)
  */
 object ObaApi {
 
-    const val OBA_OK = 200
-
-    const val OBA_BAD_REQUEST = 400
-
-    const val OBA_UNAUTHORIZED = 401
-
-    const val OBA_NOT_FOUND = 404
-
-    const val OBA_INTERNAL_ERROR = 500
-
-    const val OBA_BAD_GATEWAY = 502
-
+    // OBA-specific client-side sentinels (not HTTP statuses) the app maps onto error messages.
     const val OBA_OUT_OF_MEMORY = 666
 
     const val OBA_IO_EXCEPTION = 700

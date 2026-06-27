@@ -28,6 +28,7 @@ import org.onebusaway.android.extrapolation.ExtrapolatedVehicle
 import org.onebusaway.android.extrapolation.extrapolatedVehicles
 import org.onebusaway.android.models.RouteTrips
 import org.onebusaway.android.extrapolation.data.TripObservationRepository
+import java.net.HttpURLConnection
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.io.client.ObaApiException
@@ -164,7 +165,7 @@ class RouteMapController(
         // A null result (no endpoint) or an unresolved route reads as an error, like the legacy
         // null-response path.
         val route = routeMap?.route ?: run {
-            MapUtils.showMapError(ObaApi.OBA_INTERNAL_ERROR)
+            MapUtils.showMapError(HttpURLConnection.HTTP_INTERNAL_ERROR)
             return
         }
         _loadedRoute.value = LoadedRoute.Loaded(route, routeMap.agencyName)

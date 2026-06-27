@@ -19,11 +19,11 @@ import org.onebusaway.android.io.client.contract.ListWithReferences
 import org.onebusaway.android.io.client.contract.ObaEnvelope
 
 import java.io.IOException
-import org.onebusaway.android.io.ObaApi
+import java.net.HttpURLConnection
 
 /**
- * Thrown when an OBA response carries a non-OK app-level [code] (one of the `ObaApi.OBA_*`
- * constants), or its body is absent. Carrying the [code] lets callers that need to distinguish
+ * Thrown when an OBA response carries a non-OK app-level [code] (a standard HTTP status mirrored in
+ * the OBA envelope), or its body is absent. Carrying the [code] lets callers that need to distinguish
  * outcomes (e.g. 404 not-found vs a server error) map it to the right user message; it extends
  * [IOException] so callers that only care about "the request failed" still catch it uniformly.
  */
@@ -36,7 +36,7 @@ class ObaApiException(val code: Int) : IOException("OBA request failed (code $co
  * code/null per endpoint.
  */
 fun <T> ObaEnvelope<T>.requireData(): T {
-    if (code != ObaApi.OBA_OK || data == null) {
+    if (code != HttpURLConnection.HTTP_OK || data == null) {
         throw ObaApiException(code)
     }
     return data
@@ -48,7 +48,7 @@ fun <T> ObaEnvelope<T>.requireData(): T {
  * nothing to return. Lets the caller's `runCatching` map a non-OK code to `Result.failure`.
  */
 fun ObaEnvelope<*>.requireOk() {
-    if (code != ObaApi.OBA_OK) {
+    if (code != HttpURLConnection.HTTP_OK) {
         throw ObaApiException(code)
     }
 }
@@ -61,4 +61,4 @@ fun ObaEnvelope<*>.requireOk() {
  * `Result.failure`.
  */
 fun <T> ObaEnvelope<ListWithReferences<T>>.listOrEmpty(): List<T> =
-    if (code == ObaApi.OBA_OK) data?.list.orEmpty() else emptyList()
+    if (code == HttpURLConnection.HTTP_OK) data?.list.orEmpty() else emptyList()

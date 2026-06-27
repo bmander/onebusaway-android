@@ -15,21 +15,15 @@
  */
 package org.onebusaway.android.io;
 
-import org.onebusaway.android.R;
-import org.onebusaway.android.app.di.PreferencesEntryPoint;
 import org.onebusaway.android.region.Region;
 
-import android.content.Context;
-import android.net.Uri;
-import android.text.TextUtils;
-import android.util.Log;
-
-import java.net.MalformedURLException;
-import java.net.URL;
-
+/**
+ * Holds the process-wide current {@link Region}. {@code RegionRepository} is the canonical
+ * owner/writer of this value (and exposes it reactively via its {@code region} flow); this static
+ * slot remains only because a few non-injectable Java readers (e.g. {@code
+ * Application.getCurrentRegion}) and {@code RegionRepository}'s own seed read through it.
+ */
 public class ObaContext {
-
-    private static final String TAG = "ObaContext";
 
     private Region mRegion;
 
@@ -42,61 +36,5 @@ public class ObaContext {
 
     public Region getRegion() {
         return mRegion;
-    }
-
-    public void setBaseOtpUrl(Context context, Uri.Builder builder) {
-        // Use the custom OTP url if available (read from the prefs seam, not the Application god-object).
-        String otpBaseUrl = PreferencesEntryPoint.get(context)
-                .getString(R.string.preference_key_otp_api_url, null);
-        if (TextUtils.isEmpty(otpBaseUrl)) {
-            // Use this context's region OTP base URL (the region the RegionRepository wrote here).
-            otpBaseUrl = mRegion.getOtpBaseUrl();
-            Log.d(TAG, "Using default region OTP API URL '" + otpBaseUrl + "'.");
-        } else {
-            Log.d(TAG, "Using custom OTP API URL set by user '" + otpBaseUrl + "'.");
-        }
-        setUrl(context, builder, otpBaseUrl);
-    }
-
-    /**
-     * Set a URL to the Uri.Builder. This method was created to avoid repeating the same logic for
-     * 'setBasetOtpUrl' and 'setBaseUrl' methods.
-     *
-     * @param context used to get android resources
-     * @param builder the Uri.Builder to set the url
-     * @param serverName the url to be used.
-     */
-    private void setUrl(Context context, Uri.Builder builder, String serverName) {
-        Uri baseUrl = null;
-        if (!TextUtils.isEmpty(serverName)) {
-            // TODO - Right now the below log statement is needed for OBA custom APIs, but not OTP
-            // custom APIs (those are already logged in setBaseOtpUrl). This should be cleaned up.
-            Log.d(TAG, "Using API URL '" + serverName + "'.");
-            try {
-                // URI.parse() doesn't tell us if the scheme is missing, so use URL() instead (#126)
-                URL url = new URL(serverName);
-            } catch (MalformedURLException e) {
-                // Assume HTTPS scheme, since without a scheme the Uri won't parse the authority
-                serverName = context.getString(R.string.https_prefix) + serverName;
-            }
-
-            baseUrl = Uri.parse(serverName);
-        } else if (mRegion != null) {
-            Log.d(TAG, "Using region base URL '" + mRegion.getObaBaseUrl() + "'.");
-
-            baseUrl = Uri.parse(mRegion.getObaBaseUrl());
-        }
-
-        // Copy partial path (if one exists) from the base URL
-        Uri.Builder path = new Uri.Builder();
-        path.encodedPath(baseUrl.getEncodedPath());
-
-        // Then, tack on the rest of the REST API method path from the Uri.Builder that was passed in
-        path.appendEncodedPath(builder.build().getPath());
-
-        // Finally, overwrite builder that was passed in with the full URL
-        builder.scheme(baseUrl.getScheme());
-        builder.encodedAuthority(baseUrl.getEncodedAuthority());
-        builder.encodedPath(path.build().getEncodedPath());
     }
 }

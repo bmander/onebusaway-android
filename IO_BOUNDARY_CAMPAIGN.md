@@ -56,11 +56,19 @@ types themselves, `ObaApiException`, `Result`. (DI wiring in app/di references W
 - P3 (routeinfo): DONE 2ac18f12 — io.client `RouteStopsRepository` → `List<RouteStopGroup>`; ui keeps
   RouteStopGroup→RouteDirection presentation. Mapper test split (wire→io, presentation→ui).
 - P4 (agencies): DONE 8db12169 — whole AgenciesRepository + AgencyItem moved into io.client.
+- My-Lists search (StopSearch/RouteSearch): DONE 02c79bff — added listOrEmpty-semantics variants
+  (routesNearOrEmpty/stopsNearOrEmpty) to LocationSearchRepository; repos take it via
+  NetworkEntryPoint.getLocationSearch; map on ObaStop/ObaRoute. (Part of the #1 "mechanical" batch.)
 - P5 (arrivals): NOT STARTED — the big one. ArrivalsRepository builds ArrivalInfo (Context/resources) +
   has poll/stale/lastGood state + ArrivalData wraps ArrivalDeparture; situations via SituationUtils.
   Move the fetch+adapt (ArrivalsForStop → ArrivalData list + ObaStop/ObaRoute refs + situations) into
   io; ArrivalsRepository keeps ArrivalInfo building. DEVICE-GATED.
 - P6 (extrapolation): NOT STARTED — RouteTrips construction (asRouteTrips, currently in extrapolation/
   data) + TripObservationFetcher fetch (tripDetails/shape) move into io. DEVICE-GATED (vehicles).
-- P7 (survey DB): NOT STARTED — SurveyDbHelper persists the wire StudyResponse; needs a survey domain
-  model. Check ripple into SurveyViewModel before sizing.
+- TripDetails (re-sized BIG, was mis-filed as mechanical): TripDetailsRepository (282 lines) holds a
+  `lastGood: ObaEnvelope<EntryWithReferences<TripDetailsEntry>>` and projects header/stops/color/
+  deviation from the raw entry+references. Needs io to expose the trip-details as model (ObaTripDetails/
+  Trip/Route/Status + referenced ObaStops + currentTime) — overlaps P6. DEVICE-GATED (trip details).
+- Survey (re-sized BIG): StudyResponse.Surveys/.Questions threaded through SurveyViewModel (346),
+  SurveyOverlay (370, Compose renders Questions directly), SurveyUtils (365), SurveyDbHelper. Needs a
+  survey domain model + VM/UI/utils/DB rewrite. Its own campaign. DEVICE-GATED (survey overlay).

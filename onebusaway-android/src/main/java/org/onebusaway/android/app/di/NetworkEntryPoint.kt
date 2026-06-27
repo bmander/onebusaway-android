@@ -20,6 +20,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import org.onebusaway.android.io.client.LocationSearchRepository
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.RegionsWebService
 import org.onebusaway.android.io.client.ReminderWebService
@@ -49,6 +50,8 @@ interface NetworkEntryPoint {
 
     fun reminderWebService(): ReminderWebService
 
+    fun locationSearchRepository(): LocationSearchRepository
+
     companion object {
         /** Resolves the shared [ObaWebService] from any [context] (its application is used). */
         @JvmStatic
@@ -67,5 +70,11 @@ interface NetworkEntryPoint {
         fun getReminder(context: Context): ReminderWebService =
             EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
                 .reminderWebService()
+
+        /** Resolves the shared [LocationSearchRepository] from any [context] (its application is used). */
+        @JvmStatic
+        fun getLocationSearch(context: Context): LocationSearchRepository =
+            EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
+                .locationSearchRepository()
     }
 }

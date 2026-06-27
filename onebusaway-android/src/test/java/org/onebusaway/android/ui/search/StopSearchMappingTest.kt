@@ -19,19 +19,22 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.onebusaway.android.io.client.DtoStop
 import org.onebusaway.android.io.client.StopReference
 import org.onebusaway.android.provider.StopUserInfo
 
 /** Pure-logic coverage for [toStopSearchResult]: custom-name / favorite decoration and defaults. */
 class StopSearchMappingTest {
 
-    private val stop = StopReference(
+    // The ObaStop the search produces is a DtoStop over the wire reference; test the mapper on that.
+    private val ref = StopReference(
         id = "1_101",
         name = "Spring St & 3rd Ave",
         direction = "NE",
         lat = 47.6,
         lon = -122.33
     )
+    private val stop = DtoStop(ref)
 
     @Test
     fun usesServerNameAndDefaultsWhenNoUserInfo() {
@@ -65,7 +68,7 @@ class StopSearchMappingTest {
 
     @Test
     fun nullDirectionBecomesEmpty() {
-        val result = stop.copy(direction = null).toStopSearchResult(userInfo = null)
+        val result = DtoStop(ref.copy(direction = null)).toStopSearchResult(userInfo = null)
 
         assertEquals("", result.direction)
     }

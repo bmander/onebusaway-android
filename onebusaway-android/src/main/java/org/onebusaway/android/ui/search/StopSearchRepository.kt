@@ -19,9 +19,8 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.StopReference
-import org.onebusaway.android.io.client.listOrEmpty
+import org.onebusaway.android.io.client.LocationSearchRepository
+import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.StopUserInfo
 import org.onebusaway.android.provider.loadStopUserInfo
 import org.onebusaway.android.provider.stopDisplayName
@@ -52,26 +51,26 @@ interface StopSearchRepository {
 }
 
 /**
- * Default implementation backed by the modernized [ObaWebService] (constructor-injected, resolved
- * at the Compose call site), decorated with the user's stop favorites and custom names from the
- * ContentProvider (the same query the legacy UIUtils.StopUserInfoMap ran). [context] is still
+ * Default implementation over the io.client [LocationSearchRepository] (constructor-injected,
+ * resolved at the Compose call site), decorated with the user's stop favorites and custom names from
+ * the ContentProvider (the same query the legacy UIUtils.StopUserInfoMap ran). [context] is still
  * needed for the location lookup and the provider query.
  *
  * Stays on [Dispatchers.IO]: unlike the route search, the [loadStopUserInfo] ContentProvider query
  * is blocking. As with the route search, a transport/parse failure surfaces as [Result.failure]
- * while a server error code yields no results (via [listOrEmpty]).
+ * while a server error code yields no results (via [LocationSearchRepository.stopsNearOrEmpty]).
  */
 class DefaultStopSearchRepository(
     private val context: Context,
-    private val service: ObaWebService,
+    private val search: LocationSearchRepository,
 ) : StopSearchRepository {
 
     override suspend fun search(query: String): Result<List<StopSearchResult>> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val center = LocationUtils.getSearchCenter(context)
-                val stops = service.stopsForLocation(center.latitude, center.longitude, query = query)
-                    .listOrEmpty()
+                val stops = search.stopsNearOrEmpty(center.latitude, center.longitude, query, null)
+                    .getOrThrow()
                 val userInfo = loadStopUserInfo(context)
                 stops.map { it.toStopSearchResult(userInfo[it.id]) }
             }.onFailure { Log.e(TAG, "stop search failed", it) }
@@ -82,13 +81,13 @@ class DefaultStopSearchRepository(
     }
 }
 
-/** Maps a stop entry to its display result, applying the user's custom name / favorite. */
-internal fun StopReference.toStopSearchResult(userInfo: StopUserInfo?) = StopSearchResult(
+/** Maps a stop to its display result, applying the user's custom name / favorite. */
+internal fun ObaStop.toStopSearchResult(userInfo: StopUserInfo?) = StopSearchResult(
     id = id,
     name = stopDisplayName(name, userInfo),
     serverName = name,
     direction = direction.orEmpty(),
     isFavorite = userInfo?.isFavorite == true,
-    latitude = lat,
-    longitude = lon
+    latitude = latitude,
+    longitude = longitude
 )

@@ -17,9 +17,8 @@ package org.onebusaway.android.ui.search
 
 import android.content.Context
 import android.util.Log
-import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.RouteReference
-import org.onebusaway.android.io.client.listOrEmpty
+import org.onebusaway.android.io.client.LocationSearchRepository
+import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.routeDisplayNames
 
@@ -44,37 +43,36 @@ interface RouteSearchRepository {
 }
 
 /**
- * Default implementation backed by the modernized [ObaWebService]: queries around the user's
- * location first and falls back to a wide-radius search around the region's default center when
- * that returns nothing usable (the legacy route-search behavior). [context] is still needed for the
- * in-memory location lookups; [service] is constructor-injected (resolved at the Compose call site)
+ * Default implementation over the io.client [LocationSearchRepository]: queries around the user's
+ * location first and falls back to a wide-radius search around the region's default center when that
+ * returns nothing usable (the legacy route-search behavior). [context] is still needed for the
+ * in-memory location lookups; [search] is constructor-injected (resolved at the Compose call site)
  * so this repository declares its dependency and is swappable in tests.
  *
- * Unlike the legacy version, a transport/parse failure surfaces as [Result.failure] (so the UI can
- * show an error) rather than being silently rendered as "no results"; a server error *code* is
- * still treated as no results, matching the legacy screens.
+ * A transport/parse failure surfaces as [Result.failure] (so the UI can show an error); a server
+ * error *code* is treated as no results (via [LocationSearchRepository.routesNearOrEmpty]).
  */
 class DefaultRouteSearchRepository(
     private val context: Context,
-    private val service: ObaWebService,
+    private val search: LocationSearchRepository,
 ) : RouteSearchRepository {
 
     override suspend fun search(query: String): Result<List<RouteSearchResult>> = runCatching {
         val center = LocationUtils.getSearchCenter(context)
-        var routes = service.routesForLocation(center.latitude, center.longitude, query = query)
-            .listOrEmpty()
+        var routes = search.routesNearOrEmpty(center.latitude, center.longitude, query, null)
+            .getOrThrow()
         if (routes.isEmpty()) {
             LocationUtils.getDefaultSearchCenter(context)?.let { fallback ->
-                routes = service.routesForLocation(
+                routes = search.routesNearOrEmpty(
                     fallback.latitude, fallback.longitude,
-                    query = query, radius = LocationUtils.DEFAULT_SEARCH_RADIUS
-                ).listOrEmpty()
+                    query, LocationUtils.DEFAULT_SEARCH_RADIUS
+                ).getOrThrow()
             }
         }
         routes.map(::toResult)
     }.onFailure { Log.e(TAG, "route search failed", it) }
 
-    private fun toResult(route: RouteReference): RouteSearchResult {
+    private fun toResult(route: ObaRoute): RouteSearchResult {
         val names = routeDisplayNames(route.shortName, route.longName, route.description)
         return RouteSearchResult(
             id = route.id,

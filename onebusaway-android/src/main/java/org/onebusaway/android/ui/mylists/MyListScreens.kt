@@ -171,7 +171,7 @@ fun MyStopsDestination(
     val recent = rememberListVm("stops.recent") { RecentStopsRepository(app) }
     val starred = rememberListVm("stops.starred") { StarredStopsRepository(app) }
     val search = rememberSearchVm("stops.search") {
-        DefaultStopSearchRepository(app, NetworkEntryPoint.get(app))::search
+        DefaultStopSearchRepository(app, NetworkEntryPoint.getLocationSearch(app))::search
     }
     PersistedTabsScreen(
         titleRes = R.string.my_recent_stops,
@@ -198,7 +198,7 @@ fun MyRoutesDestination(
     val app = activity.applicationContext
     val recent = rememberListVm("routes.recent") { RecentRoutesRepository(app) }
     val search = rememberSearchVm("routes.search") {
-        DefaultRouteSearchRepository(app, NetworkEntryPoint.get(app))::search
+        DefaultRouteSearchRepository(app, NetworkEntryPoint.getLocationSearch(app))::search
     }
     PersistedTabsScreen(
         titleRes = R.string.my_recent_routes,

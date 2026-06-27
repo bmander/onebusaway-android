@@ -18,7 +18,6 @@ package org.onebusaway.android.io.client
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.app.Application
 import org.onebusaway.android.models.NearbyStops
 import org.onebusaway.android.models.RouteMapData
 import org.onebusaway.android.util.PolylineDecoder
@@ -38,6 +37,7 @@ interface MapDataSource {
 
 class DefaultMapDataSource @Inject constructor(
     private val service: ObaWebService,
+    private val endpointResolver: ObaEndpointResolver,
 ) : MapDataSource {
 
     override suspend fun nearbyStops(
@@ -64,19 +64,14 @@ class DefaultMapDataSource @Inject constructor(
             polylines = data.entry.polylines.map { PolylineDecoder.decodeLine(it.points, it.length) },
         )
     }
-}
 
-/**
- * Runs a blocking OBA REST [block] on the IO dispatcher, wrapped in a [Result]. Returns
- * `success(null)` when there is no endpoint to contact yet (no current region and no custom API URL).
- */
-private suspend fun <T> obaApiCall(block: suspend () -> T): Result<T?> =
-    withContext(Dispatchers.IO) {
-        runCatching { if (!hasObaApiEndpoint()) null else block() }
-    }
-
-/** True when there is an OBA REST endpoint to contact — a current region or a custom API URL. */
-private fun hasObaApiEndpoint(): Boolean {
-    val app = Application.get()
-    return app.currentRegion != null || !app.customApiUrl.isNullOrEmpty()
+    /**
+     * Runs a blocking OBA REST [block] on the IO dispatcher, wrapped in a [Result]. Returns
+     * `success(null)` when there is no endpoint to contact yet — i.e. [ObaEndpointResolver] can't
+     * produce a base URL (no current region and no custom API URL).
+     */
+    private suspend fun <T> obaApiCall(block: suspend () -> T): Result<T?> =
+        withContext(Dispatchers.IO) {
+            runCatching { if (endpointResolver.baseUrl() == null) null else block() }
+        }
 }

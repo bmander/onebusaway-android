@@ -19,7 +19,7 @@ import org.onebusaway.android.api.requireData
 
 import org.onebusaway.android.api.contract.AgencyCoverage
 import org.onebusaway.android.api.contract.ListWithReferences
-import org.onebusaway.android.api.contract.ObaWebService
+import org.onebusaway.android.api.net.ObaApiProvider
 
 import android.util.Log
 import javax.inject.Inject
@@ -37,11 +37,11 @@ interface AgenciesDataSource {
 
 /** Default implementation over [ObaWebService], adapting the references to [AgencyContact]. */
 class DefaultAgenciesDataSource @Inject constructor(
-    private val service: ObaWebService
+    private val api: ObaApiProvider
 ) : AgenciesDataSource {
 
     override suspend fun getAgencies(): Result<List<AgencyContact>> = runCatching {
-        service.agenciesWithCoverage().requireData().toAgencyContacts()
+        api.requireService().agenciesWithCoverage().requireData().toAgencyContacts()
     }.onFailure { Log.e(TAG, "getAgencies failed", it) }
 
     private companion object {

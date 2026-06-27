@@ -18,7 +18,7 @@ package org.onebusaway.android.api.data
 import org.onebusaway.android.api.adapters.toRouteDetails
 import org.onebusaway.android.api.requireData
 
-import org.onebusaway.android.api.contract.ObaWebService
+import org.onebusaway.android.api.net.ObaApiProvider
 
 import android.util.Log
 import javax.inject.Inject
@@ -40,11 +40,11 @@ interface RouteDataSource {
  * repositories this needs no manual `withContext(Dispatchers.IO)` wrapper.
  */
 class DefaultRouteDataSource @Inject constructor(
-    private val service: ObaWebService,
+    private val api: ObaApiProvider,
 ) : RouteDataSource {
 
     override suspend fun getRoute(routeId: String): Result<RouteDetails> = runCatching {
-        service.route(routeId).requireData().toRouteDetails()
+        api.requireService().route(routeId).requireData().toRouteDetails()
     }.onFailure { Log.e(TAG, "getRoute($routeId) failed", it) }
 
     private companion object {

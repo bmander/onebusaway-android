@@ -23,7 +23,7 @@ import retrofit2.http.Url
  * OpenTripPlanner server (the region's `otpBaseUrl`, or the user's custom OTP url), not the OBA
  * `where` host, and the response is plain JSON. The caller builds the full OTP URL (base +
  * `routers/default/bike_rental` + the viewport bbox) and passes it via [Url], so this service runs
- * WITHOUT [ObaUrlInterceptor]; the Retrofit base URL is a throwaway. Mirrors [RegionsWebService].
+ * WITHOUT [ApiParamsInterceptor]; the Retrofit base URL is a throwaway. Mirrors [RegionsWebService].
  */
 interface BikeWebService {
 

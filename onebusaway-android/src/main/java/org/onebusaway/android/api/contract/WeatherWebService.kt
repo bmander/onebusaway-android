@@ -22,7 +22,7 @@ import retrofit2.http.Url
  * The weather client — separate from [ObaWebService] because weather is served from the region's
  * sidecar host (`weather_api_endpoint`, with the region id substituted), not the OBA `where` host,
  * and the response is bare JSON. The caller passes the resolved URL via [Url], so this service runs
- * WITHOUT [ObaUrlInterceptor]; the Retrofit base URL is a throwaway. Mirrors [SurveyWebService].
+ * WITHOUT [ApiParamsInterceptor]; the Retrofit base URL is a throwaway. Mirrors [SurveyWebService].
  */
 interface WeatherWebService {
 

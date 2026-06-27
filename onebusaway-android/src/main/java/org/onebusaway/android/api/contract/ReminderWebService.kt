@@ -25,7 +25,7 @@ import retrofit2.http.Url
 /**
  * The arrivals-reminders client — separate from [ObaWebService] because reminders are served from
  * the region's sidecar host, not the OBA `where` host. Both calls pass the resolved URL via [Url],
- * so this service runs WITHOUT [ObaUrlInterceptor]; the Retrofit base URL is a throwaway. Mirrors
+ * so this service runs WITHOUT [ApiParamsInterceptor]; the Retrofit base URL is a throwaway. Mirrors
  * [SurveyWebService].
  */
 interface ReminderWebService {

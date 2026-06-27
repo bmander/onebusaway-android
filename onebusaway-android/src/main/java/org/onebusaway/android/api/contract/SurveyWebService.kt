@@ -26,7 +26,7 @@ import retrofit2.http.Url
  * The surveys ("studies") client — separate from [ObaWebService] because surveys are served from the
  * region's *sidecar* host, not the OBA `where` host, and the responses are bare JSON (no
  * [ObaEnvelope]). Each call passes the fully-resolved sidecar URL via [Url], so this service runs
- * WITHOUT [ObaUrlInterceptor] (no host rewrite, no key/version params); the Retrofit base URL is a
+ * WITHOUT [ApiParamsInterceptor] (no host rewrite, no key/version params); the Retrofit base URL is a
  * throwaway. Mirrors [RegionsWebService].
  */
 interface SurveyWebService {

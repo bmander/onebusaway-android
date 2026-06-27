@@ -17,7 +17,7 @@ package org.onebusaway.android.api.data
 
 import org.onebusaway.android.api.requireOk
 
-import org.onebusaway.android.api.contract.ObaWebService
+import org.onebusaway.android.api.net.ObaApiProvider
 
 import javax.inject.Inject
 
@@ -53,7 +53,7 @@ interface ProblemReportDataSource {
 }
 
 class DefaultProblemReportDataSource @Inject constructor(
-    private val service: ObaWebService
+    private val api: ObaApiProvider
 ) : ProblemReportDataSource {
 
     override suspend fun reportStop(
@@ -64,7 +64,7 @@ class DefaultProblemReportDataSource @Inject constructor(
         lon: Double?,
         accuracyMeters: Int?,
     ): Result<Unit> = runCatching {
-        service.reportProblemWithStop(
+        api.requireService().reportProblemWithStop(
             stopId = stopId,
             code = code,
             data = dataJson(code),
@@ -88,7 +88,7 @@ class DefaultProblemReportDataSource @Inject constructor(
         lon: Double?,
         accuracyMeters: Int?,
     ): Result<Unit> = runCatching {
-        service.reportProblemWithTrip(
+        api.requireService().reportProblemWithTrip(
             tripId = tripId,
             code = code,
             data = dataJson(code),

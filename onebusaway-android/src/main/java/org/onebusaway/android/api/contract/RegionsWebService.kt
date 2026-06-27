@@ -22,7 +22,7 @@ import retrofit2.http.Url
  * The regions-directory client — separate from [ObaWebService] because regions is fetched from a
  * fixed directory host (`regions_api_url`, e.g. https://regions.onebusaway.org/regions-v3.json),
  * not a per-region OBA host. It runs *before* a region is selected (it's how regions are
- * discovered), so it deliberately does NOT go through [ObaUrlInterceptor] (no host rewrite, no
+ * discovered), so it deliberately does NOT go through [ApiParamsInterceptor] (no host rewrite, no
  * key/version params). The absolute URL is passed per call via [Url], so the Retrofit base URL is a
  * throwaway and the flavor-specific filename (regions-v3/-v4.json) needs no special handling.
  */

@@ -23,7 +23,7 @@ import org.onebusaway.android.api.adapters.DtoTripStatus
 import org.onebusaway.android.api.requireData
 
 import org.onebusaway.android.api.contract.EntryWithReferences
-import org.onebusaway.android.api.contract.ObaWebService
+import org.onebusaway.android.api.net.ObaApiProvider
 import org.onebusaway.android.api.contract.TripDetailsEntry
 
 import android.util.Log
@@ -82,11 +82,11 @@ interface TripDetailsDataSource {
 }
 
 class DefaultTripDetailsDataSource @Inject constructor(
-    private val service: ObaWebService,
+    private val api: ObaApiProvider,
 ) : TripDetailsDataSource {
 
     override suspend fun tripDetails(tripId: String): Result<TripDetails> = runCatching {
-        val envelope = service.tripDetails(tripId)
+        val envelope = api.requireService().tripDetails(tripId)
         TripDetails(envelope.requireData(), envelope.currentTime)
     }.onFailure { Log.e(TAG, "tripDetails($tripId) failed", it) }
 

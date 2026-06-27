@@ -24,7 +24,7 @@ import org.onebusaway.android.api.requireData
 import org.onebusaway.android.api.contract.EntryWithReferences
 import org.onebusaway.android.api.contract.ListWithReferences
 import org.onebusaway.android.api.contract.ObaEnvelope
-import org.onebusaway.android.api.contract.ObaWebService
+import org.onebusaway.android.api.net.ObaApiProvider
 import org.onebusaway.android.api.contract.References
 import org.onebusaway.android.api.contract.TripDetailsEntry
 
@@ -85,23 +85,23 @@ interface TripVehiclesDataSource {
 }
 
 class DefaultTripVehiclesDataSource @Inject constructor(
-    private val service: ObaWebService,
+    private val api: ObaApiProvider,
 ) : TripVehiclesDataSource {
 
     override suspend fun tripsForRoute(routeId: String): Result<RouteTrips> = runCatching {
-        service.tripsForRoute(routeId).asRouteTrips()
+        api.requireService().tripsForRoute(routeId).asRouteTrips()
     }.onFailure { Log.e(TAG, "tripsForRoute($routeId) failed", it) }
 
     override suspend fun tripDetails(tripId: String): Result<RouteTrips> = runCatching {
-        service.tripDetails(tripId).asRouteTrips()
+        api.requireService().tripDetails(tripId).asRouteTrips()
     }.onFailure { Log.e(TAG, "tripDetails($tripId) failed", it) }
 
     override suspend fun tripSchedule(tripId: String): Result<ObaTripSchedule?> = runCatching {
-        service.tripDetails(tripId).requireData().entry.schedule?.toObaTripSchedule()
+        api.requireService().tripDetails(tripId).requireData().entry.schedule?.toObaTripSchedule()
     }.onFailure { Log.e(TAG, "tripSchedule($tripId) failed", it) }
 
     override suspend fun shape(shapeId: String): Result<Polyline?> = runCatching {
-        val entry = service.shape(shapeId).requireData().entry
+        val entry = api.requireService().shape(shapeId).requireData().entry
         PolylineDecoder.decodeLine(entry.points, entry.length)
             .takeIf { it.isNotEmpty() }
             ?.let { Polyline(it) }

@@ -21,8 +21,8 @@ import retrofit2.http.Query
 
 /**
  * The modernized OBA REST ("where") API contract. Each method maps to one endpoint; Retrofit +
- * kotlinx.serialization handle transport and JSON, and [ObaUrlInterceptor] rewrites the relative
- * URL to the current region's host/scheme and appends the api key, version, and app identifiers.
+ * kotlinx.serialization handle transport and JSON. `ObaApiProvider` binds the client to the current
+ * region's base URL and `ApiParamsInterceptor` appends the api key, version, and app identifiers.
  *
  * This interface is the single declarative source of truth for the API surface, replacing the
  * per-endpoint hand-rolled `Oba*Request` builder classes. Endpoints are added here as they migrate.

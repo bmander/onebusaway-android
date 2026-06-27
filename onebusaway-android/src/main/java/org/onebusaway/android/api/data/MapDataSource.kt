@@ -15,12 +15,10 @@
  */
 package org.onebusaway.android.api.data
 
-import org.onebusaway.android.api.adapters.DtoStop
 import org.onebusaway.android.api.adapters.DtoRoute
-import org.onebusaway.android.api.net.ObaEndpointResolver
+import org.onebusaway.android.api.adapters.DtoStop
+import org.onebusaway.android.api.net.ObaApiProvider
 import org.onebusaway.android.api.requireData
-
-import org.onebusaway.android.api.contract.ObaWebService
 
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -43,42 +41,37 @@ interface MapDataSource {
 }
 
 class DefaultMapDataSource @Inject constructor(
-    private val service: ObaWebService,
-    private val endpointResolver: ObaEndpointResolver,
+    private val api: ObaApiProvider,
 ) : MapDataSource {
 
     override suspend fun nearbyStops(
         lat: Double, lon: Double, latSpan: Double, lonSpan: Double,
-    ): Result<NearbyStops?> = obaApiCall {
-        val data = service.stopsForLocation(lat = lat, lon = lon, latSpan = latSpan, lonSpan = lonSpan)
-            .requireData()
-        NearbyStops(
-            stops = data.list.map(::DtoStop),
-            routes = data.references.routes.map(::DtoRoute),
-            outOfRange = data.outOfRange,
-            limitExceeded = data.limitExceeded,
-        )
-    }
-
-    override suspend fun routeMap(routeId: String): Result<RouteMapData?> = obaApiCall {
-        val data = service.stopsForRoute(routeId, includePolylines = true).requireData()
-        val route = data.references.route(routeId)?.let(::DtoRoute)
-        RouteMapData(
-            route = route,
-            agencyName = route?.agencyId?.let { data.references.agency(it)?.name },
-            stops = data.references.stops.map(::DtoStop),
-            routes = data.references.routes.map(::DtoRoute),
-            polylines = data.entry.polylines.map { PolylineDecoder.decodeLine(it.points, it.length) },
-        )
-    }
-
-    /**
-     * Runs a blocking OBA REST [block] on the IO dispatcher, wrapped in a [Result]. Returns
-     * `success(null)` when there is no endpoint to contact yet — i.e. [ObaEndpointResolver] can't
-     * produce a base URL (no current region and no custom API URL).
-     */
-    private suspend fun <T> obaApiCall(block: suspend () -> T): Result<T?> =
-        withContext(Dispatchers.IO) {
-            runCatching { if (endpointResolver.baseUrl() == null) null else block() }
+    ): Result<NearbyStops?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val service = api.service() ?: return@runCatching null
+            val data = service.stopsForLocation(lat = lat, lon = lon, latSpan = latSpan, lonSpan = lonSpan)
+                .requireData()
+            NearbyStops(
+                stops = data.list.map(::DtoStop),
+                routes = data.references.routes.map(::DtoRoute),
+                outOfRange = data.outOfRange,
+                limitExceeded = data.limitExceeded,
+            )
         }
+    }
+
+    override suspend fun routeMap(routeId: String): Result<RouteMapData?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val service = api.service() ?: return@runCatching null
+            val data = service.stopsForRoute(routeId, includePolylines = true).requireData()
+            val route = data.references.route(routeId)?.let(::DtoRoute)
+            RouteMapData(
+                route = route,
+                agencyName = route?.agencyId?.let { data.references.agency(it)?.name },
+                stops = data.references.stops.map(::DtoStop),
+                routes = data.references.routes.map(::DtoRoute),
+                polylines = data.entry.polylines.map { PolylineDecoder.decodeLine(it.points, it.length) },
+            )
+        }
+    }
 }

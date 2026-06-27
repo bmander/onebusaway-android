@@ -19,7 +19,7 @@ import org.onebusaway.android.api.adapters.DtoStop
 import org.onebusaway.android.api.requireData
 
 import org.onebusaway.android.api.contract.EntryWithReferences
-import org.onebusaway.android.api.contract.ObaWebService
+import org.onebusaway.android.api.net.ObaApiProvider
 import org.onebusaway.android.api.contract.StopsForRoute
 
 import android.util.Log
@@ -37,11 +37,11 @@ interface RouteStopsDataSource {
 }
 
 class DefaultRouteStopsDataSource @Inject constructor(
-    private val service: ObaWebService,
+    private val api: ObaApiProvider,
 ) : RouteStopsDataSource {
 
     override suspend fun stopsForRoute(routeId: String): Result<List<RouteStopGroup>> = runCatching {
-        service.stopsForRoute(routeId).requireData().toRouteStopGroups()
+        api.requireService().stopsForRoute(routeId).requireData().toRouteStopGroups()
     }.onFailure { Log.e(TAG, "stopsForRoute($routeId) failed", it) }
 
     private companion object {

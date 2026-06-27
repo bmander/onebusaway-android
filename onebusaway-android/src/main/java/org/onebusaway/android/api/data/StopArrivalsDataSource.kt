@@ -23,7 +23,7 @@ import org.onebusaway.android.api.requireData
 
 import org.onebusaway.android.api.contract.ArrivalsForStop
 import org.onebusaway.android.api.contract.EntryWithReferences
-import org.onebusaway.android.api.contract.ObaWebService
+import org.onebusaway.android.api.net.ObaApiProvider
 import org.onebusaway.android.api.contract.SituationReference
 
 import android.util.Log
@@ -105,11 +105,11 @@ interface StopArrivalsDataSource {
 }
 
 class DefaultStopArrivalsDataSource @Inject constructor(
-    private val service: ObaWebService,
+    private val api: ObaApiProvider,
 ) : StopArrivalsDataSource {
 
     override suspend fun arrivals(stopId: String, minutesAfter: Int): Result<StopArrivals> = runCatching {
-        val envelope = service.arrivalsAndDeparturesForStop(stopId, minutesAfter)
+        val envelope = api.requireService().arrivalsAndDeparturesForStop(stopId, minutesAfter)
         StopArrivals(envelope.requireData(), envelope.currentTime, minutesAfter)
     }.onFailure { Log.e(TAG, "arrivals($stopId) failed", it) }
 

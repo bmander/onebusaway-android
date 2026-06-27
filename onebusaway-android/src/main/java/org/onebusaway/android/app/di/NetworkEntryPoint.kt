@@ -24,30 +24,27 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import org.onebusaway.android.api.contract.ObaWebService
 import org.onebusaway.android.api.contract.RegionsWebService
 import org.onebusaway.android.api.contract.ReminderWebService
 
 /**
- * A Hilt [EntryPoint] that lets code which can't be constructor- or field-injected reach the
- * shared [ObaWebService]. It needs a [Context] only to resolve the singleton graph; the returned
- * service is the same app-singleton every injected consumer shares.
+ * A Hilt [EntryPoint] that lets code which can't be constructor- or field-injected reach the shared
+ * io/client services and data sources. It needs a [Context] only to resolve the singleton graph; the
+ * returned instance is the same app-singleton every injected consumer shares.
  *
- * Seam rule for reaching the modernized REST client (io/client), in order of preference:
+ * Seam rule for reaching the modernized REST client, in order of preference:
  * 1. **An io/client data source** (e.g. `RouteDataSource`) when a domain model is shared across
- *    features or the consumer is another repository — depend on that, not on [ObaWebService].
- * 2. **Constructor-inject [ObaWebService]** directly into Hilt-reachable consumers (most feature
- *    repositories, `@HiltViewModel`s, services).
+ *    features or the consumer is another repository — depend on that, not on the web service.
+ * 2. **Constructor injection** directly into Hilt-reachable consumers (most feature repositories,
+ *    `@HiltViewModel`s, services).
  * 3. **This EntryPoint** only where injection genuinely isn't available — e.g. a repository
  *    hand-built from a [Context] at a Compose call site (the `MyListScreens` search repos). Resolve
- *    it at the construction boundary and pass [ObaWebService] into the constructor; don't bury the
+ *    it at the construction boundary and pass the dependency into the constructor; don't bury the
  *    lookup inside the repository's business logic (keeps the dependency declared and testable).
  */
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface NetworkEntryPoint {
-
-    fun obaWebService(): ObaWebService
 
     fun regionsWebService(): RegionsWebService
 
@@ -60,12 +57,6 @@ interface NetworkEntryPoint {
     fun problemReportDataSource(): ProblemReportDataSource
 
     companion object {
-        /** Resolves the shared [ObaWebService] from any [context] (its application is used). */
-        @JvmStatic
-        fun get(context: Context): ObaWebService =
-            EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
-                .obaWebService()
-
         /** Resolves the shared [RegionsWebService] from any [context] (its application is used). */
         @JvmStatic
         fun getRegions(context: Context): RegionsWebService =

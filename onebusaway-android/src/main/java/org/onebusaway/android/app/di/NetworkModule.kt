@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.app.di
 
-import org.onebusaway.android.api.net.ObaUrlInterceptor
+import org.onebusaway.android.api.net.ApiParamsInterceptor
 import org.onebusaway.android.api.net.ObaEndpointResolver
 
 import dagger.Module
@@ -29,7 +29,6 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.api.contract.BikeWebService
-import org.onebusaway.android.api.contract.ObaWebService
 import org.onebusaway.android.api.contract.RegionsWebService
 import org.onebusaway.android.api.contract.ReminderWebService
 import org.onebusaway.android.api.contract.SurveyWebService
@@ -38,9 +37,10 @@ import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFact
 import retrofit2.Retrofit
 
 /**
- * Wires the modernized Retrofit-based OBA REST client (io/client). The base URL is a throwaway —
- * [ObaUrlInterceptor] rewrites every request to the live region endpoint — so a single shared
- * client serves all regions and reacts to region changes without being rebuilt.
+ * Wires the modernized Retrofit-based OBA REST client. The OBA host is region-dependent, so
+ * `ObaApiProvider` builds the web service against the live region base URL (rebuilding on region
+ * change) and `ApiParamsInterceptor` appends the shared key/version/app params. The sidecar services
+ * below target fixed / sidecar hosts via absolute `@Url`, so they use a plain client.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -53,11 +53,16 @@ object NetworkModule {
         coerceInputValues = true
     }
 
+    /**
+     * The shared client for the OBA "where" API. [ApiParamsInterceptor] appends the key/version/app
+     * params to every request; the request's host is set per-region by the Retrofit that
+     * [ObaApiProvider] builds against the live base URL (so there's no throwaway base / host rewrite).
+     */
     @Provides
     @Singleton
     fun provideOkHttpClient(resolver: ObaEndpointResolver): OkHttpClient =
         OkHttpClient.Builder()
-            .addInterceptor(ObaUrlInterceptor(resolver))
+            .addInterceptor(ApiParamsInterceptor(resolver))
             .apply {
                 if (BuildConfig.DEBUG) {
                     addInterceptor(
@@ -67,22 +72,8 @@ object NetworkModule {
             }
             .build()
 
-    @Provides
-    @Singleton
-    fun provideRetrofit(client: OkHttpClient, json: Json): Retrofit = Retrofit.Builder()
-        // Placeholder; ObaUrlInterceptor swaps in the resolved region host/scheme per request.
-        .baseUrl("https://localhost/")
-        .client(client)
-        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-        .build()
-
-    @Provides
-    @Singleton
-    fun provideObaWebService(retrofit: Retrofit): ObaWebService =
-        retrofit.create(ObaWebService::class.java)
-
     /**
-     * The regions-directory client. Built with a plain client (NO [ObaUrlInterceptor]) since regions
+     * The regions-directory client. Built with a plain client (NO [ApiParamsInterceptor]) since regions
      * is fetched from a fixed directory host via `@Url`, not the selected region's OBA host.
      */
     @Provides
@@ -92,7 +83,7 @@ object NetworkModule {
 
     /**
      * The surveys client. Like regions, it targets a non-OBA host (the region's sidecar) via `@Url`,
-     * so it uses a plain client without [ObaUrlInterceptor].
+     * so it uses a plain client without [ApiParamsInterceptor].
      */
     @Provides
     @Singleton
@@ -101,7 +92,7 @@ object NetworkModule {
 
     /**
      * The bike-rental client. Targets an OpenTripPlanner host (the region's `otpBaseUrl`) via `@Url`,
-     * so like regions/surveys it uses a plain client without [ObaUrlInterceptor].
+     * so like regions/surveys it uses a plain client without [ApiParamsInterceptor].
      */
     @Provides
     @Singleton
@@ -110,7 +101,7 @@ object NetworkModule {
 
     /**
      * The weather client. Targets the region's sidecar host via `@Url` (like surveys), so it uses a
-     * plain client without [ObaUrlInterceptor].
+     * plain client without [ApiParamsInterceptor].
      */
     @Provides
     @Singleton
@@ -119,7 +110,7 @@ object NetworkModule {
 
     /**
      * The arrivals-reminders client. Targets the region's sidecar host via `@Url`, so like surveys
-     * it uses a plain client without [ObaUrlInterceptor].
+     * it uses a plain client without [ApiParamsInterceptor].
      */
     @Provides
     @Singleton
@@ -127,7 +118,7 @@ object NetworkModule {
         plainRetrofit(json).create(ReminderWebService::class.java)
 
     /**
-     * A Retrofit built on a plain OkHttp client (debug logging only, no [ObaUrlInterceptor]) for
+     * A Retrofit built on a plain OkHttp client (debug logging only, no [ApiParamsInterceptor]) for
      * services that pass an absolute `@Url` per call rather than relying on the region host rewrite.
      */
     private fun plainRetrofit(json: Json): Retrofit {

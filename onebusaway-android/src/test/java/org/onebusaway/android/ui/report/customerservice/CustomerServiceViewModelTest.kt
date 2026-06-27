@@ -15,6 +15,9 @@
  */
 package org.onebusaway.android.ui.report.customerservice
 
+import org.onebusaway.android.io.client.CustomerServiceRepository
+import org.onebusaway.android.models.AgencyContact
+
 import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle

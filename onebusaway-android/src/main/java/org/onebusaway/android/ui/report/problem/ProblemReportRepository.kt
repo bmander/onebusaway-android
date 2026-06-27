@@ -16,8 +16,7 @@
 package org.onebusaway.android.ui.report.problem
 
 import android.location.Location
-import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.requireOk
+import org.onebusaway.android.io.client.ProblemReportService
 
 /** Submits stop/trip problem reports to the OBA REST API. */
 interface ProblemReportRepository {
@@ -40,12 +39,12 @@ interface ProblemReportRepository {
 }
 
 /**
- * Default implementation over the modernized [ObaWebService] (replacing the legacy
- * ReportLoader AsyncTaskLoader). A non-OK app-level code or a transport failure maps to
- * [Result.failure] via [requireOk] + `runCatching`.
+ * Default implementation that unpacks the UI's report params + [Location] into the plain values the
+ * io.client [ProblemReportService] takes, keeping the wire call (and the legacy `data` param) inside
+ * io. A non-OK app-level code or a transport failure maps to [Result.failure] in the service.
  */
 class DefaultProblemReportRepository(
-    private val service: ObaWebService
+    private val reportService: ProblemReportService
 ) : ProblemReportRepository {
 
     override suspend fun submitStop(
@@ -53,17 +52,14 @@ class DefaultProblemReportRepository(
         code: String,
         comment: String,
         location: Location?
-    ): Result<Unit> = runCatching {
-        service.reportProblemWithStop(
-            stopId = stopId,
-            code = code,
-            data = dataJson(code),
-            userComment = comment.ifEmpty { null },
-            userLat = location?.latitude,
-            userLon = location?.longitude,
-            userLocationAccuracy = location?.accuracyMeters(),
-        ).requireOk()
-    }
+    ): Result<Unit> = reportService.reportStop(
+        stopId = stopId,
+        code = code,
+        comment = comment.ifEmpty { null },
+        lat = location?.latitude,
+        lon = location?.longitude,
+        accuracyMeters = location?.accuracyMeters(),
+    )
 
     override suspend fun submitTrip(
         params: ProblemParams.Trip,
@@ -72,25 +68,19 @@ class DefaultProblemReportRepository(
         onVehicle: Boolean,
         vehicleNumber: String,
         location: Location?
-    ): Result<Unit> = runCatching {
-        service.reportProblemWithTrip(
-            tripId = params.tripId,
-            code = code,
-            data = dataJson(code),
-            stopId = params.stopId,
-            serviceDate = params.serviceDate,
-            vehicleId = params.vehicleId,
-            userComment = comment.ifEmpty { null },
-            userLat = location?.latitude,
-            userLon = location?.longitude,
-            userLocationAccuracy = location?.accuracyMeters(),
-            userOnVehicle = onVehicle,
-            userVehicleNumber = vehicleNumber.ifEmpty { null },
-        ).requireOk()
-    }
-
-    /** The legacy JSON-encoded `data` param the API still expects alongside `code`. */
-    private fun dataJson(code: String) = """{"code":"$code"}"""
+    ): Result<Unit> = reportService.reportTrip(
+        tripId = params.tripId,
+        stopId = params.stopId,
+        serviceDate = params.serviceDate,
+        vehicleId = params.vehicleId,
+        code = code,
+        comment = comment.ifEmpty { null },
+        onVehicle = onVehicle,
+        vehicleNumber = vehicleNumber.ifEmpty { null },
+        lat = location?.latitude,
+        lon = location?.longitude,
+        accuracyMeters = location?.accuracyMeters(),
+    )
 
     /** The location's accuracy in whole meters, or null when the fix carries none. */
     private fun Location.accuracyMeters(): Int? = if (hasAccuracy()) accuracy.toInt() else null

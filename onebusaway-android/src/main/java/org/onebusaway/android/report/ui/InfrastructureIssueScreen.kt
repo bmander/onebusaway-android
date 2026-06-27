@@ -474,7 +474,7 @@ private fun createProblemReportViewModel(
     arrival: TripReportContext?,
 ): ProblemReportViewModel {
     val repository =
-        DefaultProblemReportRepository(NetworkEntryPoint.get(context.applicationContext))
+        DefaultProblemReportRepository(NetworkEntryPoint.getProblemReport(context.applicationContext))
     return if (arrival != null) {
         ProblemReportViewModel(
             params = ProblemParams.Trip(

@@ -15,6 +15,9 @@
  */
 package org.onebusaway.android.ui.report.customerservice
 
+import org.onebusaway.android.io.client.CustomerServiceRepository
+import org.onebusaway.android.models.AgencyContact
+
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import org.onebusaway.android.ui.compose.ListLoadingViewModel

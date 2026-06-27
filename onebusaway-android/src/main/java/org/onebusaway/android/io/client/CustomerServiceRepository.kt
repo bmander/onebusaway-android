@@ -13,23 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.report.customerservice
+package org.onebusaway.android.io.client
 
 import javax.inject.Inject
-import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.requireData
-
-/**
- * A transit agency's customer-service contact options, decoupled from the io/elements response
- * types. Blank email/url/phone are normalized to null so the UI only needs one check each.
- */
-data class AgencyContact(
-    val id: String,
-    val name: String,
-    val email: String?,
-    val url: String?,
-    val phone: String?
-)
+import org.onebusaway.android.models.AgencyContact
 
 /** Provides the customer-service contacts for the agencies covering the current region. */
 interface CustomerServiceRepository {
@@ -38,9 +25,9 @@ interface CustomerServiceRepository {
 }
 
 /**
- * Default implementation over the modernized [ObaWebService] (replacing the legacy AgenciesLoader).
- * A non-OK app-level code or a transport failure maps to [Result.failure] via requireData +
- * runCatching.
+ * Default implementation over the modernized [ObaWebService] (replacing the legacy AgenciesLoader),
+ * adapting the agencies-with-coverage references to [AgencyContact]. A non-OK app-level code or a
+ * transport failure maps to [Result.failure] via requireData + runCatching.
  */
 class DefaultCustomerServiceRepository @Inject constructor(
     private val service: ObaWebService

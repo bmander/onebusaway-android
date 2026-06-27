@@ -22,6 +22,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import org.onebusaway.android.io.client.LocationSearchRepository
 import org.onebusaway.android.io.client.ObaWebService
+import org.onebusaway.android.io.client.ProblemReportService
 import org.onebusaway.android.io.client.RegionsWebService
 import org.onebusaway.android.io.client.ReminderWebService
 import org.onebusaway.android.io.client.StopArrivalsRepository
@@ -55,6 +56,8 @@ interface NetworkEntryPoint {
 
     fun stopArrivalsRepository(): StopArrivalsRepository
 
+    fun problemReportService(): ProblemReportService
+
     companion object {
         /** Resolves the shared [ObaWebService] from any [context] (its application is used). */
         @JvmStatic
@@ -85,5 +88,11 @@ interface NetworkEntryPoint {
         fun getStopArrivals(context: Context): StopArrivalsRepository =
             EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
                 .stopArrivalsRepository()
+
+        /** Resolves the shared [ProblemReportService] from any [context] (its application is used). */
+        @JvmStatic
+        fun getProblemReport(context: Context): ProblemReportService =
+            EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
+                .problemReportService()
     }
 }

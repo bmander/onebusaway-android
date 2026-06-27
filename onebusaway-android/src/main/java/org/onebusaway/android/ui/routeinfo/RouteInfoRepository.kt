@@ -27,9 +27,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.io.client.ObaApiException
-import org.onebusaway.android.io.client.RouteDetails
+import org.onebusaway.android.models.RouteDetails
 import org.onebusaway.android.io.client.RouteRepository
-import org.onebusaway.android.io.client.RouteStopGroup
+import org.onebusaway.android.models.RouteStopGroup
 import org.onebusaway.android.io.client.RouteStopsRepository
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.ObaContract

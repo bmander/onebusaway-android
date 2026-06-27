@@ -18,7 +18,7 @@ package org.onebusaway.android.ui.routeinfo
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.onebusaway.android.io.client.ObaStopElement
-import org.onebusaway.android.io.client.RouteStopGroup
+import org.onebusaway.android.models.RouteStopGroup
 
 /**
  * Pure-logic coverage for the presentation mapping [RouteStopGroup] -> [RouteDirection]: per-stop

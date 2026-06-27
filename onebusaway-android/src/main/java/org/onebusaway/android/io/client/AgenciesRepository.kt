@@ -17,18 +17,7 @@ package org.onebusaway.android.io.client
 
 import android.util.Log
 import javax.inject.Inject
-
-/**
- * A transit agency as displayed on the supported agencies screen, decoupled from the
- * io/client response types.
- *
- * @param url the agency's website, or null if it has none (never blank)
- */
-data class AgencyItem(
-    val id: String,
-    val name: String,
-    val url: String?
-)
+import org.onebusaway.android.models.AgencyItem
 
 /** Provides the list of transit agencies covered by the current region. */
 interface AgenciesRepository {

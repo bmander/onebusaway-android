@@ -17,6 +17,7 @@ package org.onebusaway.android.io.client
 
 import android.util.Log
 import javax.inject.Inject
+import org.onebusaway.android.models.ArrivalData
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaSituation
 import org.onebusaway.android.models.ObaStop

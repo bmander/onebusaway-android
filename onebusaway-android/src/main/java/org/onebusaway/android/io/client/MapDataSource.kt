@@ -15,35 +15,13 @@
  */
 package org.onebusaway.android.io.client
 
-import android.location.Location
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.models.ObaRoute
-import org.onebusaway.android.models.ObaStop
+import org.onebusaway.android.models.NearbyStops
+import org.onebusaway.android.models.RouteMapData
 import org.onebusaway.android.util.PolylineDecoder
-
-/** The stops visible in a viewport + the routes serving them (for the marker route-type icons). */
-data class NearbyStops(
-    val stops: List<ObaStop>,
-    val routes: List<ObaRoute>,
-    val outOfRange: Boolean,
-    val limitExceeded: Boolean,
-)
-
-/**
- * A route's stops, the serving routes (for stop-marker icons), the route + agency name, and its
- * decoded shape. Polylines are [Location] points (the neutral geo type); the map layer turns them
- * into its render `GeoPoint`s so io.client stays independent of the render package.
- */
-data class RouteMapData(
-    val route: ObaRoute?,
-    val agencyName: String?,
-    val stops: List<ObaStop>,
-    val routes: List<ObaRoute>,
-    val polylines: List<List<Location>>,
-)
 
 /**
  * Fetches map data (stops-for-location / stops-for-route) from the modernized OBA REST client,

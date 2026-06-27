@@ -17,13 +17,7 @@ package org.onebusaway.android.io.client
 
 import android.util.Log
 import javax.inject.Inject
-import org.onebusaway.android.models.ObaStop
-
-/** A route's stops for one direction: the group's display name and its [ObaStop]s, in order. */
-data class RouteStopGroup(
-    val name: String?,
-    val stops: List<ObaStop>,
-)
+import org.onebusaway.android.models.RouteStopGroup
 
 /**
  * Fetches a route's stops grouped by direction (stops-for-route) from the modernized OBA REST client,

@@ -15,29 +15,12 @@
  */
 package org.onebusaway.android.io.client
 
-/**
- * Clean Kotlin domain model for a route, decoupled from both the wire DTOs ([RouteReference]) and
- * the legacy `ObaRoute` element interface. [agency] is resolved from the response references.
- */
-data class RouteDetails(
-    val id: String,
-    val shortName: String?,
-    val longName: String?,
-    val description: String?,
-    val url: String?,
-    val agency: AgencyDetails?,
-)
-
-/** Clean Kotlin domain model for the agency operating a route. */
-data class AgencyDetails(
-    val id: String,
-    val name: String,
-    val url: String?,
-)
+import org.onebusaway.android.models.AgencyDetails
+import org.onebusaway.android.models.RouteDetails
 
 /**
- * Maps the route-details payload to [RouteDetails], resolving the agency reference by id. Pure
- * (no Android/IO dependencies) so it is exercised directly in JVM unit tests.
+ * Maps the route-details payload to the [RouteDetails] model, resolving the agency reference by id.
+ * Pure (no Android/IO dependencies) so it is exercised directly in JVM unit tests.
  */
 fun EntryWithReferences<RouteReference>.toRouteDetails(): RouteDetails {
     val route = entry

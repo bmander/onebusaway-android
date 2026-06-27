@@ -17,6 +17,7 @@ package org.onebusaway.android.io.client
 
 import android.util.Log
 import javax.inject.Inject
+import org.onebusaway.android.models.RouteDetails
 
 /** Fetches route details from the modernized OBA REST client. */
 interface RouteRepository {

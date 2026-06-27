@@ -18,7 +18,7 @@ package org.onebusaway.android.ui.arrivals
 import android.content.Context
 import org.onebusaway.android.R
 import org.onebusaway.android.app.di.PreferencesEntryPoint
-import org.onebusaway.android.io.client.ArrivalData
+import org.onebusaway.android.models.ArrivalData
 import org.onebusaway.android.util.ArrivalInfoUtils
 
 /**

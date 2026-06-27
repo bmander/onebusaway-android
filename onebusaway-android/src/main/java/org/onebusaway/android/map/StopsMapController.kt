@@ -27,7 +27,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.client.NearbyStops
+import org.onebusaway.android.models.NearbyStops
 import org.onebusaway.android.io.client.ObaApiException
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaStop

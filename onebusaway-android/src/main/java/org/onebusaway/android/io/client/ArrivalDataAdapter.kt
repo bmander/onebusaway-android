@@ -15,44 +15,12 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.models.ArrivalData
+import org.onebusaway.android.models.FrequencyWindow
 import org.onebusaway.android.models.Occupancy
 import org.onebusaway.android.models.Status
 
-/**
- * The arrival fields the display model (`ArrivalInfo`) computes from, abstracted from the wire type
- * so feature code never sees the [ArrivalDeparture] DTO. The io.client arrivals fetch
- * ([StopArrivals.arrivals]) produces these; times are epoch millis.
- */
-interface ArrivalData {
-    val routeId: String
-    val tripId: String
-    val stopId: String
-    val headsign: String?
-    val shortName: String?
-    val routeLongName: String?
-    val stopSequence: Int
-    val serviceDate: Long
-    val vehicleId: String?
-    val predicted: Boolean
-    val scheduledArrivalTime: Long
-    val predictedArrivalTime: Long
-    val scheduledDepartureTime: Long
-    val predictedDepartureTime: Long
-    val status: Status?
-    val frequency: FrequencyWindow?
-    val historicalOccupancy: Occupancy?
-    val predictedOccupancy: Occupancy?
-    /** Real-time fields, for the report context; defaults when there is no trip status. */
-    val hasTripStatus: Boolean
-    val scheduleDeviation: Long
-    val lastKnownLat: Double?
-    val lastKnownLon: Double?
-}
-
-/** Headway-based (exact_times=0) service window; epoch millis / seconds, matching the wire. */
-data class FrequencyWindow(val startTime: Long, val endTime: Long, val headway: Long)
-
-/** Adapts a modernized [ArrivalDeparture] DTO (arrivals fetch) to [ArrivalData]. */
+/** Adapts a modernized [ArrivalDeparture] DTO (arrivals fetch) to the [ArrivalData] model. */
 internal fun ArrivalDeparture.asArrivalData(): ArrivalData = DtoArrivalData(this)
 
 private class DtoArrivalData(private val d: ArrivalDeparture) : ArrivalData {

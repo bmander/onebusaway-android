@@ -15,8 +15,8 @@
  */
 package org.onebusaway.android.api
 
-import org.onebusaway.android.api.sidecar.BikeRentalStationsDto
-import org.onebusaway.android.api.sidecar.toBikeRentalStations
+import org.onebusaway.android.api.contract.BikeRentalStationsDto
+import org.onebusaway.android.api.contract.toBikeRentalStations
 
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals

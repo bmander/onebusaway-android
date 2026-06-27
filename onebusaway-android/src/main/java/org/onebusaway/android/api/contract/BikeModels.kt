@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.api.sidecar
+package org.onebusaway.android.api.contract
 
 import kotlinx.serialization.Serializable
 import org.opentripplanner.routing.bike_rental.BikeRentalStation

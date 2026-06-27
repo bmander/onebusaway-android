@@ -15,7 +15,7 @@
  */
 package org.onebusaway.android.api
 
-import org.onebusaway.android.api.sidecar.ReminderResponse
+import org.onebusaway.android.api.contract.ReminderResponse
 
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals

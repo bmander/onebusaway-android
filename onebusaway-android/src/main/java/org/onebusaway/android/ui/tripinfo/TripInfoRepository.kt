@@ -26,7 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.api.sidecar.ReminderWebService
+import org.onebusaway.android.api.contract.ReminderWebService
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.provider.ProviderQueries
 import org.onebusaway.android.region.RegionRepository

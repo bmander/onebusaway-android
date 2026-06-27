@@ -15,8 +15,8 @@
  */
 package org.onebusaway.android.api
 
-import org.onebusaway.android.api.sidecar.StudyResponse
-import org.onebusaway.android.api.sidecar.SubmitSurveyResponse
+import org.onebusaway.android.api.contract.StudyResponse
+import org.onebusaway.android.api.contract.SubmitSurveyResponse
 
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals

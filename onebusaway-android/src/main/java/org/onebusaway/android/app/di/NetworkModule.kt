@@ -25,14 +25,14 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.onebusaway.android.BuildConfig
-import org.onebusaway.android.api.sidecar.BikeWebService
+import org.onebusaway.android.api.contract.BikeWebService
 import org.onebusaway.android.api.ObaEndpointResolver
 import org.onebusaway.android.api.ObaUrlInterceptor
 import org.onebusaway.android.api.contract.ObaWebService
 import org.onebusaway.android.api.contract.RegionsWebService
-import org.onebusaway.android.api.sidecar.ReminderWebService
-import org.onebusaway.android.api.sidecar.SurveyWebService
-import org.onebusaway.android.api.sidecar.WeatherWebService
+import org.onebusaway.android.api.contract.ReminderWebService
+import org.onebusaway.android.api.contract.SurveyWebService
+import org.onebusaway.android.api.contract.WeatherWebService
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.Retrofit
 

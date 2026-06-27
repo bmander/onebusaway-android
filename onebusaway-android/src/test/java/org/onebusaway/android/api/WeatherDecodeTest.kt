@@ -15,8 +15,8 @@
  */
 package org.onebusaway.android.api
 
-import org.onebusaway.android.api.sidecar.WeatherResponse
-import org.onebusaway.android.api.sidecar.WeatherForecast
+import org.onebusaway.android.api.contract.WeatherResponse
+import org.onebusaway.android.api.contract.WeatherForecast
 
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals

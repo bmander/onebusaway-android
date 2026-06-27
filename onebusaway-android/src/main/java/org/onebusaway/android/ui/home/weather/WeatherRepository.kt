@@ -20,7 +20,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import javax.inject.Inject
 import org.onebusaway.android.R
-import org.onebusaway.android.api.sidecar.WeatherWebService
+import org.onebusaway.android.api.contract.WeatherWebService
 import org.onebusaway.android.region.RegionRepository
 
 /**

@@ -19,8 +19,8 @@ import javax.inject.Inject
 import android.location.Location
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
-import org.onebusaway.android.api.sidecar.BikeWebService
-import org.onebusaway.android.api.sidecar.toBikeRentalStations
+import org.onebusaway.android.api.contract.BikeWebService
+import org.onebusaway.android.api.contract.toBikeRentalStations
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.RegionUtils

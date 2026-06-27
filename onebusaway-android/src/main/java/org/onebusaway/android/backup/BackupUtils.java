@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.onebusaway.android.util;
+package org.onebusaway.android.backup;
 
 import android.content.Context;
 import android.content.Intent;
@@ -31,7 +31,6 @@ import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.analytics.ObaAnalytics;
 import org.onebusaway.android.analytics.PlausibleAnalytics;
-import org.onebusaway.android.io.backup.Backup;
 
 import java.io.IOException;
 import java.util.Objects;

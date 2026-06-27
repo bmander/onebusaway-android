@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.io.backup;
+package org.onebusaway.android.backup;
 
-import static org.onebusaway.android.util.BackupUtilKt.uriToTempFile;
+import static org.onebusaway.android.backup.BackupUtilKt.uriToTempFile;
 
 import android.content.ContentProviderClient;
 import android.content.Context;

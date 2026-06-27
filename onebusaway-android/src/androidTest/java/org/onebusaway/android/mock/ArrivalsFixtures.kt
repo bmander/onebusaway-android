@@ -17,9 +17,9 @@ package org.onebusaway.android.mock
 
 import android.content.Context
 import kotlinx.serialization.json.Json
-import org.onebusaway.android.io.client.ArrivalsForStop
-import org.onebusaway.android.io.client.EntryWithReferences
-import org.onebusaway.android.io.client.ObaEnvelope
+import org.onebusaway.android.io.client.contract.ArrivalsForStop
+import org.onebusaway.android.io.client.contract.EntryWithReferences
+import org.onebusaway.android.io.client.contract.ObaEnvelope
 import org.onebusaway.android.io.client.StopArrivals
 import org.onebusaway.android.models.ObaSituation
 import org.onebusaway.android.ui.arrivals.ArrivalInfo

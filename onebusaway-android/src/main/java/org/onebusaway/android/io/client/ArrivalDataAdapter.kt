@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.contract.ArrivalDeparture
+
 import org.onebusaway.android.models.ArrivalData
 import org.onebusaway.android.models.FrequencyWindow
 import org.onebusaway.android.models.Occupancy

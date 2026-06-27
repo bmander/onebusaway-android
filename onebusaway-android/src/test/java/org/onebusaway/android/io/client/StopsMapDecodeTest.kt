@@ -15,6 +15,12 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.contract.EntryWithReferences
+import org.onebusaway.android.io.client.contract.ListWithReferences
+import org.onebusaway.android.io.client.contract.ObaEnvelope
+import org.onebusaway.android.io.client.contract.StopReference
+import org.onebusaway.android.io.client.contract.StopsForRoute
+
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

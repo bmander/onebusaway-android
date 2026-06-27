@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.contract.RouteReference
+
 import org.onebusaway.android.util.parseObaHexColor
 
 /**

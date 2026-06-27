@@ -28,8 +28,8 @@ import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.io.client.sidecar.BikeWebService
 import org.onebusaway.android.io.client.ObaEndpointResolver
 import org.onebusaway.android.io.client.ObaUrlInterceptor
-import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.RegionsWebService
+import org.onebusaway.android.io.client.contract.ObaWebService
+import org.onebusaway.android.io.client.contract.RegionsWebService
 import org.onebusaway.android.io.client.sidecar.ReminderWebService
 import org.onebusaway.android.io.client.sidecar.SurveyWebService
 import org.onebusaway.android.io.client.sidecar.WeatherWebService

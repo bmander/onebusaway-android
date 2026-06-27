@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.contract.RegionDto
+
 import org.onebusaway.android.region.Region
 
 /**

@@ -15,6 +15,10 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.contract.ListWithReferences
+import org.onebusaway.android.io.client.contract.ObaEnvelope
+import org.onebusaway.android.io.client.contract.RegionDto
+
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

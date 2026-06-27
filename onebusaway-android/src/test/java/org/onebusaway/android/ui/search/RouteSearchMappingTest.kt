@@ -19,9 +19,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.client.ListWithReferences
-import org.onebusaway.android.io.client.ObaEnvelope
-import org.onebusaway.android.io.client.RouteReference
+import org.onebusaway.android.io.client.contract.ListWithReferences
+import org.onebusaway.android.io.client.contract.ObaEnvelope
+import org.onebusaway.android.io.client.contract.RouteReference
 import org.onebusaway.android.io.client.listOrEmpty
 import org.onebusaway.android.util.routeDisplayNames
 

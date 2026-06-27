@@ -25,9 +25,9 @@ import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripState
 import org.onebusaway.android.io.client.asRouteTrips
 import org.onebusaway.android.extrapolation.extrapolatedVehicles
-import org.onebusaway.android.io.client.ListWithReferences
-import org.onebusaway.android.io.client.ObaEnvelope
-import org.onebusaway.android.io.client.TripDetailsEntry
+import org.onebusaway.android.io.client.contract.ListWithReferences
+import org.onebusaway.android.io.client.contract.ObaEnvelope
+import org.onebusaway.android.io.client.contract.TripDetailsEntry
 import org.onebusaway.android.mock.Resources
 
 /**

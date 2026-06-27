@@ -21,9 +21,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import org.onebusaway.android.io.client.LocationSearchDataSource
-import org.onebusaway.android.io.client.ObaWebService
+import org.onebusaway.android.io.client.contract.ObaWebService
 import org.onebusaway.android.io.client.ProblemReportDataSource
-import org.onebusaway.android.io.client.RegionsWebService
+import org.onebusaway.android.io.client.contract.RegionsWebService
 import org.onebusaway.android.io.client.sidecar.ReminderWebService
 import org.onebusaway.android.io.client.StopArrivalsDataSource
 

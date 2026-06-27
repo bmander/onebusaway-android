@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.contract.ObaWebService
+
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

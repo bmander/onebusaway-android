@@ -15,6 +15,13 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.contract.EntryWithReferences
+import org.onebusaway.android.io.client.contract.ListWithReferences
+import org.onebusaway.android.io.client.contract.ObaEnvelope
+import org.onebusaway.android.io.client.contract.ObaWebService
+import org.onebusaway.android.io.client.contract.References
+import org.onebusaway.android.io.client.contract.TripDetailsEntry
+
 import android.util.Log
 import javax.inject.Inject
 import org.onebusaway.android.models.ObaRoute

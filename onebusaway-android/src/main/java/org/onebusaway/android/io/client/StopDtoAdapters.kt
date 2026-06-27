@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.contract.StopReference
+
 import android.location.Location
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.util.LocationUtils

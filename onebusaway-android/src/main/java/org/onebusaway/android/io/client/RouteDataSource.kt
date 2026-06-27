@@ -15,6 +15,8 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.contract.ObaWebService
+
 import android.util.Log
 import javax.inject.Inject
 import org.onebusaway.android.models.RouteDetails

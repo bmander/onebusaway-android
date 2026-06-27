@@ -20,9 +20,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.onebusaway.android.io.client.asRouteTrips
-import org.onebusaway.android.io.client.EntryWithReferences
-import org.onebusaway.android.io.client.ObaEnvelope
-import org.onebusaway.android.io.client.TripDetailsEntry
+import org.onebusaway.android.io.client.contract.EntryWithReferences
+import org.onebusaway.android.io.client.contract.ObaEnvelope
+import org.onebusaway.android.io.client.contract.TripDetailsEntry
 import java.io.File
 
 /**

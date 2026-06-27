@@ -15,6 +15,13 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.contract.Position
+import org.onebusaway.android.io.client.contract.RouteReference
+import org.onebusaway.android.io.client.contract.TripDetailsEntry
+import org.onebusaway.android.io.client.contract.TripReference
+import org.onebusaway.android.io.client.contract.TripSchedule
+import org.onebusaway.android.io.client.contract.TripStatus
+
 import android.location.Location
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaTrip

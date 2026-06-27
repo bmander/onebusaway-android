@@ -15,6 +15,9 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.contract.ListWithReferences
+import org.onebusaway.android.io.client.contract.ObaEnvelope
+
 import java.io.IOException
 import org.onebusaway.android.io.ObaApi
 

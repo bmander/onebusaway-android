@@ -15,6 +15,9 @@
  */
 package org.onebusaway.android.io.client
 
+import org.onebusaway.android.io.client.contract.EntryWithReferences
+import org.onebusaway.android.io.client.contract.RouteReference
+
 import org.onebusaway.android.models.AgencyDetails
 import org.onebusaway.android.models.RouteDetails
 

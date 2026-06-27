@@ -21,7 +21,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import org.onebusaway.android.io.client.DefaultMapDataSource
+import org.onebusaway.android.io.client.DefaultRouteStopsRepository
 import org.onebusaway.android.io.client.MapDataSource
+import org.onebusaway.android.io.client.RouteStopsRepository
 import org.onebusaway.android.map.DefaultRouteMapRepository
 import org.onebusaway.android.map.DefaultStopsRepository
 import org.onebusaway.android.map.RouteMapRepository
@@ -120,6 +122,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindTripDetailsRepository(impl: DefaultTripDetailsRepository): TripDetailsRepository
+
+    @Binds
+    abstract fun bindRouteStopsRepository(impl: DefaultRouteStopsRepository): RouteStopsRepository
 
     @Binds
     abstract fun bindRouteInfoRepository(impl: DefaultRouteInfoRepository): RouteInfoRepository

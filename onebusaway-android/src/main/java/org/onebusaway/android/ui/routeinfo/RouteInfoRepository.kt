@@ -26,14 +26,12 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.client.EntryWithReferences
 import org.onebusaway.android.io.client.ObaApiException
-import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.RouteDetails
 import org.onebusaway.android.io.client.RouteRepository
-import org.onebusaway.android.io.client.StopReference
-import org.onebusaway.android.io.client.StopsForRoute
-import org.onebusaway.android.io.client.requireData
+import org.onebusaway.android.io.client.RouteStopGroup
+import org.onebusaway.android.io.client.RouteStopsRepository
+import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.MyTextUtils
@@ -48,8 +46,8 @@ interface RouteInfoRepository {
 
 /**
  * Default implementation backed by the modernized client: the route metadata comes from the shared
- * [RouteRepository] and the stops-for-route from [ObaWebService], fetched in parallel (matching the
- * legacy screen's two concurrent loaders). Registers the route in the recents/search provider on
+ * [RouteRepository] and the stops-for-route from [RouteStopsRepository], fetched in parallel (matching
+ * the legacy screen's two concurrent loaders). Registers the route in the recents/search provider on
  * success. Stays on [Dispatchers.IO] for that blocking provider write; all Android statics are
  * quarantined here so [RouteInfoViewModel] stays JVM-testable.
  */
@@ -57,20 +55,20 @@ class DefaultRouteInfoRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val regionRepository: RegionRepository,
     private val routeRepository: RouteRepository,
-    private val service: ObaWebService,
+    private val routeStopsRepository: RouteStopsRepository,
 ) : RouteInfoRepository {
 
     override suspend fun loadRouteInfo(routeId: String): Result<RouteInfo> =
         withContext(Dispatchers.IO) {
             runCatching {
                 // Fetch route metadata and stops-for-route in parallel; both complete before unwrap.
-                val (routeResult, stopsEnvelope) = coroutineScope {
+                val (routeResult, stopsResult) = coroutineScope {
                     val routeDeferred = async { routeRepository.getRoute(routeId) }
-                    val stopsDeferred = async { service.stopsForRoute(routeId) }
+                    val stopsDeferred = async { routeStopsRepository.stopsForRoute(routeId) }
                     routeDeferred.await() to stopsDeferred.await()
                 }
                 val route = routeResult.getOrThrow()
-                val directions = stopsEnvelope.requireData().toRouteDirections()
+                val directions = stopsResult.getOrThrow().toRouteDirections()
                 registerRouteUsage(route)
                 toRouteInfo(route, directions)
             }
@@ -114,25 +112,20 @@ class DefaultRouteInfoRepository @Inject constructor(
 }
 
 /**
- * Maps the stops-for-route payload to the directional [RouteDirection]s the UI shows, resolving each
- * group's stop ids against the references pool. Pure, so it is JVM-unit-tested.
+ * Maps the per-direction [RouteStopGroup]s (model stops) to the [RouteDirection]s the UI shows,
+ * applying the display-text formatting. Pure, so it is JVM-unit-tested.
  */
-internal fun EntryWithReferences<StopsForRoute>.toRouteDirections(): List<RouteDirection> {
-    val stopsById = references.stops.associateBy { it.id }
-    return entry.stopGroupings.flatMap { grouping ->
-        grouping.stopGroups.map { group ->
-            RouteDirection(
-                name = MyTextUtils.formatDisplayText(group.displayName).orEmpty(),
-                stops = group.stopIds.mapNotNull { stopsById[it]?.toRouteStopItem() }
-            )
-        }
-    }
+internal fun List<RouteStopGroup>.toRouteDirections(): List<RouteDirection> = map { group ->
+    RouteDirection(
+        name = MyTextUtils.formatDisplayText(group.name).orEmpty(),
+        stops = group.stops.map { it.toRouteStopItem() }
+    )
 }
 
-private fun StopReference.toRouteStopItem() = RouteStopItem(
+private fun ObaStop.toRouteStopItem() = RouteStopItem(
     id = id,
     name = MyTextUtils.formatDisplayText(name).orEmpty(),
     direction = direction.orEmpty(),
-    latitude = lat,
-    longitude = lon
+    latitude = latitude,
+    longitude = longitude
 )

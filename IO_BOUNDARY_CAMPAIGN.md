@@ -59,10 +59,10 @@ types themselves, `ObaApiException`, `Result`. (DI wiring in app/di references W
 - My-Lists search (StopSearch/RouteSearch): DONE 02c79bff — added listOrEmpty-semantics variants
   (routesNearOrEmpty/stopsNearOrEmpty) to LocationSearchRepository; repos take it via
   NetworkEntryPoint.getLocationSearch; map on ObaStop/ObaRoute. (Part of the #1 "mechanical" batch.)
-- P5 (arrivals): DONE ecb21343 + DEVICE-VERIFIED (arrivals-and-departures 200, list/alerts/filter/favorites render, no crash). io.client StopArrivals model (arrivals/stop/routes + route/agency/trip/situation resolvers + situations()); ArrivalData + DtoSituation moved to io; SituationUtils reduced to isActiveWindowForSituation(ObaSituation); MyListRepository badge fetch via getStopArrivals.
-  has poll/stale/lastGood state + ArrivalData wraps ArrivalDeparture; situations via SituationUtils.
-  Move the fetch+adapt (ArrivalsForStop → ArrivalData list + ObaStop/ObaRoute refs + situations) into
-  io; ArrivalsRepository keeps ArrivalInfo building. DEVICE-GATED.
+- P5 (arrivals): DONE ecb21343 + DEVICE-VERIFIED (arrivals-and-departures 200, list/alerts/filter/
+  favorites render, no crash). io.client StopArrivals model (arrivals/stop/routes + route/agency/trip/
+  situation resolvers + situations()); ArrivalData + DtoSituation moved to io; SituationUtils reduced
+  to isActiveWindowForSituation(ObaSituation); MyListRepository badge fetch via getStopArrivals.
 - P6 (extrapolation): NOT STARTED — RouteTrips construction (asRouteTrips, currently in extrapolation/
   data) + TripObservationFetcher fetch (tripDetails/shape) move into io. DEVICE-GATED (vehicles).
 - TripDetails (re-sized BIG, was mis-filed as mechanical): TripDetailsRepository (282 lines) holds a

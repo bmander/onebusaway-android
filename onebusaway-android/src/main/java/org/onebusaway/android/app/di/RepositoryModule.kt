@@ -66,7 +66,9 @@ import org.onebusaway.android.ui.regions.RegionsRepository
 import org.onebusaway.android.io.client.CustomerServiceRepository
 import org.onebusaway.android.io.client.DefaultCustomerServiceRepository
 import org.onebusaway.android.io.client.DefaultProblemReportService
+import org.onebusaway.android.io.client.DefaultSurveyRepository
 import org.onebusaway.android.io.client.ProblemReportService
+import org.onebusaway.android.io.client.SurveyRepository
 import org.onebusaway.android.ui.report.types.DefaultReportTypeRepository
 import org.onebusaway.android.ui.report.types.ReportTypeRepository
 import org.onebusaway.android.ui.routeinfo.DefaultRouteInfoRepository
@@ -141,6 +143,9 @@ abstract class RepositoryModule {
     abstract fun bindProblemReportService(
         impl: DefaultProblemReportService
     ): ProblemReportService
+
+    @Binds
+    abstract fun bindSurveyRepository(impl: DefaultSurveyRepository): SurveyRepository
 
     @Binds
     abstract fun bindReportTypeRepository(impl: DefaultReportTypeRepository): ReportTypeRepository

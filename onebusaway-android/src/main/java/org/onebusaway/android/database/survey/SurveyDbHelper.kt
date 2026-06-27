@@ -9,7 +9,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.onebusaway.android.database.survey.entity.Study
 import org.onebusaway.android.database.survey.entity.Survey
-import org.onebusaway.android.io.client.StudyResponse
+import org.onebusaway.android.models.Survey as SurveyModel
 
 /**
  * Utility class for handling operations related to surveys in the database.
@@ -32,7 +32,7 @@ class SurveyDbHelper {
          * @param state The state of the survey (e.g., completed or skipped).
          */
         @JvmStatic
-        fun markSurveyAsCompletedOrSkipped(context: Context, curSurvey: StudyResponse.Surveys, state: Int) {
+        fun markSurveyAsCompletedOrSkipped(context: Context, curSurvey: SurveyModel, state: Int) {
             val surveyRepo = SurveyRepository(context)
 
             val study = curSurvey.study ?: return

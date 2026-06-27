@@ -32,9 +32,10 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import org.onebusaway.android.R
-import org.onebusaway.android.io.client.StudyResponse
-import org.onebusaway.android.io.client.SubmitSurveyResponse
-import org.onebusaway.android.io.client.SurveyWebService
+import org.onebusaway.android.io.client.SurveyRepository
+import org.onebusaway.android.models.Survey
+import org.onebusaway.android.models.SurveyQuestion
+import org.onebusaway.android.models.SurveySubmitResult
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.database.survey.SurveyDbHelper
@@ -44,7 +45,7 @@ import org.onebusaway.android.ui.survey.utils.SurveyUtils
 data class SurveySheetState(
     val title: String,
     val description: String,
-    val questions: List<StudyResponse.Surveys.Questions>,
+    val questions: List<SurveyQuestion>,
     val submitting: Boolean = false,
 )
 
@@ -55,8 +56,8 @@ data class SurveySheetState(
  * builder + validation can be reused.
  */
 data class SurveyUiState(
-    val survey: StudyResponse.Surveys? = null,
-    val heroQuestion: StudyResponse.Surveys.Questions? = null,
+    val survey: Survey? = null,
+    val heroQuestion: SurveyQuestion? = null,
     val heroMode: Int = SurveyUtils.DEFAULT_SURVEY,
     val sharedInfo: String? = null,
     val heroSubmitting: Boolean = false,
@@ -74,17 +75,16 @@ sealed interface SurveyEffect {
 
 /**
  * Drives the map survey: requesting the study, showing the hero question + remaining-questions sheet,
- * submitting answers, and persisting completion/skip/remind-later. Replaces the View-based
- * `SurveyManager` + `SurveyViewUtils` + `SurveyAdapter`; the network/JSON/DB/filtering logic is reused
- * from `ObaStudyRequest`/`ObaSubmitSurveyRequest`/`SurveyUtils`/`SurveyDbHelper`/`SurveyPreferences`.
- * Scoped to the map (the old `isVisibleOnStops = false` path).
+ * submitting answers, and persisting completion/skip/remind-later. The network/JSON/DB/filtering
+ * logic is reused from the io.client [SurveyRepository] + `SurveyUtils`/`SurveyDbHelper`. Scoped to
+ * the map (the old `isVisibleOnStops = false` path).
  */
 @HiltViewModel
 class SurveyViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val regionRepository: RegionRepository,
     private val prefs: PreferencesRepository,
-    private val surveyService: SurveyWebService,
+    private val surveyRepo: SurveyRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SurveyUiState())
@@ -107,7 +107,7 @@ class SurveyViewModel @Inject constructor(
     private val _effects = MutableSharedFlow<SurveyEffect>(extraBufferCapacity = 1)
     val effects: SharedFlow<SurveyEffect> = _effects.asSharedFlow()
 
-    private var studyResponse: StudyResponse? = null
+    private var surveys: List<Survey>? = null
     private var surveyIndex: Int = -1
     private var updateSurveyPath: String? = null
     private var requested = false
@@ -128,24 +128,24 @@ class SurveyViewModel @Inject constructor(
         val url = studyUrl() ?: return
         viewModelScope.launch {
             val response = runCatching {
-                surveyService.getStudy(url, SurveyPreferences.getUserUUID(context))
+                surveyRepo.studies(url, SurveyPreferences.getUserUUID(context))
             }.getOrNull()
             if (response != null) onStudyResponse(response)
         }
     }
 
-    private fun onStudyResponse(response: StudyResponse) {
-        studyResponse = response
+    private fun onStudyResponse(response: List<Survey>) {
+        surveys = response
         surveyIndex = SurveyUtils.getCurrentSurveyIndex(response, context, false, null)
         if (surveyIndex == -1) return
-        val survey = response.surveys[surveyIndex]
+        val survey = response[surveyIndex]
         val questions = survey.questions
-        if (questions.isNullOrEmpty()) return
+        if (questions.isEmpty()) return
         val hero = questions[0]
         val mode = SurveyUtils.checkExternalSurvey(questions)
         val sharedFields = when (mode) {
-            SurveyUtils.EXTERNAL_SURVEY_WITHOUT_HERO_QUESTION -> questions[0].content.embedded_data_fields
-            SurveyUtils.EXTERNAL_SURVEY_WITH_HERO_QUESTION -> questions[1].content.embedded_data_fields
+            SurveyUtils.EXTERNAL_SURVEY_WITHOUT_HERO_QUESTION -> questions[0].content.embeddedDataFields
+            SurveyUtils.EXTERNAL_SURVEY_WITH_HERO_QUESTION -> questions[1].content.embeddedDataFields
             else -> null
         }
         _state.update {
@@ -197,7 +197,7 @@ class SurveyViewModel @Inject constructor(
                 dismissAll()
                 return@launch
             }
-            updateSurveyPath = response.surveyResponse?.id
+            updateSurveyPath = response.id
             _state.update {
                 it.copy(
                     sheet = SurveySheetState(
@@ -222,7 +222,7 @@ class SurveyViewModel @Inject constructor(
                 SurveyUtils.CHECK_BOX_QUESTION ->
                     q.multipleAnswer = _state.value.checkboxAnswers[id]?.toList()
                 SurveyUtils.TEXT_QUESTION, SurveyUtils.RADIO_BUTTON_QUESTION ->
-                    q.questionAnswer = _state.value.textRadioAnswers[id]
+                    q.answer = _state.value.textRadioAnswers[id]
             }
         }
         val body = SurveyUtils.getSurveyAnswersRequestBody(sheet.questions) ?: run {
@@ -264,7 +264,7 @@ class SurveyViewModel @Inject constructor(
 
     // --- helpers ---
 
-    private fun handleCompleted(survey: StudyResponse.Surveys) {
+    private fun handleCompleted(survey: Survey) {
         SurveyDbHelper.markSurveyAsCompletedOrSkipped(context, survey, SurveyDbHelper.SURVEY_COMPLETED)
         SurveyUtils.launchesUntilSurveyShown = Integer.MAX_VALUE
     }
@@ -275,7 +275,7 @@ class SurveyViewModel @Inject constructor(
 
     private fun openExternal(url: String, externalQuestionIndex: Int) {
         val survey = _state.value.survey ?: return
-        val embedded = survey.questions.getOrNull(externalQuestionIndex)?.content?.embedded_data_fields
+        val embedded = survey.questions.getOrNull(externalQuestionIndex)?.content?.embeddedDataFields
         _effects.tryEmit(SurveyEffect.OpenExternalSurvey(url, embedded))
     }
 
@@ -295,9 +295,9 @@ class SurveyViewModel @Inject constructor(
         return url
     }
 
-    private suspend fun submit(apiUrl: String, surveyId: Int, body: JSONArray): SubmitSurveyResponse? =
+    private suspend fun submit(apiUrl: String, surveyId: Int, body: JSONArray): SurveySubmitResult? =
         runCatching {
-            surveyService.submitSurvey(
+            surveyRepo.submit(
                 url = apiUrl,
                 userIdentifier = SurveyPreferences.getUserUUID(context),
                 surveyId = surveyId,
@@ -309,7 +309,7 @@ class SurveyViewModel @Inject constructor(
         }.getOrNull()
 
     /** Builds the single-question JSON body for the hero question, or null if its answer is missing. */
-    private fun heroAnswerBody(hero: StudyResponse.Surveys.Questions): JSONArray? {
+    private fun heroAnswerBody(hero: SurveyQuestion): JSONArray? {
         val answer: String = when (hero.content.type) {
             SurveyUtils.CHECK_BOX_QUESTION -> {
                 val selected = _state.value.checkboxAnswers[hero.id].orEmpty().toList()
@@ -330,7 +330,7 @@ class SurveyViewModel @Inject constructor(
                 JSONObject().apply {
                     put("question_id", hero.id)
                     put("question_type", hero.content.type)
-                    put("question_label", hero.content.label_text)
+                    put("question_label", hero.content.labelText)
                     put("answer", answer)
                 }
             )

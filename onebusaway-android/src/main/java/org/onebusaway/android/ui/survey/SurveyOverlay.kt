@@ -57,7 +57,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import org.onebusaway.android.R
-import org.onebusaway.android.io.client.StudyResponse
+import org.onebusaway.android.models.SurveyQuestion
 import org.onebusaway.android.ui.survey.SurveyWebViewLauncher
 import org.onebusaway.android.ui.survey.utils.SurveyUtils
 
@@ -156,7 +156,7 @@ fun SurveyOverlay(
 @Composable
 private fun SurveyHeroCard(
     state: SurveyUiState,
-    hero: StudyResponse.Surveys.Questions,
+    hero: SurveyQuestion,
     callbacks: SurveyCallbacks,
     modifier: Modifier,
 ) {
@@ -262,7 +262,7 @@ private fun SurveyQuestionsSheet(state: SurveyUiState, callbacks: SurveyCallback
 
 @Composable
 private fun SurveyQuestionInput(
-    question: StudyResponse.Surveys.Questions,
+    question: SurveyQuestion,
     state: SurveyUiState,
     callbacks: SurveyCallbacks,
 ) {
@@ -364,7 +364,7 @@ private fun ProgressScrim() {
 }
 
 /** The question label, with a trailing asterisk for required questions (the legacy formatting). */
-private fun questionLabel(question: StudyResponse.Surveys.Questions): String {
-    val text = question.content.label_text.orEmpty().trim()
+private fun questionLabel(question: SurveyQuestion): String {
+    val text = question.content.labelText.orEmpty().trim()
     return if (question.isRequired == true) "$text *" else text
 }

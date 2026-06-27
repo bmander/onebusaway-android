@@ -51,7 +51,8 @@ types themselves, `ObaApiException`, `Result`. (DI wiring in app/di references W
 ## Status (all DONE phases: compile both flavors + JVM unit green)
 - P1 (SearchResults): DONE 7a91be34 — io.client `LocationSearchRepository` → `Result<List<ObaRoute/ObaStop>>`.
 - P2 (map): DONE 251deed2 — io.client `MapDataSource` (NearbyStops + RouteMapData, polylines as
-  Location); map repos thin (DefaultRouteMapRepository does Location→GeoPoint). DEVICE-VERIFY PENDING.
+  Location); map repos thin (DefaultRouteMapRepository does Location→GeoPoint). DEVICE-VERIFIED
+  (stops-for-location 200 + markers; stops-for-route?includePolylines=true 200 + route line drawn).
 - P3 (routeinfo): DONE 2ac18f12 — io.client `RouteStopsRepository` → `List<RouteStopGroup>`; ui keeps
   RouteStopGroup→RouteDirection presentation. Mapper test split (wire→io, presentation→ui).
 - P4 (agencies): DONE 8db12169 — whole AgenciesRepository + AgencyItem moved into io.client.

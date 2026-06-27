@@ -34,7 +34,7 @@ import com.onebusaway.plausible.android.Plausible;
 import org.onebusaway.android.BuildConfig;
 import org.onebusaway.android.R;
 import org.onebusaway.android.donations.DonationsManager;
-import org.onebusaway.android.io.ObaAnalytics;
+import org.onebusaway.android.analytics.ObaAnalytics;
 import org.onebusaway.android.io.ObaApi;
 import org.onebusaway.android.region.Region;
 import org.onebusaway.android.app.di.LocationEntryPoint;
@@ -83,7 +83,7 @@ public class Application extends android.app.Application {
 
     private Plausible mPlausible;
 
-    private org.onebusaway.android.io.UmamiAnalytics mUmami;
+    private org.onebusaway.android.analytics.UmamiAnalytics mUmami;
 
     @Override
     public void onCreate() {
@@ -279,7 +279,7 @@ public class Application extends android.app.Application {
         mPlausible = new Plausible(this, domain, region.getPlausibleAnalyticsServerUrl());
     }
 
-    public org.onebusaway.android.io.UmamiAnalytics getUmamiInstance() {
+    public org.onebusaway.android.analytics.UmamiAnalytics getUmamiInstance() {
         if (mUmami == null) {
             buildUmamiInstance(getCurrentRegion());
         }
@@ -304,7 +304,7 @@ public class Application extends android.app.Application {
         if (host == null) {
             return;
         }
-        mUmami = new org.onebusaway.android.io.UmamiAnalytics(
+        mUmami = new org.onebusaway.android.analytics.UmamiAnalytics(
                 region.getUmamiAnalyticsUrl(), region.getUmamiAnalyticsId(), host);
     }
 

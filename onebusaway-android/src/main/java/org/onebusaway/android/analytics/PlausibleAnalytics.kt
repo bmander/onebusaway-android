@@ -1,4 +1,4 @@
-package org.onebusaway.android.io
+package org.onebusaway.android.analytics
 
 import com.onebusaway.plausible.android.Plausible
 

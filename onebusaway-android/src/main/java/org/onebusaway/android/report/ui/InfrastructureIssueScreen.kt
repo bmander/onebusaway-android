@@ -84,8 +84,8 @@ import java.io.FileOutputStream
 import java.io.IOException
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.app.di.NetworkEntryPoint
-import org.onebusaway.android.io.ObaAnalytics
-import org.onebusaway.android.io.PlausibleAnalytics
+import org.onebusaway.android.analytics.ObaAnalytics
+import org.onebusaway.android.analytics.PlausibleAnalytics
 import org.onebusaway.android.report.ReportContext
 import org.onebusaway.android.report.TripReportContext
 import org.onebusaway.android.ui.HomeActivity

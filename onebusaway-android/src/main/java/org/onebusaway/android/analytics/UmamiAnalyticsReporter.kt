@@ -1,4 +1,4 @@
-package org.onebusaway.android.io
+package org.onebusaway.android.analytics
 
 /**
  * Maps OneBusAway analytics events to [UmamiAnalytics] emitter calls. Mirrors

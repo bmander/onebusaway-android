@@ -37,9 +37,11 @@ import org.onebusaway.android.extrapolation.data.TripObservationRepository
 import org.onebusaway.android.io.client.DefaultLocationSearchRepository
 import org.onebusaway.android.io.client.DefaultRouteRepository
 import org.onebusaway.android.io.client.DefaultStopArrivalsRepository
+import org.onebusaway.android.io.client.DefaultTripDetailsDataSource
 import org.onebusaway.android.io.client.LocationSearchRepository
 import org.onebusaway.android.io.client.RouteRepository
 import org.onebusaway.android.io.client.StopArrivalsRepository
+import org.onebusaway.android.io.client.TripDetailsDataSource
 import org.onebusaway.android.io.client.AgenciesRepository
 import org.onebusaway.android.io.client.DefaultAgenciesRepository
 import org.onebusaway.android.ui.arrivals.ArrivalsRepository
@@ -112,6 +114,11 @@ abstract class RepositoryModule {
     abstract fun bindStopArrivalsRepository(
         impl: DefaultStopArrivalsRepository
     ): StopArrivalsRepository
+
+    @Binds
+    abstract fun bindTripDetailsDataSource(
+        impl: DefaultTripDetailsDataSource
+    ): TripDetailsDataSource
 
     @Binds
     abstract fun bindSearchResultsRepository(impl: DefaultSearchResultsRepository): SearchResultsRepository

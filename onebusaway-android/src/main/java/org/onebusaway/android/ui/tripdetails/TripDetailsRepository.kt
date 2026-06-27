@@ -27,16 +27,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.R
 import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.client.EntryWithReferences
-import org.onebusaway.android.io.client.ObaEnvelope
-import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.References
-import org.onebusaway.android.io.client.RouteReference
-import org.onebusaway.android.io.client.StopTime
-import org.onebusaway.android.io.client.TripDetailsEntry
-import org.onebusaway.android.io.client.TripReference
-import org.onebusaway.android.io.client.TripStatus
-import org.onebusaway.android.io.client.colorArgb
+import org.onebusaway.android.io.client.ObaApiException
+import org.onebusaway.android.io.client.TripDetails
+import org.onebusaway.android.io.client.TripDetailsDataSource
+import org.onebusaway.android.models.ObaRoute
+import org.onebusaway.android.models.ObaTrip
+import org.onebusaway.android.models.ObaTripSchedule
+import org.onebusaway.android.models.ObaTripStatus
+import org.onebusaway.android.models.Status
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.DisplayFormat
@@ -83,7 +81,7 @@ interface TripDetailsRepository {
 data class DestinationReminderStops(val beforeStopId: String, val destinationStopId: String)
 
 /**
- * Default implementation backed by the modernized [ObaWebService]. Ports TripDetailsListFragment's
+ * Default implementation over the io.client [TripDetailsDataSource]. Ports TripDetailsListFragment's
  * binding (header status/deviation, per-stop time + color, passed/vehicle markers, scroll target),
  * falling back to the last good response on failure. Stays on [Dispatchers.IO] for the blocking
  * provider write in [destinationStops]; all Android statics (resources, time formatting, color
@@ -92,10 +90,10 @@ data class DestinationReminderStops(val beforeStopId: String, val destinationSto
  */
 class DefaultTripDetailsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val service: ObaWebService,
+    private val tripDetailsDataSource: TripDetailsDataSource,
 ) : TripDetailsRepository {
 
-    private var lastGood: ObaEnvelope<EntryWithReferences<TripDetailsEntry>>? = null
+    private var lastGood: TripDetails? = null
 
     override suspend fun getTripDetails(
         tripId: String,
@@ -103,53 +101,48 @@ class DefaultTripDetailsRepository @Inject constructor(
         scrollMode: String?,
         destinationId: String?
     ): Result<TripDetailsData> = withContext(Dispatchers.IO) {
-        // A transport/parse failure surfaces as null here (getOrNull); a server error code is a
-        // non-OK envelope. Either way we fall back to the last good response, matching legacy.
-        val envelope = runCatching { service.tripDetails(tripId) }.getOrNull()
-        envelope?.takeIf { it.code == ObaApi.OBA_OK && it.data != null }?.let { lastGood = it }
-        lastGood?.let { Result.success(toData(it.data!!, stopId, scrollMode, destinationId)) }
+        val result = tripDetailsDataSource.tripDetails(tripId)
+        // A fresh load replaces lastGood; a failure keeps the prior snapshot (legacy stale fallback).
+        result.getOrNull()?.let { lastGood = it }
+        lastGood?.let { Result.success(toData(it, stopId, scrollMode, destinationId)) }
             ?: Result.failure(
                 IOException(
-                    ObaRequestErrors.getRouteErrorString(context, envelope?.code ?: ObaApi.OBA_IO_EXCEPTION)
+                    ObaRequestErrors.getRouteErrorString(
+                        context,
+                        (result.exceptionOrNull() as? ObaApiException)?.code ?: ObaApi.OBA_IO_EXCEPTION
+                    )
                 )
             )
     }
 
     override fun destinationStops(position: Int): DestinationReminderStops? {
-        val data = lastGood?.data ?: return null
-        val stopTimes = data.entry.schedule?.stopTimes ?: return null
+        val td = lastGood ?: return null
+        val stopTimes = td.schedule?.stopTimes ?: return null
         if (position < 1 || position >= stopTimes.size) return null
-        val destStop = data.references.stop(stopTimes[position].stopId) ?: return null
-        val beforeStop = data.references.stop(stopTimes[position - 1].stopId) ?: return null
+        val destStop = td.stop(stopTimes[position].stopId) ?: return null
+        val beforeStop = td.stop(stopTimes[position - 1].stopId) ?: return null
         // Persist both so NavigationService can resolve them when the reminder fires (legacy parity).
-        DBUtil.addToDB(beforeStop.id, beforeStop.code, beforeStop.name, beforeStop.direction,
-            beforeStop.lat, beforeStop.lon)
-        DBUtil.addToDB(destStop.id, destStop.code, destStop.name, destStop.direction,
-            destStop.lat, destStop.lon)
+        DBUtil.addToDB(beforeStop)
+        DBUtil.addToDB(destStop)
         return DestinationReminderStops(beforeStop.id, destStop.id)
     }
 
     override fun lastLoadedTime(): Long? = lastGood?.currentTime
 
     private fun toData(
-        data: EntryWithReferences<TripDetailsEntry>,
+        td: TripDetails,
         stopId: String?,
         scrollMode: String?,
         destinationId: String?
     ): TripDetailsData {
-        val entry = data.entry
-        val references = data.references
-        // Missing trip/route refs fall back to empty values. (Legacy resolved these to null and
-        // then dereferenced them, so an absent ref would have crashed; this is null-safe.)
-        val trip = references.trip(entry.tripId) ?: TripReference()
-        val route = references.route(trip.routeId) ?: RouteReference()
-        // The API reports deviation/position relative to the trip the vehicle is *currently*
-        // serving (status.activeTripId). When this view is a different trip in the same block,
-        // that real-time data isn't about this trip — present schedule-only (legacy behavior).
-        val status = entry.status?.takeIf { it.activeTripId == entry.tripId }
-        val stopTimes = entry.schedule?.stopTimes ?: emptyList()
+        val trip = td.trip
+        val route = td.route
+        // [TripDetails.status] is already null unless the vehicle is serving this trip (else
+        // schedule-only, legacy behavior).
+        val status = td.status
+        val stopTimes = td.schedule?.stopTimes?.asList() ?: emptyList()
 
-        val isRealtime = status != null && status.predicted
+        val isRealtime = status != null && status.isPredicted
         val nextStopIndex = status?.let { findIndexForStop(stopTimes, it.nextStop) }
         val stopIndex = findIndexForStop(stopTimes, stopId)
         val destinationIndex = findIndexForStop(stopTimes, destinationId)
@@ -157,11 +150,11 @@ class DefaultTripDetailsRepository @Inject constructor(
         // Time base: real-time service date + deviation, or midnight today for schedule-only.
         val deviation = status?.scheduleDeviation ?: 0L
         val serviceDate = status?.serviceDate ?: midnightToday()
-        val canceled = status != null && status.status == CANCELED
+        val canceled = status != null && status.status == Status.CANCELED
 
         val lastIndex = stopTimes.lastIndex
         val stops = stopTimes.mapIndexed { i, stopTime ->
-            val stop = references.stop(stopTime.stopId)
+            val stop = td.stop(stopTime.stopId)
             val millis = serviceDate + stopTime.arrivalTime * 1000 + deviation * 1000
             TripStopItem(
                 stopId = stopTime.stopId,
@@ -184,37 +177,37 @@ class DefaultTripDetailsRepository @Inject constructor(
             )
         }
 
-        val lineColorArgb = route.colorArgb() ?: context.getColor(R.color.theme_primary)
+        val lineColorArgb = route?.color ?: context.getColor(R.color.theme_primary)
 
         return TripDetailsData(
-            header = buildHeader(references, trip, route, status, isRealtime),
+            header = buildHeader(td, trip, route, status, isRealtime),
             stops = stops,
             scrollToIndex = resolveScrollIndex(scrollMode, stopIndex, destinationIndex, nextStopIndex),
-            routeId = trip.routeId,
+            routeId = trip?.routeId.orEmpty(),
             lineColorArgb = lineColorArgb
         )
     }
 
     private fun buildHeader(
-        references: References,
-        trip: TripReference,
-        route: RouteReference,
-        status: TripStatus?,
+        td: TripDetails,
+        trip: ObaTrip?,
+        route: ObaRoute?,
+        status: ObaTripStatus?,
         isRealtime: Boolean
     ): TripHeader {
         val deviation = status?.scheduleDeviation ?: 0L
         val statusColor = when {
-            status == null || !status.predicted -> R.color.stop_info_scheduled_time
+            status == null || !status.isPredicted -> R.color.stop_info_scheduled_time
             else -> {
                 val c = ArrivalInfoUtils.computeColorFromDeviation(TimeUnit.SECONDS.toMinutes(deviation))
                 if (c == R.color.stop_info_ontime) R.color.theme_primary else c
             }
         }
         return TripHeader(
-            routeShortName = route.shortName.orEmpty(),
-            headsign = trip.tripHeadsign.orEmpty(),
-            tripShortName = trip.tripShortName?.takeIf { it.isNotBlank() },
-            agencyName = references.agency(route.agencyId)?.name.orEmpty(),
+            routeShortName = route?.shortName.orEmpty(),
+            headsign = trip?.headsign.orEmpty(),
+            tripShortName = trip?.shortName?.takeIf { it.isNotBlank() },
+            agencyName = route?.agencyId?.let { td.agencyName(it) }.orEmpty(),
             vehicleId = status?.vehicleId?.takeIf { it.isNotEmpty() },
             statusText = headerStatusText(status, deviation),
             statusColor = statusColor,
@@ -223,12 +216,12 @@ class DefaultTripDetailsRepository @Inject constructor(
     }
 
     private fun headerStatusText(
-        status: TripStatus?,
+        status: ObaTripStatus?,
         deviation: Long
     ): String = when {
         status == null -> context.getString(R.string.trip_details_scheduled_data)
-        !status.predicted ->
-            if (status.status == CANCELED) context.getString(R.string.stop_info_canceled)
+        !status.isPredicted ->
+            if (status.status == Status.CANCELED) context.getString(R.string.stop_info_canceled)
             else context.getString(R.string.trip_details_scheduled_data)
 
         else -> {
@@ -263,7 +256,7 @@ class DefaultTripDetailsRepository @Inject constructor(
         }
     }
 
-    private fun findIndexForStop(stopTimes: List<StopTime>, stopId: String?): Int? {
+    private fun findIndexForStop(stopTimes: List<ObaTripSchedule.StopTime>, stopId: String?): Int? {
         if (stopId == null) return null
         return stopTimes.indexOfFirst { it.stopId == stopId }.takeIf { it >= 0 }
     }
@@ -274,9 +267,4 @@ class DefaultTripDetailsRepository @Inject constructor(
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
-
-    private companion object {
-        /** The wire value of [org.onebusaway.android.models.Status.CANCELED]. */
-        const val CANCELED = "CANCELED"
-    }
 }

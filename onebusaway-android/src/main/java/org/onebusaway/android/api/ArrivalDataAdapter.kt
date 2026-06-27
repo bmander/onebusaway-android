@@ -43,10 +43,8 @@ private class DtoArrivalData(private val d: ArrivalDeparture) : ArrivalData {
     override val status get() = d.tripStatus?.status?.let { Status.fromString(it) }
     override val frequency
         get() = d.frequency?.let { FrequencyWindow(it.startTime, it.endTime, it.headway) }
-    override val historicalOccupancy
-        get() = d.historicalOccupancy?.takeIf { it.isNotEmpty() }?.let { Occupancy.fromString(it) }
-    override val predictedOccupancy
-        get() = d.occupancyStatus?.takeIf { it.isNotEmpty() }?.let { Occupancy.fromString(it) }
+    override val historicalOccupancy get() = Occupancy.fromString(d.historicalOccupancy)
+    override val predictedOccupancy get() = Occupancy.fromString(d.occupancyStatus)
     override val hasTripStatus get() = d.tripStatus != null
     override val scheduleDeviation get() = d.tripStatus?.scheduleDeviation ?: 0L
     override val lastKnownLat get() = d.tripStatus?.lastKnownLocation?.lat

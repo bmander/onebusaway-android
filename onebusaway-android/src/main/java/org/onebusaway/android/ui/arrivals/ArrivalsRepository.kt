@@ -167,10 +167,9 @@ class DefaultArrivalsRepository @Inject constructor(
         var result: Result<StopArrivals>
         do {
             result = stopArrivals.arrivals(stopId, minutes)
-            if (result.getOrNull()?.hasArrivals != true) {
-                minutes += MINUTES_AFTER_INCREMENT
-            }
-        } while (result.getOrNull()?.hasArrivals != true && minutes <= MINUTES_AFTER_MAX)
+            if (result.getOrNull()?.hasArrivals == true) break
+            minutes += MINUTES_AFTER_INCREMENT
+        } while (minutes <= MINUTES_AFTER_MAX)
 
         result.fold(
             onSuccess = { snapshot ->

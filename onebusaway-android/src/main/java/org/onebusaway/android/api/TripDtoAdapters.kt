@@ -66,8 +66,7 @@ internal class DtoTripStatus(private val dto: TripStatus) : ObaTripStatus {
     override val lastKnownDistanceAlongTrip: Double? get() = dto.lastKnownDistanceAlongTrip
     override val lastKnownOrientation: Double? get() = dto.lastKnownOrientation
     override val blockTripSequence: Int get() = dto.blockTripSequence
-    override val occupancyStatus: Occupancy?
-        get() = dto.occupancyStatus?.takeIf { it.isNotEmpty() }?.let { Occupancy.fromString(it) }
+    override val occupancyStatus: Occupancy? get() = Occupancy.fromString(dto.occupancyStatus)
 }
 
 /** Presents a [TripReference] as an [ObaTrip]. */

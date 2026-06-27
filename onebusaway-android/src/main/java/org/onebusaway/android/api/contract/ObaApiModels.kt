@@ -73,20 +73,28 @@ data class References(
     val trips: List<TripReference> = emptyList(),
     val situations: List<SituationReference> = emptyList(),
 ) {
+    // Index each pool by id (lazily, once per response) so repeated resolution — the per-arrival
+    // projections and the per-frame vehicle sampler — is O(1) instead of a linear scan.
+    private val agencyById by lazy { agencies.associateBy { it.id } }
+    private val stopById by lazy { stops.associateBy { it.id } }
+    private val routeById by lazy { routes.associateBy { it.id } }
+    private val tripById by lazy { trips.associateBy { it.id } }
+    private val situationById by lazy { situations.associateBy { it.id } }
+
     /** Resolves an agency in this pool by id, or null when absent. */
-    fun agency(id: String): AgencyReference? = agencies.firstOrNull { it.id == id }
+    fun agency(id: String): AgencyReference? = agencyById[id]
 
     /** Resolves a stop in this pool by id, or null when absent. */
-    fun stop(id: String): StopReference? = stops.firstOrNull { it.id == id }
+    fun stop(id: String): StopReference? = stopById[id]
 
     /** Resolves a route in this pool by id, or null when absent. */
-    fun route(id: String): RouteReference? = routes.firstOrNull { it.id == id }
+    fun route(id: String): RouteReference? = routeById[id]
 
     /** Resolves a trip in this pool by id, or null when absent. */
-    fun trip(id: String): TripReference? = trips.firstOrNull { it.id == id }
+    fun trip(id: String): TripReference? = tripById[id]
 
     /** Resolves a situation in this pool by id, or null when absent. */
-    fun situation(id: String): SituationReference? = situations.firstOrNull { it.id == id }
+    fun situation(id: String): SituationReference? = situationById[id]
 }
 
 /** Wire model for a route, as it appears in an entry or the references pool. */

@@ -76,22 +76,15 @@ class StopArrivals internal constructor(
      * former `SituationUtils.getAllSituations`; see #700.)
      */
     fun situations(filter: List<String>?): List<ObaSituation> {
-        val out = mutableListOf<ObaSituation>()
-        val seen = HashSet<String>()
-        for (id in entry.situationIds) {
-            refs.situation(id)?.let { if (seen.add(it.id)) out.add(DtoSituation(it)) }
-        }
         val filterIds = filter.orEmpty().toHashSet()
-        for (arrival in entry.arrivalsAndDepartures) {
-            if (filterIds.isEmpty() || arrival.routeId in filterIds) {
-                for (situationId in arrival.situationIds) {
-                    if (situationId !in seen) {
-                        refs.situation(situationId)?.let { seen.add(it.id); out.add(DtoSituation(it)) }
-                    }
-                }
-            }
-        }
-        return out
+        val arrivalSituationIds = entry.arrivalsAndDepartures
+            .filter { filterIds.isEmpty() || it.routeId in filterIds }
+            .flatMap { it.situationIds }
+        // Stop-level alerts first, then the (filtered) per-arrival alerts, de-duplicated by id.
+        return (entry.situationIds + arrivalSituationIds)
+            .distinct()
+            .mapNotNull { refs.situation(it) }
+            .map(::DtoSituation)
     }
 }
 

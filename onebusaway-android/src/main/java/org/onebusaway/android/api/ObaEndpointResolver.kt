@@ -18,8 +18,6 @@ package org.onebusaway.android.api
 import android.content.Context
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.net.MalformedURLException
-import java.net.URL
 import javax.inject.Inject
 import javax.inject.Singleton
 import org.onebusaway.android.BuildConfig
@@ -50,12 +48,9 @@ class ObaEndpointResolver @Inject constructor(
         val custom = preferences.getString(R.string.preference_key_oba_api_url, null)
         val raw = custom?.takeIf { it.isNotEmpty() } ?: regionRepository.region.value?.obaBaseUrl
         ?: return null
-        val withScheme = try {
-            URL(raw)
-            raw
-        } catch (e: MalformedURLException) {
-            context.getString(R.string.https_prefix) + raw
-        }
+        // A scheme-less custom URL is assumed to be https (#126).
+        val withScheme = if (Uri.parse(raw).scheme != null) raw
+        else context.getString(R.string.https_prefix) + raw
         return Uri.parse(withScheme)
     }
 

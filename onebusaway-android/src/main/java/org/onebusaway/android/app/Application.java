@@ -221,7 +221,7 @@ public class Application extends android.app.Application {
     public synchronized Region getCurrentRegion() {
         // RegionRepository is the sole owner of the current region; read its current value. (This stays
         // as a convenience for the remaining non-injectable Java readers that go through Application.)
-        return RegionEntryPoint.get(this).getRegion().getValue();
+        return RegionEntryPoint.get(this).currentRegion();
     }
 
     /**

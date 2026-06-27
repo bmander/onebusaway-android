@@ -50,6 +50,10 @@ interface RegionRepository {
     /** The current region, or null when none is set (e.g. a custom API URL is configured). */
     val region: StateFlow<Region?>
 
+    /** A synchronous snapshot of the current region — for non-reactive readers (e.g. Java callers
+     * via [org.onebusaway.android.app.di.RegionEntryPoint]); reactive consumers should collect [region]. */
+    fun currentRegion(): Region? = region.value
+
     /**
      * Whether a region is currently resolved — the deduped `region != null` projection. Derived once
      * here so feature view models (survey, what's-new gate) consume one canonical predicate instead of

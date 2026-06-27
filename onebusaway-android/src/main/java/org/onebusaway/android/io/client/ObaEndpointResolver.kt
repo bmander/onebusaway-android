@@ -16,13 +16,13 @@
 package org.onebusaway.android.io.client
 
 import android.content.Context
-import android.content.pm.PackageManager
 import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.net.MalformedURLException
 import java.net.URL
 import javax.inject.Inject
 import javax.inject.Singleton
+import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
 import org.onebusaway.android.app.Application
 import org.onebusaway.android.io.ObaApi
@@ -63,15 +63,10 @@ class ObaEndpointResolver @Inject constructor(
     /** The OBA API key appended to every request. */
     val apiKey: String get() = ObaApi.API_KEY
 
-    /** The app version code (`app_ver`), or 0 if unavailable. */
-    @Suppress("DEPRECATION")
-    val appVersion: Int
-        get() = try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionCode
-        } catch (e: PackageManager.NameNotFoundException) {
-            0
-        }
+    /** The app version code (`app_ver`) — a build constant, so no per-request lookup. */
+    val appVersion: Int get() = BuildConfig.VERSION_CODE
 
-    /** The persisted per-install app UID (`app_uid`), generated once by [Application], or null. */
-    val appUid: String? get() = preferences.getString(Application.APP_UID, null)
+    /** The persisted per-install app UID (`app_uid`), generated once by [Application]. Invariant per
+     * process, so read once at construction rather than on every request. */
+    val appUid: String? = preferences.getString(Application.APP_UID, null)
 }

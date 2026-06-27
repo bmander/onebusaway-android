@@ -17,9 +17,33 @@ package org.onebusaway.android.api.adapters
 
 import org.onebusaway.android.api.contract.EntryWithReferences
 import org.onebusaway.android.api.contract.RouteReference
-
 import org.onebusaway.android.models.AgencyDetails
+import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.RouteDetails
+import org.onebusaway.android.util.parseObaHexColor
+
+/** Presents a [RouteReference] as an [ObaRoute]. */
+internal class DtoRoute(private val ref: RouteReference) : ObaRoute {
+    override val id: String get() = ref.id
+    override val shortName: String? get() = ref.shortName
+    override val longName: String? get() = ref.longName
+    override val description: String? get() = ref.description
+    override val type: Int get() = ref.type
+    override val url: String? get() = ref.url
+    override val color: Int? get() = ref.colorArgb()
+    override val textColor: Int? get() = ref.textColorArgb()
+    override val agencyId: String get() = ref.agencyId
+}
+
+/**
+ * Reads [RouteReference.color] / [RouteReference.textColor] as Android ARGB ints (or null when
+ * absent/malformed) via the shared [parseObaHexColor] parser, so color consumers don't re-implement
+ * `Color.parseColor`.
+ */
+fun RouteReference.colorArgb(): Int? = parseObaHexColor(color)
+
+/** Parses [RouteReference.textColor] to an Android ARGB int, or null when absent/invalid. */
+fun RouteReference.textColorArgb(): Int? = parseObaHexColor(textColor)
 
 /**
  * Maps the route-details payload to the [RouteDetails] model, resolving the agency reference by id.

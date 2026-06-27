@@ -15,15 +15,12 @@
  */
 package org.onebusaway.android.api.adapters
 
+import android.location.Location
 import org.onebusaway.android.api.contract.Position
-import org.onebusaway.android.api.contract.RouteReference
 import org.onebusaway.android.api.contract.TripDetailsEntry
 import org.onebusaway.android.api.contract.TripReference
 import org.onebusaway.android.api.contract.TripSchedule
 import org.onebusaway.android.api.contract.TripStatus
-
-import android.location.Location
-import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaTrip
 import org.onebusaway.android.models.ObaTripDetails
 import org.onebusaway.android.models.ObaTripSchedule
@@ -34,8 +31,8 @@ import org.onebusaway.android.util.LocationUtils
 
 /*
  * Adapters that present the io/client trip DTOs as the `models` domain interfaces
- * (ObaTripStatus/ObaTrip/ObaRoute/ObaTripDetails), so the speed-estimation/vehicle-render code —
- * which works through those interfaces — consumes the modernized fetch unchanged. The same
+ * (ObaTripStatus/ObaTrip/ObaTripDetails), so the speed-estimation/vehicle-render code — which works
+ * through those interfaces — consumes the modernized fetch unchanged. The same
  * one-DTO-implements-the-interface pattern the map boundary uses for stops/routes.
  */
 
@@ -82,19 +79,6 @@ internal class DtoTrip(private val ref: TripReference) : ObaTrip {
     override val blockId: String? get() = ref.blockId
 }
 
-/** Presents a [RouteReference] as an [ObaRoute]. */
-internal class DtoRoute(private val ref: RouteReference) : ObaRoute {
-    override val id: String get() = ref.id
-    override val shortName: String? get() = ref.shortName
-    override val longName: String? get() = ref.longName
-    override val description: String? get() = ref.description
-    override val type: Int get() = ref.type
-    override val url: String? get() = ref.url
-    override val color: Int? get() = ref.colorArgb()
-    override val textColor: Int? get() = ref.textColorArgb()
-    override val agencyId: String get() = ref.agencyId
-}
-
 /** Presents a [TripDetailsEntry] as an [ObaTripDetails]. */
 internal class DtoTripDetails(private val entry: TripDetailsEntry) : ObaTripDetails {
     override val id: String get() = entry.tripId
@@ -117,3 +101,32 @@ fun TripSchedule.toObaTripSchedule(): ObaTripSchedule {
     }
     return TripScheduleData(times.toTypedArray(), timeZone, previousTripId, nextTripId)
 }
+
+/**
+ * Plain in-memory [ObaTripSchedule], built by [toObaTripSchedule] from the wire DTO. Not a `data`
+ * class — equality is identity, matching the schedule's use as a cached value where structural
+ * equality over the [stopTimes] array would be meaningless.
+ */
+class TripScheduleData(
+    override val stopTimes: Array<ObaTripSchedule.StopTime> = emptyArray(),
+    override val timeZone: String? = null,
+    override val previousTripId: String? = null,
+    override val nextTripId: String? = null,
+) : ObaTripSchedule {
+
+    companion object {
+        @JvmField
+        val EMPTY = TripScheduleData()
+    }
+}
+
+/** Plain in-memory [ObaTripSchedule.StopTime]. */
+class StopTimeData(
+    override val stopId: String = "",
+    override val headsign: String? = null,
+    override val arrivalTime: Long = 0,
+    override val departureTime: Long = 0,
+    override val historicalOccupancy: Occupancy? = null,
+    override val predictedOccupancy: Occupancy? = null,
+    override val distanceAlongTrip: Double = 0.0,
+) : ObaTripSchedule.StopTime

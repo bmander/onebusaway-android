@@ -29,7 +29,7 @@ import org.maplibre.android.annotations.PolylineOptions
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.onebusaway.android.R
-import org.onebusaway.android.extrapolation.data.RouteTrips
+import org.onebusaway.android.models.RouteTrips
 import org.onebusaway.android.map.compose.formatDataAge
 import org.onebusaway.android.map.render.BikeBand
 import org.onebusaway.android.map.render.BikeBitmaps

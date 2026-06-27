@@ -23,6 +23,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.onebusaway.android.models.ObaTripSchedule
+import org.onebusaway.android.models.RouteTrips
 import org.onebusaway.android.util.Polyline
 import org.junit.Test
 

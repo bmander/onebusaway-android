@@ -23,7 +23,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.onebusaway.android.extrapolation.data.TripState
-import org.onebusaway.android.extrapolation.data.asRouteTrips
+import org.onebusaway.android.io.client.asRouteTrips
 import org.onebusaway.android.extrapolation.extrapolatedVehicles
 import org.onebusaway.android.io.client.ListWithReferences
 import org.onebusaway.android.io.client.ObaEnvelope

@@ -31,7 +31,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.onebusaway.android.R
-import org.onebusaway.android.extrapolation.data.RouteTrips
+import org.onebusaway.android.models.RouteTrips
 import org.onebusaway.android.map.compose.formatDataAge
 import org.onebusaway.android.map.googlemapsv2.compose.BikeIcons
 import org.onebusaway.android.map.render.BikeBand

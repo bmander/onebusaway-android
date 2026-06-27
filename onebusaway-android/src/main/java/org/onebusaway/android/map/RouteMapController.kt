@@ -26,7 +26,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.onebusaway.android.extrapolation.ExtrapolatedVehicle
 import org.onebusaway.android.extrapolation.extrapolatedVehicles
-import org.onebusaway.android.extrapolation.data.RouteTrips
+import org.onebusaway.android.models.RouteTrips
 import org.onebusaway.android.extrapolation.data.TripObservationRepository
 import org.onebusaway.android.io.ObaApi
 import org.onebusaway.android.models.ObaRoute

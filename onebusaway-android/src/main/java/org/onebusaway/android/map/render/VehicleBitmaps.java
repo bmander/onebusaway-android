@@ -27,7 +27,7 @@ import org.onebusaway.android.R;
 import org.onebusaway.android.app.Application;
 import org.onebusaway.android.models.ObaRoute;
 import org.onebusaway.android.models.ObaTripStatus;
-import org.onebusaway.android.extrapolation.data.RouteTrips;
+import org.onebusaway.android.models.RouteTrips;
 import org.onebusaway.android.util.ArrivalInfoUtils;
 import org.onebusaway.android.util.BitmapUtils;
 import org.onebusaway.android.util.MathUtils;

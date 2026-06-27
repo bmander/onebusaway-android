@@ -16,7 +16,7 @@
 package org.onebusaway.android.extrapolation
 
 import android.location.Location
-import org.onebusaway.android.extrapolation.data.RouteTrips
+import org.onebusaway.android.models.RouteTrips
 import org.onebusaway.android.extrapolation.data.TripState
 import org.onebusaway.android.extrapolation.math.prob.ProbDistribution
 import org.onebusaway.android.models.Status

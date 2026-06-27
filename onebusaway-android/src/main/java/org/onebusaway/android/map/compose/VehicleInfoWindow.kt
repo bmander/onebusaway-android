@@ -51,7 +51,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.theme.ObaTheme
 import org.onebusaway.android.models.Occupancy
 import org.onebusaway.android.models.ObaTripStatus
-import org.onebusaway.android.extrapolation.data.RouteTrips
+import org.onebusaway.android.models.RouteTrips
 import kotlinx.coroutines.delay
 import org.onebusaway.android.util.ArrivalInfoUtils
 import org.onebusaway.android.util.MyTextUtils

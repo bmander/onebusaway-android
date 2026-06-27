@@ -19,6 +19,7 @@ package org.onebusaway.android.extrapolation.data
 
 import org.onebusaway.android.models.ObaTrip
 import org.onebusaway.android.models.ObaTripStatus
+import org.onebusaway.android.models.RouteTrips
 
 /*
  * The adapter between a trips-for-route / trip-details fetch and the trip store's standard

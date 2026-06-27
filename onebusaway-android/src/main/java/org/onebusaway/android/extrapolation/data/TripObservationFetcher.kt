@@ -24,12 +24,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.requireData
-import org.onebusaway.android.io.client.toObaTripSchedule
+import org.onebusaway.android.io.client.TripVehiclesDataSource
 import org.onebusaway.android.models.ObaTripSchedule
+import org.onebusaway.android.models.RouteTrips
 import org.onebusaway.android.util.Polyline
-import org.onebusaway.android.util.PolylineDecoder
 import org.onebusaway.android.util.SingleFlight
 
 /**
@@ -75,7 +73,7 @@ private const val TAG = "TripObservationFetcher"
 
 @Singleton
 class DefaultTripObservationFetcher @Inject constructor(
-        private val obaWebService: ObaWebService
+        private val dataSource: TripVehiclesDataSource
 ) : TripObservationFetcher {
 
     /** Process-lifetime scope confined to the main thread; the SingleFlight maps live under it. */
@@ -94,23 +92,24 @@ class DefaultTripObservationFetcher @Inject constructor(
 
     override suspend fun tripDetails(tripId: String): TripDetails? =
             guarded("trip details for $tripId") {
-                // requireData throws on a non-OK code; guarded maps it to null.
-                val envelope = obaWebService.tripDetails(tripId)
-                val routeTrips = envelope.asRouteTrips()
-                val entry = envelope.requireData().entry
+                // The data source throws on a non-OK code; guarded maps it to null.
+                val routeTrips = dataSource.tripDetails(tripId)
+                // A single trip-details fetch yields one trip; its ObaTripDetails carries the
+                // schedule + (unfiltered) status the distillation needs.
+                val details = routeTrips.trips.firstOrNull()
                 TripDetails(
                     observations = routeTrips.toObservations(),
-                    schedule = entry.schedule?.toObaTripSchedule(),
-                    serviceDate = entry.status?.serviceDate ?: 0,
-                    vehicleActiveTripId = entry.status?.activeTripId?.ifBlank { null },
+                    schedule = details?.schedule,
+                    serviceDate = details?.status?.serviceDate ?: 0,
+                    vehicleActiveTripId = details?.status?.activeTripId,
                     shapeId = routeTrips.trip(tripId)?.shapeId?.takeIf { it.isNotEmpty() },
                 )
             }
 
     override suspend fun tripsForRoute(routeId: String): RouteTrips? =
             guarded("trips for route $routeId") {
-                // requireData (inside asRouteTrips) throws on a non-OK code; guarded maps it to null.
-                obaWebService.tripsForRoute(routeId).asRouteTrips()
+                // The data source throws on a non-OK code; guarded maps it to null.
+                dataSource.tripsForRoute(routeId)
             }
 
     /**
@@ -131,7 +130,7 @@ class DefaultTripObservationFetcher @Inject constructor(
     override suspend fun tripSchedule(tripId: String): ObaTripSchedule? =
             scheduleFetches.run(tripId) {
                 guarded("schedule for $tripId") {
-                    obaWebService.tripDetails(tripId).requireData().entry.schedule?.toObaTripSchedule()
+                    dataSource.tripSchedule(tripId)
                 }.also {
                     if (it == null) Log.w(TAG, "Schedule fetch for $tripId yielded no schedule")
                 }
@@ -139,16 +138,11 @@ class DefaultTripObservationFetcher @Inject constructor(
 
     override suspend fun shape(shapeId: String): Polyline? =
             shapeFetches.run(shapeId) {
+                // Bound concurrent fetches so a route backfill can't fan out into dozens at once;
+                // the data source does the (shared-algorithm) decode. Error codes throw and resolve
+                // to null via guarded, like the old null-coalescing path did.
                 withContext(fetchDispatcher) {
-                    // PolylineDecoder.decodeLine is the shared (Google-algorithm) polyline decoder,
-                    // so the geometry matches the legacy path exactly. Error codes throw in
-                    // requireData and resolve to null below, like the old null-coalescing path did.
-                    runCatching {
-                        val entry = obaWebService.shape(shapeId).requireData().entry
-                        PolylineDecoder.decodeLine(entry.points, entry.length)
-                    }.getOrNull()
-                            ?.takeIf { it.isNotEmpty() }
-                            ?.let { Polyline(it) }
+                    guarded("shape for $shapeId") { dataSource.shape(shapeId) }
                 }.also {
                     if (it == null) Log.w(TAG, "Shape fetch for $shapeId yielded no polyline")
                 }

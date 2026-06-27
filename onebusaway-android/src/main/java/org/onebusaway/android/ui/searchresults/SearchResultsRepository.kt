@@ -22,10 +22,7 @@ import android.location.Location
 import java.io.IOException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import org.onebusaway.android.io.client.DtoRoute
-import org.onebusaway.android.io.client.DtoStop
-import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.requireData
+import org.onebusaway.android.io.client.LocationSearchRepository
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.StopUserInfo
@@ -41,14 +38,14 @@ interface SearchResultsRepository {
 }
 
 /**
- * Default implementation over the modernized [ObaWebService]. Runs the routes-for-location and
- * stops-for-location requests in parallel (matching the legacy screen's single combined loader) and
- * merges them routes-first. All Android statics are quarantined here so [SearchResultsViewModel]
+ * Default implementation over the io.client [LocationSearchRepository]. Runs the routes-for-location
+ * and stops-for-location requests in parallel (matching the legacy screen's single combined loader)
+ * and merges them routes-first. All Android statics are quarantined here so [SearchResultsViewModel]
  * stays JVM-testable.
  */
 class DefaultSearchResultsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val service: ObaWebService,
+    private val search: LocationSearchRepository,
 ) : SearchResultsRepository {
 
     override suspend fun search(query: String): Result<List<SearchResultItem>> = coroutineScope {
@@ -79,20 +76,20 @@ class DefaultSearchResultsRepository @Inject constructor(
 
     /** Searches around the user, widening to the region's default center when nothing matches. */
     private suspend fun searchRoutes(query: String, center: Location): List<ObaRoute> {
-        val near = service
-            .routesForLocation(center.latitude, center.longitude, query, LocationUtils.DEFAULT_SEARCH_RADIUS)
-            .requireData().list
-        if (near.isNotEmpty()) return near.map(::DtoRoute)
-        val default = LocationUtils.getDefaultSearchCenter(context) ?: return near.map(::DtoRoute)
-        return service
-            .routesForLocation(default.latitude, default.longitude, query, LocationUtils.DEFAULT_SEARCH_RADIUS)
-            .requireData().list.map(::DtoRoute)
+        val near = search
+            .routesNear(center.latitude, center.longitude, query, LocationUtils.DEFAULT_SEARCH_RADIUS)
+            .getOrThrow()
+        if (near.isNotEmpty()) return near
+        val default = LocationUtils.getDefaultSearchCenter(context) ?: return near
+        return search
+            .routesNear(default.latitude, default.longitude, query, LocationUtils.DEFAULT_SEARCH_RADIUS)
+            .getOrThrow()
     }
 
     private suspend fun searchStops(query: String, center: Location): List<ObaStop> =
-        service
-            .stopsForLocation(center.latitude, center.longitude, query, LocationUtils.DEFAULT_SEARCH_RADIUS)
-            .requireData().list.map(::DtoStop)
+        search
+            .stopsNear(center.latitude, center.longitude, query, LocationUtils.DEFAULT_SEARCH_RADIUS)
+            .getOrThrow()
 
     private fun toRoute(route: ObaRoute): SearchResultItem.Route {
         val names = routeDisplayNames(route)

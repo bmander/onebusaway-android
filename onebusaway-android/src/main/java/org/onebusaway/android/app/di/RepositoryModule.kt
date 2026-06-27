@@ -30,7 +30,9 @@ import org.onebusaway.android.extrapolation.data.DefaultTripObservationFetcher
 import org.onebusaway.android.extrapolation.data.DefaultTripObservationRepository
 import org.onebusaway.android.extrapolation.data.TripObservationFetcher
 import org.onebusaway.android.extrapolation.data.TripObservationRepository
+import org.onebusaway.android.io.client.DefaultLocationSearchRepository
 import org.onebusaway.android.io.client.DefaultRouteRepository
+import org.onebusaway.android.io.client.LocationSearchRepository
 import org.onebusaway.android.io.client.RouteRepository
 import org.onebusaway.android.ui.agencies.AgenciesRepository
 import org.onebusaway.android.ui.agencies.DefaultAgenciesRepository
@@ -94,6 +96,11 @@ abstract class RepositoryModule {
     // unscoped like the other per-call fetchers.
     @Binds
     abstract fun bindRouteRepository(impl: DefaultRouteRepository): RouteRepository
+
+    @Binds
+    abstract fun bindLocationSearchRepository(
+        impl: DefaultLocationSearchRepository
+    ): LocationSearchRepository
 
     @Binds
     abstract fun bindSearchResultsRepository(impl: DefaultSearchResultsRepository): SearchResultsRepository

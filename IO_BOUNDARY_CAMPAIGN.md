@@ -63,7 +63,7 @@ types themselves, `ObaApiException`, `Result`. (DI wiring in app/di references W
   favorites render, no crash). io.client StopArrivals model (arrivals/stop/routes + route/agency/trip/
   situation resolvers + situations()); ArrivalData + DtoSituation moved to io; SituationUtils reduced
   to isActiveWindowForSituation(ObaSituation); MyListRepository badge fetch via getStopArrivals.
-- P6 (extrapolation): NOT STARTED — RouteTrips construction (asRouteTrips, currently in extrapolation/
+- P6 (extrapolation): DONE 02de159f + DEVICE-VERIFIED (trips-for-route + per-vehicle trip-details 200, vehicles render/dead-reckon/info-window, no crash). RouteTrips interface -> models; routeTripsOf/asRouteTrips + new TripVehiclesDataSource -> io.client; DefaultTripObservationFetcher injects the data source (keeps SingleFlight/dispatcher/guarded).
   data) + TripObservationFetcher fetch (tripDetails/shape) move into io. DEVICE-GATED (vehicles).
 - TripDetails: DONE f679d890 + DEVICE-VERIFIED (trip-details 200, header/stops/markers render, no crash). io.client TripDetails resolved-view model (trip/route/status/schedule + stop/agencyName resolvers + currentTime); TripDetailsDataSource fetches; feature projects off the model.
 - Model-types relocation: DONE e859c765 — ArrivalData/FrequencyWindow/NearbyStops/RouteMapData/RouteStopGroup/AgencyItem/RouteDetails moved io.client -> models (io.client keeps wire DTOs + Dto* adapters + data sources; StopArrivals/TripDetails stay in io.client as resolved-view query results).

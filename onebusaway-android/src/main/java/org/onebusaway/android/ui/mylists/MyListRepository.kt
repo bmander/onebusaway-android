@@ -47,10 +47,8 @@ import kotlinx.coroutines.withContext
 import org.onebusaway.android.R
 import org.onebusaway.android.app.di.NetworkEntryPoint
 import org.onebusaway.android.app.di.RegionEntryPoint
-import org.onebusaway.android.io.client.requireData
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.ui.arrivals.ArrivalInfo
-import org.onebusaway.android.ui.arrivals.asArrivalData
 import org.onebusaway.android.ui.arrivals.convertArrivals
 import org.onebusaway.android.util.DisplayFormat
 import org.onebusaway.android.util.MyTextUtils
@@ -403,10 +401,11 @@ private suspend fun fetchArrivals(
 /** One stop's badges. [convertArrivals] already sorts by ETA; a non-OK code/error yields no badges. */
 private suspend fun fetchStopBadges(context: Context, stopId: String, nowMs: Long): List<ArrivalBadge> =
     runCatching {
-        val arrivals = NetworkEntryPoint.get(context)
-            .arrivalsAndDeparturesForStop(stopId, ARRIVALS_MINUTES_AFTER)
-            .requireData().entry.arrivalsAndDepartures
-        convertArrivals(context, arrivals.map { it.asArrivalData() }, null, nowMs, false)
+        val arrivals = NetworkEntryPoint.getStopArrivals(context)
+            .arrivals(stopId, ARRIVALS_MINUTES_AFTER)
+            .getOrThrow()
+            .arrivals
+        convertArrivals(context, arrivals, null, nowMs, false)
             .take(MAX_ARRIVALS_PER_STOP)
             .map { it.toBadge(context) }
     }.getOrDefault(emptyList())

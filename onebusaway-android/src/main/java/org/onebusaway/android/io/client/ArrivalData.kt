@@ -13,21 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onebusaway.android.ui.arrivals
+package org.onebusaway.android.io.client
 
-import android.content.Context
-import org.onebusaway.android.R
-import org.onebusaway.android.app.di.PreferencesEntryPoint
-import org.onebusaway.android.io.client.ArrivalDeparture
 import org.onebusaway.android.models.Occupancy
 import org.onebusaway.android.models.Status
-import org.onebusaway.android.util.ArrivalInfoUtils
 
 /**
- * The arrival fields [ArrivalInfo] needs to compute its display model, abstracted from the wire
- * type. [ArrivalInfo] depends on this rather than the concrete legacy `ObaArrivalInfo`, so the same
- * display logic serves both the legacy fetch (My Lists badges, via [asArrivalData]) and the
- * modernized arrivals fetch (via `ArrivalDeparture.asArrivalData()`). Times are epoch millis.
+ * The arrival fields the display model (`ArrivalInfo`) computes from, abstracted from the wire type
+ * so feature code never sees the [ArrivalDeparture] DTO. The io.client arrivals fetch
+ * ([StopArrivals.arrivals]) produces these; times are epoch millis.
  */
 interface ArrivalData {
     val routeId: String
@@ -58,8 +52,8 @@ interface ArrivalData {
 /** Headway-based (exact_times=0) service window; epoch millis / seconds, matching the wire. */
 data class FrequencyWindow(val startTime: Long, val endTime: Long, val headway: Long)
 
-/** Adapts a modernized [ArrivalDeparture] DTO (new arrivals fetch) to [ArrivalData]. */
-fun ArrivalDeparture.asArrivalData(): ArrivalData = DtoArrivalData(this)
+/** Adapts a modernized [ArrivalDeparture] DTO (arrivals fetch) to [ArrivalData]. */
+internal fun ArrivalDeparture.asArrivalData(): ArrivalData = DtoArrivalData(this)
 
 private class DtoArrivalData(private val d: ArrivalDeparture) : ArrivalData {
     override val routeId get() = d.routeId
@@ -87,25 +81,4 @@ private class DtoArrivalData(private val d: ArrivalDeparture) : ArrivalData {
     override val scheduleDeviation get() = d.tripStatus?.scheduleDeviation ?: 0L
     override val lastKnownLat get() = d.tripStatus?.lastKnownLocation?.lat
     override val lastKnownLon get() = d.tripStatus?.lastKnownLocation?.lon
-}
-
-/**
- * Builds the display [ArrivalInfo]s from [arrivals]: filters to [filter] routes (empty == all),
- * drops past arrivals unless the user opted in, and sorts by ETA. Callers feed it [ArrivalData] via
- * `ArrivalDeparture.asArrivalData()`.
- */
-fun convertArrivals(
-    context: Context,
-    arrivals: List<ArrivalData>,
-    filter: Collection<String>?,
-    ms: Long,
-    includeArrivalDepartureInStatusLabel: Boolean,
-): List<ArrivalInfo> {
-    val showNegativeArrivals = PreferencesEntryPoint.get(context)
-        .getBoolean(R.string.preference_key_show_negative_arrivals, true)
-    val selected = if (!filter.isNullOrEmpty()) arrivals.filter { it.routeId in filter } else arrivals
-    return selected
-        .map { ArrivalInfo(context, it, ms, includeArrivalDepartureInStatusLabel) }
-        .filter { it.eta >= 0 || showNegativeArrivals }
-        .sortedWith(ArrivalInfoUtils.InfoComparator())
 }

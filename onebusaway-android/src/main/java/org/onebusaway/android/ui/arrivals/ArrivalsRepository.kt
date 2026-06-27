@@ -24,15 +24,10 @@ import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.io.ObaApi
-import org.onebusaway.android.io.client.ArrivalsForStop
-import org.onebusaway.android.io.client.DtoRoute
-import org.onebusaway.android.io.client.DtoStop
-import org.onebusaway.android.io.client.EntryWithReferences
-import org.onebusaway.android.io.client.ObaEnvelope
-import org.onebusaway.android.io.client.ObaWebService
-import org.onebusaway.android.io.client.References
+import org.onebusaway.android.io.client.ObaApiException
 import org.onebusaway.android.io.client.RouteRepository
-import org.onebusaway.android.io.client.StopReference
+import org.onebusaway.android.io.client.StopArrivals
+import org.onebusaway.android.io.client.StopArrivalsRepository
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaSituation
 import org.onebusaway.android.models.ObaStop
@@ -41,7 +36,6 @@ import org.onebusaway.android.provider.loadStopUserInfo
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.DBUtil
-import org.onebusaway.android.util.LocationUtils
 import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.ObaRequestErrors
 import org.onebusaway.android.util.SituationUtils
@@ -119,8 +113,8 @@ interface ArrivalsRepository {
 /**
  * What the map host needs after each arrivals load: the focused [stop] to recenter on, its [routes]
  * (rendered on the map), and whether there are [hasArrivals] (gates the onboarding tutorial).
- * Decouples the host from the raw arrivals envelope. ([stop]/[routes] are still the legacy element
- * types the map subsystem consumes — a separate axis from this envelope decoupling.)
+ * Decouples the host from the arrivals fetch. ([stop]/[routes] are the model interfaces the map
+ * subsystem consumes.)
  */
 data class ArrivalsLoaded(
     val stop: ObaStop?,
@@ -137,12 +131,11 @@ data class AlertDetails(
 )
 
 /**
- * Default implementation wrapping the blocking arrivals-and-departures request. Ports
- * ArrivalsListLoader's behavior: widen the time window until arrivals are found, and fall back
- * to the last good response when a refresh fails. Builds the existing [ArrivalInfo] display
- * model plus the per-arrival actions, service alerts, and route-filter options on the IO thread
- * (their constructors read ContentProviders). All Android statics are quarantined here so
- * [ArrivalsViewModel] stays JVM-testable.
+ * Default implementation over the io.client [StopArrivalsRepository]. Ports ArrivalsListLoader's
+ * behavior: widen the time window until arrivals are found, and fall back to the last good response
+ * when a refresh fails. Builds the [ArrivalInfo] display model plus the per-arrival actions, service
+ * alerts, and route-filter options on the IO thread (their constructors read ContentProviders). All
+ * Android statics are quarantined here so [ArrivalsViewModel] stays JVM-testable.
  *
  * Note: this repo is **stateful** ([lastGood]) and 1:1 with its [ArrivalsViewModel], so its
  * `@Binds` is intentionally **unscoped** (a fresh instance per VM) — do NOT make it `@Singleton`,
@@ -152,12 +145,10 @@ class DefaultArrivalsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val regionRepository: RegionRepository,
     private val routeRepository: RouteRepository,
-    private val service: ObaWebService
+    private val stopArrivals: StopArrivalsRepository
 ) : ArrivalsRepository {
 
-    private var lastGood: ObaEnvelope<EntryWithReferences<ArrivalsForStop>>? = null
-
-    private var lastGoodMinutesAfter: Int = MINUTES_AFTER_DEFAULT
+    private var lastGood: StopArrivals? = null
 
     // Whether the viewed stop has been recorded in the Stops table this session. Recording (a) creates
     // the row so the favorite toggle's UPDATE actually persists, and (b) marks it used so it appears in
@@ -172,102 +163,87 @@ class DefaultArrivalsRepository @Inject constructor(
         val now = System.currentTimeMillis()
         val filter = routeFilter ?: ObaContract.StopRouteFilters.get(context, stopId).toSet()
         var minutes = minutesAfter
-        // A transport/parse failure surfaces as null (getOrNull); a server error is a non-OK
-        // envelope. Widen the window while OK-but-empty, matching the legacy loader.
-        var envelope: ObaEnvelope<EntryWithReferences<ArrivalsForStop>>? = null
-        var empty: Boolean
+        // Widen the window while the fetch is empty (or failing), matching the legacy loader.
+        var result: Result<StopArrivals>
         do {
-            envelope = runCatching { service.arrivalsAndDeparturesForStop(stopId, minutes) }.getOrNull()
-            val ads = envelope?.takeIf { it.code == ObaApi.OBA_OK }?.data?.entry?.arrivalsAndDepartures
-            empty = ads.isNullOrEmpty()
-            if (empty) {
+            result = stopArrivals.arrivals(stopId, minutes)
+            if (result.getOrNull()?.hasArrivals != true) {
                 minutes += MINUTES_AFTER_INCREMENT
             }
-        } while (empty && minutes <= MINUTES_AFTER_MAX)
+        } while (result.getOrNull()?.hasArrivals != true && minutes <= MINUTES_AFTER_MAX)
 
-        val fresh = envelope?.takeIf { it.code == ObaApi.OBA_OK && it.data != null }
-        when {
-            fresh != null -> {
-                lastGood = fresh
-                lastGoodMinutesAfter = minutes
-                val data = fresh.data!!
+        result.fold(
+            onSuccess = { snapshot ->
+                lastGood = snapshot
                 // Record the stop once per session so favoriting persists (markAsFavorite is an
                 // UPDATE — it needs the row to exist) and the stop shows in Recent stops.
                 if (!stopRecorded) {
-                    data.references.stop(data.entry.stopId)?.let {
-                        DBUtil.addToDB(it.id, it.code, it.name, it.direction, it.lat, it.lon)
-                        stopRecorded = true
-                    }
+                    snapshot.stop?.let { DBUtil.addToDB(it); stopRecorded = true }
                 }
-                Result.success(toData(stopId, data, minutes, filter, isStale = false, now))
+                Result.success(toData(snapshot, filter, isStale = false, now))
+            },
+            // Refresh failed but we have prior data — keep showing it (legacy stale fallback).
+            onFailure = { error ->
+                lastGood?.let { Result.success(toData(it, filter, isStale = true, now)) }
+                    ?: Result.failure(
+                        IOException(
+                            ObaRequestErrors.getStopErrorString(
+                                context, (error as? ObaApiException)?.code ?: ObaApi.OBA_IO_EXCEPTION
+                            )
+                        )
+                    )
             }
-            // Refresh failed but we have prior data — keep showing it (legacy stale fallback)
-            lastGood != null ->
-                Result.success(
-                    toData(stopId, lastGood!!.data!!, lastGoodMinutesAfter, filter, isStale = true, now)
-                )
-
-            else -> Result.failure(
-                IOException(ObaRequestErrors.getStopErrorString(context, envelope?.code ?: ObaApi.OBA_IO_EXCEPTION))
-            )
-        }
+        )
     }
 
     private fun toData(
-        stopId: String,
-        data: EntryWithReferences<ArrivalsForStop>,
-        minutesAfter: Int,
+        snapshot: StopArrivals,
         routeFilter: Set<String>,
         isStale: Boolean,
         now: Long
     ): ArrivalsData {
-        val refs = data.references
         val style = BuildFlavorUtils.getArrivalInfoStyleFromPreferences(context)
-        // Style B includes the arrival/departure word in the status label; Style A does not
+        // Style B includes the arrival/departure word in the status label; Style A does not.
         val includeArrivalDepartureLabel = style == BuildFlavorUtils.ARRIVAL_INFO_STYLE_B
         val arrivals = convertArrivals(
-            context,
-            data.entry.arrivalsAndDepartures.map { it.asArrivalData() },
-            routeFilter,
-            now,
-            includeArrivalDepartureLabel
+            context, snapshot.arrivals, routeFilter, now, includeArrivalDepartureLabel
         )
-        val stop = refs.stop(data.entry.stopId)
-        val userInfo = loadStopUserInfo(context, stopId)
+        val stop = snapshot.stop
+        val userInfo = loadStopUserInfo(context, snapshot.stopId)
         val header = StopHeader(
-            stopId = stopId,
+            stopId = snapshot.stopId,
             name = MyTextUtils.formatDisplayText(stop?.name).orEmpty(),
             direction = stop?.direction,
             isFavorite = userInfo?.isFavorite ?: false,
             routeCount = stop?.routeIds?.size ?: 0
         )
-        val routeOptions = buildRouteFilterOptions(refs, stop, routeFilter)
-        val (alerts, hiddenAlertCount) = buildAlerts(data, routeFilter, now)
+        val routeOptions = buildRouteFilterOptions(snapshot, stop, routeFilter)
+        val (alerts, hiddenAlertCount) = buildAlerts(snapshot, routeFilter, now)
         return ArrivalsData(
             arrivals = arrivals,
             header = header,
-            minutesAfter = minutesAfter,
+            minutesAfter = snapshot.minutesAfter,
             style = style,
             isStale = isStale,
             effectiveRouteFilter = routeFilter,
-            actions = buildActions(refs, arrivals),
+            actions = buildActions(snapshot, arrivals),
             alerts = alerts,
             hiddenAlertCount = hiddenAlertCount,
             routeFilterOptions = routeOptions,
             filteredRouteCount = routeFilter.size,
-            stopCode = stop?.code,
-            stopLat = stop?.lat ?: 0.0,
-            stopLon = stop?.lon ?: 0.0,
+            stopCode = stop?.stopCode,
+            stopLat = stop?.latitude ?: 0.0,
+            stopLon = stop?.longitude ?: 0.0,
             stopUserName = userInfo?.userName
         )
     }
 
     /** Precomputes the navigation/dialog data for each arrival (legacy reads these on menu tap). */
     private fun buildActions(
-        refs: References,
+        snapshot: StopArrivals,
         arrivals: List<ArrivalInfo>
     ): Map<String, ArrivalActions> = arrivals.associate { arrival ->
-        val route = refs.route(arrival.routeId)
+        val route = snapshot.route(arrival.routeId)
         arrival.tripId to ArrivalActions(
             tripId = arrival.tripId,
             routeId = arrival.routeId,
@@ -276,29 +252,29 @@ class DefaultArrivalsRepository @Inject constructor(
             routeShortName = route?.shortName,
             routeLongName = arrival.routeLongName,
             scheduleUrl = route?.url,
-            agencyName = route?.agencyId?.let { refs.agency(it)?.name },
-            blockId = refs.trip(arrival.tripId)?.blockId,
+            agencyName = route?.agencyId?.let { snapshot.agencyName(it) },
+            blockId = snapshot.trip(arrival.tripId)?.blockId,
             isRouteFavorite = arrival.isRouteAndHeadsignFavorite
         )
     }
 
     /** Ports ArrivalsListFragment.refreshSituations: persist, then keep active + non-hidden. */
     private fun buildAlerts(
-        data: EntryWithReferences<ArrivalsForStop>,
+        snapshot: StopArrivals,
         routeFilter: Set<String>,
         now: Long
     ): Pair<List<AlertItem>, Int> {
-        val situations = SituationUtils.getAllSituations(data, ArrayList(routeFilter))
+        val situations = snapshot.situations(ArrayList(routeFilter))
         if (situations.isEmpty()) return emptyList<AlertItem>() to 0
         val active = mutableListOf<AlertItem>()
         var hiddenCount = 0
         for (situation in situations) {
-            // Make sure this situation is recorded so read/hidden state can be tracked
+            // Make sure this situation is recorded so read/hidden state can be tracked.
             ObaContract.ServiceAlerts.insertOrUpdate(situation.id, ContentValues(), false, null)
             val isHidden = ObaContract.ServiceAlerts.isHidden(situation.id)
             if (SituationUtils.isActiveWindowForSituation(situation, now) && !isHidden) {
                 active.add(
-                    AlertItem(situation.id, situation.summary.value.orEmpty(), severityOf(situation.severity))
+                    AlertItem(situation.id, situation.summary.orEmpty(), severityOf(situation.severity))
                 )
             }
             if (isHidden) hiddenCount++
@@ -307,12 +283,12 @@ class DefaultArrivalsRepository @Inject constructor(
     }
 
     private fun buildRouteFilterOptions(
-        refs: References,
-        stop: StopReference?,
+        snapshot: StopArrivals,
+        stop: ObaStop?,
         routeFilter: Set<String>
     ): List<RouteFilterOption> {
         val routeIds = stop?.routeIds ?: return emptyList()
-        return routeIds.mapNotNull { refs.route(it) }.map { route ->
+        return routeIds.mapNotNull { snapshot.route(it) }.map { route ->
             RouteFilterOption(
                 routeId = route.id,
                 displayName = getRouteDisplayName(route.shortName, route.longName),
@@ -399,17 +375,13 @@ class DefaultArrivalsRepository @Inject constructor(
     }
 
     override fun alertDetails(id: String): AlertDetails? =
-        lastGood?.data?.references?.situation(id)?.let {
-            AlertDetails(it.id, it.summary.value, it.description.value, it.url.value)
+        lastGood?.situation(id)?.let {
+            AlertDetails(it.id, it.summary, it.description, it.url)
         }
 
     override fun lastLoaded(): ArrivalsLoaded? {
-        val data = lastGood?.data ?: return null
-        // Adapt the focused stop + all referenced routes into the ObaStop/ObaRoute model interfaces
-        // the map subsystem consumes (its own migration to the DTOs is a separate, deferred campaign).
-        val stop = data.references.stop(data.entry.stopId)?.let(::DtoStop)
-        val routes = data.references.routes.map(::DtoRoute)
-        return ArrivalsLoaded(stop, routes, data.entry.arrivalsAndDepartures.isNotEmpty())
+        val snapshot = lastGood ?: return null
+        return ArrivalsLoaded(snapshot.stop, snapshot.routes, snapshot.hasArrivals)
     }
 
     companion object {

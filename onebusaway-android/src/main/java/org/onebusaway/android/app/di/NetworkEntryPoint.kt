@@ -24,6 +24,7 @@ import org.onebusaway.android.io.client.LocationSearchRepository
 import org.onebusaway.android.io.client.ObaWebService
 import org.onebusaway.android.io.client.RegionsWebService
 import org.onebusaway.android.io.client.ReminderWebService
+import org.onebusaway.android.io.client.StopArrivalsRepository
 
 /**
  * A Hilt [EntryPoint] that lets code which can't be constructor- or field-injected reach the
@@ -52,6 +53,8 @@ interface NetworkEntryPoint {
 
     fun locationSearchRepository(): LocationSearchRepository
 
+    fun stopArrivalsRepository(): StopArrivalsRepository
+
     companion object {
         /** Resolves the shared [ObaWebService] from any [context] (its application is used). */
         @JvmStatic
@@ -76,5 +79,11 @@ interface NetworkEntryPoint {
         fun getLocationSearch(context: Context): LocationSearchRepository =
             EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
                 .locationSearchRepository()
+
+        /** Resolves the shared [StopArrivalsRepository] from any [context] (its application is used). */
+        @JvmStatic
+        fun getStopArrivals(context: Context): StopArrivalsRepository =
+            EntryPointAccessors.fromApplication(context, NetworkEntryPoint::class.java)
+                .stopArrivalsRepository()
     }
 }

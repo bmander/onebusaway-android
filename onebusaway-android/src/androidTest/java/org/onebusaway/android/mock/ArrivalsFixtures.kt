@@ -20,17 +20,16 @@ import kotlinx.serialization.json.Json
 import org.onebusaway.android.io.client.ArrivalsForStop
 import org.onebusaway.android.io.client.EntryWithReferences
 import org.onebusaway.android.io.client.ObaEnvelope
-import org.onebusaway.android.io.client.SituationReference
+import org.onebusaway.android.io.client.StopArrivals
+import org.onebusaway.android.models.ObaSituation
 import org.onebusaway.android.ui.arrivals.ArrivalInfo
-import org.onebusaway.android.ui.arrivals.asArrivalData
 import org.onebusaway.android.ui.arrivals.convertArrivals
-import org.onebusaway.android.util.SituationUtils
 
 /**
  * Test helper for instrumented tests that exercise the arrival/situation projections against a
- * captured arrivals-and-departures fixture: decodes the fixture as the io/client DTO (the production
- * wire type) and runs the same `convertArrivals` / `SituationUtils.getAllSituations` the app uses, so
- * the assertions ride the production path rather than the retired legacy Jackson types.
+ * captured arrivals-and-departures fixture: decodes the fixture as the io/client wire DTO and runs
+ * the same `convertArrivals` / `StopArrivals.situations` aggregation the app uses, so the assertions
+ * ride the production path.
  */
 object ArrivalsFixtures {
 
@@ -42,30 +41,32 @@ object ArrivalsFixtures {
         Resources.read(context, Resources.getTestUri(fixture))
             .use { json.decodeFromString(it.readText()) }
 
+    private fun snapshot(env: ObaEnvelope<EntryWithReferences<ArrivalsForStop>>): StopArrivals =
+        StopArrivals(env.data!!, env.currentTime, 0)
+
     /** The fixture's arrivals projected to display [ArrivalInfo] via the production [convertArrivals]. */
     @JvmStatic
     fun convert(
         context: Context,
         env: ObaEnvelope<EntryWithReferences<ArrivalsForStop>>,
         includeArriveDepartLabels: Boolean,
-    ): ArrayList<ArrivalInfo> {
-        val arrivals = env.data!!.entry.arrivalsAndDepartures.map { it.asArrivalData() }
-        return ArrayList(convertArrivals(context, arrivals, null, env.currentTime, includeArriveDepartLabels))
-    }
+    ): ArrayList<ArrivalInfo> = ArrayList(
+        convertArrivals(context, snapshot(env).arrivals, null, env.currentTime, includeArriveDepartLabels)
+    )
 
     /** All situations (stop/agency + route alerts) for the fixture, via the production aggregation. */
     @JvmStatic
     fun allSituations(
         env: ObaEnvelope<EntryWithReferences<ArrivalsForStop>>,
         filter: List<String>?,
-    ): List<SituationReference> = SituationUtils.getAllSituations(env.data!!, filter)
+    ): List<ObaSituation> = snapshot(env).situations(filter)
 
     /** Just the stop/agency-level situations the entry references directly (not route alerts). */
     @JvmStatic
     fun stopSituations(
         env: ObaEnvelope<EntryWithReferences<ArrivalsForStop>>,
-    ): List<SituationReference> {
-        val data = env.data!!
-        return data.entry.situationIds.mapNotNull { data.references.situation(it) }
+    ): List<ObaSituation> {
+        val snapshot = snapshot(env)
+        return env.data!!.entry.situationIds.mapNotNull { snapshot.situation(it) }
     }
 }

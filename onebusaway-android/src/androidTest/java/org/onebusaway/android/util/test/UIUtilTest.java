@@ -27,7 +27,7 @@ import org.onebusaway.android.app.Application;
 import org.onebusaway.android.io.client.ArrivalsForStop;
 import org.onebusaway.android.io.client.EntryWithReferences;
 import org.onebusaway.android.io.client.ObaEnvelope;
-import org.onebusaway.android.io.client.SituationReference;
+import org.onebusaway.android.models.ObaSituation;
 import org.onebusaway.android.region.Region;
 import org.onebusaway.android.io.test.ObaTestCase;
 import org.onebusaway.android.mock.ArrivalsFixtures;
@@ -627,9 +627,9 @@ public class UIUtilTest extends ObaTestCase {
         assertEquals(0, ArrivalsFixtures.stopSituations(env).size());
 
         // They do appear in the references and are referenced by each arrival; getAllSituations gathers them.
-        List<SituationReference> allSituations = ArrivalsFixtures.allSituations(env, null);
+        List<ObaSituation> allSituations = ArrivalsFixtures.allSituations(env, null);
         HashSet<String> situationIds = new HashSet<>();
-        for (SituationReference situation : allSituations) {
+        for (ObaSituation situation : allSituations) {
             situationIds.add(situation.getId());
         }
         // 7 route-specific alerts + 0 stop-specific = 7 total.
@@ -654,7 +654,7 @@ public class UIUtilTest extends ObaTestCase {
 
         allSituations = ArrivalsFixtures.allSituations(env, null);
         situationIds = new HashSet<>();
-        for (SituationReference situation : allSituations) {
+        for (ObaSituation situation : allSituations) {
             situationIds.add(situation.getId());
         }
         // 4 route-specific alerts + 1 stop-specific = 5 total.
@@ -677,15 +677,15 @@ public class UIUtilTest extends ObaTestCase {
         List<String> routeFilters = new ArrayList<>();
         routeFilters.add("MTS_1");
 
-        List<SituationReference> filteredSituations = ArrivalsFixtures.allSituations(env, routeFilters);
+        List<ObaSituation> filteredSituations = ArrivalsFixtures.allSituations(env, routeFilters);
 
         List<String> allIds = new ArrayList<>();
-        for (SituationReference situation : ArrivalsFixtures.allSituations(env, null)) {
+        for (ObaSituation situation : ArrivalsFixtures.allSituations(env, null)) {
             allIds.add(situation.getId());
         }
 
         List<String> filteredIds = new ArrayList<>();
-        for (SituationReference situation : filteredSituations) {
+        for (ObaSituation situation : filteredSituations) {
             filteredIds.add(situation.getId());
         }
 

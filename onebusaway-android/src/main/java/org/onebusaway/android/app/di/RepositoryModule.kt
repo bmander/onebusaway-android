@@ -72,11 +72,13 @@ import org.onebusaway.android.ui.routeinfo.DefaultRouteInfoRepository
 import org.onebusaway.android.ui.routeinfo.RouteInfoRepository
 import org.onebusaway.android.ui.searchresults.DefaultSearchResultsRepository
 import org.onebusaway.android.ui.searchresults.SearchResultsRepository
+import org.onebusaway.android.storage.ProviderRemindersStore
 import org.onebusaway.android.storage.ProviderRouteHeadsignFavoritesStore
 import org.onebusaway.android.storage.ProviderRoutesStore
 import org.onebusaway.android.storage.ProviderServiceAlertStore
 import org.onebusaway.android.storage.ProviderStopRouteFilterStore
 import org.onebusaway.android.storage.ProviderStopsStore
+import org.onebusaway.android.storage.RemindersStore
 import org.onebusaway.android.storage.RouteHeadsignFavoritesStore
 import org.onebusaway.android.storage.RoutesStore
 import org.onebusaway.android.storage.ServiceAlertStore
@@ -251,6 +253,9 @@ abstract class RepositoryModule {
     abstract fun bindRouteHeadsignFavoritesStore(
         impl: ProviderRouteHeadsignFavoritesStore
     ): RouteHeadsignFavoritesStore
+
+    @Binds
+    abstract fun bindRemindersStore(impl: ProviderRemindersStore): RemindersStore
 
     // Speed-estimation trip data layer: both @Singleton — the repository owns the process-wide trip
     // store (the LRU cache shared across screens), and the fetcher owns the SingleFlight dedup maps.

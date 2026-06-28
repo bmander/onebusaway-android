@@ -30,6 +30,7 @@ import org.onebusaway.android.api.contract.ReminderWebService
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.provider.ProviderQueries
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.storage.RoutesStore
 import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.ReminderUtils
@@ -97,13 +98,13 @@ class DefaultTripInfoRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val regionRepository: RegionRepository,
     private val reminderService: ReminderWebService,
+    private val routesStore: RoutesStore,
 ) : TripInfoRepository {
 
     override suspend fun load(args: TripInfoArgs): TripInfoData = withContext(Dispatchers.IO) {
         // If the launcher passed a route name, refresh it in the Routes table (legacy behavior).
         if (args.routeId != null && args.routeName != null) {
-            val values = ContentValues().apply { put(ObaContract.Routes.SHORTNAME, args.routeName) }
-            ObaContract.Routes.insertOrUpdate(context, args.routeId, values, false)
+            routesStore.refreshRouteShortName(args.routeId, args.routeName)
         }
         val fromDb = context.contentResolver
             .query(args.tripUri, PROJECTION, null, null, null)

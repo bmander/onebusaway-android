@@ -18,7 +18,6 @@ package org.onebusaway.android.ui.routeinfo
 import org.onebusaway.android.api.data.RouteDataSource
 import org.onebusaway.android.api.data.RouteStopsDataSource
 
-import android.content.ContentValues
 import android.content.Context
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -33,8 +32,8 @@ import org.onebusaway.android.api.ObaApiException
 import org.onebusaway.android.models.RouteDetails
 import org.onebusaway.android.models.RouteStopGroup
 import org.onebusaway.android.models.ObaStop
-import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.storage.RoutesStore
 import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.ObaRequestErrors
 import org.onebusaway.android.util.routeDisplayNames
@@ -57,6 +56,7 @@ class DefaultRouteInfoRepository @Inject constructor(
     private val regionRepository: RegionRepository,
     private val routeRepository: RouteDataSource,
     private val routeStopsRepository: RouteStopsDataSource,
+    private val routesStore: RoutesStore,
 ) : RouteInfoRepository {
 
     override suspend fun loadRouteInfo(routeId: String): Result<RouteInfo> =
@@ -84,15 +84,10 @@ class DefaultRouteInfoRepository @Inject constructor(
         }
 
     /** Records the route in the provider so it appears in recents and search (legacy parity). */
-    private fun registerRouteUsage(route: RouteDetails) {
-        val values = ContentValues()
-        values.put(ObaContract.Routes.SHORTNAME, route.shortName)
-        values.put(ObaContract.Routes.LONGNAME, route.longName)
-        values.put(ObaContract.Routes.URL, route.url)
-        regionRepository.region.value?.let {
-            values.put(ObaContract.Routes.REGION_ID, it.id)
-        }
-        ObaContract.Routes.insertOrUpdate(context, route.id, values, true)
+    private suspend fun registerRouteUsage(route: RouteDetails) {
+        routesStore.storeRouteDetails(
+            route.id, route.shortName, route.longName, route.url, regionRepository.region.value?.id
+        )
     }
 
     private fun toRouteInfo(route: RouteDetails, directions: List<RouteDirection>): RouteInfo {

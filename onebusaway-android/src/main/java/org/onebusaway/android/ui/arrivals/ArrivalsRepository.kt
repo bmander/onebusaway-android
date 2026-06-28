@@ -19,9 +19,7 @@ import org.onebusaway.android.api.data.StopArrivalsDataSource
 import org.onebusaway.android.api.data.StopArrivals
 import org.onebusaway.android.api.data.RouteDataSource
 
-import android.content.ContentValues
 import android.content.Context
-import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import javax.inject.Inject
@@ -32,11 +30,13 @@ import org.onebusaway.android.api.ObaApiException
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaSituation
 import org.onebusaway.android.models.ObaStop
-import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.provider.loadStopUserInfo
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.storage.RouteHeadsignFavoritesStore
+import org.onebusaway.android.storage.RoutesStore
 import org.onebusaway.android.storage.ServiceAlertStore
 import org.onebusaway.android.storage.StopRouteFilterStore
+import org.onebusaway.android.storage.StopsStore
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.MyTextUtils
@@ -159,7 +159,10 @@ class DefaultArrivalsRepository @Inject constructor(
     private val routeRepository: RouteDataSource,
     private val stopArrivals: StopArrivalsDataSource,
     private val stopRouteFilterStore: StopRouteFilterStore,
-    private val serviceAlertStore: ServiceAlertStore
+    private val serviceAlertStore: ServiceAlertStore,
+    private val stopsStore: StopsStore,
+    private val routesStore: RoutesStore,
+    private val routeHeadsignFavoritesStore: RouteHeadsignFavoritesStore
 ) : ArrivalsRepository {
 
     private var lastGood: StopArrivals? = null
@@ -311,10 +314,7 @@ class DefaultArrivalsRepository @Inject constructor(
     }
 
     override suspend fun setStopFavorite(stopId: String, favorite: Boolean) {
-        withContext(Dispatchers.IO) {
-            val uri = Uri.withAppendedPath(ObaContract.Stops.CONTENT_URI, stopId)
-            ObaContract.Stops.markAsFavorite(context, uri, favorite)
-        }
+        stopsStore.setFavorite(stopId, favorite)
     }
 
     override suspend fun favoriteRoute(
@@ -324,16 +324,11 @@ class DefaultArrivalsRepository @Inject constructor(
         shortName: String?,
         longName: String?,
         favorite: Boolean
-    ) = withContext(Dispatchers.IO) {
+    ) {
         val regionId = regionRepository.region.value?.id
         // Ensure the route row exists (stamped with the current region) before marking the favorite.
-        val values = ContentValues().apply {
-            put(ObaContract.Routes.SHORTNAME, shortName)
-            put(ObaContract.Routes.LONGNAME, longName)
-            regionId?.let { put(ObaContract.Routes.REGION_ID, it) }
-        }
-        ObaContract.Routes.insertOrUpdate(context, routeId, values, true)
-        ObaContract.RouteHeadsignFavorites.markAsFavorite(context, routeId, headsign, stopId, favorite)
+        routesStore.markRouteUsed(routeId, shortName, longName, regionId)
+        routeHeadsignFavoritesStore.setFavorite(routeId, headsign, stopId, favorite)
 
         // Backfill the full route details so the long name can be shown later (was an AsyncTaskLoader).
         fetchAndStoreRouteDetails(routeId, regionId)
@@ -352,13 +347,7 @@ class DefaultArrivalsRepository @Inject constructor(
             longName = route.description
         }
 
-        val values = ContentValues().apply {
-            put(ObaContract.Routes.SHORTNAME, shortName)
-            put(ObaContract.Routes.LONGNAME, longName)
-            put(ObaContract.Routes.URL, route.url)
-            regionId?.let { put(ObaContract.Routes.REGION_ID, it) }
-        }
-        ObaContract.Routes.insertOrUpdate(context, route.id, values, true)
+        routesStore.storeRouteDetails(route.id, shortName, longName, route.url, regionId)
     }
 
     override suspend fun setRouteFilter(stopId: String, filter: Set<String>) {

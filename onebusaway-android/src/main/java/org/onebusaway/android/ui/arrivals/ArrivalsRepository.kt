@@ -35,6 +35,7 @@ import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.provider.loadStopUserInfo
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.storage.StopRouteFilterStore
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.MyTextUtils
@@ -146,7 +147,8 @@ class DefaultArrivalsRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val regionRepository: RegionRepository,
     private val routeRepository: RouteDataSource,
-    private val stopArrivals: StopArrivalsDataSource
+    private val stopArrivals: StopArrivalsDataSource,
+    private val stopRouteFilterStore: StopRouteFilterStore
 ) : ArrivalsRepository {
 
     private var lastGood: StopArrivals? = null
@@ -162,7 +164,7 @@ class DefaultArrivalsRepository @Inject constructor(
         routeFilter: Set<String>?
     ): Result<ArrivalsData> = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val filter = routeFilter ?: ObaContract.StopRouteFilters.get(context, stopId).toSet()
+        val filter = routeFilter ?: stopRouteFilterStore.getFilter(stopId).toSet()
         var minutes = minutesAfter
         // Widen the window while the fetch is empty (or failing), matching the legacy loader.
         var result: Result<StopArrivals>
@@ -349,9 +351,7 @@ class DefaultArrivalsRepository @Inject constructor(
     }
 
     override suspend fun setRouteFilter(stopId: String, filter: Set<String>) {
-        withContext(Dispatchers.IO) {
-            ObaContract.StopRouteFilters.set(context, stopId, ArrayList(filter))
-        }
+        stopRouteFilterStore.setFilter(stopId, filter.toList())
     }
 
     override suspend fun setArrivalStyle(style: Int) {

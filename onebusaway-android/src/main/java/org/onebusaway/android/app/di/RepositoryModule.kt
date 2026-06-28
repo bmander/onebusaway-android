@@ -72,6 +72,8 @@ import org.onebusaway.android.ui.routeinfo.DefaultRouteInfoRepository
 import org.onebusaway.android.ui.routeinfo.RouteInfoRepository
 import org.onebusaway.android.ui.searchresults.DefaultSearchResultsRepository
 import org.onebusaway.android.ui.searchresults.SearchResultsRepository
+import org.onebusaway.android.storage.ProviderStopRouteFilterStore
+import org.onebusaway.android.storage.StopRouteFilterStore
 import org.onebusaway.android.ui.tripdetails.DefaultTripDetailsRepository
 import org.onebusaway.android.ui.tripdetails.TripDetailsRepository
 import org.onebusaway.android.ui.tripinfo.DefaultTripInfoRepository
@@ -220,6 +222,13 @@ abstract class RepositoryModule {
     // (assisted) ArrivalsViewModel, so each VM gets its own. Do NOT make this @Singleton.
     @Binds
     abstract fun bindArrivalsRepository(impl: DefaultArrivalsRepository): ArrivalsRepository
+
+    // Storage seams (storage-modernization). Provider-backed for now; the impls swap to Room DAOs at
+    // the Slice 3 cutover without touching consumers. Stateless, so unscoped.
+    @Binds
+    abstract fun bindStopRouteFilterStore(
+        impl: ProviderStopRouteFilterStore
+    ): StopRouteFilterStore
 
     // Speed-estimation trip data layer: both @Singleton — the repository owns the process-wide trip
     // store (the LRU cache shared across screens), and the fetcher owns the SingleFlight dedup maps.

@@ -16,42 +16,85 @@
 package org.onebusaway.android.ui.tripplan
 
 import android.content.Context
+import android.location.Address
+import android.location.Geocoder
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.directions.util.CustomAddress
+import org.onebusaway.android.io.elements.ObaRegion
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.LocationUtils
+import org.onebusaway.android.util.RegionUtils
 
 /** Address-autocomplete suggestions for the trip-plan endpoints. */
 interface GeocodeRepository {
-    suspend fun suggest(query: String): Result<List<PlaceItem>>
+    suspend fun suggest(query: String): Result<List<TripEndpoint.Geocoded>>
 }
 
 /**
- * Pelias-backed geocoding. All four product flavors set `USE_PELIAS_GEOCODING = true`, so the
- * legacy Google-Places intent path is not carried over. Wraps the blocking
- * [LocationUtils.processPeliasGeocoding] on the IO thread and projects [CustomAddress] onto the
- * JVM-pure [PlaceItem] so the ViewModel stays testable.
+ * Address suggestions for the trip-plan endpoints. Prefers Pelias (real autocomplete, with
+ * `transport:public` results flagged as transit), but falls back to the on-device
+ * [android.location.Geocoder] when no Pelias API key is configured — so key-free dev builds still
+ * geocode. The Geocoder path has no typeahead/transit categories, so it's a degraded fallback only.
+ * Runs the blocking work on the IO thread and projects onto the JVM-pure [TripEndpoint.Geocoded].
  */
 class DefaultGeocodeRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val regionRepository: RegionRepository,
 ) : GeocodeRepository {
 
-    override suspend fun suggest(query: String): Result<List<PlaceItem>> =
+    override suspend fun suggest(query: String): Result<List<TripEndpoint.Geocoded>> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val region = regionRepository.region.value
-                LocationUtils.processPeliasGeocoding(context, region, query).map { it.toPlaceItem() }
+                if (BuildFlavorUtils.isPeliasApiKeyDefined()) {
+                    LocationUtils.processPeliasGeocoding(context, region, query).orEmpty()
+                        .map { it.toGeocoded() }
+                } else {
+                    androidGeocode(query, region)
+                }
             }
         }
 
-    private fun CustomAddress.toPlaceItem(): PlaceItem = PlaceItem(
+    /** No-key fallback: forward-geocode via the platform Geocoder, biased to the region's bbox. */
+    @Suppress("DEPRECATION") // sync overload; we're already off the main thread. Async API is 33+.
+    private fun androidGeocode(query: String, region: ObaRegion?): List<TripEndpoint.Geocoded> {
+        if (!Geocoder.isPresent()) return emptyList()
+        val geocoder = Geocoder(context, Locale.getDefault())
+        val addresses = if (region != null) {
+            val span = DoubleArray(4)
+            RegionUtils.getRegionSpan(region, span)
+            geocoder.getFromLocationName(
+                query, MAX_RESULTS,
+                /* lowerLeftLat = */ span[2] - span[0] / 2,
+                /* lowerLeftLon = */ span[3] - span[1] / 2,
+                /* upperRightLat = */ span[2] + span[0] / 2,
+                /* upperRightLon = */ span[3] + span[1] / 2,
+            )
+        } else {
+            geocoder.getFromLocationName(query, MAX_RESULTS)
+        }
+        return addresses.orEmpty().map { it.toGeocoded() }
+    }
+
+    private fun CustomAddress.toGeocoded(): TripEndpoint.Geocoded = TripEndpoint.Geocoded(
         displayName = toString(),
         lat = if (isSet) latitude else null,
         lon = if (isSet) longitude else null,
         isTransit = isTransitCategory
     )
+
+    private fun Address.toGeocoded(): TripEndpoint.Geocoded {
+        val lines = (0..maxAddressLineIndex).joinToString(", ") { getAddressLine(it) }
+        val name = lines.ifBlank { featureName ?: thoroughfare ?: locality.orEmpty() }
+        return TripEndpoint.Geocoded(displayName = name, lat = latitude, lon = longitude)
+    }
+
+    private companion object {
+        const val MAX_RESULTS = 5
+    }
 }

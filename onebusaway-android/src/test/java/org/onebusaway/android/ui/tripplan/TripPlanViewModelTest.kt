@@ -35,12 +35,12 @@ class TripPlanViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private val settings = AdvancedSettings(modeId = 4, maxWalkMeters = 1600.0, optimizeTransfers = true, wheelchair = false)
-    private val origin = PlaceItem("Origin", lat = 47.6, lon = -122.3)
-    private val destination = PlaceItem("Destination", lat = 47.7, lon = -122.2)
+    private val origin = TripEndpoint.Geocoded("Origin", lat = 47.6, lon = -122.3)
+    private val destination = TripEndpoint.Geocoded("Destination", lat = 47.7, lon = -122.2)
 
-    private class FakeGeocodeRepository(var result: Result<List<PlaceItem>>) : GeocodeRepository {
+    private class FakeGeocodeRepository(var result: Result<List<TripEndpoint.Geocoded>>) : GeocodeRepository {
         var lastQuery: String? = null
-        override suspend fun suggest(query: String): Result<List<PlaceItem>> {
+        override suspend fun suggest(query: String): Result<List<TripEndpoint.Geocoded>> {
             lastQuery = query
             return result
         }
@@ -62,6 +62,12 @@ class TripPlanViewModelTest {
         geocode: GeocodeRepository = FakeGeocodeRepository(Result.success(emptyList())),
         plan: TripPlanRepository = FakeTripPlanRepository(Result.success(listOf(Itinerary())))
     ) = TripPlanViewModel(geocode, plan, TimeProvider { 0L }, FakeAdvancedSettingsRepository())
+
+    /** Sets both resolved endpoints (which auto-submits a plan once both have coordinates). */
+    private fun setBothEndpoints(vm: TripPlanViewModel) {
+        vm.setFrom(origin)
+        vm.setTo(destination)
+    }
 
     @Test
     fun `initial state carries the injected settings and cannot submit`() = runTest {
@@ -85,6 +91,42 @@ class TripPlanViewModelTest {
     }
 
     @Test
+    fun `a query change makes the origin a FreeText endpoint`() = runTest {
+        val vm = viewModel()
+        vm.onFromQueryChange("downtown")
+        assertEquals(TripEndpoint.FreeText("downtown"), vm.formState.value.from)
+        assertFalse(vm.formState.value.canSubmit)
+    }
+
+    @Test
+    fun `selecting a geocoded suggestion stores the resolved endpoint`() = runTest {
+        val vm = viewModel()
+        vm.onFromQueryChange("orig")
+        advanceUntilIdle()
+        vm.setFrom(origin)
+        advanceUntilIdle()
+        val state = vm.formState.value
+        assertEquals(origin, state.from)
+        assertTrue(state.fromSuggestions.isEmpty())
+    }
+
+    @Test
+    fun `clearFrom resets the origin to empty FreeText and does not submit`() = runTest {
+        val plan = FakeTripPlanRepository(Result.success(listOf(Itinerary())))
+        val vm = viewModel(plan = plan)
+        setBothEndpoints(vm)
+        advanceUntilIdle()
+        assertEquals(1, plan.calls)
+
+        vm.clearFrom()
+        advanceUntilIdle()
+        val state = vm.formState.value
+        assertEquals(TripEndpoint.FreeText(), state.from)
+        assertFalse(state.canSubmit)
+        assertEquals(1, plan.calls) // clearing must not re-plan
+    }
+
+    @Test
     fun `setting both endpoints with coordinates auto-submits the plan`() = runTest {
         val plan = FakeTripPlanRepository(Result.success(listOf(Itinerary())))
         val vm = viewModel(plan = plan)
@@ -101,12 +143,42 @@ class TripPlanViewModelTest {
     }
 
     @Test
+    fun `clearing an endpoint after a successful plan drops the stale result`() = runTest {
+        val vm = viewModel()
+        setBothEndpoints(vm)
+        advanceUntilIdle()
+        assertTrue(vm.planState.value is PlanResult.Success)
+
+        vm.clearTo()
+        advanceUntilIdle()
+        assertFalse(vm.formState.value.canSubmit)
+        assertEquals(PlanResult.Idle, vm.planState.value)
+    }
+
+    @Test
+    fun `changing one endpoint while the other is unset does not surface a route`() = runTest {
+        val vm = viewModel()
+        // Seed a stale success, then reset both endpoints to empty as a fresh start.
+        setBothEndpoints(vm)
+        advanceUntilIdle()
+        vm.clearFrom()
+        vm.clearTo()
+        advanceUntilIdle()
+
+        // Selecting just one endpoint must not bring back the old route.
+        vm.setFrom(origin)
+        advanceUntilIdle()
+        assertFalse(vm.formState.value.canSubmit)
+        assertEquals(PlanResult.Idle, vm.planState.value)
+    }
+
+    @Test
     fun `an endpoint without coordinates does not enable submit`() = runTest {
         val plan = FakeTripPlanRepository(Result.success(listOf(Itinerary())))
         val vm = viewModel(plan = plan)
 
-        vm.setFrom(PlaceItem("Contact A", lat = null, lon = null))
-        vm.setTo(PlaceItem("Contact B", lat = null, lon = null))
+        vm.setFrom(TripEndpoint.AddressBook("Contact A", lat = null, lon = null))
+        vm.setTo(TripEndpoint.AddressBook("Contact B", lat = null, lon = null))
         advanceUntilIdle()
 
         assertFalse(vm.formState.value.canSubmit)
@@ -116,8 +188,7 @@ class TripPlanViewModelTest {
     @Test
     fun `reverseTrip swaps origin and destination`() = runTest {
         val vm = viewModel()
-        vm.setFrom(origin)
-        vm.setTo(destination)
+        setBothEndpoints(vm)
         advanceUntilIdle()
 
         vm.reverseTrip()
@@ -143,8 +214,7 @@ class TripPlanViewModelTest {
     @Test
     fun `a plan failure surfaces Error with the message`() = runTest {
         val vm = viewModel(plan = FakeTripPlanRepository(Result.failure(IOException("no route"))))
-        vm.setFrom(origin)
-        vm.setTo(destination)
+        setBothEndpoints(vm)
         advanceUntilIdle()
         assertEquals(PlanResult.Error("no route"), vm.planState.value)
     }

@@ -24,6 +24,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -125,20 +131,25 @@ class HomeActivity : AppCompatActivity() {
             // The welcome tutorial (now the Compose green welcome + map-stop spotlight sequence) is
             // started by HomeScreen off the same showWelcomeTutorial latch — no host effect needed.
             SettingsRehomeEffect(navController)
-            HomeNavHost(
-                navController = navController,
-                home = HomeDestinationDeps(
-                    homeViewModel = viewModel,
-                    mapViewModel = mapViewModel,
-                    surveyViewModel = surveyViewModel,
-                    donationViewModel = donationViewModel,
-                    weatherViewModel = weatherViewModel,
-                    helpViewModel = helpViewModel,
-                    arrivalsViewModelFactory = arrivalsViewModelFactory,
-                    callbacks = homeCallbacks,
-                ),
-            )
-            PaymentWarningDialog(viewModel.paymentWarning, viewModel::dismissPaymentWarning)
+            // Surface Compose testTags as UIAutomator resource-ids app-wide, so screens can be driven
+            // semantically (by tag/text) instead of by coordinate taps in tests + tooling.
+            @OptIn(ExperimentalComposeUiApi::class)
+            Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
+                HomeNavHost(
+                    navController = navController,
+                    home = HomeDestinationDeps(
+                        homeViewModel = viewModel,
+                        mapViewModel = mapViewModel,
+                        surveyViewModel = surveyViewModel,
+                        donationViewModel = donationViewModel,
+                        weatherViewModel = weatherViewModel,
+                        helpViewModel = helpViewModel,
+                        arrivalsViewModelFactory = arrivalsViewModelFactory,
+                        callbacks = homeCallbacks,
+                    ),
+                )
+                PaymentWarningDialog(viewModel.paymentWarning, viewModel::dismissPaymentWarning)
+            }
         }
 
         setupMapState()

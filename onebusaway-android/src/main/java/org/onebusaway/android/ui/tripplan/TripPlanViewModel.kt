@@ -87,40 +87,53 @@ class TripPlanViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    private suspend fun suggestionsFor(query: String): List<PlaceItem> =
+    private suspend fun suggestionsFor(query: String): List<TripEndpoint.Geocoded> =
         if (query.isBlank()) emptyList() else geocode.suggest(query).getOrDefault(emptyList())
 
     fun onFromQueryChange(query: String) {
-        _formState.update { it.copy(fromQuery = query) }
+        _formState.update { it.copy(from = TripEndpoint.FreeText(query)) }
         fromQueries.value = query
     }
 
     fun onToQueryChange(query: String) {
-        _formState.update { it.copy(toQuery = query) }
+        _formState.update { it.copy(to = TripEndpoint.FreeText(query)) }
         toQueries.value = query
     }
 
-    /** Sets the origin (from a suggestion, current location, or contacts) and re-plans if ready. */
-    fun setFrom(place: PlaceItem) {
-        _formState.update { it.copy(from = place, fromQuery = place.displayName, fromSuggestions = emptyList()) }
-        autoSubmitIfReady()
+    /** Sets the origin (from a suggestion, current location, contacts, or map) and re-plans if ready. */
+    fun setFrom(endpoint: TripEndpoint) {
+        _formState.update { it.copy(from = endpoint, fromSuggestions = emptyList()) }
+        replanOrClearResult()
     }
 
-    fun setTo(place: PlaceItem) {
-        _formState.update { it.copy(to = place, toQuery = place.displayName, toSuggestions = emptyList()) }
-        autoSubmitIfReady()
+    fun setTo(endpoint: TripEndpoint) {
+        _formState.update { it.copy(to = endpoint, toSuggestions = emptyList()) }
+        replanOrClearResult()
+    }
+
+    /** Clears the origin back to an empty editable field (the pill's ✕), dropping any stale result. */
+    fun clearFrom() {
+        _formState.update { it.copy(from = TripEndpoint.FreeText(), fromSuggestions = emptyList()) }
+        fromQueries.value = ""
+        replanOrClearResult()
+    }
+
+    fun clearTo() {
+        _formState.update { it.copy(to = TripEndpoint.FreeText(), toSuggestions = emptyList()) }
+        toQueries.value = ""
+        replanOrClearResult()
     }
 
     fun setDateTime(millis: Long) {
         _formState.update {
             it.copy(dateTimeMillis = millis, dateLabel = formatDate(millis), timeLabel = formatTime(millis))
         }
-        autoSubmitIfReady()
+        replanOrClearResult()
     }
 
     fun setArriving(arriving: Boolean) {
         _formState.update { it.copy(arriving = arriving) }
-        autoSubmitIfReady()
+        replanOrClearResult()
     }
 
     fun applyAdvancedSettings(settings: AdvancedSettings) {
@@ -132,18 +145,17 @@ class TripPlanViewModel @Inject constructor(
                 wheelchair = settings.wheelchair
             )
         }
-        autoSubmitIfReady()
+        replanOrClearResult()
     }
 
     fun reverseTrip() {
         _formState.update {
             it.copy(
                 from = it.to, to = it.from,
-                fromQuery = it.toQuery, toQuery = it.fromQuery,
                 fromSuggestions = emptyList(), toSuggestions = emptyList()
             )
         }
-        autoSubmitIfReady()
+        replanOrClearResult()
     }
 
     /** Submits the plan if both endpoints resolve to coordinates. */
@@ -169,8 +181,8 @@ class TripPlanViewModel @Inject constructor(
      * without re-planning, so the user lands back on the trip they were watching.
      */
     fun restoreFrom(
-        from: PlaceItem?,
-        to: PlaceItem?,
+        from: TripEndpoint?,
+        to: TripEndpoint?,
         dateTimeMillis: Long,
         arriving: Boolean,
         itineraries: List<Itinerary>
@@ -179,8 +191,6 @@ class TripPlanViewModel @Inject constructor(
             it.copy(
                 from = from ?: it.from,
                 to = to ?: it.to,
-                fromQuery = from?.displayName ?: it.fromQuery,
-                toQuery = to?.displayName ?: it.toQuery,
                 dateTimeMillis = dateTimeMillis,
                 dateLabel = formatDate(dateTimeMillis),
                 timeLabel = formatTime(dateTimeMillis),
@@ -192,8 +202,17 @@ class TripPlanViewModel @Inject constructor(
         }
     }
 
-    private fun autoSubmitIfReady() {
-        if (_formState.value.canSubmit) planTrip()
+    /**
+     * Called after any form change: re-plan when both endpoints resolve, otherwise drop a stale
+     * result back to [PlanResult.Idle] so a changed or cleared endpoint can't leave an old route on
+     * screen (the results sheet keys off [PlanResult.Success]).
+     */
+    private fun replanOrClearResult() {
+        if (_formState.value.canSubmit) {
+            planTrip()
+        } else if (_planState.value is PlanResult.Success) {
+            _planState.value = PlanResult.Idle
+        }
     }
 
     private fun formatDate(millis: Long): String =

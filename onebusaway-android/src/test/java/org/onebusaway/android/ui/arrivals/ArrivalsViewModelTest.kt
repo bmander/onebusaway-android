@@ -100,6 +100,12 @@ private class FakeArrivalsRepository(
         showAllAlertsCalled = true
     }
 
+    override suspend fun markAlertRead(id: String) {}
+
+    override suspend fun setAlertHidden(id: String, hidden: Boolean) {}
+
+    override suspend fun hideAllRecordedAlerts() {}
+
     override fun alertDetails(id: String): AlertDetails? = null
 
     override fun lastLoaded(): ArrivalsLoaded? = null

@@ -228,6 +228,29 @@ class ArrivalsViewModel @AssistedInject constructor(
     /** The service-alert dialog's content for an alert id (read from the last good response). */
     fun alertDetails(id: String): AlertDetails? = repository.alertDetails(id)
 
+    /** Stamps the alert read when its dialog opens. */
+    fun markAlertRead(id: String) {
+        viewModelScope.launch { repository.markAlertRead(id) }
+    }
+
+    /** Hides a single alert (the dialog's Hide); the dialog's dismiss triggers the refresh. */
+    fun hideAlert(id: String) {
+        viewModelScope.launch { repository.setAlertHidden(id, true) }
+    }
+
+    /** Un-hides a single alert and refreshes (the dialog's Undo action). */
+    fun unhideAlert(id: String) {
+        viewModelScope.launch {
+            repository.setAlertHidden(id, false)
+            refresh()
+        }
+    }
+
+    /** Hides every recorded alert (the dialog's Hide All); the dialog's dismiss triggers the refresh. */
+    fun hideAllRecordedAlerts() {
+        viewModelScope.launch { repository.hideAllRecordedAlerts() }
+    }
+
     private fun ArrivalsData.toContent() = ArrivalsUiState.Content(
         header = header,
         arrivals = arrivals,

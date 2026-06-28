@@ -35,6 +35,7 @@ import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.provider.loadStopUserInfo
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.storage.ServiceAlertStore
 import org.onebusaway.android.storage.StopRouteFilterStore
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.DBUtil
@@ -105,6 +106,15 @@ interface ArrivalsRepository {
     /** Un-hides every service alert (the "show hidden alerts" action). */
     suspend fun showAllAlerts()
 
+    /** Stamps a single alert read (the situation dialog marks the alert read on open). */
+    suspend fun markAlertRead(id: String)
+
+    /** Sets the hidden flag for a single alert (the dialog's Hide / Undo). */
+    suspend fun setAlertHidden(id: String, hidden: Boolean)
+
+    /** Hides every recorded alert (the dialog's Hide All). */
+    suspend fun hideAllRecordedAlerts()
+
     /** The service-alert dialog's content for an alert id, from the last good response, or null. */
     fun alertDetails(id: String): AlertDetails?
 
@@ -148,7 +158,8 @@ class DefaultArrivalsRepository @Inject constructor(
     private val regionRepository: RegionRepository,
     private val routeRepository: RouteDataSource,
     private val stopArrivals: StopArrivalsDataSource,
-    private val stopRouteFilterStore: StopRouteFilterStore
+    private val stopRouteFilterStore: StopRouteFilterStore,
+    private val serviceAlertStore: ServiceAlertStore
 ) : ArrivalsRepository {
 
     private var lastGood: StopArrivals? = null
@@ -198,7 +209,7 @@ class DefaultArrivalsRepository @Inject constructor(
         )
     }
 
-    private fun toData(
+    private suspend fun toData(
         snapshot: StopArrivals,
         routeFilter: Set<String>,
         isStale: Boolean,
@@ -261,7 +272,7 @@ class DefaultArrivalsRepository @Inject constructor(
     }
 
     /** Ports ArrivalsListFragment.refreshSituations: persist, then keep active + non-hidden. */
-    private fun buildAlerts(
+    private suspend fun buildAlerts(
         snapshot: StopArrivals,
         routeFilter: Set<String>,
         now: Long
@@ -272,8 +283,8 @@ class DefaultArrivalsRepository @Inject constructor(
         var hiddenCount = 0
         for (situation in situations) {
             // Make sure this situation is recorded so read/hidden state can be tracked.
-            ObaContract.ServiceAlerts.insertOrUpdate(situation.id, ContentValues(), false, null)
-            val isHidden = ObaContract.ServiceAlerts.isHidden(situation.id)
+            serviceAlertStore.ensureRecorded(situation.id)
+            val isHidden = serviceAlertStore.isHidden(situation.id)
             if (SituationUtils.isActiveWindowForSituation(situation, now) && !isHidden) {
                 active.add(
                     AlertItem(situation.id, situation.summary.orEmpty(), severityOf(situation.severity))
@@ -361,17 +372,25 @@ class DefaultArrivalsRepository @Inject constructor(
     }
 
     override suspend fun hideAlerts(ids: List<String>) {
-        withContext(Dispatchers.IO) {
-            for (id in ids) {
-                ObaContract.ServiceAlerts.insertOrUpdate(id, ContentValues(), false, true)
-            }
+        for (id in ids) {
+            serviceAlertStore.setHidden(id, true)
         }
     }
 
     override suspend fun showAllAlerts() {
-        withContext(Dispatchers.IO) {
-            ObaContract.ServiceAlerts.showAllAlerts()
-        }
+        serviceAlertStore.showAll()
+    }
+
+    override suspend fun markAlertRead(id: String) {
+        serviceAlertStore.markRead(id)
+    }
+
+    override suspend fun setAlertHidden(id: String, hidden: Boolean) {
+        serviceAlertStore.setHidden(id, hidden)
+    }
+
+    override suspend fun hideAllRecordedAlerts() {
+        serviceAlertStore.hideAll()
     }
 
     override fun alertDetails(id: String): AlertDetails? =

@@ -73,6 +73,14 @@ class MapLibreRenderer(
 ) {
     private val stopByMarker = HashMap<Marker, StopMarker>()
 
+    // Stop markers tracked by stop id so [reconcileStopMarkers] can diff them in place (add new,
+    // remove gone, re-icon only on a focus flip) instead of clear-and-redraw — keeping unchanged stops
+    // from blinking on every static redraw. Like the vehicle markers, these are NOT in
+    // [staticAnnotations] and so survive a static redraw; [renderedFocusedStopId] is the focus the
+    // icons were last drawn for. They live until MapView.onDestroy(), like vehicleMarkersByTripId.
+    private val stopMarkersByStopId = HashMap<String, Marker>()
+    private var renderedFocusedStopId: String? = null
+
     private val bikeByMarker = HashMap<Marker, BikeMarker>()
 
     private val vehicleByMarker = HashMap<Marker, VehicleMarker>()
@@ -119,7 +127,8 @@ class MapLibreRenderer(
             map.removeAnnotations(staticAnnotations)
             staticAnnotations.clear()
         }
-        stopByMarker.clear()
+        // Stop markers are reconciled in place (not in staticAnnotations), so they survive this; only
+        // the bike tap map is cleared here.
         bikeByMarker.clear()
 
         for (polyline in snapshot.routePolylines) {
@@ -142,18 +151,7 @@ class MapLibreRenderer(
             )
         }
 
-        for (stop in snapshot.stops) {
-            val icon = if (stop.id == snapshot.focusedStopId) {
-                MapLibreStopIcons.focusedIconForDirection(context, stop.direction)
-            } else {
-                MapLibreStopIcons.iconForDirection(context, stop.direction)
-            }
-            val marker = map.addMarker(
-                MarkerOptions().position(stop.point.toLatLng()).icon(icon)
-            )
-            staticAnnotations.add(marker)
-            stopByMarker[marker] = stop
-        }
+        reconcileStopMarkers(snapshot.stops, snapshot.focusedStopId)
 
         if (snapshot.bikeshareVisible) {
             val band = bikeZoomBand(map.cameraPosition.zoom.toFloat())
@@ -189,6 +187,44 @@ class MapLibreRenderer(
             )
         }
     }
+
+    /**
+     * Diff the stop markers against [stops] in place (the [reconcileVehicleMarkers] pattern): remove
+     * markers whose id has left, add markers for new ids, and re-icon an existing marker only when its
+     * focused state flips. Unchanged stops keep their native marker, so they don't blink on a static
+     * redraw. Tracked in [stopMarkersByStopId] (not [staticAnnotations]) so a static redraw leaves them.
+     */
+    private fun reconcileStopMarkers(stops: List<StopMarker>, focusedStopId: String?) {
+        val liveIds = stops.mapTo(HashSet()) { it.id }
+        val gone = stopMarkersByStopId.iterator()
+        while (gone.hasNext()) {
+            val entry = gone.next()
+            if (entry.key !in liveIds) {
+                map.removeAnnotation(entry.value)
+                stopByMarker.remove(entry.value)
+                gone.remove()
+            }
+        }
+        for (stop in stops) {
+            val isFocused = stop.id == focusedStopId
+            val existing = stopMarkersByStopId[stop.id]
+            if (existing == null) {
+                val marker = map.addMarker(
+                    MarkerOptions().position(stop.point.toLatLng()).icon(stopIcon(stop, isFocused))
+                )
+                stopMarkersByStopId[stop.id] = marker
+                stopByMarker[marker] = stop
+            } else if ((stop.id == renderedFocusedStopId) != isFocused) {
+                // Only the un-focused and newly-focused markers need a new icon.
+                existing.icon = stopIcon(stop, isFocused)
+            }
+        }
+        renderedFocusedStopId = focusedStopId
+    }
+
+    private fun stopIcon(stop: StopMarker, focused: Boolean): Icon =
+        if (focused) MapLibreStopIcons.focusedIconForDirection(context, stop.direction)
+        else MapLibreStopIcons.iconForDirection(context, stop.direction)
 
     /**
      * Update the dynamic layer for one display frame: the route's live [vehicles] (null off route mode)

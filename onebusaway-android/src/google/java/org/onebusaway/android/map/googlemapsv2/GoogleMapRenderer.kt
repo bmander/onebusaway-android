@@ -76,6 +76,13 @@ class GoogleMapRenderer(
 ) {
     private val stopByMarker = HashMap<Marker, StopMarker>()
 
+    // Stop markers tracked by stop id so [reconcileStopMarkers] can diff them in place (add new,
+    // remove gone, re-icon only on a focus flip) instead of clear-and-redraw — keeping unchanged stops
+    // from blinking on every static redraw. Like the vehicle markers, these are NOT in [staticMarkers]
+    // and so survive [clearStatic]; [renderedFocusedStopId] is the focus the icons were last drawn for.
+    private val stopMarkersByStopId = HashMap<String, Marker>()
+    private var renderedFocusedStopId: String? = null
+
     private val bikeByMarker = HashMap<Marker, BikeMarker>()
 
     private val vehicleByMarker = HashMap<Marker, VehicleMarker>()
@@ -147,15 +154,16 @@ class GoogleMapRenderer(
     private val descriptorCache =
         BitmapDescriptorCache(DESCRIPTOR_CACHE_SIZE) { BitmapDescriptorFactory.fromBitmap(it) }
 
-    // Remove only our own static annotations (not map.clear(), which would also wipe the per-frame
-    // dynamic layer) and clear their tap-routing maps. Shared by [renderStatic] (before it redraws) and
-    // [dispose].
+    // Remove the redrawn static annotations — polylines, trip-stop dots, bikes, generic markers (not
+    // map.clear(), which would also wipe the per-frame dynamic layer) — and clear their tap-routing
+    // maps. The reconciled stop markers are tracked apart in [stopMarkersByStopId] and deliberately
+    // survive (only their tap map [stopByMarker] is left intact too). Shared by [renderStatic] (before
+    // it redraws) and [dispose].
     private fun clearStatic() {
         staticMarkers.forEach { it.remove() }
         staticMarkers.clear()
         staticPolylines.forEach { it.remove() }
         staticPolylines.clear()
-        stopByMarker.clear()
         bikeByMarker.clear()
     }
 
@@ -189,22 +197,7 @@ class GoogleMapRenderer(
             )
         }
 
-        for (stop in snapshot.stops) {
-            val icon = if (stop.id == snapshot.focusedStopId) {
-                StopIconFactory.focusedStopIcon(stop.direction, stop.routeType)
-            } else {
-                StopIconFactory.stopIcon(stop.direction, stop.routeType)
-            }
-            val marker = map.addMarker(
-                MarkerOptions()
-                    .position(stop.point.toLatLng())
-                    .icon(icon)
-                    .flat(true)
-                    .anchor(StopIconFactory.anchorX(stop.direction), StopIconFactory.anchorY(stop.direction))
-            )!!
-            staticMarkers.add(marker)
-            stopByMarker[marker] = stop
-        }
+        reconcileStopMarkers(snapshot.stops, snapshot.focusedStopId)
 
         if (snapshot.bikeshareVisible) {
             val band = bikeZoomBand(map.cameraPosition.zoom)
@@ -237,6 +230,48 @@ class GoogleMapRenderer(
     }
 
     /**
+     * Diff the stop markers against [stops] in place (the [reconcileVehicleMarkers] pattern): remove
+     * markers whose id has left, add markers for new ids, and re-icon an existing marker only when its
+     * focused state flips. Unchanged stops keep their native marker, so they don't blink on a static
+     * redraw. Tracked in [stopMarkersByStopId] (not [staticMarkers]) so [clearStatic] leaves them be.
+     */
+    private fun reconcileStopMarkers(stops: List<StopMarker>, focusedStopId: String?) {
+        val liveIds = stops.mapTo(HashSet()) { it.id }
+        val gone = stopMarkersByStopId.iterator()
+        while (gone.hasNext()) {
+            val entry = gone.next()
+            if (entry.key !in liveIds) {
+                stopByMarker.remove(entry.value)
+                entry.value.remove()
+                gone.remove()
+            }
+        }
+        for (stop in stops) {
+            val isFocused = stop.id == focusedStopId
+            val existing = stopMarkersByStopId[stop.id]
+            if (existing == null) {
+                val marker = map.addMarker(
+                    MarkerOptions()
+                        .position(stop.point.toLatLng())
+                        .icon(stopIcon(stop, isFocused))
+                        .flat(true)
+                        .anchor(StopIconFactory.anchorX(stop.direction), StopIconFactory.anchorY(stop.direction))
+                )!!
+                stopMarkersByStopId[stop.id] = marker
+                stopByMarker[marker] = stop
+            } else if ((stop.id == renderedFocusedStopId) != isFocused) {
+                // Only the un-focused and newly-focused markers need a new icon.
+                existing.setIcon(stopIcon(stop, isFocused))
+            }
+        }
+        renderedFocusedStopId = focusedStopId
+    }
+
+    private fun stopIcon(stop: StopMarker, focused: Boolean): BitmapDescriptor =
+        if (focused) StopIconFactory.focusedStopIcon(stop.direction, stop.routeType)
+        else StopIconFactory.stopIcon(stop.direction, stop.routeType)
+
+    /**
      * Tear down every native annotation and drop all marker-smoothing state. The adapter calls this from
      * its onDispose, before `MapView.onDestroy()`. Forget the smoother state first, then remove the
      * markers/polylines it tracked.
@@ -246,6 +281,11 @@ class GoogleMapRenderer(
         dotSmoother.retainOnly(emptySet())
 
         clearStatic()
+
+        stopMarkersByStopId.values.forEach { it.remove() }
+        stopMarkersByStopId.clear()
+        stopByMarker.clear()
+        renderedFocusedStopId = null
 
         vehicleMarkersByTripId.values.forEach { it.remove() }
         vehicleMarkersByTripId.clear()

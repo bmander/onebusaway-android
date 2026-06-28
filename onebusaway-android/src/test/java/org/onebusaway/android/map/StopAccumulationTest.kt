@@ -25,10 +25,11 @@ import org.onebusaway.android.map.render.StopMarker
 
 /**
  * Unit tests for the stop-accumulation logic [MapViewModel.showStops] / [MapViewModel.clearStops]
- * delegate to — the easily-broken part of the data-shaping: the 200-cap clears the accumulation *but
- * keeps the focused stop*, and the same focus-retention drives `clearStops(false)`. Split into pure
- * functions ([capStopAccumulation] / [retainOnlyFocusedStop]) over plain [StopMarker]s so it runs on
- * the JVM — the per-stop marker build (which touches an Android `Location`) is exercised on device.
+ * delegate to — the easily-broken part of the data-shaping: the LRU trim evicts least-recently-used
+ * stops down to the 200-cap *but never the focused stop*, and the same focus-retention drives
+ * `clearStops(false)`. Split into pure functions ([trimStopCache] / [retainOnlyFocusedStop]) over
+ * plain [StopMarker]s so it runs on the JVM — the per-stop marker build (which touches an Android
+ * `Location`) is exercised on device.
  */
 class StopAccumulationTest {
 
@@ -40,34 +41,35 @@ class StopAccumulationTest {
 
     private fun LinkedHashMap<String, StopMarker>.ids() = keys.toSet()
 
-    // --- capStopAccumulation ---
+    // --- trimStopCache (the LRU eviction; accumOf is insertion- = eldest-first order) ---
 
     @Test
-    fun `below the cap is a no-op`() {
-        val accum = accumOf("a", "b")
-        capStopAccumulation(accum, focusedId = "a", cap = 5)
-        assertEquals(setOf("a", "b"), accum.ids())
+    fun `at or below the cap is a no-op`() {
+        val accum = accumOf("a", "b", "c")
+        trimStopCache(accum, focusedId = "a", cap = 3)
+        assertEquals(setOf("a", "b", "c"), accum.ids())
     }
 
     @Test
-    fun `at the cap clears the accumulation but keeps the focused stop`() {
-        val accum = accumOf("a", "b", "c")
-        capStopAccumulation(accum, focusedId = "b", cap = 3)
-        assertEquals(setOf("b"), accum.ids())
+    fun `over the cap evicts eldest-first down to the cap`() {
+        val accum = accumOf("a", "b", "c", "d")
+        trimStopCache(accum, focusedId = null, cap = 2)
+        assertEquals(setOf("c", "d"), accum.ids())
     }
 
     @Test
-    fun `at the cap with no focus clears everything`() {
-        val accum = accumOf("a", "b", "c")
-        capStopAccumulation(accum, focusedId = null, cap = 3)
-        assertEquals(emptySet<String>(), accum.ids())
+    fun `over the cap never evicts the focused stop`() {
+        val accum = accumOf("a", "b", "c", "d")
+        // "a" is the eldest, but being focused it's skipped; the next-eldest evict instead.
+        trimStopCache(accum, focusedId = "a", cap = 2)
+        assertEquals(setOf("a", "d"), accum.ids())
     }
 
     @Test
-    fun `at the cap with a focus id that is not accumulated clears everything`() {
+    fun `over the cap with no focus evicts pure eldest`() {
         val accum = accumOf("a", "b", "c")
-        capStopAccumulation(accum, focusedId = "gone", cap = 3)
-        assertEquals(emptySet<String>(), accum.ids())
+        trimStopCache(accum, focusedId = null, cap = 1)
+        assertEquals(setOf("c"), accum.ids())
     }
 
     // --- retainOnlyFocusedStop (the clearStops(false) path) ---

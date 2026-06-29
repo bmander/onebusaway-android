@@ -18,9 +18,12 @@ package org.onebusaway.android.database.oba
 import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import androidx.room.withTransaction
 import java.io.File
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.database.AppDatabase
+import org.onebusaway.android.database.survey.entity.Study
+import org.onebusaway.android.database.survey.entity.Survey
 import org.onebusaway.android.preferences.PreferencesRepository
 
 /**
@@ -59,6 +62,50 @@ class LegacyDataImporter(
     suspend fun importFrom(legacyFile: File) {
         SQLiteDatabase.openDatabase(legacyFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { legacy ->
             database.legacyImportDao().replaceAll(readAll(legacy))
+        }
+    }
+
+    /**
+     * Imports the rogue `study-survey-db` file (the old separate survey Room database) into the unified
+     * database once, then deletes it. Read raw so the old file's Room schema version is irrelevant (it
+     * had no migrations, so opening it as the now-v3 [AppDatabase] would otherwise crash).
+     */
+    suspend fun importSurveyDbIfNeeded() {
+        if (prefs.getBoolean(SURVEY_IMPORT_DONE_KEY, false)) return
+        val surveyFile = context.getDatabasePath(SURVEY_DB_NAME)
+        if (surveyFile.exists()) {
+            importSurveyFrom(surveyFile)
+            SQLiteDatabase.deleteDatabase(surveyFile)
+        }
+        prefs.setBoolean(SURVEY_IMPORT_DONE_KEY, true)
+    }
+
+    /** Reads studies/surveys from a legacy survey DB file and writes them into Room. Visible for testing. */
+    suspend fun importSurveyFrom(surveyFile: File) {
+        val (studies, surveys) =
+            SQLiteDatabase.openDatabase(surveyFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+                val studies = db.read("studies") {
+                    Study(
+                        study_id = int("study_id") ?: return@read null,
+                        name = str("name").orEmpty(),
+                        description = str("description").orEmpty(),
+                        is_subscribed = (int("is_subscribed") ?: 0) != 0,
+                    )
+                }
+                val surveys = db.read("surveys") {
+                    Survey(
+                        survey_id = int("survey_id") ?: return@read null,
+                        study_id = int("study_id") ?: return@read null,
+                        name = str("name").orEmpty(),
+                        state = int("state") ?: 0,
+                    )
+                }
+                studies to surveys
+            }
+        // Studies before surveys (the surveys -> studies foreign key).
+        database.withTransaction {
+            studies.forEach { database.studiesDao().insertStudy(it) }
+            surveys.forEach { database.surveysDao().insertSurvey(it) }
         }
     }
 
@@ -201,7 +248,9 @@ class LegacyDataImporter(
 
     private companion object {
         val LEGACY_DB_NAME = "${BuildConfig.APPLICATION_ID}.db"
+        const val SURVEY_DB_NAME = "study-survey-db"
         const val IMPORT_DONE_KEY = "legacy_oba_import_done"
+        const val SURVEY_IMPORT_DONE_KEY = "legacy_survey_import_done"
     }
 }
 

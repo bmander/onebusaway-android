@@ -87,6 +87,32 @@ class LegacyDataImporterTest {
     }
 
     @Test
+    fun importsSurveyDb() = runBlocking {
+        val surveyFile = File.createTempFile("study-survey", ".db", context.cacheDir)
+        try {
+            SQLiteDatabase.openOrCreateDatabase(surveyFile, null).use { db ->
+                db.execSQL(
+                    "CREATE TABLE studies (study_id INTEGER PRIMARY KEY, name TEXT, description TEXT, " +
+                        "is_subscribed INTEGER)"
+                )
+                db.execSQL("INSERT INTO studies VALUES (7,'Study','Desc',1)")
+                db.execSQL(
+                    "CREATE TABLE surveys (survey_id INTEGER PRIMARY KEY, study_id INTEGER, name TEXT, " +
+                        "state INTEGER)"
+                )
+                db.execSQL("INSERT INTO surveys VALUES (3,7,'Survey',1)")
+            }
+            importer.importSurveyFrom(surveyFile)
+
+            assertEquals(1, count("studies"))
+            assertEquals(1, count("surveys"))
+            assertEquals(7, scalarInt("SELECT study_id FROM surveys WHERE survey_id=3"))
+        } finally {
+            surveyFile.delete()
+        }
+    }
+
+    @Test
     fun reimportIsIdempotent() = runBlocking {
         importer.importFrom(legacyFile)
         importer.importFrom(legacyFile)

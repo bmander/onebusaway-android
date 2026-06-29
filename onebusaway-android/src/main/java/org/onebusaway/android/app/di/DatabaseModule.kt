@@ -26,6 +26,8 @@ import org.onebusaway.android.database.AppDatabase
 import org.onebusaway.android.database.DatabaseProvider
 import org.onebusaway.android.database.oba.LegacyDataImporter
 import org.onebusaway.android.database.oba.LegacyImportDao
+import org.onebusaway.android.database.oba.ServiceAlertDao
+import org.onebusaway.android.database.oba.StopRouteFilterDao
 import org.onebusaway.android.preferences.PreferencesRepository
 
 /**
@@ -45,6 +47,12 @@ object DatabaseModule {
 
     @Provides
     fun provideLegacyImportDao(db: AppDatabase): LegacyImportDao = db.legacyImportDao()
+
+    @Provides
+    fun provideServiceAlertDao(db: AppDatabase): ServiceAlertDao = db.serviceAlertDao()
+
+    @Provides
+    fun provideStopRouteFilterDao(db: AppDatabase): StopRouteFilterDao = db.stopRouteFilterDao()
 
     @Provides
     @Singleton

@@ -4,6 +4,8 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import org.onebusaway.android.database.oba.LegacyImportDao
 import org.onebusaway.android.database.oba.NavStopRecord
+import org.onebusaway.android.database.oba.ServiceAlertDao
+import org.onebusaway.android.database.oba.StopRouteFilterDao
 import org.onebusaway.android.database.oba.Open311ServerRecord
 import org.onebusaway.android.database.oba.RegionBoundRecord
 import org.onebusaway.android.database.oba.RegionRecord
@@ -58,4 +60,8 @@ abstract class AppDatabase : RoomDatabase() {
 
     // One-time import of the legacy ObaProvider data (storage-modernization).
     abstract fun legacyImportDao(): LegacyImportDao
+
+    // Migrated legacy-table DAOs (storage-modernization).
+    abstract fun serviceAlertDao(): ServiceAlertDao
+    abstract fun stopRouteFilterDao(): StopRouteFilterDao
 }

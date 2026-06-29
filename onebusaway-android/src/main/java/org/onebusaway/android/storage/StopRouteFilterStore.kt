@@ -20,6 +20,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.onebusaway.android.database.oba.StopRouteFilterDao
 import org.onebusaway.android.provider.ObaContract
 
 /**
@@ -50,4 +51,15 @@ class ProviderStopRouteFilterStore @Inject constructor(
         withContext(Dispatchers.IO) {
             ObaContract.StopRouteFilters.set(context, stopId, ArrayList(routeIds))
         }
+}
+
+/** Room-backed [StopRouteFilterStore]. */
+class RoomStopRouteFilterStore @Inject constructor(
+    private val dao: StopRouteFilterDao
+) : StopRouteFilterStore {
+
+    override suspend fun getFilter(stopId: String): List<String> = dao.routeIdsForStop(stopId)
+
+    override suspend fun setFilter(stopId: String, routeIds: List<String>) =
+        dao.replaceForStop(stopId, routeIds)
 }

@@ -21,6 +21,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.onebusaway.android.database.oba.StopDao
 import org.onebusaway.android.provider.ObaContract
 
 /**
@@ -46,4 +47,13 @@ class ProviderStopsStore @Inject constructor(
             ObaContract.Stops.markAsFavorite(context, uri, favorite)
             Unit
         }
+}
+
+/** Room-backed [StopsStore]. setFavorite is an UPDATE — a no-op when the row doesn't exist. */
+class RoomStopsStore @Inject constructor(
+    private val dao: StopDao
+) : StopsStore {
+
+    override suspend fun setFavorite(stopId: String, favorite: Boolean) =
+        dao.setFavorite(stopId, if (favorite) 1 else 0)
 }

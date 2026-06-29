@@ -4,8 +4,11 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import org.onebusaway.android.database.oba.LegacyImportDao
 import org.onebusaway.android.database.oba.NavStopRecord
+import org.onebusaway.android.database.oba.RouteDao
 import org.onebusaway.android.database.oba.ServiceAlertDao
+import org.onebusaway.android.database.oba.StopDao
 import org.onebusaway.android.database.oba.StopRouteFilterDao
+import org.onebusaway.android.database.oba.TripDao
 import org.onebusaway.android.database.oba.Open311ServerRecord
 import org.onebusaway.android.database.oba.RegionBoundRecord
 import org.onebusaway.android.database.oba.RegionRecord
@@ -64,4 +67,7 @@ abstract class AppDatabase : RoomDatabase() {
     // Migrated legacy-table DAOs (storage-modernization).
     abstract fun serviceAlertDao(): ServiceAlertDao
     abstract fun stopRouteFilterDao(): StopRouteFilterDao
+    abstract fun stopDao(): StopDao
+    abstract fun routeDao(): RouteDao
+    abstract fun tripDao(): TripDao
 }

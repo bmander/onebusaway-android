@@ -21,6 +21,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.onebusaway.android.database.oba.TripDao
+import org.onebusaway.android.database.oba.TripRecord
 import org.onebusaway.android.provider.ObaContract
 
 /**
@@ -141,5 +143,56 @@ class ProviderRemindersStore @Inject constructor(
         const val COL_STOP_SEQUENCE = 5
         const val COL_SERVICE_DATE = 6
         const val COL_VEHICLE_ID = 7
+    }
+}
+
+/** Room-backed [RemindersStore]. Departure is stored in the legacy minutes-to-midnight DB form. */
+class RoomRemindersStore @Inject constructor(
+    private val dao: TripDao
+) : RemindersStore {
+
+    override suspend fun getTrip(tripId: String, stopId: String): StoredReminderTrip? =
+        dao.getTrip(tripId, stopId)?.let {
+            StoredReminderTrip(
+                name = it.name,
+                reminderMinutes = it.reminder,
+                routeId = it.routeId,
+                headsign = it.headsign,
+                departTimeMs = ObaContract.Trips.convertDBToTime(it.departure),
+                stopSequence = it.stopSequence,
+                serviceDate = it.serviceDate,
+                vehicleId = it.vehicleId,
+            )
+        }
+
+    override suspend fun saveTrip(
+        tripId: String,
+        stopId: String,
+        routeId: String?,
+        departTimeMs: Long,
+        headsign: String?,
+        name: String,
+        reminderMinutes: Int,
+        alarmDeletePath: String,
+        serviceDate: Long,
+        stopSequence: Int,
+        vehicleId: String?,
+    ) {
+        dao.upsert(
+            TripRecord(
+                id = tripId,
+                stopId = stopId,
+                routeId = routeId,
+                departure = ObaContract.Trips.convertTimeToDB(departTimeMs),
+                headsign = headsign,
+                name = name,
+                reminder = reminderMinutes,
+                alarmDeletePath = alarmDeletePath,
+                serviceDate = serviceDate,
+                stopSequence = stopSequence,
+                tripId = tripId,
+                vehicleId = vehicleId,
+            )
+        )
     }
 }

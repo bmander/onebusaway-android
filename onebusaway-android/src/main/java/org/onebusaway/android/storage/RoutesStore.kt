@@ -21,6 +21,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.onebusaway.android.database.oba.RouteDao
+import org.onebusaway.android.database.oba.RouteRecord
 import org.onebusaway.android.provider.ObaContract
 
 /**
@@ -98,4 +100,78 @@ class ProviderRoutesStore @Inject constructor(
             ObaContract.Routes.insertOrUpdate(context, routeId, values, false)
             Unit
         }
+}
+
+/**
+ * Room-backed [RoutesStore]. Replicates the legacy partial upsert by merging onto the existing row
+ * (so unset columns aren't clobbered) and incrementing use_count + stamping access_time when the
+ * write marks the route used. short_name is coerced non-null to satisfy the legacy NOT NULL column
+ * (the value is non-null in practice).
+ */
+class RoomRoutesStore @Inject constructor(
+    private val dao: RouteDao
+) : RoutesStore {
+
+    override suspend fun markRouteUsed(
+        routeId: String,
+        shortName: String?,
+        longName: String?,
+        regionId: Long?
+    ) {
+        val now = System.currentTimeMillis()
+        val existing = dao.getRoute(routeId)
+        dao.upsert(
+            existing?.copy(
+                shortName = shortName.orEmpty(),
+                longName = longName,
+                regionId = regionId ?: existing.regionId,
+                useCount = existing.useCount + 1,
+                accessTime = now,
+            ) ?: RouteRecord(
+                id = routeId,
+                shortName = shortName.orEmpty(),
+                longName = longName,
+                useCount = 1,
+                accessTime = now,
+                regionId = regionId,
+            )
+        )
+    }
+
+    override suspend fun storeRouteDetails(
+        routeId: String,
+        shortName: String?,
+        longName: String?,
+        url: String?,
+        regionId: Long?
+    ) {
+        val now = System.currentTimeMillis()
+        val existing = dao.getRoute(routeId)
+        dao.upsert(
+            existing?.copy(
+                shortName = shortName.orEmpty(),
+                longName = longName,
+                url = url,
+                regionId = regionId ?: existing.regionId,
+                useCount = existing.useCount + 1,
+                accessTime = now,
+            ) ?: RouteRecord(
+                id = routeId,
+                shortName = shortName.orEmpty(),
+                longName = longName,
+                url = url,
+                useCount = 1,
+                accessTime = now,
+                regionId = regionId,
+            )
+        )
+    }
+
+    override suspend fun refreshRouteShortName(routeId: String, shortName: String?) {
+        val existing = dao.getRoute(routeId)
+        dao.upsert(
+            existing?.copy(shortName = shortName.orEmpty())
+                ?: RouteRecord(id = routeId, shortName = shortName.orEmpty(), useCount = 0)
+        )
+    }
 }

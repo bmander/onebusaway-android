@@ -2,6 +2,7 @@ package org.onebusaway.android.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import org.onebusaway.android.database.oba.LegacyImportDao
 import org.onebusaway.android.database.oba.NavStopRecord
 import org.onebusaway.android.database.oba.Open311ServerRecord
 import org.onebusaway.android.database.oba.RegionBoundRecord
@@ -54,4 +55,7 @@ abstract class AppDatabase : RoomDatabase() {
 
     // Region wide alerts
     abstract fun alertsDao(): AlertDao
+
+    // One-time import of the legacy ObaProvider data (storage-modernization).
+    abstract fun legacyImportDao(): LegacyImportDao
 }

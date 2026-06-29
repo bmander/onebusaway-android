@@ -15,21 +15,69 @@
  */
 package org.onebusaway.android.database.oba
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
 
-/** Room access for routes (the legacy `routes` table). */
+/** A route row projected for the My-tab lists. */
+data class RouteListRow(
+    val id: String,
+    @ColumnInfo(name = "short_name") val shortName: String,
+    @ColumnInfo(name = "long_name") val longName: String?,
+    val url: String?,
+)
+
+private const val ROUTE_REGION_SCOPE =
+    "(:regionId IS NULL OR region_id = :regionId OR region_id IS NULL)"
+
+/** Room access for routes + the My-tab recent/starred lists (the legacy `routes` table). */
 @Dao
 interface RouteDao {
 
     @Query("SELECT * FROM routes WHERE _id = :routeId LIMIT 1")
     suspend fun getRoute(routeId: String): RouteRecord?
 
+    @Query("SELECT short_name FROM routes WHERE _id = :routeId LIMIT 1")
+    suspend fun shortName(routeId: String): String?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(route: RouteRecord)
 
     @Query("UPDATE routes SET favorite = :favorite WHERE _id = :routeId")
     suspend fun setFavorite(routeId: String, favorite: Int)
+
+    // --- Recents/starred lists (reactive) ---
+
+    @Query(
+        "SELECT _id AS id, short_name, long_name, url FROM routes " +
+            "WHERE ((access_time IS NOT NULL AND access_time > :cutoff) OR use_count > 0) " +
+            "AND $ROUTE_REGION_SCOPE ORDER BY access_time DESC, use_count DESC LIMIT 20"
+    )
+    fun recents(cutoff: Long, regionId: Long?): Flow<List<RouteListRow>>
+
+    @Query(
+        "SELECT _id AS id, short_name, long_name, url FROM routes " +
+            "WHERE favorite = 1 AND $ROUTE_REGION_SCOPE ORDER BY length(short_name), short_name ASC"
+    )
+    fun starredByName(regionId: Long?): Flow<List<RouteListRow>>
+
+    @Query(
+        "SELECT _id AS id, short_name, long_name, url FROM routes " +
+            "WHERE favorite = 1 AND $ROUTE_REGION_SCOPE ORDER BY use_count DESC"
+    )
+    fun starredByFrequency(regionId: Long?): Flow<List<RouteListRow>>
+
+    // --- Recents/starred mutations ---
+
+    @Query("UPDATE routes SET use_count = 0, access_time = NULL WHERE _id = :routeId")
+    suspend fun markUnused(routeId: String)
+
+    @Query("UPDATE routes SET use_count = 0, access_time = NULL")
+    suspend fun markAllUnused()
+
+    @Query("UPDATE routes SET favorite = 0")
+    suspend fun clearAllFavorites()
 }

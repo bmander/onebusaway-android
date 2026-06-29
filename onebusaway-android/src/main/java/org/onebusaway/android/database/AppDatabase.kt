@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import org.onebusaway.android.database.oba.LegacyImportDao
 import org.onebusaway.android.database.oba.NavStopRecord
 import org.onebusaway.android.database.oba.RouteDao
+import org.onebusaway.android.database.oba.RouteHeadsignFavoriteDao
 import org.onebusaway.android.database.oba.ServiceAlertDao
 import org.onebusaway.android.database.oba.StopDao
 import org.onebusaway.android.database.oba.StopRouteFilterDao
@@ -70,4 +71,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun stopDao(): StopDao
     abstract fun routeDao(): RouteDao
     abstract fun tripDao(): TripDao
+    abstract fun routeHeadsignFavoriteDao(): RouteHeadsignFavoriteDao
 }

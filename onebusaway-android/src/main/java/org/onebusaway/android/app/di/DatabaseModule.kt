@@ -27,6 +27,7 @@ import org.onebusaway.android.database.DatabaseProvider
 import org.onebusaway.android.database.oba.LegacyDataImporter
 import org.onebusaway.android.database.oba.LegacyImportDao
 import org.onebusaway.android.database.oba.RouteDao
+import org.onebusaway.android.database.oba.RouteHeadsignFavoriteDao
 import org.onebusaway.android.database.oba.ServiceAlertDao
 import org.onebusaway.android.database.oba.StopDao
 import org.onebusaway.android.database.oba.StopRouteFilterDao
@@ -65,6 +66,10 @@ object DatabaseModule {
 
     @Provides
     fun provideTripDao(db: AppDatabase): TripDao = db.tripDao()
+
+    @Provides
+    fun provideRouteHeadsignFavoriteDao(db: AppDatabase): RouteHeadsignFavoriteDao =
+        db.routeHeadsignFavoriteDao()
 
     @Provides
     @Singleton

@@ -23,9 +23,12 @@ import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -61,13 +64,35 @@ class ArrivalsViewModel @AssistedInject constructor(
         fun create(stopId: String, ignorePersistedFilter: Boolean): ArrivalsViewModel
     }
 
-    private val _state = MutableStateFlow<ArrivalsUiState>(ArrivalsUiState.Loading)
-    val state: StateFlow<ArrivalsUiState> = _state.asStateFlow()
+    // --- Reactive state sources. The UI [state] is derived from these, so a user action updates the
+    // screen by mutating a source rather than imperatively recomputing and assigning the state. -----
+
+    /** The latest fetched snapshot (null until the first load). */
+    private val loaded = MutableStateFlow<ArrivalsData?>(null)
+
+    /** Set only when a load fails with nothing to show; cleared by any successful load. */
+    private val fatalError = MutableStateFlow<String?>(null)
 
     /**
-     * Emits the raw response after each successful load. The map panel uses this to recenter the
-     * map, move the FABs, and fire arrival-info tutorials (which need the response object) without
-     * the ViewModel itself touching Android. Empty for the standalone screen, which ignores it.
+     * The UI state: the fetched [loaded] snapshot projected through the repository's hide/show
+     * decisions. Those decisions are the store itself, observed as a flow — there is no in-memory
+     * hidden mirror to keep in sync, so a hide/un-hide from *any* surface (the swipe gesture, the
+     * alert dialog and its Undo, "show hidden alerts") is reflected here with nothing to reconcile.
+     * See #1593.
+     */
+    val state: StateFlow<ArrivalsUiState> =
+        combine(loaded, repository.alertHideState(), fatalError) { data, hideState, error ->
+            when {
+                data != null -> data.toContent(hideState)
+                error != null -> ArrivalsUiState.Error(error)
+                else -> ArrivalsUiState.Loading
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, ArrivalsUiState.Loading)
+
+    /**
+     * Emits the map-relevant snapshot after each successful load. The map panel uses this to recenter
+     * the map, move the FABs, and fire arrival-info tutorials without the ViewModel itself touching
+     * Android. Empty for the standalone screen, which ignores it.
      */
     private val _arrivalsLoaded = MutableSharedFlow<ArrivalsLoaded>(extraBufferCapacity = 1)
     val arrivalsLoaded: SharedFlow<ArrivalsLoaded> = _arrivalsLoaded.asSharedFlow()
@@ -108,13 +133,12 @@ class ArrivalsViewModel @AssistedInject constructor(
                 minutesAfter = data.minutesAfter
                 routeFilter = data.effectiveRouteFilter
                 filterLoaded = true
-                _state.value = data.toContent()
+                fatalError.value = null
+                loaded.value = data
                 repository.lastLoaded()?.let { _arrivalsLoaded.tryEmit(it) }
             },
             onFailure = { error ->
-                if (_state.value !is ArrivalsUiState.Content) {
-                    _state.value = ArrivalsUiState.Error(error.message.orEmpty())
-                }
+                if (loaded.value == null) fatalError.value = error.message.orEmpty()
             }
         )
     }
@@ -132,9 +156,9 @@ class ArrivalsViewModel @AssistedInject constructor(
 
     /** Toggles the stop favorite, updating the header optimistically and persisting. */
     fun toggleFavorite() {
-        val content = _state.value as? ArrivalsUiState.Content ?: return
+        val content = state.value as? ArrivalsUiState.Content ?: return
         val newValue = !content.header.isFavorite
-        _state.value = content.copy(header = content.header.copy(isFavorite = newValue))
+        loaded.value = loaded.value?.copy(header = content.header.copy(isFavorite = newValue))
         viewModelScope.launch { repository.setStopFavorite(content.header.stopId, newValue) }
     }
 
@@ -207,23 +231,31 @@ class ArrivalsViewModel @AssistedInject constructor(
         setRouteFilter(emptySet())
     }
 
-    /** Hides every currently shown alert (the toolbar "hide alerts" action). */
+    /** Hides every currently active alert (the toolbar "hide alerts" action). The reactive [state]
+     *  picks up the write with no refresh. */
     fun hideAllAlerts() {
-        val ids = (_state.value as? ArrivalsUiState.Content)?.alerts?.map { it.id } ?: return
+        val ids = activeSituationIds()
         if (ids.isEmpty()) return
-        viewModelScope.launch {
-            repository.hideAlerts(ids)
-            refresh()
-        }
+        viewModelScope.launch { repository.hideAlerts(ids) }
     }
 
-    /** Un-hides every alert (the "show hidden alerts" affordance). */
+    /** Un-hides every alert (the "show hidden alerts" affordance): records the active alerts as
+     *  explicitly shown, which reveals them even under the "hide all alerts" preference. */
     fun showHiddenAlerts() {
-        viewModelScope.launch {
-            repository.showAllAlerts()
-            refresh()
-        }
+        val ids = activeSituationIds()
+        if (ids.isEmpty()) return
+        viewModelScope.launch { repository.showAlerts(ids) }
     }
+
+    /** Hides a single alert row (the swipe gesture): records every situation id folded into the row
+     *  so a hide follows the content even as the feed rotates its id. See #1593. */
+    fun hideAlert(alert: AlertItem) {
+        viewModelScope.launch { repository.hideAlerts(alert.situationIds.toList()) }
+    }
+
+    /** Every situation id across the currently loaded active alerts (all grouped ids, deduped). */
+    private fun activeSituationIds(): List<String> =
+        loaded.value?.activeAlerts.orEmpty().flatMapTo(mutableSetOf()) { it.situationIds }.toList()
 
     /** The service-alert dialog's content for an alert id (read from the last good response). */
     fun alertDetails(id: String): AlertDetails? = repository.alertDetails(id)
@@ -233,38 +265,39 @@ class ArrivalsViewModel @AssistedInject constructor(
         viewModelScope.launch { repository.markAlertRead(id) }
     }
 
-    /** Hides a single alert (the dialog's Hide); the dialog's dismiss triggers the refresh. */
+    /** Hides a single alert by id (the dialog's Hide). */
     fun hideAlert(id: String) {
         viewModelScope.launch { repository.setAlertHidden(id, true) }
     }
 
-    /** Un-hides a single alert and refreshes (the dialog's Undo action). */
+    /** Un-hides a single alert by id (the dialog's Undo action). */
     fun unhideAlert(id: String) {
-        viewModelScope.launch {
-            repository.setAlertHidden(id, false)
-            refresh()
-        }
+        viewModelScope.launch { repository.setAlertHidden(id, false) }
     }
 
-    /** Hides every recorded alert (the dialog's Hide All); the dialog's dismiss triggers the refresh. */
+    /** Hides every recorded alert (the dialog's Hide All). */
     fun hideAllRecordedAlerts() {
         viewModelScope.launch { repository.hideAllRecordedAlerts() }
     }
 
-    private fun ArrivalsData.toContent() = ArrivalsUiState.Content(
-        header = header,
-        arrivals = arrivals,
-        minutesAfter = minutesAfter,
-        style = style,
-        isStale = isStale,
-        actions = actions,
-        alerts = alerts,
-        hiddenAlertCount = hiddenAlertCount,
-        routeFilterOptions = routeFilterOptions,
-        filteredRouteCount = filteredRouteCount,
-        stopCode = stopCode,
-        stopLat = stopLat,
-        stopLon = stopLon,
-        stopUserName = stopUserName
-    )
+    private fun ArrivalsData.toContent(hideState: AlertHideState): ArrivalsUiState.Content {
+        val shown = activeAlerts.filterNot { hideState.isHidden(it, hideAlertsByDefault) }
+        val hiddenCount = activeAlerts.size - shown.size
+        return ArrivalsUiState.Content(
+            header = header,
+            arrivals = arrivals,
+            minutesAfter = minutesAfter,
+            style = style,
+            isStale = isStale,
+            actions = actions,
+            alerts = shown,
+            hiddenAlertCount = hiddenCount,
+            routeFilterOptions = routeFilterOptions,
+            filteredRouteCount = filteredRouteCount,
+            stopCode = stopCode,
+            stopLat = stopLat,
+            stopLon = stopLon,
+            stopUserName = stopUserName
+        )
+    }
 }

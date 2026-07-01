@@ -24,12 +24,17 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import org.onebusaway.android.R
 import org.onebusaway.android.api.ObaApi
 import org.onebusaway.android.api.ObaApiException
+import org.onebusaway.android.app.di.PreferencesEntryPoint
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaSituation
 import org.onebusaway.android.models.ObaStop
+import org.onebusaway.android.models.contentKey
 import org.onebusaway.android.provider.loadStopUserInfo
 import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.storage.RouteHeadsignFavoritesStore
@@ -44,6 +49,53 @@ import org.onebusaway.android.util.ObaRequestErrors
 import org.onebusaway.android.util.SituationUtils
 import org.onebusaway.android.util.getRouteDisplayName
 
+/**
+ * Folds a stop's situations into active-alert rows (see #1593). Filters to the active set FIRST, then
+ * groups by [contentKey] so an expired duplicate can't become a group's representative and suppress a
+ * still-active one. Each row carries the full set of grouped ids ([AlertItem.situationIds]) so hidden
+ * state can be tracked across the feed rotating an alert's id. Pure grouping only — hidden state is
+ * derived downstream from the reactive hidden-id source — so it is JVM-unit-testable with no I/O.
+ */
+internal fun planActiveAlerts(
+    situations: List<ObaSituation>,
+    isActive: (ObaSituation) -> Boolean
+): List<AlertItem> =
+    situations.filter(isActive)
+        .groupBy { it.contentKey }
+        .map { (contentId, group) ->
+            val representative = group.first()
+            AlertItem(
+                contentId = contentId,
+                situationId = representative.id,
+                situationIds = group.mapTo(mutableSetOf()) { it.id },
+                summary = representative.summary.orEmpty(),
+                severity = severityOf(representative.severity)
+            )
+        }
+
+/** Maps an ObaSituation severity onto the three banner styles, matching the legacy SituationAlert. */
+internal fun severityOf(severity: String?): AlertSeverity = when (severity) {
+    ObaSituation.SEVERITY_NO_IMPACT -> AlertSeverity.INFO
+    ObaSituation.SEVERITY_SEVERE, ObaSituation.SEVERITY_VERY_SEVERE -> AlertSeverity.ERROR
+    else -> AlertSeverity.WARNING
+}
+
+/**
+ * The explicit per-situation hide [decisions] recorded in the store: true = hidden, false = shown.
+ * Ids absent from the map are undecided — the "hide all alerts" preference decides those. Because
+ * visibility is a total function of the map plus the preference (no write happens on load), a
+ * preference-hidden new alert is hidden the instant it's derived, with no flash. See #1593.
+ */
+data class AlertHideState(val decisions: Map<String, Boolean> = emptyMap()) {
+    /** Whether [alert] should be hidden, given the "hide all alerts" preference [hideByDefault]:
+     *  an explicit hide on any grouped id wins, then an explicit show, else the preference. */
+    fun isHidden(alert: AlertItem, hideByDefault: Boolean): Boolean = when {
+        alert.situationIds.any { decisions[it] == true } -> true
+        alert.situationIds.any { decisions[it] == false } -> false
+        else -> hideByDefault
+    }
+}
+
 /** A loaded snapshot of a stop's arrivals plus the header, actions, alerts, and filter data. */
 data class ArrivalsData(
     val arrivals: List<ArrivalInfo>,
@@ -55,8 +107,15 @@ data class ArrivalsData(
     /** The route filter actually applied (loaded from the provider when the caller passed null). */
     val effectiveRouteFilter: Set<String>,
     val actions: Map<String, ArrivalActions>,
-    val alerts: List<AlertItem>,
-    val hiddenAlertCount: Int,
+    /** Every active, de-duplicated alert for the stop — *including* hidden ones. The ViewModel
+     *  derives the shown list and hidden count by combining this with the repository's reactive
+     *  [ArrivalsRepository.alertHideState], so hiding/un-hiding updates the UI without a re-fetch
+     *  (and picks up a hide/un-hide from any other surface for free). */
+    val activeAlerts: List<AlertItem>,
+    /** The "hide all alerts" preference at load time — the default for alerts the rider hasn't
+     *  explicitly hidden or shown. Carried in the snapshot (like [style]) so the shown/hidden split
+     *  is a pure function of the snapshot plus [ArrivalsRepository.alertHideState]. */
+    val hideAlertsByDefault: Boolean,
     val routeFilterOptions: List<RouteFilterOption>,
     val filteredRouteCount: Int,
     val stopCode: String?,
@@ -100,17 +159,27 @@ interface ArrivalsRepository {
     /** Persists the arrival-info display style (the legacy "sort by" view-mode toggle). */
     suspend fun setArrivalStyle(style: Int)
 
-    /** Marks the given service alerts as hidden. */
+    /**
+     * The explicit hide/show decisions recorded in the store, re-emitting on every service-alert
+     * change. This is the single source of truth for hidden state: the ViewModel derives the
+     * shown/hidden split from it (plus the per-load preference), and a hide/un-hide from any surface
+     * (swipe, the alert dialog, "show hidden alerts") flows back here with nothing to reconcile.
+     * See #1593.
+     */
+    fun alertHideState(): Flow<AlertHideState>
+
+    /** Records the given service alerts as hidden. */
     suspend fun hideAlerts(ids: List<String>)
 
-    /** Un-hides every service alert (the "show hidden alerts" action). */
-    suspend fun showAllAlerts()
+    /** Records the given service alerts as shown — an explicit reveal that overrides the "hide all
+     *  alerts" preference (the "show hidden alerts" action). */
+    suspend fun showAlerts(ids: List<String>)
+
+    /** Records a single alert hidden/shown (the alert dialog's Hide / Undo). */
+    suspend fun setAlertHidden(id: String, hidden: Boolean)
 
     /** Stamps a single alert read (the situation dialog marks the alert read on open). */
     suspend fun markAlertRead(id: String)
-
-    /** Sets the hidden flag for a single alert (the dialog's Hide / Undo). */
-    suspend fun setAlertHidden(id: String, hidden: Boolean)
 
     /** Hides every recorded alert (the dialog's Hide All). */
     suspend fun hideAllRecordedAlerts()
@@ -212,7 +281,7 @@ class DefaultArrivalsRepository @Inject constructor(
         )
     }
 
-    private suspend fun toData(
+    private fun toData(
         snapshot: StopArrivals,
         routeFilter: Set<String>,
         isStale: Boolean,
@@ -234,7 +303,12 @@ class DefaultArrivalsRepository @Inject constructor(
             routeCount = stop?.routeIds?.size ?: 0
         )
         val routeOptions = buildRouteFilterOptions(snapshot, stop, routeFilter)
-        val (alerts, hiddenAlertCount) = buildAlerts(snapshot, routeFilter, now)
+        // Pure grouping; no store write. Hidden state is derived in the ViewModel from [alertHideState]
+        // plus [ArrivalsData.hideAlertsByDefault], so nothing on the load path can race the snapshot.
+        val activeAlerts = planActiveAlerts(
+            situations = snapshot.situations(ArrayList(routeFilter)),
+            isActive = { SituationUtils.isActiveWindowForSituation(it, now) }
+        )
         return ArrivalsData(
             arrivals = arrivals,
             header = header,
@@ -243,8 +317,9 @@ class DefaultArrivalsRepository @Inject constructor(
             isStale = isStale,
             effectiveRouteFilter = routeFilter,
             actions = buildActions(snapshot, arrivals),
-            alerts = alerts,
-            hiddenAlertCount = hiddenAlertCount,
+            activeAlerts = activeAlerts,
+            hideAlertsByDefault = PreferencesEntryPoint.get(context)
+                .getBoolean(R.string.preference_key_hide_alerts, false),
             routeFilterOptions = routeOptions,
             filteredRouteCount = routeFilter.size,
             stopCode = stop?.stopCode,
@@ -272,30 +347,6 @@ class DefaultArrivalsRepository @Inject constructor(
             blockId = snapshot.trip(arrival.tripId)?.blockId,
             isRouteFavorite = arrival.isRouteAndHeadsignFavorite
         )
-    }
-
-    /** Ports ArrivalsListFragment.refreshSituations: persist, then keep active + non-hidden. */
-    private suspend fun buildAlerts(
-        snapshot: StopArrivals,
-        routeFilter: Set<String>,
-        now: Long
-    ): Pair<List<AlertItem>, Int> {
-        val situations = snapshot.situations(ArrayList(routeFilter))
-        if (situations.isEmpty()) return emptyList<AlertItem>() to 0
-        val active = mutableListOf<AlertItem>()
-        var hiddenCount = 0
-        for (situation in situations) {
-            // Make sure this situation is recorded so read/hidden state can be tracked.
-            serviceAlertStore.ensureRecorded(situation.id)
-            val isHidden = serviceAlertStore.isHidden(situation.id)
-            if (SituationUtils.isActiveWindowForSituation(situation, now) && !isHidden) {
-                active.add(
-                    AlertItem(situation.id, situation.summary.orEmpty(), severityOf(situation.severity))
-                )
-            }
-            if (isHidden) hiddenCount++
-        }
-        return active to hiddenCount
     }
 
     private fun buildRouteFilterOptions(
@@ -360,22 +411,23 @@ class DefaultArrivalsRepository @Inject constructor(
         }
     }
 
+    override fun alertHideState(): Flow<AlertHideState> =
+        serviceAlertStore.hideDecisions().map { AlertHideState(it) }
+
     override suspend fun hideAlerts(ids: List<String>) {
-        for (id in ids) {
-            serviceAlertStore.setHidden(id, true)
-        }
+        for (id in ids) serviceAlertStore.setHidden(id, true)
     }
 
-    override suspend fun showAllAlerts() {
-        serviceAlertStore.showAll()
-    }
-
-    override suspend fun markAlertRead(id: String) {
-        serviceAlertStore.markRead(id)
+    override suspend fun showAlerts(ids: List<String>) {
+        for (id in ids) serviceAlertStore.setHidden(id, false)
     }
 
     override suspend fun setAlertHidden(id: String, hidden: Boolean) {
         serviceAlertStore.setHidden(id, hidden)
+    }
+
+    override suspend fun markAlertRead(id: String) {
+        serviceAlertStore.markRead(id)
     }
 
     override suspend fun hideAllRecordedAlerts() {
@@ -399,11 +451,5 @@ class DefaultArrivalsRepository @Inject constructor(
         const val MINUTES_AFTER_INCREMENT = 60
 
         const val MINUTES_AFTER_MAX = 1440
-
-        private fun severityOf(severity: String?): AlertSeverity = when (severity) {
-            ObaSituation.SEVERITY_NO_IMPACT -> AlertSeverity.INFO
-            ObaSituation.SEVERITY_SEVERE, ObaSituation.SEVERITY_VERY_SEVERE -> AlertSeverity.ERROR
-            else -> AlertSeverity.WARNING
-        }
     }
 }

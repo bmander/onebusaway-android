@@ -43,6 +43,7 @@ import org.onebusaway.android.database.oba.ReminderRow
 import org.onebusaway.android.database.oba.RouteListRow
 import org.onebusaway.android.database.oba.StopListRow
 import org.onebusaway.android.provider.ObaContract
+import org.onebusaway.android.provider.contentChanges
 import org.onebusaway.android.ui.arrivals.ArrivalInfo
 import org.onebusaway.android.ui.arrivals.convertArrivals
 import org.onebusaway.android.util.DisplayFormat

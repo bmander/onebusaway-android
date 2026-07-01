@@ -20,47 +20,47 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import org.onebusaway.android.R
 import org.onebusaway.android.database.oba.ServiceAlertDao
 import org.onebusaway.android.database.oba.ServiceAlertRecord
-import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.provider.ObaContract
+import org.onebusaway.android.provider.contentChanges
 
 /**
  * Persistence seam for service-alert (situation) read/hidden state. One of the storage-modernization
  * store interfaces that move the `ObaContract`/ContentProvider calls out of feature code so the
  * backing store can be swapped to Room without touching consumers. The default impl is still
  * provider-backed (Slice 0).
+ *
+ * Hidden state follows the #1593 model: writes record an *explicit* per-id decision (hidden true/false),
+ * and the "hide all alerts" preference is applied downstream in the arrivals derivation — never baked
+ * into storage — so merely opening an alert (mark-as-read) can't harden the default into a permanent
+ * hide. [hideDecisions] is the reactive single-source-of-truth the screen derives the shown/hidden
+ * split from.
  */
 interface ServiceAlertStore {
 
-    /** Records [id] if absent, without changing read/hidden state (hidden defaults from the pref). */
-    suspend fun ensureRecorded(id: String)
-
-    /** Records/updates [id] and stamps it read. */
+    /** Records/updates [id] and stamps it read (without touching its hide decision). */
     suspend fun markRead(id: String)
 
-    /** Records [id] if absent and sets its hidden flag. */
+    /** Records an explicit hide decision for [id] (true = hidden, false = shown). */
     suspend fun setHidden(id: String, hidden: Boolean)
 
-    /** Whether [id] is currently hidden. */
-    suspend fun isHidden(id: String): Boolean
-
-    /** Un-hides every recorded alert. */
-    suspend fun showAll()
-
-    /** Hides every recorded alert. */
+    /** Hides every recorded alert (the settings "hide all alerts" toggle / the dialog's Hide All). */
     suspend fun hideAll()
+
+    /** The explicit per-id hide decisions (id → isHidden), re-emitting on every change. See #1593. */
+    fun hideDecisions(): Flow<Map<String, Boolean>>
 }
 
 /** Provider-backed [ServiceAlertStore] delegating to the legacy [ObaContract.ServiceAlerts]. */
-class ProviderServiceAlertStore @Inject constructor() : ServiceAlertStore {
-
-    override suspend fun ensureRecorded(id: String) = withContext(Dispatchers.IO) {
-        ObaContract.ServiceAlerts.insertOrUpdate(id, ContentValues(), false, null)
-        Unit
-    }
+class ProviderServiceAlertStore @Inject constructor(
+    @ApplicationContext private val context: Context,
+) : ServiceAlertStore {
 
     override suspend fun markRead(id: String) = withContext(Dispatchers.IO) {
         ObaContract.ServiceAlerts.insertOrUpdate(id, ContentValues(), true, null)
@@ -72,53 +72,38 @@ class ProviderServiceAlertStore @Inject constructor() : ServiceAlertStore {
         Unit
     }
 
-    override suspend fun isHidden(id: String): Boolean = withContext(Dispatchers.IO) {
-        ObaContract.ServiceAlerts.isHidden(id)
-    }
-
-    override suspend fun showAll() = withContext(Dispatchers.IO) {
-        ObaContract.ServiceAlerts.showAllAlerts()
-        Unit
-    }
-
     override suspend fun hideAll() = withContext(Dispatchers.IO) {
         ObaContract.ServiceAlerts.hideAllAlerts()
         Unit
     }
+
+    override fun hideDecisions(): Flow<Map<String, Boolean>> =
+        context.contentChanges(ObaContract.ServiceAlerts.CONTENT_URI)
+            .map { ObaContract.ServiceAlerts.getHideDecisions() }
+            .distinctUntilChanged()
+            .flowOn(Dispatchers.IO)
 }
 
 /**
- * Room-backed [ServiceAlertStore]. Mirrors the legacy upsert semantics: a brand-new alert is recorded
- * hidden when the user's "hide all alerts" preference is on; recording an existing alert never changes
- * its read/hidden state.
+ * Room-backed [ServiceAlertStore]. Records only explicit hide decisions (the "hide all alerts"
+ * preference is applied downstream, per #1593); recording read state never changes the hide decision.
  */
 class RoomServiceAlertStore @Inject constructor(
     private val dao: ServiceAlertDao,
-    private val prefs: PreferencesRepository,
-    @ApplicationContext private val context: Context,
 ) : ServiceAlertStore {
 
-    /** The hidden value for a newly-recorded alert: 1 when "hide all alerts" is on, else null (unset). */
-    private fun defaultHidden(): Int? =
-        if (prefs.getBoolean(context.getString(R.string.preference_key_hide_alerts), false)) 1 else null
-
-    override suspend fun ensureRecorded(id: String) {
-        dao.insertIfAbsent(ServiceAlertRecord(id = id, hidden = defaultHidden()))
-    }
-
     override suspend fun markRead(id: String) {
-        dao.insertIfAbsent(ServiceAlertRecord(id = id, hidden = defaultHidden()))
+        dao.insertIfAbsent(ServiceAlertRecord(id = id, hidden = null))
         dao.updateMarkedReadTime(id, System.currentTimeMillis())
     }
 
     override suspend fun setHidden(id: String, hidden: Boolean) {
-        dao.insertIfAbsent(ServiceAlertRecord(id = id, hidden = defaultHidden()))
+        dao.insertIfAbsent(ServiceAlertRecord(id = id, hidden = null))
         dao.updateHidden(id, if (hidden) 1 else 0)
     }
 
-    override suspend fun isHidden(id: String): Boolean = dao.isHidden(id)
-
-    override suspend fun showAll() = dao.setAllHidden(0)
-
     override suspend fun hideAll() = dao.setAllHidden(1)
+
+    override fun hideDecisions(): Flow<Map<String, Boolean>> =
+        dao.hideDecisions().map { rows -> rows.associate { it.id to (it.hidden == 1) } }
 }

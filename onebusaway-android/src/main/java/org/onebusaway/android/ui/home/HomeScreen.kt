@@ -138,7 +138,7 @@ class HomeActivityActions(
     val onSheetSettled: (ArrivalsSheetState, Int) -> Unit,
     val onClearFocus: () -> Unit,
     val onArrivalsLoaded: (ArrivalsLoaded) -> Unit,
-    val onShowRouteOnMap: (String) -> Unit,
+    val onShowRouteOnMap: (routeId: String, directionStopId: String?) -> Unit,
     val onToggleSheet: () -> Unit,
     val onCancelRouteMode: () -> Unit,
 )

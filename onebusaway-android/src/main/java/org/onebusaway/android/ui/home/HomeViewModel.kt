@@ -242,10 +242,14 @@ class HomeViewModel @Inject constructor(
         emitMapDirective(MapDirective.FocusStop(stop, routes, settledSheet == ArrivalsSheetState.Expanded))
     }
 
-    /** "Show vehicles on map" — collapse the sheet (screen), then switch the map to route mode. */
-    fun requestShowRouteOnMap(routeId: String) {
+    /**
+     * "Show vehicles on map" — collapse the sheet (screen), then switch the map to route mode.
+     * [directionStopId], when non-null (the arrivals-row launch), narrows the map to the direction that
+     * serves that stop; null (other launchers) shows the whole route.
+     */
+    fun requestShowRouteOnMap(routeId: String, directionStopId: String? = null) {
         emit(SheetCommand.CollapseSheet)
-        emitMapDirective(MapDirective.ShowRoute(routeId))
+        emitMapDirective(MapDirective.ShowRoute(routeId, directionStopId))
     }
 
     /**
@@ -392,8 +396,12 @@ sealed interface MapDirective {
     /** Animate the camera to recenter on the currently focused stop (sheet expanded). */
     data class RecenterOnFocusedStop(val lat: Double, val lon: Double) : MapDirective
 
-    /** Enter route mode for the given route (the "show vehicles on map" action). */
-    data class ShowRoute(val routeId: String) : MapDirective
+    /**
+     * Enter route mode for the given route (the "show vehicles on map" action). [directionStopId]
+     * narrows to the direction serving that stop when the launch came from an arrival row; null shows
+     * the whole route.
+     */
+    data class ShowRoute(val routeId: String, val directionStopId: String? = null) : MapDirective
 
     /** Clear the map's render focus (back-press from a peeking arrivals sheet). */
     object ClearFocus : MapDirective

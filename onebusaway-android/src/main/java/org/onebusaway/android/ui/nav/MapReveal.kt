@@ -42,14 +42,39 @@ fun NavController.navigateFromHome(route: String) =
  * HOME is the NavHost start destination, so it is always on the back stack and [getBackStackEntry] is safe.
  */
 const val RESULT_MAP_ROUTE_ID = "mapReveal.routeId"
+const val RESULT_MAP_ROUTE_DIRECTION_STOP_ID = "mapReveal.routeDirectionStopId"
 const val RESULT_MAP_STOP_ID = "mapReveal.stopId"
 const val RESULT_MAP_STOP_LAT = "mapReveal.stopLat"
 const val RESULT_MAP_STOP_LON = "mapReveal.stopLon"
 
-/** Reveal the map in route mode for [routeId], popping back to HOME. */
-fun NavController.revealRouteOnMap(routeId: String) {
-    getBackStackEntry(NavRoutes.HOME).savedStateHandle[RESULT_MAP_ROUTE_ID] = routeId
+/**
+ * Reveal the map in route mode for [routeId], popping back to HOME. [directionStopId], when non-null
+ * (the arrivals "show vehicles on map" launch), narrows the map to the direction serving that stop;
+ * null shows the whole route.
+ */
+fun NavController.revealRouteOnMap(routeId: String, directionStopId: String? = null) {
+    val handle = getBackStackEntry(NavRoutes.HOME).savedStateHandle
+    handle[RESULT_MAP_ROUTE_ID] = routeId
+    handle[RESULT_MAP_ROUTE_DIRECTION_STOP_ID] = directionStopId
     popBackStack(NavRoutes.HOME, /* inclusive = */ false)
+}
+
+/** A complete route reveal read back off the HOME [SavedStateHandle]: the [routeId] and its optional
+ *  [directionStopId] anchor — the typed counterpart of the two keys [revealRouteOnMap] writes. */
+data class RouteReveal(val routeId: String, val directionStopId: String?)
+
+/**
+ * Reads and consumes a pending route reveal from the HOME [SavedStateHandle] — the symmetric typed
+ * *read* for [revealRouteOnMap], keeping both `RESULT_MAP_ROUTE_*` key names in this one file rather
+ * than re-reading them in the consumer. Both keys are cleared together (so a stale direction anchor
+ * can't linger past the reveal); returns null when no route id is present.
+ */
+fun SavedStateHandle.consumeRouteReveal(): RouteReveal? {
+    val routeId = get<String>(RESULT_MAP_ROUTE_ID)
+    val directionStopId = get<String>(RESULT_MAP_ROUTE_DIRECTION_STOP_ID)
+    set(RESULT_MAP_ROUTE_ID, null)
+    set(RESULT_MAP_ROUTE_DIRECTION_STOP_ID, null)
+    return routeId?.let { RouteReveal(it, directionStopId) }
 }
 
 /** Reveal the map focused on [stopId] at [lat]/[lon], popping back to HOME. */

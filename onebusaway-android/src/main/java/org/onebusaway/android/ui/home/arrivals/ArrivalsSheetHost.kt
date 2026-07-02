@@ -73,7 +73,7 @@ internal fun ArrivalsSheetHost(
     expandProgress: () -> Float,
     arrivalsViewModelFactory: ArrivalsViewModel.Factory,
     onArrivalsLoaded: (ArrivalsLoaded) -> Unit,
-    onShowRouteOnMap: (String) -> Unit,
+    onShowRouteOnMap: (routeId: String, directionStopId: String?) -> Unit,
     onShowTrip: (tripId: String, stopId: String) -> Unit,
     onEditReminder: (args: ReminderEditorArgs) -> Unit,
     onToggleSheet: () -> Unit,

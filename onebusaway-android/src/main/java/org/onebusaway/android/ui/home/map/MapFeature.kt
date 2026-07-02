@@ -190,7 +190,7 @@ fun MapFeature(
             when (directive) {
                 is MapDirective.RecenterOnFocusedStop ->
                     mapViewModel.recenterOnFocusedStop(directive.lat, directive.lon)
-                is MapDirective.ShowRoute -> mapViewModel.toRoute(directive.routeId)
+                is MapDirective.ShowRoute -> mapViewModel.toRoute(directive.routeId, directive.directionStopId)
                 MapDirective.ClearFocus -> mapViewModel.clearFocus()
                 is MapDirective.FocusStop ->
                     mapViewModel.focusStop(directive.stop, directive.routes, directive.overlayExpanded)

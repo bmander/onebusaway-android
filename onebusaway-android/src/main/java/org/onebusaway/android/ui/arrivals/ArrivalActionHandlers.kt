@@ -39,7 +39,8 @@ fun createArrivalActionHandler(
     activity: AppCompatActivity,
     viewModel: ArrivalsViewModel,
     currentContent: () -> ArrivalsUiState.Content?,
-    onShowRouteOnMap: (routeId: String) -> Unit,
+    // [directionStopId] is the arrival's stop, so route mode can narrow to the stop-relevant direction.
+    onShowRouteOnMap: (routeId: String, directionStopId: String?) -> Unit,
     // How to show the alert hide/undo snackbar — supplied by the host so the dialog isn't tied to a
     // specific View (the standalone activity anchors to its root; Compose hosts use a SnackbarHost).
     showUndoSnackbar: (messageRes: Int, actionRes: Int?, onAction: (() -> Unit)?) -> Unit,
@@ -67,7 +68,8 @@ fun createArrivalActionHandler(
 
     override fun onShowVehiclesOnMap(arrival: ArrivalInfo) {
         DBUtil.addRouteToDB(activity, arrival)
-        onShowRouteOnMap(arrival.routeId)
+        // Pass the arrival's stop so route mode shows only the direction (stops + vehicles) serving it.
+        onShowRouteOnMap(arrival.routeId, arrival.stopId)
     }
 
     override fun onShowTripStatus(arrival: ArrivalInfo) {

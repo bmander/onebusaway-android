@@ -16,7 +16,9 @@
  */
 package org.onebusaway.android.ui.nightlight
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import org.onebusaway.android.ui.HomeActivity
 import org.onebusaway.android.ui.nav.NavRoutes
 
@@ -32,6 +34,10 @@ import org.onebusaway.android.ui.nav.NavRoutes
 object NightLightLauncher {
 
     fun start(context: Context) {
-        context.startActivity(HomeActivity.navIntent(context, NavRoutes.NIGHT_LIGHT))
+        val intent = HomeActivity.navIntent(context, NavRoutes.NIGHT_LIGHT)
+        // startActivity from a non-Activity context (e.g. a service/receiver) requires NEW_TASK; add it
+        // only then so an Activity caller keeps the normal same-task behavior.
+        if (context !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
     }
 }

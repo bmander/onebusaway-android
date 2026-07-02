@@ -16,7 +16,9 @@
  */
 package org.onebusaway.android.ui.tripinfo
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import org.onebusaway.android.R
 import org.onebusaway.android.ui.HomeActivity
@@ -37,7 +39,11 @@ object TripInfoLauncher {
 
     /** Re-enters HomeActivity at the [NavRoutes.TRIP_INFO] reminder editor for [args]. */
     fun start(context: Context, args: ReminderEditorArgs) {
-        context.startActivity(HomeActivity.navIntent(context, NavRoutes.tripInfo(args)))
+        val intent = HomeActivity.navIntent(context, NavRoutes.tripInfo(args))
+        // startActivity from a non-Activity context (e.g. a service/receiver) requires NEW_TASK; add it
+        // only then so an Activity caller keeps the normal same-task behavior.
+        if (context !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
     }
 }
 

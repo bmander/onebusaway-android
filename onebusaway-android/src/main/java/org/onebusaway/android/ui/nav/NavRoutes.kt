@@ -35,7 +35,14 @@ data class ReminderEditorArgs(
     val stopSequence: Int = 0,
     val serviceDate: Long = 0L,
     val vehicleId: String? = null,
-)
+) {
+    init {
+        // The two required ids gate the editor (both nav paths depend on them); a blank id is a caller
+        // bug that would otherwise surface as an unresolvable route or DB lookup deep in the editor.
+        require(tripId.isNotBlank()) { "tripId must not be blank" }
+        require(stopId.isNotBlank()) { "stopId must not be blank" }
+    }
+}
 
 /**
  * Central registry of Navigation-Compose route ids and nav-arg keys. The single

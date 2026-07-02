@@ -15,9 +15,7 @@
  */
 package org.onebusaway.android.ui.tripinfo
 
-import android.content.ContentValues
 import android.content.Context
-import android.database.Cursor
 import android.net.Uri
 import android.text.format.DateUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -30,6 +28,9 @@ import org.onebusaway.android.api.contract.ReminderWebService
 import org.onebusaway.android.provider.ObaContract
 import org.onebusaway.android.provider.ProviderQueries
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.storage.RemindersStore
+import org.onebusaway.android.storage.RoutesStore
+import org.onebusaway.android.storage.StoredReminderTrip
 import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.MyTextUtils
 import org.onebusaway.android.util.ReminderUtils
@@ -97,28 +98,23 @@ class DefaultTripInfoRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val regionRepository: RegionRepository,
     private val reminderService: ReminderWebService,
+    private val routesStore: RoutesStore,
+    private val remindersStore: RemindersStore,
 ) : TripInfoRepository {
 
     override suspend fun load(args: TripInfoArgs): TripInfoData = withContext(Dispatchers.IO) {
         // If the launcher passed a route name, refresh it in the Routes table (legacy behavior).
         if (args.routeId != null && args.routeName != null) {
-            val values = ContentValues().apply { put(ObaContract.Routes.SHORTNAME, args.routeName) }
-            ObaContract.Routes.insertOrUpdate(context, args.routeId, values, false)
+            routesStore.refreshRouteShortName(args.routeId, args.routeName)
         }
-        val fromDb = context.contentResolver
-            .query(args.tripUri, PROJECTION, null, null, null)
-            ?.use { if (it.moveToFirst()) it.toExistingTrip(args) else null }
+        val fromDb = remindersStore.getTrip(args.tripId, args.stopId)?.let { toExistingTrip(it, args) }
         fromDb ?: newTrip(args)
     }
 
-    /** Merges an existing Trips row with [args] (args win), looking up any still-missing names. */
-    private fun Cursor.toExistingTrip(args: TripInfoArgs): TripInfoData {
-        val routeId = args.routeId ?: getString(COL_ROUTE_ID)
-        val departTime = if (args.departTime != 0L) {
-            args.departTime
-        } else {
-            ObaContract.Trips.convertDBToTime(getInt(COL_DEPARTURE))
-        }
+    /** Merges an existing stored reminder with [args] (args win), looking up any still-missing names. */
+    private fun toExistingTrip(stored: StoredReminderTrip, args: TripInfoArgs): TripInfoData {
+        val routeId = args.routeId ?: stored.routeId
+        val departTime = if (args.departTime != 0L) args.departTime else stored.departTimeMs
         val routeName = args.routeName ?: ReminderUtils.getRouteShortName(context, routeId)
         val stopName = args.stopName ?: ProviderQueries.stringForQuery(
             context,
@@ -129,13 +125,13 @@ class DefaultTripInfoRepository @Inject constructor(
             routeId = routeId,
             routeName = routeName,
             stopName = stopName,
-            headsign = args.headsign ?: getString(COL_HEADSIGN),
+            headsign = args.headsign ?: stored.headsign,
             departTime = departTime,
-            stopSequence = if (args.stopSequence != 0) args.stopSequence else getInt(COL_STOP_SEQUENCE),
-            serviceDate = if (args.serviceDate != 0L) args.serviceDate else getLong(COL_SERVICE_DATE),
-            vehicleId = args.vehicleId ?: getString(COL_VEHICLE_ID),
-            tripName = getString(COL_NAME).orEmpty(),
-            reminderMinutes = getInt(COL_REMINDER),
+            stopSequence = if (args.stopSequence != 0) args.stopSequence else stored.stopSequence,
+            serviceDate = if (args.serviceDate != 0L) args.serviceDate else stored.serviceDate,
+            vehicleId = args.vehicleId ?: stored.vehicleId,
+            tripName = stored.name.orEmpty(),
+            reminderMinutes = stored.reminderMinutes,
             isNewTrip = false
         )
     }
@@ -205,7 +201,19 @@ class DefaultTripInfoRepository @Inject constructor(
             context.getString(R.string.preference_key_default_reminder_time), reminderMinutes
         )
         val alarmDeletePath = requestAlarm(args, data, reminderMinutes * 60) ?: return@withContext false
-        saveTrip(args, data, reminderMinutes, tripName, alarmDeletePath)
+        remindersStore.saveTrip(
+            tripId = args.tripId,
+            stopId = args.stopId,
+            routeId = data.routeId,
+            departTimeMs = data.departTime,
+            headsign = data.headsign,
+            name = tripName,
+            reminderMinutes = reminderMinutes,
+            alarmDeletePath = alarmDeletePath,
+            serviceDate = data.serviceDate,
+            stopSequence = data.stopSequence,
+            vehicleId = data.vehicleId,
+        )
         true
     }
 
@@ -237,52 +245,8 @@ class DefaultTripInfoRepository @Inject constructor(
         }.getOrNull()
     }
 
-    private fun saveTrip(
-        args: TripInfoArgs,
-        data: TripInfoData,
-        reminderMinutes: Int,
-        tripName: String,
-        alarmDeletePath: String
-    ) {
-        val values = ContentValues().apply {
-            put(ObaContract.Trips._ID, args.tripId)
-            put(ObaContract.Trips.TRIP_ID, args.tripId)
-            put(ObaContract.Trips.STOP_ID, args.stopId)
-            put(ObaContract.Trips.ROUTE_ID, data.routeId)
-            put(ObaContract.Trips.DEPARTURE, ObaContract.Trips.convertTimeToDB(data.departTime))
-            put(ObaContract.Trips.HEADSIGN, data.headsign)
-            put(ObaContract.Trips.NAME, tripName)
-            put(ObaContract.Trips.REMINDER, reminderMinutes)
-            put(ObaContract.Trips.ALARM_DELETE_PATH, alarmDeletePath)
-            put(ObaContract.Trips.SERVICE_DATE, data.serviceDate)
-            put(ObaContract.Trips.STOP_SEQUENCE, data.stopSequence)
-            put(ObaContract.Trips.VEHICLE_ID, data.vehicleId)
-        }
-        context.contentResolver.insert(ObaContract.Trips.CONTENT_URI, values)
-    }
-
     companion object {
 
         private const val DEFAULT_REMINDER_MINUTES = 10
-
-        private val PROJECTION = arrayOf(
-            ObaContract.Trips.NAME,
-            ObaContract.Trips.REMINDER,
-            ObaContract.Trips.ROUTE_ID,
-            ObaContract.Trips.HEADSIGN,
-            ObaContract.Trips.DEPARTURE,
-            ObaContract.Trips.STOP_SEQUENCE,
-            ObaContract.Trips.SERVICE_DATE,
-            ObaContract.Trips.VEHICLE_ID
-        )
-
-        private const val COL_NAME = 0
-        private const val COL_REMINDER = 1
-        private const val COL_ROUTE_ID = 2
-        private const val COL_HEADSIGN = 3
-        private const val COL_DEPARTURE = 4
-        private const val COL_STOP_SEQUENCE = 5
-        private const val COL_SERVICE_DATE = 6
-        private const val COL_VEHICLE_ID = 7
     }
 }

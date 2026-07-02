@@ -19,16 +19,12 @@ import org.onebusaway.android.api.data.StopArrivalsDataSource
 import org.onebusaway.android.api.data.StopArrivals
 import org.onebusaway.android.api.data.RouteDataSource
 
-import android.content.ContentValues
 import android.content.Context
-import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.IOException
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.onebusaway.android.R
@@ -38,11 +34,14 @@ import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaSituation
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.models.contentKey
-import org.onebusaway.android.provider.ObaContract
-import org.onebusaway.android.provider.contentChanges
 import org.onebusaway.android.provider.loadStopUserInfo
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.RegionRepository
+import org.onebusaway.android.storage.RouteHeadsignFavoritesStore
+import org.onebusaway.android.storage.RoutesStore
+import org.onebusaway.android.storage.ServiceAlertStore
+import org.onebusaway.android.storage.StopRouteFilterStore
+import org.onebusaway.android.storage.StopsStore
 import org.onebusaway.android.util.BuildFlavorUtils
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.MyTextUtils
@@ -82,10 +81,10 @@ internal fun severityOf(severity: String?): AlertSeverity = when (severity) {
 }
 
 /**
- * The explicit per-situation hide [decisions] recorded in the DB: true = hidden (HIDDEN=1), false =
- * shown (HIDDEN=0). Ids absent from the map are undecided — the "hide all alerts" preference decides
- * those. Because visibility is a total function of the map plus the preference (no write happens on
- * load), a preference-hidden new alert is hidden the instant it's derived, with no flash. See #1593.
+ * The explicit per-situation hide [decisions] recorded in the store: true = hidden, false = shown.
+ * Ids absent from the map are undecided — the "hide all alerts" preference decides those. Because
+ * visibility is a total function of the map plus the preference (no write happens on load), a
+ * preference-hidden new alert is hidden the instant it's derived, with no flash. See #1593.
  */
 data class AlertHideState(val decisions: Map<String, Boolean> = emptyMap()) {
     /** Whether [alert] should be hidden, given the "hide all alerts" preference [hideByDefault]:
@@ -161,19 +160,29 @@ interface ArrivalsRepository {
     suspend fun setArrivalStyle(style: Int)
 
     /**
-     * The explicit hide/show decisions recorded in the DB, re-emitting on every service-alert change.
-     * This is the single source of truth for hidden state: the ViewModel derives the shown/hidden
-     * split from it (plus the per-load preference), and a hide/un-hide from any surface (swipe, the
-     * alert dialog, "show hidden alerts") flows back here with nothing to reconcile. See #1593.
+     * The explicit hide/show decisions recorded in the store, re-emitting on every service-alert
+     * change. This is the single source of truth for hidden state: the ViewModel derives the
+     * shown/hidden split from it (plus the per-load preference), and a hide/un-hide from any surface
+     * (swipe, the alert dialog, "show hidden alerts") flows back here with nothing to reconcile.
+     * See #1593.
      */
     fun alertHideState(): Flow<AlertHideState>
 
-    /** Records the given service alerts as hidden (HIDDEN=1). */
+    /** Records the given service alerts as hidden. */
     suspend fun hideAlerts(ids: List<String>)
 
-    /** Records the given service alerts as shown (HIDDEN=0) — an explicit reveal that overrides the
-     *  "hide all alerts" preference (the "show hidden alerts" action). */
+    /** Records the given service alerts as shown — an explicit reveal that overrides the "hide all
+     *  alerts" preference (the "show hidden alerts" action). */
     suspend fun showAlerts(ids: List<String>)
+
+    /** Records a single alert hidden/shown (the alert dialog's Hide / Undo). */
+    suspend fun setAlertHidden(id: String, hidden: Boolean)
+
+    /** Stamps a single alert read (the situation dialog marks the alert read on open). */
+    suspend fun markAlertRead(id: String)
+
+    /** Hides every recorded alert (the dialog's Hide All). */
+    suspend fun hideAllRecordedAlerts()
 
     /** The service-alert dialog's content for an alert id, from the last good response, or null. */
     fun alertDetails(id: String): AlertDetails?
@@ -218,6 +227,11 @@ class DefaultArrivalsRepository @Inject constructor(
     private val regionRepository: RegionRepository,
     private val routeRepository: RouteDataSource,
     private val stopArrivals: StopArrivalsDataSource,
+    private val stopRouteFilterStore: StopRouteFilterStore,
+    private val serviceAlertStore: ServiceAlertStore,
+    private val stopsStore: StopsStore,
+    private val routesStore: RoutesStore,
+    private val routeHeadsignFavoritesStore: RouteHeadsignFavoritesStore,
     private val preferences: PreferencesRepository
 ) : ArrivalsRepository {
 
@@ -234,7 +248,7 @@ class DefaultArrivalsRepository @Inject constructor(
         routeFilter: Set<String>?
     ): Result<ArrivalsData> = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val filter = routeFilter ?: ObaContract.StopRouteFilters.get(context, stopId).toSet()
+        val filter = routeFilter ?: stopRouteFilterStore.getFilter(stopId).toSet()
         var minutes = minutesAfter
         // Widen the window while the fetch is empty (or failing), matching the legacy loader.
         var result: Result<StopArrivals>
@@ -290,7 +304,7 @@ class DefaultArrivalsRepository @Inject constructor(
             routeCount = stop?.routeIds?.size ?: 0
         )
         val routeOptions = buildRouteFilterOptions(snapshot, stop, routeFilter)
-        // Pure grouping; no DB write. Hidden state is derived in the ViewModel from [alertHideState]
+        // Pure grouping; no store write. Hidden state is derived in the ViewModel from [alertHideState]
         // plus [ArrivalsData.hideAlertsByDefault], so nothing on the load path can race the snapshot.
         val activeAlerts = planActiveAlerts(
             situations = snapshot.situations(ArrayList(routeFilter)),
@@ -352,10 +366,7 @@ class DefaultArrivalsRepository @Inject constructor(
     }
 
     override suspend fun setStopFavorite(stopId: String, favorite: Boolean) {
-        withContext(Dispatchers.IO) {
-            val uri = Uri.withAppendedPath(ObaContract.Stops.CONTENT_URI, stopId)
-            ObaContract.Stops.markAsFavorite(context, uri, favorite)
-        }
+        stopsStore.setFavorite(stopId, favorite)
     }
 
     override suspend fun favoriteRoute(
@@ -365,16 +376,11 @@ class DefaultArrivalsRepository @Inject constructor(
         shortName: String?,
         longName: String?,
         favorite: Boolean
-    ) = withContext(Dispatchers.IO) {
+    ) {
         val regionId = regionRepository.region.value?.id
         // Ensure the route row exists (stamped with the current region) before marking the favorite.
-        val values = ContentValues().apply {
-            put(ObaContract.Routes.SHORTNAME, shortName)
-            put(ObaContract.Routes.LONGNAME, longName)
-            regionId?.let { put(ObaContract.Routes.REGION_ID, it) }
-        }
-        ObaContract.Routes.insertOrUpdate(context, routeId, values, true)
-        ObaContract.RouteHeadsignFavorites.markAsFavorite(context, routeId, headsign, stopId, favorite)
+        routesStore.markRouteUsed(routeId, shortName, longName, regionId)
+        routeHeadsignFavoritesStore.setFavorite(routeId, headsign, stopId, favorite)
 
         // Backfill the full route details so the long name can be shown later (was an AsyncTaskLoader).
         fetchAndStoreRouteDetails(routeId, regionId)
@@ -393,19 +399,11 @@ class DefaultArrivalsRepository @Inject constructor(
             longName = route.description
         }
 
-        val values = ContentValues().apply {
-            put(ObaContract.Routes.SHORTNAME, shortName)
-            put(ObaContract.Routes.LONGNAME, longName)
-            put(ObaContract.Routes.URL, route.url)
-            regionId?.let { put(ObaContract.Routes.REGION_ID, it) }
-        }
-        ObaContract.Routes.insertOrUpdate(context, route.id, values, true)
+        routesStore.storeRouteDetails(route.id, shortName, longName, route.url, regionId)
     }
 
     override suspend fun setRouteFilter(stopId: String, filter: Set<String>) {
-        withContext(Dispatchers.IO) {
-            ObaContract.StopRouteFilters.set(context, stopId, ArrayList(filter))
-        }
+        stopRouteFilterStore.setFilter(stopId, filter.toList())
     }
 
     override suspend fun setArrivalStyle(style: Int) {
@@ -414,29 +412,27 @@ class DefaultArrivalsRepository @Inject constructor(
         }
     }
 
-    /**
-     * Observes the service-alerts table and emits the hide/show decisions on registration and after
-     * every change. [ObaProvider] fires `notifyChange` on every alert write, so a hide/un-hide from
-     * any surface re-emits here — the single source of truth the ViewModel derives hidden state from.
-     * [distinctUntilChanged] drops re-emissions from writes that don't change the decisions (e.g.
-     * marking an alert read).
-     */
     override fun alertHideState(): Flow<AlertHideState> =
-        context.contentChanges(ObaContract.ServiceAlerts.CONTENT_URI)
-            .map { AlertHideState(ObaContract.ServiceAlerts.getHideDecisions()) }
-            .distinctUntilChanged()
-            .flowOn(Dispatchers.IO)
+        serviceAlertStore.hideDecisions().map { AlertHideState(it) }
 
-    override suspend fun hideAlerts(ids: List<String>) = setHidden(ids, hidden = true)
+    override suspend fun hideAlerts(ids: List<String>) {
+        for (id in ids) serviceAlertStore.setHidden(id, true)
+    }
 
-    override suspend fun showAlerts(ids: List<String>) = setHidden(ids, hidden = false)
+    override suspend fun showAlerts(ids: List<String>) {
+        for (id in ids) serviceAlertStore.setHidden(id, false)
+    }
 
-    private suspend fun setHidden(ids: List<String>, hidden: Boolean) {
-        withContext(Dispatchers.IO) {
-            for (id in ids) {
-                ObaContract.ServiceAlerts.insertOrUpdate(id, ContentValues(), false, hidden)
-            }
-        }
+    override suspend fun setAlertHidden(id: String, hidden: Boolean) {
+        serviceAlertStore.setHidden(id, hidden)
+    }
+
+    override suspend fun markAlertRead(id: String) {
+        serviceAlertStore.markRead(id)
+    }
+
+    override suspend fun hideAllRecordedAlerts() {
+        serviceAlertStore.hideAll()
     }
 
     override fun alertDetails(id: String): AlertDetails? =

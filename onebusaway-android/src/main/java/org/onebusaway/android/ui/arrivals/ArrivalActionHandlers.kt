@@ -27,6 +27,7 @@ import org.onebusaway.android.ui.nav.ReminderEditorArgs
 import org.onebusaway.android.report.ui.InfrastructureIssueLauncher
 import org.onebusaway.android.util.DBUtil
 import org.onebusaway.android.util.ExternalIntents
+import org.onebusaway.android.util.PreferenceUtils
 import org.onebusaway.android.util.ReminderUtils
 
 /**
@@ -122,8 +123,16 @@ fun createArrivalActionHandler(
         showSituationDialog(
             activity = activity,
             alert = alert,
+            onMarkRead = { viewModel.markAlertRead(alertId) },
+            onHide = { viewModel.hideAlert(alertId) },
+            onUnhide = { viewModel.unhideAlert(alertId) },
+            onHideAll = {
+                viewModel.hideAllRecordedAlerts()
+                PreferenceUtils.saveBoolean(
+                    activity.getString(R.string.preference_key_hide_alerts), true
+                )
+            },
             onDismiss = { isAlertHidden -> if (isAlertHidden) viewModel.manualRefresh() },
-            onUndo = { viewModel.manualRefresh() },
             showUndoSnackbar = showUndoSnackbar
         )
     }

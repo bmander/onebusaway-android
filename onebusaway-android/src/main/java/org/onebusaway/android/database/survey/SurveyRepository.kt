@@ -1,20 +1,22 @@
 package org.onebusaway.android.database.survey
 
 import android.content.Context
-import androidx.room.Room
 import org.onebusaway.android.database.AppDatabase
+import org.onebusaway.android.database.DatabaseProvider
 import org.onebusaway.android.database.survey.entity.Study
 import org.onebusaway.android.database.survey.entity.Survey
 
 /**
  * Repository class for managing Study and Survey data operations.
  * Provides methods for interacting with Study and Survey entities.
+ *
+ * Uses the shared [AppDatabase] singleton (storage-modernization) instead of a separate
+ * `study-survey-db` file; the one-time import of any pre-existing `study-survey-db` data is handled by
+ * `LegacyDataImporter.importSurveyDbIfNeeded`.
  */
 
 class SurveyRepository(context: Context) {
-    private val db: AppDatabase = Room.databaseBuilder(
-        context.applicationContext, AppDatabase::class.java, "study-survey-db"
-    ).build()
+    private val db: AppDatabase = DatabaseProvider.getDatabase(context)
 
     private val studiesDao = db.studiesDao()
     private val surveysDao = db.surveysDao()

@@ -77,7 +77,10 @@ class DefaultTripObservationFetcher @Inject constructor(
         private val dataSource: TripVehiclesDataSource
 ) : TripObservationFetcher {
 
-    /** Process-lifetime scope the coalesced fetches run on; the network calls hop to [fetchDispatcher]. */
+    /**
+     * Process-lifetime scope the coalesced fetches run on; the network calls hop to
+     * [fetchDispatcher].
+     */
     private val fetchScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     /**

@@ -73,6 +73,8 @@ class ObaSituationContentKeyTest {
         assertEquals("first", deduped[0].id)
     }
 
+    // --- fixture ---
+
     private fun situation(
         id: String,
         summary: String? = null,
@@ -85,16 +87,10 @@ class ObaSituationContentKeyTest {
         summary = summary,
         description = description,
         severity = severity,
-        activeWindows = if (from != 0L || to != 0L) arrayOf(window(from, to)) else emptyArray()
+        activeWindows =
+            if (from != 0L || to != 0L) arrayOf(FakeActiveWindow(from, to)) else emptyArray()
     )
 
-    private fun window(from: Long, to: Long): ObaSituation.ActiveWindow =
-        object : ObaSituation.ActiveWindow {
-            override val from = from
-            override val to = to
-        }
-
-    /** Minimal [ObaSituation] varying only the content fields these tests exercise. */
     private class FakeSituation(
         override val id: String,
         override val summary: String?,
@@ -104,9 +100,14 @@ class ObaSituationContentKeyTest {
     ) : ObaSituation {
         override val advice: String? = null
         override val reason: String? = null
+        override val url: String? = null
         override val creationTime: Long = 0L
         override val allAffects: Array<ObaSituation.AllAffects> = emptyArray()
         override val consequences: Array<ObaSituation.Consequence> = emptyArray()
-        override val url: String? = null
     }
+
+    private class FakeActiveWindow(
+        override val from: Long,
+        override val to: Long
+    ) : ObaSituation.ActiveWindow
 }

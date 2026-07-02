@@ -23,7 +23,7 @@ import org.onebusaway.android.models.Status
 /**
  * A minimal [ObaTripStatus] for JVM unit tests. Location-typed accessors return null by default, so
  * the android.location.Location stubs (which throw "Stub!") are never invoked — no Robolectric
- * needed. Pass [hasLocation] = true when a test needs `getLastKnownLocation()` to be non-null (e.g.
+ * needed. Pass [hasLocation] = true when a test needs `lastKnownLocation` to be non-null (e.g.
  * to exercise `isLocationRealtime`); the returned sentinel is only ever null-checked, never called.
  */
 fun testTripStatus(

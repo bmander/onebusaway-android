@@ -31,11 +31,11 @@ import org.onebusaway.android.api.contract.ObaEnvelope
 import org.onebusaway.android.api.contract.TripDetailsEntry
 import org.onebusaway.android.api.data.asRouteTrips
 import org.onebusaway.android.extrapolation.extrapolatedVehicles
-import org.onebusaway.android.models.ObaTripStatus
 import org.onebusaway.android.map.googlemapsv2.BitmapDescriptorCache
 import org.onebusaway.android.map.render.VehicleBitmaps
 import org.onebusaway.android.map.render.VehicleMarker
 import org.onebusaway.android.mock.Resources
+import org.onebusaway.android.models.ObaTripStatus
 import org.onebusaway.android.models.RouteTrips
 import java.util.concurrent.TimeUnit
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2026 Open Transit Software Foundation
+ * Copyright (C) 2024-2026 Open Transit Software Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,4 @@ package org.onebusaway.android.models
  */
 val ObaSituation.contentKey: String
     get() = listOf(summary, description, advice, reason, url, severity)
-        .joinToString(SEP) { it.orEmpty() }
-
-/** NUL separator: adjacent field values can't run together and collide across field boundaries. */
-private const val SEP = "\u0000"
+        .joinToString("\u0000") { it.orEmpty() }

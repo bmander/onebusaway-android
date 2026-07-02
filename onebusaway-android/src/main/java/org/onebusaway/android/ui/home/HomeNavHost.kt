@@ -134,8 +134,8 @@ fun HomeNavHost(
                 if (revealRouteId == null) return@LaunchedEffect
                 // Read + consume the route id and its optional direction anchor atomically via the typed
                 // helper (which owns both key names), mirroring the stop branch below.
-                val reveal = handle.consumeRouteReveal() ?: return@LaunchedEffect
-                home.mapViewModel.toRoute(reveal.routeId, reveal.directionStopId)
+                val request = handle.consumeRouteReveal() ?: return@LaunchedEffect
+                home.mapViewModel.toRoute(request)
             }
             LaunchedEffect(revealStopId) {
                 if (revealStopId == null) return@LaunchedEffect

@@ -21,6 +21,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import org.onebusaway.android.map.ShowRouteRequest
 import org.onebusaway.android.region.Region
 import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaStop
@@ -243,13 +244,12 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * "Show vehicles on map" — collapse the sheet (screen), then switch the map to route mode.
-     * [directionStopId], when non-null (the arrivals-row launch), narrows the map to the direction that
-     * serves that stop; null (other launchers) shows the whole route.
+     * "Show vehicles on map" — collapse the sheet (screen), then switch the map to route mode. The
+     * [request] carries the route and (for the arrivals-row launch) the direction stop to focus on.
      */
-    fun requestShowRouteOnMap(routeId: String, directionStopId: String? = null) {
+    fun requestShowRouteOnMap(request: ShowRouteRequest) {
         emit(SheetCommand.CollapseSheet)
-        emitMapDirective(MapDirective.ShowRoute(routeId, directionStopId))
+        emitMapDirective(MapDirective.ShowRoute(request))
     }
 
     /**
@@ -396,12 +396,8 @@ sealed interface MapDirective {
     /** Animate the camera to recenter on the currently focused stop (sheet expanded). */
     data class RecenterOnFocusedStop(val lat: Double, val lon: Double) : MapDirective
 
-    /**
-     * Enter route mode for the given route (the "show vehicles on map" action). [directionStopId]
-     * narrows to the direction serving that stop when the launch came from an arrival row; null shows
-     * the whole route.
-     */
-    data class ShowRoute(val routeId: String, val directionStopId: String? = null) : MapDirective
+    /** Enter route mode for [request]'s route (the "show vehicles on map" action). */
+    data class ShowRoute(val request: ShowRouteRequest) : MapDirective
 
     /** Clear the map's render focus (back-press from a peeking arrivals sheet). */
     object ClearFocus : MapDirective

@@ -310,19 +310,21 @@ class MapViewModel @Inject constructor(
     // ----- "Show route on map" / leave route mode (replaces ShowRoute / ExitRouteMode commands) -----
 
     /**
-     * Focus the map on [routeId] — the single entry every "show route on map" caller funnels through (the
-     * recent/starred lists, route search, the arrivals "show vehicles on map", RouteInfo). Enters route
-     * mode (loading its shape, stops, and live vehicles) and frames the route's bounding box. Re-frames
-     * even when the map is already parked on [routeId]: re-tapping it in the recent-routes list (the routes
-     * you most recently viewed) snaps the camera back to the route's extent instead of no-op'ing.
+     * Focus the map on [request]'s route — the single entry every "show route on map" caller funnels
+     * through (the recent/starred lists, route search, the arrivals "show vehicles on map", RouteInfo).
+     * Enters route mode (loading its shape, stops, and live vehicles) and frames the route's bounding
+     * box. Re-frames even when the map is already parked on that route + direction: re-tapping it in the
+     * recent-routes list snaps the camera back to the route's extent instead of no-op'ing.
      */
-    fun toRoute(routeId: String, directionStopId: String? = null) {
+    fun toRoute(request: ShowRouteRequest) {
         // Same route AND same direction anchor: just reframe (the recent-routes re-tap). A different
         // route, or the same route from a different-direction stop, re-enters with the new filter.
-        if (routeController.routeId == routeId && routeController.directionStopId == directionStopId) {
+        if (routeController.routeId == request.routeId &&
+            routeController.directionStopId == request.directionStopId
+        ) {
             mapHost.frameRoute()
         } else {
-            enterRoute(routeId, zoomToRoute = true, directionStopId = directionStopId)
+            enterRoute(request.routeId, zoomToRoute = true, directionStopId = request.directionStopId)
         }
     }
 

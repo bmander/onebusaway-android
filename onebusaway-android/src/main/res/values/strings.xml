@@ -397,6 +397,10 @@
         <item quantity="one">%1$d hidden alert</item>
         <item quantity="other"><xliff:g id="count">%1$d</xliff:g> hidden alerts</item>
     </plurals>
+    <plurals name="alert_shown_text">
+        <item quantity="one">%1$d active alert shown</item>
+        <item quantity="other"><xliff:g id="count">%1$d</xliff:g> active alerts shown</item>
+    </plurals>
     <plurals name="alert_show_more">
         <item quantity="one">%1$d more alert</item>
         <item quantity="other"><xliff:g id="count">%1$d</xliff:g> more alerts</item>

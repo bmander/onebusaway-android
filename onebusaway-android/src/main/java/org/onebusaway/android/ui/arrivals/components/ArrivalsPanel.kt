@@ -183,6 +183,7 @@ fun ArrivalsPanel(
                     handler = handler,
                     onLoadMore = viewModel::loadMore,
                     onShowAllRoutes = viewModel::showAllRoutes,
+                    onHideAllAlerts = viewModel::hideAllAlerts,
                     onShowHiddenAlerts = viewModel::showHiddenAlerts,
                     modifier = Modifier.weight(1f),
                     listState = listState,

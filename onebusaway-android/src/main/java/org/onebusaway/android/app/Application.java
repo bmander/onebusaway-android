@@ -22,7 +22,6 @@ import android.content.Context;
 import android.hardware.GeomagneticField;
 import android.location.Location;
 import android.os.Build;
-import android.os.PowerManager;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -41,7 +40,6 @@ import org.onebusaway.android.util.BuildFlavorUtils;
 import org.onebusaway.android.util.LocationUtils;
 import org.onebusaway.android.util.PreferenceUtils;
 import org.onebusaway.android.util.ThemeUtils;
-import org.onebusaway.android.widealerts.GtfsAlerts;
 
 import java.security.MessageDigest;
 import java.util.UUID;
@@ -67,8 +65,6 @@ public class Application extends android.app.Application {
     public static final String CHANNEL_DESTINATION_ALERT_ID = "destination_alerts";
 
     private DonationsManager mDonationsManager;
-
-    private GtfsAlerts mGtfsAlerts;
 
     private static Application mApp;
 
@@ -110,8 +106,6 @@ public class Application extends android.app.Application {
         initFirebaseMessaging();
 
         mDonationsManager = new DonationsManager(getApplicationContext(), getResources(), getAppLaunchCount());
-
-        mGtfsAlerts = new GtfsAlerts(getApplicationContext());
     }
 
     /**
@@ -133,10 +127,6 @@ public class Application extends android.app.Application {
     }
 
     public static DonationsManager getDonationsManager() { return get().mDonationsManager; }
-
-    public static GtfsAlerts getGtfsAlerts() {
-        return get().mGtfsAlerts;
-    }
 
 
     // Preserve the original preference-key value so persisted launch counts survive upgrades.
@@ -274,46 +264,6 @@ public class Application extends android.app.Application {
         PreferenceUtils.saveString(getString(R.string.preference_key_oba_api_url), url);
     }
 
-    /**
-     * Returns the custom OTP URL if the user has set a custom API URL manually via Preferences, or
-     * null
-     * if it has not been set
-     *
-     * @return the custom URL if the user has set a custom API URL manually via Preferences, or null
-     * if it has not been set
-     */
-    public String getCustomOtpApiUrl() {
-        return PreferenceUtils.getString(getString(R.string.preference_key_otp_api_url));
-    }
-
-    /**
-     * Sets the custom OTP URL used to reach a OBA REST API server that is not available via the
-     * Regions
-     * REST API
-     *
-     * @param url the custom URL
-     */
-    public void setCustomOtpApiUrl(String url) {
-        PreferenceUtils.saveString(getString(R.string.preference_key_otp_api_url), url);
-    }
-
-    /**
-     * @return true if the OTP url version is old, or false  if it has not been set
-     */
-    public boolean getUseOldOtpApiUrlVersion() {
-        return PreferenceUtils.getBoolean(getString(R.string.preference_key_otp_api_url_version), false);
-    }
-
-    /**
-     * Sets the OTP Api url version
-     *
-     * @param useOldOtpApiUrlVersion indicates that if otp url structure belongs to older version
-     */
-    public void setUseOldOtpApiUrlVersion(boolean useOldOtpApiUrlVersion) {
-        PreferenceUtils.saveBoolean(getString(R.string.preference_key_otp_api_url_version),
-                useOldOtpApiUrlVersion);
-    }
-
     private static final String HEXES = "0123456789abcdef";
 
     public static String getHex(byte[] raw) {
@@ -449,20 +399,6 @@ public class Application extends android.app.Application {
             manager.createNotificationChannel(channel2);
             manager.createNotificationChannel(channel3);
         }
-    }
-
-    public static Boolean isIgnoringBatteryOptimizations(Context applicationContext) {
-        PowerManager pm = (PowerManager) applicationContext.getSystemService(Context.POWER_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                pm.isIgnoringBatteryOptimizations(applicationContext.getPackageName())) {
-            return true;
-        }
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            return null;
-        }
-
-        return false;
     }
 
     private void initFirebaseMessaging() {

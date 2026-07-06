@@ -15,6 +15,7 @@
  */
 package org.onebusaway.android.map.render
 
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -55,13 +56,24 @@ data class MapPadding(val topPx: Int = 0, val bottomPx: Int = 0)
 const val DEFAULT_ROUTE_LINE_COLOR: Int = 0xFF0000FF.toInt()
 
 /**
- * One route/itinerary polyline: an ordered list of points and an optional [color]. The directional-arrow
- * stamp is a rendering detail added by the flavor renderer, so it isn't part of the state. A null [color]
+ * One route/itinerary polyline: an ordered list of points and an optional [color]. A null [color]
  * means "use the [DEFAULT_ROUTE_LINE_COLOR]" — choosing the fallback is a display decision, so producers
  * can pass a route's raw (possibly absent) GTFS color straight through and renderers draw [resolvedColor].
  * [widthDp] overrides the renderer's default line width when set (the trip-focus map draws a thicker line).
+ *
+ * [directional] asks the flavor renderer to stamp travel-direction arrows/chevrons along the line — set
+ * it only when [points] are ordered in the direction of travel and that orientation is meaningful (a
+ * single trip/leg shape, or a route narrowed to one selected direction). The whole-route merged shape,
+ * whose points aren't a single travel order, leaves it false so the line reads as undirected. Whether a
+ * renderer can honor it is flavor-specific (Google stamps a chevron texture; the maplibre classic
+ * annotation has no arrow support yet).
  */
-data class RoutePolyline(val color: Int?, val points: List<GeoPoint>, val widthDp: Float? = null) {
+data class RoutePolyline(
+    val color: Int?,
+    val points: List<GeoPoint>,
+    val widthDp: Float? = null,
+    val directional: Boolean = false,
+) {
     /** The [color] to draw, applying the [DEFAULT_ROUTE_LINE_COLOR] fallback in one place for every renderer. */
     val resolvedColor: Int get() = color ?: DEFAULT_ROUTE_LINE_COLOR
 }
@@ -115,6 +127,8 @@ data class BikeMarker(
  * One bus-stop marker. [direction]/[routeType] choose the icon + anchor; [stop] is the raw pojo
  * couriered so a tap can notify focus listeners. Whether this stop renders focused (the 1.5x icon) is
  * decided by [MapRenderSnapshot.focusedStopId], not stored here, so focusing is a one-field change.
+ * [favorite] is stored here (it's a per-stop property that changes as the user stars/unstars), driving
+ * the distinctive star icon + tap preference (#1680).
  */
 data class StopMarker(
     val id: String,
@@ -122,6 +136,7 @@ data class StopMarker(
     val direction: String,
     val routeType: Int,
     val stop: ObaStop,
+    val favorite: Boolean = false,
 )
 
 /** Immutable snapshot of everything the map should render. Grows one overlay per phase. */
@@ -202,15 +217,41 @@ class MapRenderState {
         _projector.value = projector
     }
 
-    // One-shot camera intents a controller dispatches and the flavor adapter applies against its
-    // imperative map (animateCamera/moveCamera). Buffered so the synchronous dispatch never suspends or
-    // drops under a brief burst (e.g. the vehicle poll).
-    private val _cameraCommands = MutableSharedFlow<CameraCommand>(extraBufferCapacity = 16)
+    // Transient one-shot camera gestures a controller dispatches and the flavor adapter applies against
+    // its imperative map (animateCamera/moveCamera). replay=0: a gesture dispatched with no map
+    // subscribed is meant to be discarded — it carries no lasting intent to catch a late subscriber up
+    // on (that's [framingIntent]'s job). Buffered so the synchronous dispatch never suspends or drops
+    // under a brief burst (e.g. the vehicle poll).
+    private val _cameraGestures = MutableSharedFlow<CameraCommand>(extraBufferCapacity = 16)
 
-    val cameraCommands: SharedFlow<CameraCommand> = _cameraCommands.asSharedFlow()
+    val cameraGestures: SharedFlow<CameraCommand> = _cameraGestures.asSharedFlow()
 
-    fun dispatchCamera(command: CameraCommand) {
-        _cameraCommands.tryEmit(command)
+    fun dispatchGesture(command: CameraCommand) {
+        _cameraGestures.tryEmit(command)
+    }
+
+    // The map's retained framing intent (fit route / itinerary / region / a fixed point), or null for no
+    // framing. A replay=1 SharedFlow rather than a StateFlow, for two reasons a plain StateFlow can't
+    // serve at once: (1) a fresh adapter — a config-change or process-restore recompose, or the map
+    // composed behind the directions results sheet (#1640) — replays the current framing and re-applies
+    // it, which is what lets the host drop the pendingFrameCommands / cameraCommandsSubscribed deferral
+    // machinery a replay=0 flow forced; and (2) re-emitting the *same* framing (re-tapping the shown
+    // route to snap back to its extent) still re-fires, whereas a StateFlow would swallow the identical
+    // value as a no-op. Null is emitted to clear framing when the map leaves a framed view, so a stale
+    // route fit isn't re-applied in nearby-stops mode.
+    private val _framingIntent = MutableSharedFlow<FramingIntent?>(
+        replay = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    val framingIntent: SharedFlow<FramingIntent?> = _framingIntent.asSharedFlow()
+
+    fun frame(intent: FramingIntent) {
+        _framingIntent.tryEmit(intent)
+    }
+
+    fun clearFraming() {
+        _framingIntent.tryEmit(null)
     }
 
     fun getRoutePolylines(): List<RoutePolyline> = _snapshot.value.routePolylines

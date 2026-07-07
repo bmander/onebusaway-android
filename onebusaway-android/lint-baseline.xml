@@ -16,17 +16,6 @@
     </issue>
 
     <issue
-        id="MemberExtensionConflict"
-        message="`isActive` is defined both as a member in class `kotlinx.coroutines.Job` and an extension in package `kotlinx.coroutines`. The defined behavior for this is to use the member, but since the extension is explicitly imported into this file, there&apos;s a chance that this was not expected. (One common way this happens is for members to be added to a class after code was already written to use an extension)."
-        errorLine1="        if (routeId != null &amp;&amp; vehicleJob?.isActive != true) {"
-        errorLine2="                                           ~~~~~~~~">
-        <location
-            file="src/main/java/org/onebusaway/android/map/RouteMapController.kt"
-            line="220"
-            column="44"/>
-    </issue>
-
-    <issue
         id="ComposableLambdaParameterNaming"
         message="Composable lambda parameter should be named `content`"
         errorLine1="    menu: @Composable () -> Unit = {}"
@@ -2290,61 +2279,6 @@
             file="src/main/java/org/onebusaway/android/analytics/UmamiAnalytics.java"
             line="77"
             column="17"/>
-    </issue>
-
-    <issue
-        id="UnusedIds"
-        message="The resource `R.id.listContainer` appears to be unused"
-        errorLine1="    &lt;item name=&quot;listContainer&quot; type=&quot;id&quot; />"
-        errorLine2="          ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/ids.xml"
-            line="21"
-            column="11"/>
-    </issue>
-
-    <issue
-        id="UnusedIds"
-        message="The resource `R.id.internalEmpty` appears to be unused"
-        errorLine1="    &lt;item name=&quot;internalEmpty&quot; type=&quot;id&quot; />"
-        errorLine2="          ~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/ids.xml"
-            line="22"
-            column="11"/>
-    </issue>
-
-    <issue
-        id="UnusedIds"
-        message="The resource `R.id.loading` appears to be unused"
-        errorLine1="    &lt;item name=&quot;loading&quot; type=&quot;id&quot; />"
-        errorLine2="          ~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/ids.xml"
-            line="23"
-            column="11"/>
-    </issue>
-
-    <issue
-        id="UnusedIds"
-        message="The resource `R.id.refresh_loading` appears to be unused"
-        errorLine1="    &lt;item name=&quot;refresh_loading&quot; type=&quot;id&quot; />"
-        errorLine2="          ~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/ids.xml"
-            line="24"
-            column="11"/>
-    </issue>
-
-    <issue
-        id="UnusedIds"
-        message="The resource `R.id.refresh_progress_small` appears to be unused"
-        errorLine1="    &lt;item name=&quot;refresh_progress_small&quot; type=&quot;id&quot; />"
-        errorLine2="          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/ids.xml"
-            line="25"
-            column="11"/>
     </issue>
 
     <issue

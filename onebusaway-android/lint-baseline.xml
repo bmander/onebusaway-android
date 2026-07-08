@@ -2619,28 +2619,6 @@
     <issue
         id="TypographyQuotes"
         message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="        &lt;item>What\&apos;s New?&lt;/item>"
-        errorLine2="                   ~">
-        <location
-            file="src/main/res/values/arrays.xml"
-            line="21"
-            column="20"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="        &lt;item>What\&apos;s New?&lt;/item>"
-        errorLine2="                   ~">
-        <location
-            file="src/main/res/values/arrays.xml"
-            line="29"
-            column="20"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
         errorLine1="        &lt;item>L\&apos;autobus non è passato&lt;/item>"
         errorLine2="                ~">
         <location
@@ -2658,17 +2636,6 @@
             file="src/main/res/values-it/arrays.xml"
             line="80"
             column="17"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="        &lt;item>The bus doesn\&apos;t stop here&lt;/item>"
-        errorLine2="                            ~">
-        <location
-            file="src/main/res/values/arrays.xml"
-            line="81"
-            column="29"/>
     </issue>
 
     <issue
@@ -2773,17 +2740,6 @@
     <issue
         id="TypographyQuotes"
         message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;generic_comm_error&quot;>Sorry, there was a communication error and we can\&apos;t show this"
-        errorLine2="                                                                                        ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="42"
-            column="89"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
         errorLine1="    &lt;string name=&quot;stop_not_found_error_with_region_name&quot;>Spiacenti, impossibile trovare questa fermata. Se si tratta di una scorciatoia, è possibile che il link sia obsoleto o che l\&apos;area selezionata sia errata. (La tua area è: %1$s. Cambia in \&amp;quot;Preferenze-&amp;gt;La tua area\&amp;quot;)&lt;/string>"
         errorLine2="                                                                                                                                                                                      ~">
         <location
@@ -2800,17 +2756,6 @@
         <location
             file="src/main/res/values-fi/strings.xml"
             line="44"
-            column="52"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;route_not_found_error_no_region&quot;>Sorry, that particular route can\&apos;t be found. If"
-        errorLine2="                                                   ^">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="45"
             column="52"/>
     </issue>
 
@@ -2838,17 +2783,6 @@
 
     <issue
         id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;route_not_found_error_with_region_name&quot;>Sorry, that particular route can\&apos;t be"
-        errorLine2="                                                          ^">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="51"
-            column="59"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
         message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
         errorLine1="    &lt;string name=&quot;route_not_found_error_with_region_name&quot;>Lo sentimos, esa ruta especificada no puede ser"
         errorLine2="                                                          ^">
@@ -2866,17 +2800,6 @@
         <location
             file="src/main/res/values-fi/strings.xml"
             line="56"
-            column="51"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;stop_not_found_error_no_region&quot;>Sorry, that particular stop can\&apos;t be found. If"
-        errorLine2="                                                  ^">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="57"
             column="51"/>
     </issue>
 
@@ -2904,17 +2827,6 @@
 
     <issue
         id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;stop_not_found_error_with_region_name&quot;>Sorry, that particular stop can\&apos;t be"
-        errorLine2="                                                         ^">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="63"
-            column="58"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
         message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
         errorLine1="    &lt;string name=&quot;stop_not_found_error_with_region_name&quot;>Lo sentimos, esa parada especificada no puede ser"
         errorLine2="                                                         ^">
@@ -2926,17 +2838,6 @@
 
     <issue
         id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;out_of_memory_error&quot;>Sorry, there isn\&apos;t enough available memory to handle that"
-        errorLine2="                                                        ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="70"
-            column="57"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
         message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
         errorLine1="    &lt;string name=&quot;main_help_legend_ontime&quot;>Verde significa \&amp;quot;In orario\&amp;quot;&lt;/string>"
         errorLine2="                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
@@ -2944,17 +2845,6 @@
             file="src/main/res/values-it/strings.xml"
             line="73"
             column="44"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;bad_gateway_error&quot;>%1$s\&apos;s servers are overloaded. Please excuse us!&lt;/string>"
-        errorLine2="                                          ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="74"
-            column="43"/>
     </issue>
 
     <issue
@@ -3036,17 +2926,6 @@
 
     <issue
         id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;main_help_whatsnew_title&quot;>What\&apos;s New?&lt;/string>"
-        errorLine2="                                                 ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="102"
-            column="50"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
         message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
         errorLine1="    &lt;string name=&quot;main_help_legend_ontime&quot;>Vihreä tarkoittaa \&quot;ajoissa\&quot;&lt;/string>"
         errorLine2="                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
@@ -3092,17 +2971,6 @@
     <issue
         id="TypographyQuotes"
         message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
-        errorLine1="    &lt;string name=&quot;main_help_legend_ontime&quot;>Green means \&quot;On time\&quot;&lt;/string>"
-        errorLine2="                                           ~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="106"
-            column="44"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
         errorLine1="    &lt;string name=&quot;main_help_legend_ontime&quot;>Verde significa \&quot;A tiempo\&quot;&lt;/string>"
         errorLine2="                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
@@ -3114,45 +2982,12 @@
     <issue
         id="TypographyQuotes"
         message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
-        errorLine1="    &lt;string name=&quot;main_help_legend_late&quot;>Blue means \&quot;Running late\&quot;&lt;/string>"
-        errorLine2="                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="107"
-            column="42"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
         errorLine1="    &lt;string name=&quot;main_help_legend_late&quot;>Azul significa \&quot;Llegando tarde\&quot;&lt;/string>"
         errorLine2="                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values-es/strings.xml"
             line="108"
             column="42"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
-        errorLine1="    &lt;string name=&quot;main_help_legend_early&quot;>Red means \&quot;Running early\&quot;&lt;/string>"
-        errorLine2="                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="108"
-            column="43"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;main_help_legend_scheduled&quot;>Gray means \&quot;Scheduled arrival\&quot; - We don\&apos;t know"
-        errorLine2="                                                                                        ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="109"
-            column="89"/>
     </issue>
 
     <issue
@@ -3197,17 +3032,6 @@
             file="src/main/res/values-fi/strings.xml"
             line="120"
             column="44"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;main_outofrange&quot;>You\&apos;re looking at a place outside the %1$s service area.\n\nMove"
-        errorLine2="                                       ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="124"
-            column="40"/>
     </issue>
 
     <issue
@@ -3322,17 +3146,6 @@
 
     <issue
         id="TypographyQuotes"
-        message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
-        errorLine1="    &lt;string name=&quot;feedback_log_guide&quot;>Your feedback will be sent to %1$s. If you check \&quot;Include system logs\&quot;, real-time location information from your device recorded as you approached your destination stop will be shared with %1$s so developers can improve the destination reminder feature.\n\nChange your preference for sharing system logs in Settings.&lt;/string>"
-        errorLine2="                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="314"
-            column="39"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
         message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
         errorLine1="    &lt;string name=&quot;alert_hidden_snackbar_text&quot;>L\&apos;avviso è nascosto&lt;/string>"
         errorLine2="                                                ~">
@@ -3367,28 +3180,6 @@
     <issue
         id="TypographyQuotes"
         message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
-        errorLine1="    &lt;string name=&quot;main_changelocationmode&quot;>Your current device &quot;Location method&quot; setting may fail to"
-        errorLine2="                                           ^">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="324"
-            column="44"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;route_info_no_shape_data&quot;>Sorry, map information isn\&apos;t available for this route"
-        errorLine2="                                                                       ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="337"
-            column="72"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
         errorLine1="    &lt;string name=&quot;route_favorite_options_title_star&quot;>Marcar como favorito a \&quot;%s\&quot; para:&lt;/string>"
         errorLine2="                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
@@ -3405,28 +3196,6 @@
         <location
             file="src/main/res/values-es/strings.xml"
             line="353"
-            column="56"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
-        errorLine1="    &lt;string name=&quot;route_favorite_options_title_star&quot;>Star Route \&quot;%s\&quot; for:&lt;/string>"
-        errorLine2="                                                     ~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="363"
-            column="54"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
-        errorLine1="    &lt;string name=&quot;route_favorite_options_title_unstar&quot;>Remove star from \&quot;%s\&quot; for:&lt;/string>"
-        errorLine2="                                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="364"
             column="56"/>
     </issue>
 
@@ -3494,17 +3263,6 @@
             file="src/main/res/values-it/strings.xml"
             line="443"
             column="261"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;trip_list_notrips&quot;>You don\&apos;t have any reminders.\n\nYou can create reminders by"
-        errorLine2="                                             ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="447"
-            column="46"/>
     </issue>
 
     <issue
@@ -3587,17 +3345,6 @@
     <issue
         id="TypographyQuotes"
         message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;region_load_failed_title&quot;>Couldn\&apos;t load regions&lt;/string>"
-        errorLine2="                                                   ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="520"
-            column="52"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
         errorLine1="    &lt;string name=&quot;region_dialog_message&quot;>Ti trovi nell\&apos;area di %1$s?&lt;/string>"
         errorLine2="                                                       ~">
         <location
@@ -3626,17 +3373,6 @@
             file="src/main/res/values-fi/strings.xml"
             line="560"
             column="53"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;no_play_store&quot;>Your device doesn\&apos;t have the Play Store installed. Please find"
-        errorLine2="                                                   ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="561"
-            column="52"/>
     </issue>
 
     <issue
@@ -3703,17 +3439,6 @@
             file="src/main/res/values-it/strings.xml"
             line="584"
             column="56"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="        show arrival info in the header at the top of the screen (doesn\&apos;t affect map view)"
-        errorLine2="                                                                        ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="608"
-            column="73"/>
     </issue>
 
     <issue
@@ -3796,17 +3521,6 @@
     <issue
         id="TypographyQuotes"
         message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;preferences_restore_summary&quot;>Restores from a previous backup. After selecting this option, you\&apos;ll be asked to pick a file. Please select the backup file (e.g., &quot;db.backup&quot; or &quot;%1$s.backup&quot;), which may be in your &quot;Documents&quot; folder or any location where you saved the backup.&lt;/string>"
-        errorLine2="                                                                                                                 ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="642"
-            column="114"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
         errorLine1="    &lt;string name=&quot;tutorial_opt_out_dialog_text&quot;>Desideri che vengano mostrati popup informativi per l\&apos;utilizzo di %1$s? Puoi sempre attivare e disattivare i popup nelle impostazioni, o mostrare il tutorial in seguito premendo su Aiuto.&lt;/string>"
         errorLine2="                                                                                                      ~">
         <location
@@ -3873,17 +3587,6 @@
     <issue
         id="TypographyQuotes"
         message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="        won\&apos;t be available! Go ahead?"
-        errorLine2="            ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="664"
-            column="13"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
         errorLine1="    &lt;string name=&quot;about_contributors_intro&quot;>I nostri dedicati contributori migliorano la funzionalità e l\&apos;esperienza utente dell\&apos;applicazione:&lt;/string>"
         errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
@@ -3906,28 +3609,6 @@
     <issue
         id="TypographyQuotes"
         message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;ri_open_camera_problem&quot;>Camera couldn\&apos;t be opened.&lt;/string>"
-        errorLine2="                                                        ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="719"
-            column="57"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;ri_resize_image_problem&quot;>Image couldn\&apos;t be resized - using full size.&lt;/string>"
-        errorLine2="                                                        ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="720"
-            column="57"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
         errorLine1="    &lt;string name=&quot;tripplanner_no_contact&quot;>Non c\&apos;è un contatto per la pianificazione del viaggio in ques\&apos;area.&lt;/string>"
         errorLine2="                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
@@ -3945,17 +3626,6 @@
             file="src/main/res/values-pl/strings.xml"
             line="760"
             column="54"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="        couldn\&apos;t see you in the dark? Hold up your flashing Night Light and make yourself visible!"
-        errorLine2="               ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="798"
-            column="16"/>
     </issue>
 
     <issue
@@ -4004,17 +3674,6 @@
 
     <issue
         id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="        if the bus is early (red) or late (blue). On time = green background. If we don\&apos;t know"
-        errorLine2="                                                                                        ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="817"
-            column="89"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
         message="Replace straight quotes (&apos;&apos;) with directional quotes (‘’, &amp;#8216; and &amp;#8217;) ?"
         errorLine1="    &lt;string name=&quot;preferences_reset_donation_timestamps_summary&quot;>Dotknięcie tej opcji spowoduje wyczyszczenie znaczników czasu \&apos;Przypomnij mi później\&apos; i \&apos;Nie przeszkadzaj mi\&apos; związanych z prośbami o darowizny.&lt;/string>"
         errorLine2="                                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
@@ -4027,56 +3686,12 @@
     <issue
         id="TypographyQuotes"
         message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;tutorial_recent_stops_routes_text&quot;>Find the stops and routes that you\&apos;ve recently"
-        errorLine2="                                                                                        ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="831"
-            column="89"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;tutorial_welcome_map_stop_title&quot;>Here\&apos;s a stop&lt;/string>"
-        errorLine2="                                                        ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="838"
-            column="57"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;about_contributors_intro&quot;>Our dedicated contributors improve the app\&apos;s functionality and user experience:&lt;/string>"
-        errorLine2="                                                                                       ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="857"
-            column="88"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
         errorLine1="    &lt;string name=&quot;donation_dismiss_dialog_body&quot;>%1$s è un\&apos;organizzazione gestita da volontari con quasi nessun finanziamento. Abbiamo bisogno del tuo aiuto per mantenere questa app in funzione.&lt;/string>"
         errorLine2="                                                          ~">
         <location
             file="src/main/res/values-it/strings.xml"
             line="922"
             column="59"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;tripplanner_error_path_not_found&quot;>Couldn\&apos;t find a matching route between origin and destination&lt;/string>"
-        errorLine2="                                                           ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="924"
-            column="60"/>
     </issue>
 
     <issue
@@ -4147,50 +3762,6 @@
 
     <issue
         id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;donation_dismiss_dialog_title&quot;>Please don\&apos;t dismiss this request&lt;/string>"
-        errorLine2="                                                            ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="1126"
-            column="61"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;donation_dismiss_dialog_dont_want_to_help_button&quot;>I Don\&apos;t Want to Help&lt;/string>"
-        errorLine2="                                                                          ~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="1129"
-            column="75"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace apostrophe (&apos;) with typographic apostrophe (’, &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;donation_learn_more_explanation&quot; tools:ignore=&quot;TypographyOther&quot;>We have big plans to improve %1$s, but we can\&apos;t do it without your help. This app is currently built with 100%% volunteer labor, and we need you to help us fund future development.\n\nAs a key project of the Open Transit Software Foundation, a 501(c)(3) non-profit, we rely on the goodwill of users like you to keep running and making this software better.\n\nEvery year, only a small fraction of our users donate, but every contribution, big or small, helps ensure that %1$s remains free, updated, and accessible to everyone. A small donation, even just the cost of one week of commuting, $27.50, can make all the difference.\n\nYour tax-deductible contribution ensures that %1$s remains free and accessible for everyone. Let\&apos;s shape the future of transit together!\n\nThank you,\nThe %1$s Team&lt;/string>"
-        errorLine2="                                                                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="1135"
-            column="83"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
-        message="Replace straight quotes (&apos;&apos;) with directional quotes (‘’, &amp;#8216; and &amp;#8217;) ?"
-        errorLine1="    &lt;string name=&quot;preferences_reset_donation_timestamps_summary&quot;>Tapping this option will clear both the \&apos;Remind Me Later\&apos; and \&apos;Don\&apos;t Bother Me\&apos; timestamps associated with donation requests.&lt;/string>"
-        errorLine2="                                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values/strings.xml"
-            line="1137"
-            column="66"/>
-    </issue>
-
-    <issue
-        id="TypographyQuotes"
         message="Replace straight quotes (&quot;) with directional quotes (“”, &amp;#8220; and &amp;#8221;) ?"
         errorLine1="    &lt;string name=&quot;feedback_log_guide&quot;>Tus comentarios serán enviados a %1$s. Si marcas \&quot;Incluir registros del sistema\&quot;, la información de ubicación en tiempo real de tu dispositivo registrada al acercarte a tu parada de destino será compartida con %1$s para que los desarrolladores puedan mejorar la función de recordatorio de destino.\n\nCambia tu preferencia para compartir registros del sistema en Configuración.&lt;/string>"
         errorLine2="                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
@@ -4206,6 +3777,7 @@
         <location
             file="src/main/res/drawable-nodpi/wmata.jpg"/>
     </issue>
+
 
 
 </issues>

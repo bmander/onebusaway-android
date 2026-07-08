@@ -32,7 +32,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
+import org.onebusaway.android.donations.DonationsManager
 import org.onebusaway.android.map.StopsMapController
 import org.onebusaway.android.preferences.PreferencesRepository
 import org.onebusaway.android.region.Region
@@ -55,9 +55,10 @@ sealed interface AdvancedSettingsEffect {
  */
 @HiltViewModel
 class AdvancedSettingsViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val prefs: PreferencesRepository,
     private val regionRepository: RegionRepository,
+    private val donationsManager: DonationsManager,
 ) : ViewModel() {
 
     init {
@@ -158,8 +159,8 @@ class AdvancedSettingsViewModel @Inject constructor(
     }
 
     fun onResetDonationTimestamps() {
-        Application.getDonationsManager().setDonationRequestReminderDate(null)
-        Application.getDonationsManager().setDonationRequestDismissedDate(null)
+        donationsManager.setDonationRequestReminderDate(null)
+        donationsManager.setDonationRequestDismissedDate(null)
     }
 }
 

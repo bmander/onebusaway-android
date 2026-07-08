@@ -16,6 +16,8 @@
 package org.onebusaway.android.map.googlemapsv2
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Color
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
@@ -39,6 +41,7 @@ import org.onebusaway.android.map.render.BikeMarker
 import org.onebusaway.android.map.render.CorrectionSmoother
 import org.onebusaway.android.map.render.GeoPoint
 import org.onebusaway.android.map.render.MapRenderState
+import org.onebusaway.android.map.render.MarkerRendering
 import org.onebusaway.android.map.render.MapVehicles
 import org.onebusaway.android.map.render.StopBand
 import org.onebusaway.android.map.render.StopIconKind
@@ -88,6 +91,9 @@ class GoogleMapRenderer(
     private var renderedFocusedStopId: String? = null
     // The zoom band the stop icons were last drawn for (full icon vs dot); see [reconcileStopMarkers].
     private var renderedStopBand = StopBand.FULL
+    // The stop ids drawn as starred (favorite) last reconcile, so a star/unstar flips the icon (+ tap
+    // z-index) even when focus and band are unchanged; see [reconcileStopMarkers].
+    private var renderedFavoriteStopIds: Set<String> = emptySet()
 
     private val bikeByMarker = HashMap<Marker, BikeMarker>()
 
@@ -149,8 +155,27 @@ class GoogleMapRenderer(
     // used.)
     private val arrowStamp: TextureStyle by lazy {
         TextureStyle.newBuilder(
-            BitmapDescriptorFactory.fromResource(R.drawable.ic_navigation_expand_more)
+            // Render the (vector) chevron to a bitmap; BitmapDescriptorFactory.fromResource can't
+            // rasterize a VectorDrawable. The stamp scales to the polyline width, so [glyphScale]
+            // (not the bitmap size) controls how large the chevron reads by filling more of the tile.
+            // The stamp is color-independent (white); the per-polyline color comes from the
+            // StrokeStyle above. keyboard_arrow_down is a neutral black template, so tint it white here.
+            BitmapDescriptorFactory.fromBitmap(
+                vectorToBitmap(R.drawable.keyboard_arrow_down, 36, glyphScale = 1.7f, tint = Color.WHITE)
+            )
         ).build()
+    }
+
+    /**
+     * Rasterizes a drawable (vector or raster) into a square [sizeDp]-dp bitmap at screen density.
+     * [glyphScale] zooms the glyph within the tile (>1 fills more of it, cropping the transparent
+     * margin); used to enlarge the polyline arrow stamp without widening the line. [tint], when set,
+     * recolors the glyph (the stamp texture carries its own color, independent of the line).
+     */
+    private fun vectorToBitmap(resId: Int, sizeDp: Int, glyphScale: Float = 1f, tint: Int? = null): Bitmap {
+        val sizePx = (sizeDp * density).toInt()
+        val inset = (sizePx * (1f - glyphScale) / 2f).toInt()
+        return MarkerRendering.rasterize(context, resId, sizePx, tint, inset)
     }
 
     // Wraps each distinct marker icon in a BitmapDescriptor exactly once, keyed by a stable logical id, so
@@ -181,9 +206,14 @@ class GoogleMapRenderer(
 
         for (polyline in snapshot.routePolylines) {
             val width = polyline.widthDp?.let { it * density } ?: DEFAULT_ROUTE_WIDTH_PX
+            // Stamp travel-direction chevrons only when the line asked for them (a single trip/leg or a
+            // route narrowed to one direction); an undirected whole-route shape draws a plain stroke.
+            val stroke = StrokeStyle.colorBuilder(polyline.resolvedColor)
+                .apply { if (polyline.directional) stamp(arrowStamp) }
+                .build()
             val options = PolylineOptions()
                 .width(width)
-                .addSpan(StyleSpan(StrokeStyle.colorBuilder(polyline.resolvedColor).stamp(arrowStamp).build()))
+                .addSpan(StyleSpan(stroke))
             for (point in polyline.points) options.add(point.toLatLng())
             staticPolylines.add(map.addPolyline(options))
         }
@@ -254,7 +284,7 @@ class GoogleMapRenderer(
             }
         }
         for (stop in stops) {
-            val kind = stopIconKind(stop.id == focusedStopId, band)
+            val kind = stopIconKind(stop.id == focusedStopId, band, stop.favorite)
             val existing = stopMarkersByStopId[stop.id]
             if (existing == null) {
                 val (anchorX, anchorY) = stopAnchor(stop, kind)
@@ -264,32 +294,48 @@ class GoogleMapRenderer(
                         .icon(stopIcon(stop, kind))
                         .flat(true)
                         .anchor(anchorX, anchorY)
+                        // A starred stop sits above its neighbours so it wins an overlapping tap (#1680).
+                        .zIndex(if (stop.favorite) FAVORITE_STOP_Z_INDEX else 0f)
                 )!!
                 stopMarkersByStopId[stop.id] = marker
                 stopByMarker[marker] = stop
-            } else if (stopIconKind(stop.id == renderedFocusedStopId, renderedStopBand) != kind) {
+            } else if (stopIconKind(
+                    stop.id == renderedFocusedStopId,
+                    renderedStopBand,
+                    stop.id in renderedFavoriteStopIds,
+                ) != kind
+            ) {
                 // Only the markers whose icon kind changed need a new icon (and matching anchor: the
-                // full icon is anchored on its circle per direction, the dot at the marker center).
+                // full icon is anchored on its circle per direction, the dot/star at the marker center).
                 existing.setIcon(stopIcon(stop, kind))
                 val (anchorX, anchorY) = stopAnchor(stop, kind)
                 existing.setAnchor(anchorX, anchorY)
+                existing.zIndex = if (stop.favorite) FAVORITE_STOP_Z_INDEX else 0f
             }
         }
         renderedFocusedStopId = focusedStopId
         renderedStopBand = band
+        renderedFavoriteStopIds = buildSet { for (s in stops) if (s.favorite) add(s.id) }
     }
 
     private fun stopIcon(stop: StopMarker, kind: StopIconKind): BitmapDescriptor = when (kind) {
-        StopIconKind.FULL -> StopIconFactory.stopIcon(stop.direction, stop.routeType)
-        StopIconKind.FULL_FOCUSED -> StopIconFactory.focusedStopIcon(stop.direction, stop.routeType)
-        StopIconKind.DOT -> StopIconFactory.dotStopIcon()
-        StopIconKind.DOT_FOCUSED -> StopIconFactory.focusedDotStopIcon()
+        StopIconKind.FULL -> StopIconFactory.stopIcon(context, stop.direction, stop.routeType)
+        StopIconKind.FULL_FOCUSED -> StopIconFactory.focusedStopIcon(context, stop.direction, stop.routeType)
+        StopIconKind.DOT -> StopIconFactory.dotStopIcon(context)
+        StopIconKind.DOT_FOCUSED -> StopIconFactory.focusedDotStopIcon(context)
+        StopIconKind.FAVORITE -> StopIconFactory.favoriteStopIcon(context, stop.direction)
+        StopIconKind.FAVORITE_FOCUSED -> StopIconFactory.focusedFavoriteStopIcon(context, stop.direction)
+        StopIconKind.FAVORITE_DOT -> StopIconFactory.favoriteDotStopIcon(context)
+        StopIconKind.FAVORITE_DOT_FOCUSED -> StopIconFactory.focusedFavoriteDotStopIcon(context)
     }
 
     private fun stopAnchor(stop: StopMarker, kind: StopIconKind): Pair<Float, Float> =
         when (kind) {
-            StopIconKind.DOT, StopIconKind.DOT_FOCUSED -> 0.5f to 0.5f
-            else -> StopIconFactory.anchorX(stop.direction) to StopIconFactory.anchorY(stop.direction)
+            // The full directional icon is anchored on its circle per direction. The dot and every star
+            // (its star is centered, with the arrow drawn symmetrically around it) are centered.
+            StopIconKind.FULL, StopIconKind.FULL_FOCUSED ->
+                StopIconFactory.anchorX(stop.direction) to StopIconFactory.anchorY(stop.direction)
+            else -> 0.5f to 0.5f
         }
 
     /**
@@ -307,6 +353,7 @@ class GoogleMapRenderer(
         stopMarkersByStopId.clear()
         stopByMarker.clear()
         renderedFocusedStopId = null
+        renderedFavoriteStopIds = emptySet()
 
         vehicleMarkersByTripId.values.forEach { it.remove() }
         vehicleMarkersByTripId.clear()
@@ -459,6 +506,8 @@ class GoogleMapRenderer(
                     MarkerOptions()
                         .position(vehicle.point.toLatLng())
                         .icon(vehicleIcon(vehicle, response))
+                        // Anchor the pin tip (not the padded bitmap edge) on the vehicle location.
+                        .anchor(VehicleBitmaps.ANCHOR_U, VehicleBitmaps.ANCHOR_V)
                         .title(vehicleTitle(vehicle, response))
                         .zIndex(VEHICLE_Z_INDEX)
                 )!!
@@ -605,6 +654,11 @@ class GoogleMapRenderer(
 
         // z-index used to show vehicle markers on top of stop markers (default marker z-index is 0).
         private const val VEHICLE_Z_INDEX = 1f
+
+        // A starred stop draws just above normal stops (default z-index 0) but below vehicles, so it wins
+        // an overlapping tap over a neighbouring plain stop — the "tap preference" of #1680. gms dispatches
+        // an overlapping-marker click to the highest z-index marker.
+        private const val FAVORITE_STOP_Z_INDEX = 0.5f
 
         // The uncertainty band draws above the static route line; the estimate markers above the band,
         // each at a distinct z-index so overlapping ones keep a stable draw order (no per-frame alpha

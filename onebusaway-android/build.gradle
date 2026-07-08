@@ -139,10 +139,18 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Backport java.time.* (API 26) to minSdk 23. See issue #1693.
+        coreLibraryDesugaringEnabled true
     }
     kotlin {
         compilerOptions {
             jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+            // Promote Kotlin warnings to errors, but only when -PwarningsAsErrors=true is passed (CI
+            // does; see .github/workflows/android.yml). Local builds default to off, so a Kotlin/AGP
+            // bump that introduces new warnings can't block day-to-day work — it surfaces in CI
+            // instead, where it's addressed. The codebase is at zero warnings as of #1692.
+            allWarningsAsErrors = providers.gradleProperty("warningsAsErrors")
+                .map { it.toBoolean() }.orElse(false)
         }
     }
     testOptions {
@@ -150,7 +158,43 @@ android {
     }
     namespace='org.onebusaway.android'
     lint {
-        disable 'MissingTranslation', 'ExtraTranslation'
+        // Categories we opt out of wholesale rather than baseline entry-by-entry. The baseline pins
+        // each finding to a file+line+code snippet; for high-count, non-actionable checks that's ~750
+        // brittle lines that churn on every edit (and silently absorb NEW debt on regen) with no upside,
+        // since we don't intend to ratchet these to zero. Disabling by id is stable, self-documenting,
+        // and still lets the baseline do its job for the checks we DO drive down.
+        //   MissingTranslation / ExtraTranslation: managed by our translation workflow, not lint.
+        //   LogNotTimber: this project intentionally uses android.util.Log, not Timber — a
+        //     library-preference nudge, not a correctness signal (~190 hits).
+        //   UnknownNullness: asks legacy .java APIs for @Nullable/@NonNull. Kotlin encodes nullness in
+        //     the type, so these self-resolve as the Java→Kotlin port proceeds; annotating code on its
+        //     way out is churn (257 hits, .java only).
+        //   SyntheticAccessor: micro-perf nudge about synthetic accessors for cross-class private
+        //     access. Not a correctness signal, and Kotlin emits them idiomatically (153 of 174 hits).
+        //   LogConditional: wants every Log.* wrapped in if (BuildConfig.DEBUG); stylistic, and it
+        //     conflicts with the deliberate android.util.Log policy above (25 hits).
+        //   InvalidPackage: fires inside the grpc-core dependency jar (javax.naming), not our source —
+        //     nothing for us to fix (2 hits).
+        disable 'MissingTranslation', 'ExtraTranslation', 'LogNotTimber',
+            'UnknownNullness', 'SyntheticAccessor', 'LogConditional', 'InvalidPackage'
+        // Run the FULL lint catalog — including checks that are off by default and library-provided
+        // ones (Compose, UseKtx, …) — so the checked set is comprehensive and current for the installed
+        // lint, not just its (drifting) default-enabled subset. Pre-existing hits are grandfathered by
+        // the baseline below; only NEW issues are reported.
+        checkAllWarnings true
+        // Checked-in record of the issues present when it was generated. New issues aren't in it, so
+        // they're reported (and, under -PwarningsAsErrors, fail the build). After an AGP/lint bump that
+        // adds/changes checks, regenerate it: delete the file and re-run lint (it recreates + passes).
+        baseline = file('lint-baseline.xml')
+        // Fail the build (and CI, #1692) on any lint error — notably NewApi minSdk violations,
+        // which compile + API-33 instrumented tests can't catch.
+        abortOnError true
+        // Under -PwarningsAsErrors=true (CI passes it; see .github/workflows/android.yml), promote lint
+        // warnings to errors too, matching the Kotlin-compiler gate above. Local builds default to off so
+        // an AGP/lint bump that adds new (non-baselined) warnings surfaces in CI rather than blocking
+        // day-to-day work.
+        warningsAsErrors = project.hasProperty('warningsAsErrors') &&
+            project.property('warningsAsErrors') == 'true'
     }
 
     useLibrary 'android.test.runner'
@@ -222,6 +266,8 @@ configurations {
 }
 
 dependencies {
+    // Core library desugaring: backports java.time.* to minSdk 23 (issue #1693)
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
     // Firebase Analytics
     implementation 'com.google.firebase:firebase-core:21.1.1'
     implementation 'com.google.firebase:firebase-analytics:22.1.2'
@@ -284,6 +330,7 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
     // Unit tests - seems like this is still necessary w/ Android X even though useLibrary is declared earlier
     androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
     androidTestImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1'
     // WorkManager (Java only)
     implementation 'androidx.work:work-runtime:2.9.1'

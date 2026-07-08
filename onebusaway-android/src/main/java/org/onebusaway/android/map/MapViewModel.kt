@@ -32,6 +32,7 @@ import org.onebusaway.android.models.ObaRoute
 import org.onebusaway.android.models.ObaStop
 import org.onebusaway.android.models.RouteMapDirection
 import org.onebusaway.android.api.data.MapDataSource
+import org.onebusaway.android.database.oba.StopDao
 import org.onebusaway.android.extrapolation.data.TripObservationRepository
 import org.onebusaway.android.models.ObaTripStatus
 import org.onebusaway.android.map.bike.BikeStationsRepository
@@ -98,7 +99,8 @@ class MapViewModel @Inject constructor(
     private val locationRepository: LocationRepository,
     private val prefsRepository: PreferencesRepository,
     private val tripObservationRepository: TripObservationRepository,
-    @ApplicationContext private val context: Context,
+    private val stopDao: StopDao,
+    @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     // The flavor-neutral map surface: render state + camera + padding + generic markers +
@@ -136,6 +138,9 @@ class MapViewModel @Inject constructor(
                 StopsMapController.DEFAULT_STOP_CACHE_SIZE,
             )
         },
+        // The home map stars the user's favorite stops (#1680). Room runs the query off the main thread
+        // and re-emits on any favorite change, so starring a stop updates the map immediately.
+        favoriteStopIds = stopDao.favoriteStopIds().map { it.toSet() },
     )
 
     // ----- Map-host surface (delegated) -----
@@ -283,6 +288,10 @@ class MapViewModel @Inject constructor(
         stopsController.clearStops(false)
         mapHost.setProgress(false)
         mapHost.setMoreStopsAvailable(false)
+        // Drop any retained framing (route/itinerary/region fit) so it isn't replayed onto the next view
+        // — e.g. a stale route fit re-applied when a re-created adapter re-subscribes in nearby-stops
+        // mode. The view we enter next sets its own framing (or none, for nearby stops).
+        mapHost.clearFraming()
     }
 
     // ----- Focus + taps (delegated to [stopsController], except the vehicle selection) -----
@@ -306,7 +315,7 @@ class MapViewModel @Inject constructor(
 
     /** Recenter on the focused stop after the arrivals sheet expands over it (a Home map directive). */
     fun recenterOnFocusedStop(lat: Double, lon: Double) {
-        mapHost.dispatchCamera(
+        mapHost.dispatchGesture(
             CameraCommand.Recenter(lat, lon, animate = true, applyRouteBias = routeController.isActive)
         )
     }

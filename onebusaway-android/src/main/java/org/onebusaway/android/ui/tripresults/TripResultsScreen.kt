@@ -63,9 +63,9 @@ import android.os.Build
 import android.os.Bundle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
+import org.onebusaway.android.notifications.NotificationChannels
 import org.onebusaway.android.app.di.PreferencesEntryPoint
-import org.onebusaway.android.directions.realtime.RealtimeService
+import org.onebusaway.android.directions.realtime.RealtimeChecker
 import org.onebusaway.android.directions.util.OTPConstants
 import org.onebusaway.android.map.DirectionsMapViewModel
 import org.onebusaway.android.map.compose.NoOpObaMapCallbacks
@@ -253,14 +253,14 @@ private fun maybeStartTripUpdates(activity: Activity, itineraries: List<Itinerar
     val context = activity.applicationContext
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channel = manager.getNotificationChannel(Application.CHANNEL_TRIP_PLAN_UPDATES_ID)
+        val channel = manager.getNotificationChannel(NotificationChannels.TRIP_PLAN_UPDATES_ID)
         if (channel != null && channel.importance != NotificationManager.IMPORTANCE_NONE) {
-            RealtimeService.start(activity, bundle)
+            RealtimeChecker.start(activity, bundle)
         }
     } else if (PreferencesEntryPoint.get(context)
             .getBoolean(R.string.preference_key_trip_plan_notifications, true)
     ) {
-        RealtimeService.start(activity, bundle)
+        RealtimeChecker.start(activity, bundle)
     }
 }
 

@@ -17,6 +17,7 @@ package org.onebusaway.android.api.net
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,7 +35,7 @@ import org.onebusaway.android.region.RegionRepository
  */
 @Singleton
 class ObaEndpointResolver @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val regionRepository: RegionRepository,
     private val preferences: PreferencesRepository,
 ) {
@@ -49,9 +50,9 @@ class ObaEndpointResolver @Inject constructor(
         val raw = custom?.takeIf { it.isNotEmpty() } ?: regionRepository.region.value?.obaBaseUrl
         ?: return null
         // A scheme-less custom URL is assumed to be https (#126).
-        val withScheme = if (Uri.parse(raw).scheme != null) raw
+        val withScheme = if (raw.toUri().scheme != null) raw
         else context.getString(R.string.https_prefix) + raw
-        return Uri.parse(withScheme)
+        return withScheme.toUri()
     }
 
     /** The OBA API key appended to every request. */
@@ -60,7 +61,8 @@ class ObaEndpointResolver @Inject constructor(
     /** The app version code (`app_ver`) — a build constant, so no per-request lookup. */
     val appVersion: Int get() = BuildConfig.VERSION_CODE
 
-    /** The persisted per-install app UID (`app_uid`), generated once at app startup. Invariant per
-     * process, so read once at construction rather than on every request. */
+    /** The persisted per-install app UID (`app_uid`), seeded eagerly in `Application.onCreate` (it has
+     * other direct readers too, e.g. the Open311 report path). Invariant per process, so read once at
+     * construction rather than on every request. */
     val appUid: String? = preferences.getString(ObaApi.APP_UID, null)
 }

@@ -29,8 +29,8 @@ import org.onebusaway.android.ui.common.Shortcuts;
 import java.util.concurrent.atomic.AtomicReference;
 
 import androidx.core.content.pm.ShortcutInfoCompat;
-import androidx.test.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
@@ -55,7 +55,7 @@ public class ShortcutIntentFlagsTest {
         final AtomicReference<ShortcutInfoCompat> shortcutRef = new AtomicReference<>();
 
         instr.runOnMainSync(() -> shortcutRef.set(
-                Shortcuts.makeShortcutInfo(themed, "test", destIntent, R.drawable.ic_drawer_star)));
+                Shortcuts.makeShortcutInfo(themed, "test", destIntent, R.drawable.star)));
 
         Intent shortcutIntent = shortcutRef.get().getIntent();
         int flags = shortcutIntent.getFlags();

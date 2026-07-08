@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// Classic annotation API (Marker/Polyline/Icon/IconFactory) is deprecated in maplibre 11.x but still
+// functional; file-level so the deprecated *imports* are covered too. Migration tracked in #1728.
+@file:Suppress("DEPRECATION")
+
 package org.onebusaway.android.map.maplibre
 
 import android.content.Context
@@ -69,6 +73,11 @@ import org.onebusaway.android.util.getRouteDisplayName
  *
  * maplibre markers have no per-marker anchor and the classic info window is title/snippet, so the rich
  * Google Compose info windows degrade to a title + snippet here (a deliberate flavor gap).
+ *
+ * The classic annotation API (Marker/Polyline/Icon/IconFactory) is deprecated in maplibre 11.x but
+ * still fully functional. This whole renderer — and the tap/info-window layer it feeds — is built on
+ * it, and the replacement (SymbolManager/LineManager) has no info-window support, so migrating is a
+ * feature-level rewrite (tracked in #1728), not a lint fix. Suppressed file-wide (see the top).
  */
 class MapLibreRenderer(
     private val map: MapLibreMap,
@@ -86,6 +95,11 @@ class MapLibreRenderer(
     private var renderedFocusedStopId: String? = null
     // The zoom band the stop icons were last drawn for (full icon vs dot); see [reconcileStopMarkers].
     private var renderedStopBand = StopBand.FULL
+    // The stop ids drawn as starred (favorite) last reconcile, so a star/unstar flips the icon even
+    // when focus and band are unchanged; see [reconcileStopMarkers]. (Unlike the Google renderer,
+    // maplibre markers carry no z-index, so the #1680 tap-preference is icon-only here — a starred stop
+    // can't be given draw/tap priority over an overlapping plain stop on this flavor.)
+    private var renderedFavoriteStopIds: Set<String> = emptySet()
 
     private val bikeByMarker = HashMap<Marker, BikeMarker>()
 
@@ -213,7 +227,7 @@ class MapLibreRenderer(
             }
         }
         for (stop in stops) {
-            val kind = stopIconKind(stop.id == focusedStopId, band)
+            val kind = stopIconKind(stop.id == focusedStopId, band, stop.favorite)
             val existing = stopMarkersByStopId[stop.id]
             if (existing == null) {
                 val marker = map.addMarker(
@@ -221,21 +235,31 @@ class MapLibreRenderer(
                 )
                 stopMarkersByStopId[stop.id] = marker
                 stopByMarker[marker] = stop
-            } else if (stopIconKind(stop.id == renderedFocusedStopId, renderedStopBand) != kind) {
+            } else if (stopIconKind(
+                    stop.id == renderedFocusedStopId,
+                    renderedStopBand,
+                    stop.id in renderedFavoriteStopIds,
+                ) != kind
+            ) {
                 // Only the markers whose icon kind changed need a new icon (maplibre centers the icon
-                // on the position, so the dot lands on the stop with no anchor change).
+                // on the position, so the dot/star lands on the stop with no anchor change).
                 existing.icon = stopIcon(stop, kind)
             }
         }
         renderedFocusedStopId = focusedStopId
         renderedStopBand = band
+        renderedFavoriteStopIds = buildSet { for (s in stops) if (s.favorite) add(s.id) }
     }
 
     private fun stopIcon(stop: StopMarker, kind: StopIconKind): Icon = when (kind) {
-        StopIconKind.FULL -> MapLibreStopIcons.iconForDirection(stop.direction)
-        StopIconKind.FULL_FOCUSED -> MapLibreStopIcons.focusedIconForDirection(stop.direction)
-        StopIconKind.DOT -> MapLibreStopIcons.dotIcon()
-        StopIconKind.DOT_FOCUSED -> MapLibreStopIcons.focusedDotIcon()
+        StopIconKind.FULL -> MapLibreStopIcons.iconForDirection(context, stop.direction)
+        StopIconKind.FULL_FOCUSED -> MapLibreStopIcons.focusedIconForDirection(context, stop.direction)
+        StopIconKind.DOT -> MapLibreStopIcons.dotIcon(context)
+        StopIconKind.DOT_FOCUSED -> MapLibreStopIcons.focusedDotIcon(context)
+        StopIconKind.FAVORITE -> MapLibreStopIcons.favoriteIcon(context, stop.direction)
+        StopIconKind.FAVORITE_FOCUSED -> MapLibreStopIcons.focusedFavoriteIcon(context, stop.direction)
+        StopIconKind.FAVORITE_DOT -> MapLibreStopIcons.favoriteDotIcon(context)
+        StopIconKind.FAVORITE_DOT_FOCUSED -> MapLibreStopIcons.focusedFavoriteDotIcon(context)
     }
 
     /**
@@ -394,7 +418,10 @@ class MapLibreRenderer(
     }
 
     private fun bottomAnchored(bitmap: Bitmap): Bitmap {
-        val out = Bitmap.createBitmap(bitmap.width, bitmap.height * 2, Bitmap.Config.ARGB_8888)
+        // MapLibre icons are center-anchored; pad below so the center lands on the pin tip
+        // ([VehicleBitmaps.ANCHOR_V] of the height), not the padded bitmap's bottom edge.
+        val tipY = VehicleBitmaps.ANCHOR_V * bitmap.height
+        val out = Bitmap.createBitmap(bitmap.width, (2f * tipY).toInt(), Bitmap.Config.ARGB_8888)
         Canvas(out).drawBitmap(bitmap, 0f, 0f, null)
         return out
     }

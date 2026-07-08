@@ -81,7 +81,9 @@ class ArrivalRowCallbacks(
     val onSetReminder: (ArrivalInfo) -> Unit,
     val onShowOnlyRoute: (String) -> Unit,
     val onShowRouteSchedule: (String) -> Unit,
-    val onReportArrivalProblem: (ArrivalActions) -> Unit
+    val onReportArrivalProblem: (ArrivalActions) -> Unit,
+    /** Opens the service-alert dialog for the given situation id (the per-row alert indicator). */
+    val onShowAlert: (String) -> Unit
 )
 
 /**
@@ -147,7 +149,8 @@ private fun ArrivalRowVisual(
     eta: Long,
     predicted: Boolean,
     canceled: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onAlertClick: (() -> Unit)? = null
 ) {
     val decoration = strikeThroughIf(canceled)
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
@@ -178,15 +181,36 @@ private fun ArrivalRowVisual(
                 )
             }
         }
+        if (onAlertClick != null) {
+            ArrivalAlertIndicator(onClick = onAlertClick)
+        }
         Spacer(Modifier.width(8.dp))
         EtaContent(eta, statusColor, predicted, canceled)
     }
 }
 
-/** Adapts the [ArrivalInfo] display model onto [ArrivalRowVisual]. Shared by the interactive Style
- *  A row and the report-flow picker (which wrap it with their own click + card). */
+/** The tappable per-row service-alert indicator (issue #1687 Bug 2): the same warning glyph the
+ *  header/banner uses, shown when this arrival is affected by an active alert; taps open its dialog. */
 @Composable
-internal fun ArrivalRowContent(arrival: ArrivalInfo, modifier: Modifier = Modifier) {
+internal fun ArrivalAlertIndicator(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    IconButton(onClick = onClick, modifier = modifier) {
+        Icon(
+            painter = painterResource(R.drawable.baseline_warning_24),
+            contentDescription = stringResource(R.string.stop_info_arrival_service_alert),
+            tint = MaterialTheme.colorScheme.error
+        )
+    }
+}
+
+/** Adapts the [ArrivalInfo] display model onto [ArrivalRowVisual]. Shared by the interactive Style
+ *  A row and the report-flow picker (which wrap it with their own click + card). [onAlertClick] adds
+ *  the tappable alert indicator when the arrival is affected by an active alert (null hides it). */
+@Composable
+internal fun ArrivalRowContent(
+    arrival: ArrivalInfo,
+    modifier: Modifier = Modifier,
+    onAlertClick: (() -> Unit)? = null
+) {
     ArrivalRowVisual(
         shortName = arrival.shortName.orEmpty(),
         headsign = arrival.headsign.orEmpty(),
@@ -196,7 +220,8 @@ internal fun ArrivalRowContent(arrival: ArrivalInfo, modifier: Modifier = Modifi
         eta = arrival.eta,
         predicted = arrival.predicted,
         canceled = arrival.status == Status.CANCELED,
-        modifier = modifier
+        modifier = modifier,
+        onAlertClick = onAlertClick
     )
 }
 
@@ -218,14 +243,19 @@ fun ArrivalRowStyleA(
         isFavorite = actions?.isRouteFavorite,
         onFavorite = { actions?.let { callbacks.onRouteFavorite(it) } },
         onMore = { expanded = true },
-        onContentClick = { expanded = true },
+        // Tapping the row body defaults to "Show vehicles on map"; the overflow icon opens the menu.
+        onContentClick = { callbacks.onShowVehiclesOnMap(arrival) },
         overflow = {
             ArrivalActionsMenu(expanded, { expanded = false }, arrival, actions, filterActive, callbacks)
         }
     ) {
-        ArrivalRowContent(arrival, Modifier.fillMaxWidth())
+        ArrivalRowContent(arrival, Modifier.fillMaxWidth(), alertClick(actions, callbacks))
     }
 }
+
+/** The alert-indicator tap for a row: opens the arrival's active alert, or null when it has none. */
+internal fun alertClick(actions: ArrivalActions?, callbacks: ArrivalRowCallbacks): (() -> Unit)? =
+    actions?.alertSituationId?.let { id -> { callbacks.onShowAlert(id) } }
 
 /**
  * The Style A card scaffold: the row content with a small favorite star tucked into the top-left
@@ -259,7 +289,7 @@ private fun StyleACard(
             }
             if (isFavorite != null) {
                 CornerIcon(
-                    iconRes = if (isFavorite) R.drawable.ic_toggle_star else R.drawable.ic_toggle_star_outline,
+                    iconRes = if (isFavorite) R.drawable.star else R.drawable.star_outline,
                     contentDescription = stringResource(
                         if (isFavorite) R.string.bus_options_menu_remove_star
                         else R.string.bus_options_menu_add_star
@@ -271,7 +301,7 @@ private fun StyleACard(
             }
             Box(Modifier.align(Alignment.TopEnd)) {
                 CornerIcon(
-                    iconRes = R.drawable.ic_navigation_more_horiz,
+                    iconRes = R.drawable.more_horiz,
                     contentDescription = stringResource(R.string.stop_info_item_options_title),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = onMore
@@ -337,7 +367,7 @@ fun ArrivalCardStyleB(
                 Box {
                     IconButton(onClick = { expanded = true }) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_navigation_more_vert),
+                            painter = painterResource(R.drawable.more_vert),
                             contentDescription = stringResource(R.string.stop_info_item_options_title)
                         )
                     }
@@ -349,6 +379,9 @@ fun ArrivalCardStyleB(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        // Tapping a row shows its route/direction on the map (same as Style A); HomeScreen's
+                        // wrapped onShowRouteOnMap drags the sheet down to peek on every such tap.
+                        .clickable { callbacks.onShowVehiclesOnMap(arrival) }
                         .padding(top = if (index == 0) 8.dp else 0.dp)
                         // Subsequent arrivals are dimmed, matching the legacy card
                         .alpha(if (index == 0) 1f else 0.55f),

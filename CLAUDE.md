@@ -25,6 +25,34 @@ OneBusAway for Android is a real-time transit information app providing bus arri
 adb shell am start -n com.joulespersecond.seattlebusbot/org.onebusaway.android.ui.HomeActivity
 ```
 
+### CI is strict — warnings fail the build
+
+CI passes `-PwarningsAsErrors=true`, so **every Kotlin compiler warning (`w:`) is a hard error** in CI —
+deprecations, redundant/dead code, unnecessary `!!`, etc. — even though a plain local `./gradlew` build
+only prints them. The codebase is kept at **zero** compiler warnings (#1692); don't regress it.
+
+- Before pushing, compile clean. To reproduce the CI gate locally:
+  `./gradlew :onebusaway-android:compileObaGoogleDebugKotlin -PwarningsAsErrors=true`
+- **Fix the warning at its source.** Only reach for `@Suppress` / `@SuppressWarnings` when the migration
+  genuinely can't be done here (e.g. a replacement API that needs a higher `minSdk`, or a schema change),
+  and then always add a one-line rationale **and a tracking-issue link** at the suppression site.
+- **Android Lint is gated the same way.** Lint *errors* always fail the build (`abortOnError`) —
+  notably `NewApi`/minSdk violations the API-33 tests can't catch. Under `-PwarningsAsErrors=true`,
+  lint *warnings* fail too (`warningsAsErrors`), so keep lint clean. Reproduce locally with
+  `./gradlew :onebusaway-android:lintObaGoogleDebug -PwarningsAsErrors=true`.
+  - Lint runs the **full catalog** (`checkAllWarnings true`). Pre-existing findings are handled two
+    ways, and the split matters: **high-count, non-actionable categories** we don't intend to drive to
+    zero (e.g. `UnknownNullness`, `SyntheticAccessor`, `LogConditional`, `InvalidPackage`) are opted out
+    wholesale via `disable` in the `lint {}` block — each with a one-line rationale — rather than pinned
+    entry-by-entry; everything else is grandfathered in `onebusaway-android/lint-baseline.xml` (~300
+    findings), which still ratchets: only **new** issues fail. Prefer, in order: **fix** it → `disable`
+    the whole category (if it's noise/not-ours, with a rationale comment) → baseline it. Don't grow the
+    baseline for a category that belongs in `disable`.
+  - After an AGP/lint bump that adds or changes checks, **regenerate the baseline**: delete
+    `lint-baseline.xml` and run `./gradlew :onebusaway-android:lintObaGoogleDebug` (it recreates the
+    file and intentionally fails that one run; the next run passes). `disable`d categories won't
+    reappear. Then review the diff before committing so genuinely new issues aren't silently absorbed.
+
 ## Automated Publishing (gradle-play-publisher)
 
 Uses [gradle-play-publisher](https://github.com/Triple-T/gradle-play-publisher) to auto-increment `versionCode`, build, and upload to Google Play.
@@ -122,7 +150,8 @@ Tests are in `onebusaway-android/src/androidTest/java/`. Key test classes:
 - Region functionality tests (RegionsTest)
 - Utility tests (LocationUtilsTest, RegionUtilTest)
 
-CI runs on API level 33 emulator via GitHub Actions.
+CI runs on API level 33 emulator via GitHub Actions, and is **strict** — Kotlin warnings and Android
+Lint errors both fail the build (see "CI is strict" under Build Commands).
 
 ## Time domains: server clock vs device clock (#1612)
 

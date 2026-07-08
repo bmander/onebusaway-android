@@ -29,6 +29,10 @@
     <!-- The focused/selected map stop highlight: the selected_map_stop_icon.xml fill + the focused dot. -->
     <color name="map_stop_focus">#FF9500</color>
 
+    <!-- The starred (favorite) stop marker's star: a gold gradient (light top, dark bottom), #1680. -->
+    <color name="map_stop_favorite_light">#FFD54F</color>
+    <color name="map_stop_favorite_dark">#FFA000</color>
+
     <color name="body_text_1">#de000000</color>
     <color name="body_text_2">#8a000000</color>
     <color name="body_text_disabled">#44000000</color>
@@ -36,10 +40,6 @@
 
     <!-- Navigation Drawer -->
     <color name="navdrawer_icon_tint">#888</color>
-
-    <!-- Default route line color on map -->
-    <color name="route_line_color_default">#00F</color>
-    <color name="route_text_color_default">@android:color/black</color>
 
     <!-- Arrival times header -->
 

@@ -150,10 +150,13 @@ class TripPlanViewModel @Inject constructor(
     fun planTrip() {
         val form = _formState.value
         if (!form.canSubmit) return
+        val params = form.toParams()
         _planState.value = PlanResult.Loading
         viewModelScope.launch {
-            planRepository.plan(form.toParams()).fold(
-                onSuccess = { _planState.value = PlanResult.Success(it) },
+            planRepository.plan(params).fold(
+                // Carry the request that produced the results so the host can arm the trip-plan-change
+                // monitor to re-plan it (see PlanResult.Success.params).
+                onSuccess = { _planState.value = PlanResult.Success(it, params) },
                 onFailure = { _planState.value = PlanResult.Error(it.message.orEmpty()) }
             )
         }
@@ -165,7 +168,7 @@ class TripPlanViewModel @Inject constructor(
     }
 
     /**
-     * Seeds the form and results from a re-entry (e.g. a RealtimeService trip-update notification)
+     * Seeds the form and results from a re-entry (e.g. a trip-plan monitor trip-update notification)
      * without re-planning, so the user lands back on the trip they were watching.
      */
     fun restoreFrom(

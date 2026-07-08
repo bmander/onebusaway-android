@@ -16,20 +16,12 @@
 
 package org.onebusaway.android.directions.util;
 
-import org.onebusaway.android.BuildConfig;
-
 import android.graphics.Color;
 
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 public class OTPConstants {
-
-    public static final String INTENT_CHECK_TRIP_TIME
-            = BuildConfig.APPLICATION_ID + ".directions.action.CHECK";
-
-    public static final String INTENT_START_CHECKS
-            = BuildConfig.APPLICATION_ID + ".directions.action.START_CHECKS";
 
     public static final String PREFERENCE_KEY_LIVE_UPDATES = "live_updates";
 

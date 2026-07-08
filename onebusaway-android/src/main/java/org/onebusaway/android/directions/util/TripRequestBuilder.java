@@ -214,7 +214,7 @@ public class TripRequestBuilder {
 
     /**
      * Builds the OTP {@link Request} from the current bundle state. Consumed by the coroutine
-     * trip-plan repository (both the UI plan path and the RealtimeService background plan).
+     * trip-plan repository (both the UI plan path and the trip-plan monitor background plan).
      *
      * @throws IllegalArgumentException if the origin or destination is missing
      */

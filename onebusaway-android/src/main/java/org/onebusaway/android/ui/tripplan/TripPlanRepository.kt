@@ -43,10 +43,10 @@ interface TripPlanRepository {
 
     /**
      * Blocking OTP plan for a caller that is already on a background thread and has assembled its
-     * own [TripRequestBuilder] — the RealtimeService IntentService worker, which replaced the legacy
-     * `TripRequest` AsyncTask. Returns the itineraries, or an empty list on any failure (mirroring
-     * the old callback's failure path, which only logged and disabled updates). Kept non-suspend and
-     * Result-free so it stays cleanly callable from the Java service.
+     * own [TripRequestBuilder] — the trip-plan-change monitor's coroutine loop
+     * (`TripPlanMonitorService`), which re-plans the watched request each poll on an IO dispatcher.
+     * Returns the itineraries, or an empty list on any failure (mirroring the old callback's failure
+     * path, which only logged and disabled updates). Kept non-suspend and Result-free for that caller.
      */
     @WorkerThread
     fun planBlocking(builder: TripRequestBuilder): List<Itinerary>
@@ -76,16 +76,7 @@ class DefaultTripPlanRepository @Inject constructor(
 
     /** Assembles a [TripRequestBuilder] from the UI-supplied [params]. */
     private fun builderFor(params: TripPlanParams): TripRequestBuilder =
-        TripRequestBuilder(context, Bundle()).apply {
-            setFrom(params.from.toCustomAddress())
-            setTo(params.to.toCustomAddress())
-            val calendar = Calendar.getInstance().apply { timeInMillis = params.dateTimeMillis }
-            if (params.arriving) setArrivalTime(calendar) else setDepartureTime(calendar)
-            setModeSetById(params.modeId)
-            setWheelchairAccessible(params.wheelchair)
-            setOptimizeTransfers(params.optimizeTransfers)
-            params.maxWalkMeters?.let { setMaxWalkDistance(it) }
-        }
+        params.toRequestBuilder(context)
 
     /**
      * Runs the OTP request for an already-assembled [builder] on the calling thread. Throws
@@ -178,16 +169,6 @@ class DefaultTripPlanRepository @Inject constructor(
         return parsed
     }
 
-    private fun PlaceItem.toCustomAddress(): CustomAddress {
-        val address = CustomAddress.getEmptyAddress()
-        if (lat != null && lon != null) {
-            address.latitude = lat
-            address.longitude = lon
-        }
-        address.setAddressLine(0, displayName)
-        return address
-    }
-
     private fun errorMessage(errorCode: Int): String = when (errorCode) {
         Message.SYSTEM_ERROR.id -> context.getString(R.string.tripplanner_error_system)
         Message.OUTSIDE_BOUNDS.id -> context.getString(R.string.tripplanner_error_outside_bounds)
@@ -221,4 +202,35 @@ class DefaultTripPlanRepository @Inject constructor(
         const val PLAN_LOCATION = "/plan"
         const val OTP_RENTAL_QUALIFIER = "_RENT"
     }
+}
+
+/**
+ * Assembles a [TripRequestBuilder] from these [TripPlanParams]. Shared by the UI plan path
+ * ([DefaultTripPlanRepository]) and the trip-plan-change monitor, so the request that produced the
+ * results is re-planned identically (same modes / wheelchair / optimize / max-walk).
+ */
+internal fun TripPlanParams.toRequestBuilder(context: Context): TripRequestBuilder {
+    val params = this
+    // Note: inside the apply{} the receiver is the TripRequestBuilder (whose own `from`/`to` getters
+    // would otherwise shadow the params), so read every field through `params`.
+    return TripRequestBuilder(context, Bundle()).apply {
+        setFrom(params.from.toCustomAddress())
+        setTo(params.to.toCustomAddress())
+        val calendar = Calendar.getInstance().apply { timeInMillis = params.dateTimeMillis }
+        if (params.arriving) setArrivalTime(calendar) else setDepartureTime(calendar)
+        setModeSetById(params.modeId)
+        setWheelchairAccessible(params.wheelchair)
+        setOptimizeTransfers(params.optimizeTransfers)
+        params.maxWalkMeters?.let { setMaxWalkDistance(it) }
+    }
+}
+
+private fun PlaceItem.toCustomAddress(): CustomAddress {
+    val address = CustomAddress.getEmptyAddress()
+    if (lat != null && lon != null) {
+        address.latitude = lat
+        address.longitude = lon
+    }
+    address.setAddressLine(0, displayName)
+    return address
 }

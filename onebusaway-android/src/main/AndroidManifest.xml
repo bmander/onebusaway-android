@@ -271,7 +271,14 @@
         </provider>
 
         <service
-            android:name=".directions.realtime.RealtimeService">
+            android:name=".directions.realtime.TripPlanMonitorService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <!-- No platform foregroundServiceType fits "watch a planned trip for changes"; specialUse is
+                 the sanctioned catch-all. Subtype documents the use for Play review. -->
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="trip_plan_change_monitoring" />
         </service>
 
         <service
@@ -291,14 +298,11 @@
             android:enabled="true">
         </receiver>
 
-        <receiver android:name=".directions.realtime.RealtimeWakefulReceiver"
-            android:exported="true">
-            <intent-filter>
-                <!-- Should match constants for actions defined in OTPConstants -->
-                <action android:name="${applicationId}.directions.action.START_CHECKS"/>
-                <action android:name="${applicationId}.directions.action.CHECK"/>
-            </intent-filter>
-        </receiver>
+        <!-- Fires once at (departure − query window) to start TripPlanMonitorService; app-internal, so
+             not exported and no intent-filter (targeted explicitly by TripPlanMonitor). -->
+        <receiver
+            android:name=".directions.realtime.TripPlanMonitorAlarmReceiver"
+            android:exported="false" />
 
         <meta-data
             android:name="com.google.android.gms.version"

@@ -103,7 +103,7 @@ import org.opentripplanner.api.model.Itinerary
  * The trip-plan NavHost destination. Ports the Android glue that the former
  * [org.onebusaway.android.ui.TripPlanActivity] owned — the date/time pickers, the contacts picker,
  * current-location reads, the advanced-options dialog, the error dialog + analytics, and rehydrating
- * from a RealtimeService trip-update notification — into Compose, wiring it to [TripPlanRoute].
+ * from a trip-plan monitor trip-update notification — into Compose, wiring it to [TripPlanRoute].
  * State lives in the Hilt [TripPlanViewModel].
  */
 @Composable
@@ -188,7 +188,7 @@ fun TripPlanDestination(navController: NavHostController, onBack: () -> Unit) {
         }
     }
 
-    // -- Notification re-entry: when the app is reopened (cold/from background) from a RealtimeService
+    // -- Notification re-entry: when the app is reopened (cold/from background) from a trip-plan monitor
     // trip-update notification, onNewIntent stages the TRIP_PLAN route and this destination composes
     // fresh; read the restore extras off the host intent once. (A notification arriving while already
     // on this destination — singleTop, no recomposition — won't re-restore; acceptable rare edge.)
@@ -300,6 +300,7 @@ fun TripPlanRoute(
                 if (result is PlanResult.Success) {
                     TripResultsSheet(
                         itineraries = result.itineraries,
+                        params = result.params,
                         resultsViewModel = resultsViewModel,
                         mapViewModel = mapViewModel,
                         modifier = Modifier.fillMaxSize()
@@ -612,7 +613,7 @@ private fun reportPlanAnalytics(
 }
 
 /**
- * Rehydrates the form + results when reopened from a RealtimeService notification. Returns a cleared
+ * Rehydrates the form + results when reopened from a trip-plan monitor notification. Returns a cleared
  * [Intent] for the caller to set on the host (so a config change doesn't re-restore), or null when
  * there was nothing to restore.
  */

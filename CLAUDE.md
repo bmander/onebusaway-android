@@ -40,13 +40,18 @@ only prints them. The codebase is kept at **zero** compiler warnings (#1692); do
   notably `NewApi`/minSdk violations the API-33 tests can't catch. Under `-PwarningsAsErrors=true`,
   lint *warnings* fail too (`warningsAsErrors`), so keep lint clean. Reproduce locally with
   `./gradlew :onebusaway-android:lintObaGoogleDebug -PwarningsAsErrors=true`.
-  - Lint runs the **full catalog** (`checkAllWarnings true`), and the ~760 pre-existing findings are
-    grandfathered in `onebusaway-android/lint-baseline.xml`. Only **new** issues (not in the baseline)
-    are reported — so don't introduce new ones, and prefer fixing over baselining.
+  - Lint runs the **full catalog** (`checkAllWarnings true`). Pre-existing findings are handled two
+    ways, and the split matters: **high-count, non-actionable categories** we don't intend to drive to
+    zero (e.g. `UnknownNullness`, `SyntheticAccessor`, `LogConditional`, `InvalidPackage`) are opted out
+    wholesale via `disable` in the `lint {}` block — each with a one-line rationale — rather than pinned
+    entry-by-entry; everything else is grandfathered in `onebusaway-android/lint-baseline.xml` (~300
+    findings), which still ratchets: only **new** issues fail. Prefer, in order: **fix** it → `disable`
+    the whole category (if it's noise/not-ours, with a rationale comment) → baseline it. Don't grow the
+    baseline for a category that belongs in `disable`.
   - After an AGP/lint bump that adds or changes checks, **regenerate the baseline**: delete
     `lint-baseline.xml` and run `./gradlew :onebusaway-android:lintObaGoogleDebug` (it recreates the
-    file and intentionally fails that one run; the next run passes). Then review the diff before
-    committing so genuinely new issues aren't silently absorbed.
+    file and intentionally fails that one run; the next run passes). `disable`d categories won't
+    reappear. Then review the diff before committing so genuinely new issues aren't silently absorbed.
 
 ## Automated Publishing (gradle-play-publisher)
 

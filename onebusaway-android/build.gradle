@@ -158,10 +158,25 @@ android {
     }
     namespace='org.onebusaway.android'
     lint {
-        // LogNotTimber: this project intentionally uses android.util.Log, not Timber. The check is
-        // a library-preference nudge, not a correctness signal, and its ~190 hits drown out the
-        // actionable warnings, so we opt out of it rather than suppress each call site.
-        disable 'MissingTranslation', 'ExtraTranslation', 'LogNotTimber'
+        // Categories we opt out of wholesale rather than baseline entry-by-entry. The baseline pins
+        // each finding to a file+line+code snippet; for high-count, non-actionable checks that's ~750
+        // brittle lines that churn on every edit (and silently absorb NEW debt on regen) with no upside,
+        // since we don't intend to ratchet these to zero. Disabling by id is stable, self-documenting,
+        // and still lets the baseline do its job for the checks we DO drive down.
+        //   MissingTranslation / ExtraTranslation: managed by our translation workflow, not lint.
+        //   LogNotTimber: this project intentionally uses android.util.Log, not Timber — a
+        //     library-preference nudge, not a correctness signal (~190 hits).
+        //   UnknownNullness: asks legacy .java APIs for @Nullable/@NonNull. Kotlin encodes nullness in
+        //     the type, so these self-resolve as the Java→Kotlin port proceeds; annotating code on its
+        //     way out is churn (257 hits, .java only).
+        //   SyntheticAccessor: micro-perf nudge about synthetic accessors for cross-class private
+        //     access. Not a correctness signal, and Kotlin emits them idiomatically (153 of 174 hits).
+        //   LogConditional: wants every Log.* wrapped in if (BuildConfig.DEBUG); stylistic, and it
+        //     conflicts with the deliberate android.util.Log policy above (25 hits).
+        //   InvalidPackage: fires inside the grpc-core dependency jar (javax.naming), not our source —
+        //     nothing for us to fix (2 hits).
+        disable 'MissingTranslation', 'ExtraTranslation', 'LogNotTimber',
+            'UnknownNullness', 'SyntheticAccessor', 'LogConditional', 'InvalidPackage'
         // Run the FULL lint catalog — including checks that are off by default and library-provided
         // ones (Compose, UseKtx, …) — so the checked set is comprehensive and current for the installed
         // lint, not just its (drifting) default-enabled subset. Pre-existing hits are grandfathered by

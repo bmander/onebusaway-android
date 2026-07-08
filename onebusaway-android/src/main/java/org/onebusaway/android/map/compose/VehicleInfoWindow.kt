@@ -40,7 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -68,7 +68,7 @@ import java.util.concurrent.TimeUnit
  */
 @Composable
 fun VehicleInfoWindow(status: ObaTripStatus, isRealtime: Boolean, response: RouteTrips) {
-    val res = LocalContext.current.resources
+    val res = LocalResources.current
     // "Now" in the server clock domain: the age is measured against the vehicle's last real-time fix
     // (status.lastLocationUpdateTime, falling back to lastUpdateTime) — both server AVL timestamps —
     // so a skewed device clock must not leak into it (#1612).
@@ -309,12 +309,12 @@ internal fun serverNowMs(serverTimeMs: Long, deviceStartMs: Long, deviceNowMs: L
  */
 internal fun formatDataAge(res: Resources, elapsedSeconds: Long, estimating: Boolean = false): String {
     val s = elapsedSeconds.coerceAtLeast(0)
-    val secRes = if (estimating) R.string.vehicle_estimate_from_update_sec else R.string.vehicle_last_updated_sec
+    val secRes = if (estimating) R.plurals.vehicle_estimate_from_update_sec else R.plurals.vehicle_last_updated_sec
     val minSecRes =
-        if (estimating) R.string.vehicle_estimate_from_update_min_and_sec else R.string.vehicle_last_updated_min_and_sec
+        if (estimating) R.plurals.vehicle_estimate_from_update_min_and_sec else R.plurals.vehicle_last_updated_min_and_sec
     return if (s < 60) {
-        res.getString(secRes, s)
+        res.getQuantityString(secRes, s.toInt(), s)
     } else {
-        res.getString(minSecRes, TimeUnit.SECONDS.toMinutes(s), s % 60)
+        res.getQuantityString(minSecRes, (s % 60).toInt(), TimeUnit.SECONDS.toMinutes(s), s % 60)
     }
 }

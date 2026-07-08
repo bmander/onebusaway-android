@@ -53,6 +53,7 @@ import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -77,13 +78,10 @@ import kotlinx.coroutines.launch
 import org.onebusaway.android.R
 import org.onebusaway.android.app.di.AnalyticsEntryPoint
 import org.onebusaway.android.app.di.LocationEntryPoint
-import org.onebusaway.android.app.di.RegionEntryPoint
 import org.onebusaway.android.directions.util.ConversionUtils
-import org.onebusaway.android.directions.util.CustomAddress
 import org.onebusaway.android.directions.util.OTPConstants
 import org.onebusaway.android.directions.util.TripRequestBuilder
 import org.onebusaway.android.analytics.PlausibleAnalytics
-import org.onebusaway.android.region.RegionRepository
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 import org.onebusaway.android.ui.compose.components.SwitchRow
 import org.onebusaway.android.ui.compose.findActivity
@@ -103,7 +101,7 @@ import org.opentripplanner.api.model.Itinerary
  * The trip-plan NavHost destination. Ports the Android glue that the former
  * [org.onebusaway.android.ui.TripPlanActivity] owned — the date/time pickers, the contacts picker,
  * current-location reads, the advanced-options dialog, the error dialog + analytics, and rehydrating
- * from a RealtimeService trip-update notification — into Compose, wiring it to [TripPlanRoute].
+ * from a RealtimeChecker trip-update notification — into Compose, wiring it to [TripPlanRoute].
  * State lives in the Hilt [TripPlanViewModel].
  */
 @Composable
@@ -111,23 +109,19 @@ fun TripPlanDestination(navController: NavHostController, onBack: () -> Unit) {
     val viewModel = hiltViewModel<TripPlanViewModel>()
     val activity = LocalContext.current.findActivity()
 
-    // Built once for the lifetime of this destination (analytics + region email for "report problem").
-    // HomeActivity doesn't inject RegionRepository; reach the shared singleton via the EntryPoint.
-    val regionRepository = remember { RegionEntryPoint.get(activity) }
-
     // -- Contacts pick: a launcher + the endpoint a pending pick should populate. A contacts pick
     // doesn't dispose this composable, so a plain remember (not rememberSaveable) suffices.
-    var contactsTarget by remember { mutableStateOf<((PlaceItem) -> Unit)?>(null) }
+    var contactsTarget by remember { mutableStateOf<((TripEndpoint) -> Unit)?>(null) }
     val contactsLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
         val uri = result.data?.data
         if (uri != null) {
             formattedAddress(activity, uri)?.let { address ->
-                contactsTarget?.invoke(PlaceItem(displayName = address))
+                contactsTarget?.invoke(TripEndpoint.AddressBook(address, lat = null, lon = null))
             }
         }
         contactsTarget = null
     }
-    val launchContacts: ((PlaceItem) -> Unit) -> Unit = { target ->
+    val launchContacts: ((TripEndpoint) -> Unit) -> Unit = { target ->
         contactsTarget = target
         contactsLauncher.launch(
             Intent(Intent.ACTION_PICK)
@@ -140,7 +134,7 @@ fun TripPlanDestination(navController: NavHostController, onBack: () -> Unit) {
     // MUST be rememberSaveable: navigating to the picker disposes this composable, and a lambda can't
     // be saved across that — so we save which endpoint to populate, not the setter.
     var mapPickTarget by rememberSaveable { mutableStateOf<String?>(null) }
-    val launchMapPicker: (String, PlaceItem?) -> Unit = { endpoint, initial ->
+    val launchMapPicker: (String, TripEndpoint?) -> Unit = { endpoint, initial ->
         val center = if (initial?.hasCoordinates == true) {
             LocationUtils.makeLocation(initial.lat!!, initial.lon!!)
         } else {
@@ -151,7 +145,7 @@ fun TripPlanDestination(navController: NavHostController, onBack: () -> Unit) {
             NavRoutes.tripPlanPickLocation(center?.latitude, center?.longitude)
         )
     }
-    // When the picker hands a result back to this entry's SavedStateHandle, build the PlaceItem and
+    // When the picker hands a result back to this entry's SavedStateHandle, build the endpoint and
     // dispatch it to the saved endpoint, then clear the keys + the target.
     val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
     LaunchedEffect(savedStateHandle, mapPickTarget) {
@@ -159,11 +153,7 @@ fun TripPlanDestination(navController: NavHostController, onBack: () -> Unit) {
         val lat = handle.get<Double>(NavRoutes.RESULT_PICK_LAT)
         val lon = handle.get<Double>(NavRoutes.RESULT_PICK_LON)
         if (lat != null && lon != null) {
-            val place = PlaceItem(
-                displayName = activity.getString(R.string.trip_plan_map_location),
-                lat = lat,
-                lon = lon
-            )
+            val place = TripEndpoint.MapPoint(lat = lat, lon = lon)
             when (mapPickTarget) {
                 "from" -> viewModel.setFrom(place)
                 "to" -> viewModel.setTo(place)
@@ -180,7 +170,7 @@ fun TripPlanDestination(navController: NavHostController, onBack: () -> Unit) {
             when (state) {
                 is PlanResult.Loading -> reportPlanAnalytics(activity)
                 is PlanResult.Error -> {
-                    showFeedbackDialog(activity, regionRepository, state.message)
+                    showFeedbackDialog(activity, viewModel.otpContactEmail, state.message)
                     viewModel.clearPlanResult()
                 }
                 else -> {}
@@ -188,7 +178,7 @@ fun TripPlanDestination(navController: NavHostController, onBack: () -> Unit) {
         }
     }
 
-    // -- Notification re-entry: when the app is reopened (cold/from background) from a RealtimeService
+    // -- Notification re-entry: when the app is reopened (cold/from background) from a RealtimeChecker
     // trip-update notification, onNewIntent stages the TRIP_PLAN route and this destination composes
     // fresh; read the restore extras off the host intent once. (A notification arriving while already
     // on this destination — singleTop, no recomposition — won't re-restore; acceptable rare edge.)
@@ -210,7 +200,7 @@ fun TripPlanDestination(navController: NavHostController, onBack: () -> Unit) {
         onFromPickOnMap = { launchMapPicker("from", viewModel.formState.value.from) },
         onToPickOnMap = { launchMapPicker("to", viewModel.formState.value.to) },
         onAdvancedSettings = { showAdvanced = true },
-        onReportProblem = { reportProblem(activity, regionRepository) }
+        onReportProblem = { reportProblem(activity, viewModel.otpContactEmail) }
     )
 
     if (showAdvanced) {
@@ -326,6 +316,8 @@ fun TripPlanRoute(
                         onToQueryChange = viewModel::onToQueryChange,
                         onSelectFrom = viewModel::setFrom,
                         onSelectTo = viewModel::setTo,
+                        onClearFrom = viewModel::clearFrom,
+                        onClearTo = viewModel::clearTo,
                         onFromCurrentLocation = onFromCurrentLocation,
                         onToCurrentLocation = onToCurrentLocation,
                         onFromContacts = onFromContacts,
@@ -415,21 +407,17 @@ private fun pickTime(activity: AppCompatActivity, viewModel: TripPlanViewModel) 
 
 private fun setCurrentLocation(
     activity: AppCompatActivity,
-    target: (PlaceItem) -> Unit
+    target: (TripEndpoint) -> Unit
 ) {
     val location = LocationEntryPoint.get(activity.applicationContext).lastKnownLocation()
     if (location == null) {
         Toast.makeText(activity, activity.getString(R.string.no_location_permission), Toast.LENGTH_SHORT)
             .show()
+        // Without a location this would be a coordinate-less, non-submittable pill that also drops any
+        // existing result — bail after the toast instead.
+        return
     }
-    target(
-        PlaceItem(
-            displayName = activity.getString(R.string.tripplanner_current_location),
-            lat = location?.latitude,
-            lon = location?.longitude,
-            isCurrentLocation = true
-        )
-    )
+    target(TripEndpoint.CurrentLocation(lat = location.latitude, lon = location.longitude))
 }
 
 private fun formattedAddress(
@@ -473,7 +461,7 @@ private fun AdvancedSettingsDialog(
     }
     val current = remember { viewModel.formState.value }
     var selectedMode by remember {
-        mutableStateOf(options.firstOrNull { it.second == current.modeId }?.second ?: options.first().second)
+        mutableIntStateOf(options.firstOrNull { it.second == current.modeId }?.second ?: options.first().second)
     }
     var minimizeTransfers by remember { mutableStateOf(current.optimizeTransfers) }
     var wheelchair by remember { mutableStateOf(current.wheelchair) }
@@ -570,7 +558,7 @@ private fun AdvancedSettingsDialog(
 
 private fun showFeedbackDialog(
     activity: AppCompatActivity,
-    regionRepository: RegionRepository,
+    contactEmail: String?,
     message: String
 ) {
     MaterialAlertDialogBuilder(activity)
@@ -578,24 +566,23 @@ private fun showFeedbackDialog(
         .setMessage(message)
         .setPositiveButton(android.R.string.ok, null)
         .setNegativeButton(R.string.report_problem_report) { _, _ ->
-            reportProblem(activity, regionRepository)
+            reportProblem(activity, contactEmail)
         }
         .show()
 }
 
 private fun reportProblem(
     activity: AppCompatActivity,
-    regionRepository: RegionRepository
+    contactEmail: String?
 ) {
-    val email = regionRepository.region.value?.otpContactEmail
-    if (email.isNullOrEmpty()) {
+    if (contactEmail.isNullOrEmpty()) {
         Toast.makeText(activity, activity.getString(R.string.tripplanner_no_contact), Toast.LENGTH_SHORT)
             .show()
         return
     }
     val location = LocationEntryPoint.get(activity.applicationContext).lastKnownLocation()
     val locationString = location?.let { LocationUtils.printLocationDetails(it) }
-    ExternalIntents.sendEmail(activity, email, locationString, null, true)
+    ExternalIntents.sendEmail(activity, contactEmail, locationString, null, true)
     AnalyticsEntryPoint.get(activity).reportUiEvent(
         PlausibleAnalytics.REPORT_TRIP_PLANNER_EVENT_URL,
         activity.getString(R.string.analytics_label_app_feedback_otp), null
@@ -612,7 +599,7 @@ private fun reportPlanAnalytics(
 }
 
 /**
- * Rehydrates the form + results when reopened from a RealtimeService notification. Returns a cleared
+ * Rehydrates the form + results when reopened from a RealtimeChecker notification. Returns a cleared
  * [Intent] for the caller to set on the host (so a config change doesn't re-restore), or null when
  * there was nothing to restore.
  */
@@ -630,17 +617,11 @@ private fun maybeRestoreFromIntent(
 
     val builder = TripRequestBuilder.initFromBundleSimple(context, extras)
     viewModel.restoreFrom(
-        from = builder.from?.toPlaceItem(),
-        to = builder.to?.toPlaceItem(),
-        dateTimeMillis = builder.dateTime?.time ?: System.currentTimeMillis(),
+        from = builder.from?.toGeocoded(),
+        to = builder.to?.toGeocoded(),
+        dateTimeMillis = builder.dateTime?.toEpochMilli() ?: System.currentTimeMillis(),
         arriving = builder.arriveBy,
         itineraries = itineraries
     )
     return Intent()
 }
-
-private fun CustomAddress.toPlaceItem(): PlaceItem = PlaceItem(
-    displayName = toString(),
-    lat = if (isSet) latitude else null,
-    lon = if (isSet) longitude else null
-)

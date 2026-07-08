@@ -64,6 +64,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -137,7 +138,8 @@ internal fun rememberArrivalRowCallbacks(
         onSetReminder = handler::onSetReminder,
         onShowOnlyRoute = viewModel::showOnlyRoute,
         onShowRouteSchedule = handler::onShowRouteSchedule,
-        onReportArrivalProblem = handler::onReportArrivalProblem
+        onReportArrivalProblem = handler::onReportArrivalProblem,
+        onShowAlert = handler::onShowAlert
     )
 }
 
@@ -244,9 +246,9 @@ fun ArrivalsScreen(
                             Icon(
                                 painter = painterResource(
                                     if (content.header.isFavorite) {
-                                        R.drawable.ic_toggle_star
+                                        R.drawable.star
                                     } else {
-                                        R.drawable.ic_toggle_star_outline
+                                        R.drawable.star_outline
                                     }
                                 ),
                                 contentDescription = stringResource(R.string.stop_info_favorite),
@@ -367,7 +369,7 @@ internal fun OverflowMenu(
     Box {
         IconButton(onClick = { expanded = true }) {
             Icon(
-                painter = painterResource(R.drawable.ic_navigation_more_vert),
+                painter = painterResource(R.drawable.more_vert),
                 contentDescription = stringResource(R.string.stop_info_item_options_title),
                 tint = MaterialTheme.colorScheme.onSurface
             )
@@ -531,7 +533,7 @@ private fun AlertList(
     onShowAlert: (String) -> Unit,
     onHideAlert: (AlertItem) -> Unit
 ) {
-    var visibleCount by rememberSaveable { mutableStateOf(ALERT_PAGE_SIZE) }
+    var visibleCount by rememberSaveable { mutableIntStateOf(ALERT_PAGE_SIZE) }
     val visible = alerts.take(visibleCount)
     Column {
         for (alert in visible) {
@@ -571,9 +573,10 @@ private fun AlertList(
  */
 @Composable
 private fun SwipeToHide(onHide: () -> Unit, content: @Composable () -> Unit) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { it == SwipeToDismissBoxValue.StartToEnd }
-    )
+    // Which swipe directions are allowed is expressed by the box's enableDismissFromStartToEnd /
+    // enableDismissFromEndToStart flags below (the modern "leave disallowed anchors out" approach),
+    // replacing the deprecated confirmValueChange veto callback.
+    val dismissState = rememberSwipeToDismissBoxState()
     val rowVisible = remember { MutableTransitionState(true) }
     // Once the row settles in the dismissed position, start the collapse.
     LaunchedEffect(dismissState.currentValue) {

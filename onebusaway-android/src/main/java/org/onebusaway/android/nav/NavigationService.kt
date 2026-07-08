@@ -28,7 +28,9 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.PendingIntentCompat
 import androidx.core.app.RemoteInput
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
 import com.google.firebase.auth.FirebaseAuth
@@ -43,7 +45,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.apache.commons.io.FileUtils
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
+import org.onebusaway.android.notifications.NotificationChannels
 import org.onebusaway.android.app.di.LocationEntryPoint
 import org.onebusaway.android.analytics.ObaAnalytics
 import org.onebusaway.android.analytics.PlausibleAnalytics
@@ -394,9 +396,9 @@ class NavigationService : Service() {
             val pDelIntent = PendingIntent.getBroadcast(applicationContext, 0, delIntent, delFlags)
 
             builder = NotificationCompat.Builder(
-                applicationContext, Application.CHANNEL_DESTINATION_ALERT_ID
+                applicationContext, NotificationChannels.DESTINATION_ALERT_ID
             )
-                .setSmallIcon(R.drawable.ic_stat_notification)
+                .setSmallIcon(R.drawable.ic_bus)
                 .setContentTitle(resources.getString(R.string.feedback_notify_title))
                 .setContentText(message)
                 .addAction(
@@ -418,15 +420,11 @@ class NavigationService : Service() {
             intentNo.putExtra(FeedbackReceiver.RESPONSE, FeedbackReceiver.FEEDBACK_NO)
             intentNo.putExtra(FeedbackReceiver.LOG_FILE, logFile!!.absolutePath)
 
-            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                PendingIntent.FLAG_MUTABLE
-            } else {
-                0
-            }
-
-            // PendingIntent to handle user feedback when a user taps on 'No'
-            val fdPendingIntentNo = PendingIntent.getBroadcast(
-                applicationContext, 100, intentNo, flags
+            // PendingIntent to handle user feedback when a user taps on 'No'.
+            // Mutable so the RemoteInput reply can be written into it; PendingIntentCompat
+            // applies FLAG_MUTABLE/FLAG_IMMUTABLE per API level without an inlined S+ constant.
+            val fdPendingIntentNo = PendingIntentCompat.getBroadcast(
+                applicationContext, 100, intentNo, 0, true
             )
 
             val replyLabelNo = resources.getString(R.string.feedback_action_reply_no)
@@ -445,9 +443,9 @@ class NavigationService : Service() {
             intentYes.putExtra(FeedbackReceiver.RESPONSE, FeedbackReceiver.FEEDBACK_YES)
             intentYes.putExtra(FeedbackReceiver.LOG_FILE, logFile!!.absolutePath)
 
-            // PendingIntent to handle user feedback when a user taps on 'No'
-            val fdPendingIntentYes = PendingIntent.getBroadcast(
-                applicationContext, 101, intentYes, flags
+            // PendingIntent to handle user feedback when a user taps on 'Yes'
+            val fdPendingIntentYes = PendingIntentCompat.getBroadcast(
+                applicationContext, 101, intentYes, 0, true
             )
 
             val replyLabelYes = resources.getString(R.string.feedback_action_reply_yes)
@@ -459,12 +457,12 @@ class NavigationService : Service() {
                 .build()
 
             delIntent.action = FeedbackReceiver.ACTION_DISMISS_FEEDBACK
-            val pDelIntent = PendingIntent.getBroadcast(applicationContext, 0, delIntent, flags)
+            val pDelIntent = PendingIntentCompat.getBroadcast(applicationContext, 0, delIntent, 0, true)
 
             builder = NotificationCompat.Builder(
-                applicationContext, Application.CHANNEL_DESTINATION_ALERT_ID
+                applicationContext, NotificationChannels.DESTINATION_ALERT_ID
             )
-                .setSmallIcon(R.drawable.ic_stat_notification)
+                .setSmallIcon(R.drawable.ic_bus)
                 .setContentTitle(resources.getString(R.string.feedback_notify_title))
                 .setContentText(message)
                 .addAction(replyActionNo)
@@ -488,8 +486,13 @@ class NavigationService : Service() {
         // Create the actual work object:
         val cleanUpCheckWork = cleanupLogsBuilder.build()
 
-        // Then enqueue the recurring task:
-        WorkManager.getInstance().enqueue(cleanUpCheckWork)
+        // Then enqueue the recurring task under a unique name so repeated navigation starts keep a
+        // single cleanup chain instead of stacking one each time:
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            NavigationCleanupWorker.UNIQUE_WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            cleanUpCheckWork
+        )
     }
 
     companion object {

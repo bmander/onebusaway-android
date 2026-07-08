@@ -30,8 +30,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -48,7 +48,7 @@ import org.onebusaway.android.R
 import org.onebusaway.android.ui.compose.components.ObaTopAppBar
 
 /** A labelled overflow action (the per-tab "Clear" item) for [MyTab]. */
-data class TabAction(@StringRes val labelRes: Int, val onClick: () -> Unit)
+data class TabAction(@param:StringRes val labelRes: Int, val onClick: () -> Unit)
 
 /**
  * One tab in a [MyTabsScreen]: its stable [tag] (deep-link / last-tab persistence), [titleRes] +
@@ -57,8 +57,8 @@ data class TabAction(@StringRes val labelRes: Int, val onClick: () -> Unit)
  */
 data class MyTab(
     val tag: String,
-    @StringRes val titleRes: Int,
-    @DrawableRes val iconRes: Int,
+    @param:StringRes val titleRes: Int,
+    @param:DrawableRes val iconRes: Int,
     val onSort: (() -> Unit)? = null,
     val clear: TabAction? = null,
     val content: @Composable () -> Unit,
@@ -117,7 +117,7 @@ fun MyTabsScreen(
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            TabRow(selectedTabIndex = pagerState.currentPage) {
+            PrimaryTabRow(selectedTabIndex = pagerState.currentPage) {
                 tabs.forEachIndexed { index, tab ->
                     Tab(
                         selected = pagerState.currentPage == index,

@@ -18,15 +18,15 @@
 package org.onebusaway.android.ui.settings
 
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import org.onebusaway.android.R
-import org.onebusaway.android.app.Application
+import org.onebusaway.android.app.di.DonationsEntryPoint
 import org.onebusaway.android.ui.about.AboutScreen
 import org.onebusaway.android.ui.about.buildVersionText
 import org.onebusaway.android.ui.agencies.AgenciesRoute
@@ -106,14 +106,14 @@ fun NavGraphBuilder.settingsGraph(navController: NavHostController) {
                 onGoHomeResetTutorial = { NavHelp.goHome(activity, true) },
                 onOpenDonate = {
                     activity.startActivity(
-                        Application.getDonationsManager().buildOpenDonationsPageIntent()
+                        DonationsEntryPoint.get(activity).buildOpenDonationsPageIntent()
                     )
                 },
                 onOpenPoweredByOba = {
                     activity.startActivity(
                         Intent(
                             Intent.ACTION_VIEW,
-                            Uri.parse(activity.getString(R.string.powered_by_oba_url))
+                            activity.getString(R.string.powered_by_oba_url).toUri()
                         )
                     )
                 },

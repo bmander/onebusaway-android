@@ -49,6 +49,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
 import java.io.File
@@ -173,7 +174,11 @@ class FeedbackSubmitter(
         val uploadCheckWork = PeriodicWorkRequest
             .Builder(NavigationUploadWorker::class.java, 24, TimeUnit.HOURS)
             .build()
-        WorkManager.getInstance().enqueue(uploadCheckWork)
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            NavigationUploadWorker.UNIQUE_WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            uploadCheckWork
+        )
     }
 
     private fun logFeedback(liked: Boolean, feedbackText: String) {
@@ -262,7 +267,10 @@ internal fun FeedbackScreen(
     }
 }
 
-/** One half of the thumbs up / thumbs down pair; the selected side shows its filled icon. */
+/** Affirmative green shown on the selected (active) thumb; neutral thumbs use the theme foreground. */
+private val FeedbackSelectedColor = Color(0xFF7EC34A)
+
+/** One half of the thumbs up / thumbs down pair; the selected side is tinted [FeedbackSelectedColor]. */
 @Composable
 private fun ThumbButton(
     selected: Boolean,
@@ -270,12 +278,8 @@ private fun ThumbButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val icon = when {
-        upvote && selected -> R.drawable.ic_thumb_up_selected
-        upvote -> R.drawable.ic_thumb_up
-        selected -> R.drawable.ic_thumb_down_selected
-        else -> R.drawable.ic_thumb_down
-    }
+    val icon = if (upvote) R.drawable.ic_thumb_up else R.drawable.ic_thumb_down
+    val tint = if (selected) FeedbackSelectedColor else MaterialTheme.colorScheme.onSurfaceVariant
     val description = stringResource(
         if (upvote) R.string.feedback_like_button_description
         else R.string.feedback_dislike_button_description
@@ -284,7 +288,7 @@ private fun ThumbButton(
         Icon(
             painter = painterResource(icon),
             contentDescription = description,
-            tint = Color.Unspecified,
+            tint = tint,
             modifier = Modifier.size(48.dp)
         )
     }

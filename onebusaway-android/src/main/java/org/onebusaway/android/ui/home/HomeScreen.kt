@@ -45,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -224,11 +225,19 @@ fun HomeScreen(
             }
         }
 
+        // Drag the sheet down to peek. Unlike the declarative routeModeActive effect below (which only
+        // fires on the off->on route-mode transition), this is a per-tap action, so it also drags an
+        // already-expanded sheet down when the user taps a "show vehicles on map" row while route mode
+        // is already active for another route.
+        val collapseSheet: () -> Unit = remember {
+            { scope.launch { runCatching { sheetState.partialExpand() } } }
+        }
+
         // The arrivals sheet's measurement state, reported by the panel via onPreferredHeight — local to
         // the screen, since the panel and the sheet both live here (no need to round-trip the VM). Seeded
         // at the two-arrivals height so the first reveal doesn't flash undersized (legacy default), and
         // arrivalsReady gates the peek open until the focused stop's arrivals load (reset on focus change).
-        var peekArrivalCount by remember { mutableStateOf(2) }
+        var peekArrivalCount by remember { mutableIntStateOf(2) }
         var routeFiltering by remember { mutableStateOf(false) }
         var arrivalsReady by remember { mutableStateOf(false) }
         LaunchedEffect(state.focusedStop?.id) { arrivalsReady = false }
@@ -388,7 +397,12 @@ fun HomeScreen(
                     // the arrivals panel body paints, so the handle reads as part of the panel rather
                     // than sitting on a separate default-colored strip.
                     sheetContainerColor = MaterialTheme.colorScheme.surface,
-                    sheetDragHandle = { ArrivalsDragHandle(onToggle = toggleSheet) },
+                    sheetDragHandle = {
+                        ArrivalsDragHandle(
+                            onToggle = toggleSheet,
+                            modifier = Modifier.tutorialAnchor(tutorialState, ArrivalTutorial.KEY_PANEL),
+                        )
+                    },
                     sheetContent = {
                         ArrivalsSheetHost(
                             focusedStop = state.focusedStop,
@@ -396,7 +410,12 @@ fun HomeScreen(
                             expandProgress = sheetProgress.fraction,
                             arrivalsViewModelFactory = arrivalsViewModelFactory,
                             onArrivalsLoaded = onArrivalsLoaded,
-                            onShowRouteOnMap = onShowRouteOnMap,
+                            // Showing vehicles on the map drags the sheet down to peek so the route is
+                            // visible, whether or not route mode was already active (see collapseSheet).
+                            onShowRouteOnMap = { request ->
+                                onShowRouteOnMap(request)
+                                collapseSheet()
+                            },
                             onShowTrip = onShowTrip,
                             onEditReminder = onEditReminder,
                             onPreferredHeight = { count, filtering ->
@@ -634,11 +653,13 @@ private val LEGACY_IN_PANEL_HANDLE_BUDGET = 20.dp
  * scaffold's built-in handle click.
  */
 @Composable
-private fun ArrivalsDragHandle(onToggle: () -> Unit) {
+private fun ArrivalsDragHandle(onToggle: () -> Unit, modifier: Modifier = Modifier) {
     // The click sits on the outer padded Box (before the padding) so the tap target covers more than the
-    // bar; it shadows the scaffold's own handle click. The bar itself is a short tinted pill.
+    // bar; it shadows the scaffold's own handle click. The bar itself is a short tinted pill. [modifier]
+    // is the host's anchor slot (the onboarding "slide up" spotlight points here) — outermost so the
+    // spotlight hugs just the handle, not the full-width header.
     Box(
-        modifier = Modifier
+        modifier = modifier
             .clickable(onClick = onToggle)
             .padding(horizontal = 24.dp, vertical = DRAG_HANDLE_VERTICAL_PADDING),
         contentAlignment = Alignment.Center,

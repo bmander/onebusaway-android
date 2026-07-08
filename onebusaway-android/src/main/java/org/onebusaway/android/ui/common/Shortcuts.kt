@@ -18,13 +18,14 @@ package org.onebusaway.android.ui.common
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.PorterDuff
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.LayerDrawable
 import androidx.annotation.DrawableRes
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.BlendModeColorFilterCompat
+import androidx.core.graphics.BlendModeCompat
+import androidx.core.graphics.createBitmap
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.content.res.ResourcesCompat
@@ -55,7 +56,7 @@ object Shortcuts {
             context,
             shortcutName,
             builder.intent,
-            R.drawable.ic_stop_flag_triangle
+            R.drawable.stop_flag
         )
         ShortcutManagerCompat.requestPinShortcut(context, shortcut, null)
         return shortcut
@@ -77,7 +78,7 @@ object Shortcuts {
             context,
             routeName,
             RouteInfoLauncher.makeIntent(context, routeId),
-            R.drawable.ic_trip_details
+            R.drawable.ic_route
         )
         ShortcutManagerCompat.requestPinShortcut(context, shortcut, null)
         return shortcut
@@ -110,9 +111,9 @@ object Shortcuts {
 
         val drawableIcon: Drawable = ResourcesCompat
             .getDrawable(context.resources, icon, context.theme)!!
-        drawableIcon.setColorFilter(
+        drawableIcon.colorFilter = BlendModeColorFilterCompat.createBlendModeColorFilterCompat(
             ContextCompat.getColor(context, R.color.shortcut_icon),
-            PorterDuff.Mode.SRC_IN
+            BlendModeCompat.SRC_IN
         )
         val drawableBackground: Drawable = ResourcesCompat
             .getDrawable(context.resources, R.drawable.launcher_background, context.theme)!!
@@ -130,11 +131,7 @@ object Shortcuts {
         val iconInset = ViewUtils.dpToPixels(context, 7.0f)
         layerDrawable.setLayerInset(1, iconInset, iconInset, iconInset, iconInset)
 
-        val b = Bitmap.createBitmap(
-            layerDrawable.intrinsicWidth,
-            layerDrawable.intrinsicHeight,
-            Bitmap.Config.ARGB_8888
-        )
+        val b = createBitmap(layerDrawable.intrinsicWidth, layerDrawable.intrinsicHeight)
         val canvas = Canvas(b)
         layerDrawable.setBounds(0, 0, canvas.width, canvas.height)
         layerDrawable.draw(canvas)

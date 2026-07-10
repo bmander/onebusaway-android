@@ -299,6 +299,7 @@ fun ArrivalsScreen(
                     handler = handler,
                     onLoadMore = onLoadMore,
                     onShowAllRoutes = onShowAllRoutes,
+                    onHideAllAlerts = onHideAllAlerts,
                     onShowHiddenAlerts = onShowHiddenAlerts
                 )
 
@@ -396,6 +397,7 @@ internal fun ArrivalsList(
     handler: ArrivalActionHandler,
     onLoadMore: () -> Unit,
     onShowAllRoutes: () -> Unit,
+    onHideAllAlerts: () -> Unit,
     onShowHiddenAlerts: () -> Unit,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
@@ -433,6 +435,14 @@ internal fun ArrivalsList(
         // composition so it can't peek through the collapsed sheet fold, then reveals with the drag.
         if (showFullList) {
             if (content.alerts.isNotEmpty()) {
+                item(key = "hide_all_alerts") {
+                    // A prominent "hide all" affordance above the alerts (#1534) — the toolbar
+                    // overflow's "hide alerts" is easy to miss, so surface the count and action here.
+                    HideAllAlertsBanner(
+                        shownAlertCount = content.alerts.size,
+                        onHideAllAlerts = onHideAllAlerts
+                    )
+                }
                 item(key = "alerts") {
                     AlertList(
                         alerts = content.alerts,
@@ -519,6 +529,36 @@ internal fun ArrivalsList(
                     Text(stringResource(R.string.stop_info_load_more_arrivals))
                 }
             }
+        }
+    }
+}
+
+/**
+ * A banner above the alert list showing how many active alerts are shown, with a "hide all" action
+ * (#1534). Mirrors the hidden-alerts footnote below the list, but the action is a distinct button so
+ * tapping the count doesn't hide everything by accident.
+ */
+@Composable
+private fun HideAllAlertsBanner(shownAlertCount: Int, onHideAllAlerts: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .padding(start = 16.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = pluralStringResource(
+                R.plurals.alert_shown_text,
+                shownAlertCount,
+                shownAlertCount
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onHideAllAlerts) {
+            Text(stringResource(R.string.hide_all))
         }
     }
 }

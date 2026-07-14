@@ -201,6 +201,7 @@ data class RouteBadge(
     val routeShortName: String,
     val color: Int,
     val point: GeoPoint,
+    val directionId: Int?,
 )
 
 /**

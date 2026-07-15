@@ -66,6 +66,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.util.Locale
+import org.onebusaway.android.BuildConfig
 import org.onebusaway.android.R
 import org.onebusaway.android.app.di.AnalyticsEntryPoint
 import org.onebusaway.android.analytics.PlausibleAnalytics
@@ -80,6 +82,7 @@ import org.onebusaway.android.map.bike.BikeStation
 import org.onebusaway.android.map.compose.ObaMap
 import org.onebusaway.android.map.compose.ObaMapCallbacks
 import org.onebusaway.android.map.render.GeoPoint
+import org.onebusaway.android.map.render.routeLineWidthScale
 import org.onebusaway.android.ui.home.FocusedStop
 import org.onebusaway.android.ui.home.HomeViewModel
 import org.onebusaway.android.ui.home.MapDirective
@@ -298,6 +301,7 @@ fun MapFeature(
     // persistence. remember()ed so cameraSeed's Bundle alloc doesn't re-run; a config change recreates
     // this composition, so MapLibre still re-reads the live camera.
     val seed = remember(mapViewModel) { mapViewModel.cameraSeed }
+    val camera by mapViewModel.camera.collectAsStateWithLifecycle()
     ObaMap(
         host = mapViewModel.host,
         callbacks = callbacks,
@@ -324,6 +328,24 @@ fun MapFeature(
             banner = stopsBanner,
             modifier = Modifier.align(Alignment.TopCenter),
         )
+        if (BuildConfig.DEBUG) {
+            val zoom = camera?.zoom?.toFloat() ?: seed.zoom
+            Text(
+                text = String.format(
+                    Locale.US,
+                    "Zoom %.2f · route %.2f×",
+                    zoom,
+                    routeLineWidthScale(zoom),
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
     }
 
     // The welcome tutorial's map-stop spotlight, wired from the flavor-neutral map seam (the published

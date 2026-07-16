@@ -157,7 +157,7 @@ fun MapFeature(
             }
 
             override fun onMapClick(point: GeoPoint?) {
-                homeViewModel.requestClearMapFocus()
+                homeViewModel.unfocusMapOneLevel()
             }
 
             override fun onBikeClick(station: BikeStation) {

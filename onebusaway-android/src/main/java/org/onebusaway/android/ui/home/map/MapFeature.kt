@@ -188,7 +188,12 @@ fun MapFeature(
                 routeShortName: String,
                 directionId: Int?,
             ) {
-                homeViewModel.advanceRouteContinuation(routeId, routeShortName, directionId)
+                homeViewModel.advanceRouteContinuation(
+                    routeId,
+                    routeShortName,
+                    directionId,
+                    undoViewport = mapViewModel.viewport,
+                )
             }
 
             override fun onRouteBadgeClick(
@@ -196,7 +201,12 @@ fun MapFeature(
                 routeShortName: String,
                 directionId: Int?,
             ) {
-                homeViewModel.requestShowFocusedStopRouteOnMap(routeId, directionId, routeShortName)
+                homeViewModel.requestShowFocusedStopRouteOnMap(
+                    routeId,
+                    directionId,
+                    routeShortName,
+                    undoViewport = mapViewModel.viewport,
+                )
             }
 
             override fun onVehicleInfoWindowClick(status: ObaTripStatus) {
@@ -224,7 +234,14 @@ fun MapFeature(
                 is MapDirective.RecenterOnFocusedStop ->
                     mapViewModel.recenterOnFocusedStop(directive.lat, directive.lon)
                 is MapDirective.ShowRoute ->
-                    mapViewModel.toRoute(directive.request, directive.stopScoped)
+                    mapViewModel.toRoute(
+                        directive.request,
+                        directive.stopScoped,
+                        directive.frameRoute,
+                    )
+                is MapDirective.RestoreViewport ->
+                    mapViewModel.restoreViewport(directive.viewport)
+                MapDirective.FrameRoute -> mapViewModel.frameRoute()
                 is MapDirective.ShowStopRoutes ->
                     mapViewModel.showStopRoutes(
                         directive.stopId,
@@ -235,7 +252,12 @@ fun MapFeature(
                 MapDirective.ClearSelectedRoute -> mapViewModel.clearSelectedRoute()
                 MapDirective.ClearFocus -> mapViewModel.clearAllFocus()
                 is MapDirective.FocusStop ->
-                    mapViewModel.focusStop(directive.stop, directive.routes, directive.overlayExpanded)
+                    mapViewModel.focusStop(
+                        directive.stop,
+                        directive.routes,
+                        directive.overlayExpanded,
+                        directive.recenter,
+                    )
             }
         }
     }
